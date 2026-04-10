@@ -1111,16 +1111,38 @@ try {
 }
 
 // 2. Shutdown all teammates — track confirmed alive/dead for adaptive grace
+// FORCE-REPLY PATTERN (fixes GitHub #31389):
+// Teammates only process shutdown_request if their last turn included SendMessage.
+// Step 2a sends a plain text message to ALL members first (batched),
+// then Step 2b pauses once, then Step 2c sends shutdown_request to alive members.
 let confirmedAlive = 0, confirmedDead = 0
+const aliveMembers = []
+
+// Step 2a: Batch force-reply — put ALL teammates in message-processing state
 for (const member of allMembers) {
-  try { SendMessage({ type: "shutdown_request", recipient: member, content: `${label} complete` }); confirmedAlive++ } catch (e) { confirmedDead++ /* member may have already exited */ }
+  try { SendMessage({ type: "message", recipient: member, content: "Acknowledge: workflow completing" }); aliveMembers.push(member) } catch (e) { confirmedDead++ /* member already exited */ }
+}
+// Step 2b: Single shared pause — teammates process the force-reply message
+if (aliveMembers.length > 0) { Bash("sleep 2") }
+// Step 2c: Send shutdown_request to alive members
+for (const member of aliveMembers) {
+  try { SendMessage({ type: "shutdown_request", recipient: member, content: `${label} complete` }); confirmedAlive++ } catch (e) { confirmedDead++ }
 }
 
 // 3. Adaptive grace period — scale based on confirmed-alive members
+// VEIL-002: Check process liveness before declaring "all dead".
+// SendMessage failure does NOT guarantee process exit — processes may be hung.
 if (confirmedAlive > 0) {
   Bash(`sleep ${Math.min(20, Math.max(5, confirmedAlive * 5))}`)
 } else {
-  Bash("sleep 2")
+  // VEIL-002: Check for hung processes before defaulting to minimal grace
+  const hangCheck = Bash(`pgrep -P $PPID 2>/dev/null | wc -l`).trim()
+  const processesStillRunning = parseInt(hangCheck, 10) || 0
+  if (processesStillRunning > 0) {
+    Bash(`sleep ${Math.min(15, Math.max(5, processesStillRunning * 3))}`)
+  } else {
+    Bash("sleep 2")
+  }
 }
 
 // 3.3. Finalize per-agent artifacts (non-blocking — skip if library or runs/ absent)
@@ -1151,10 +1173,20 @@ for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
 }
 // Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
 if (!cleanupTeamDeleteSucceeded) {
-  // 5a. Process-level kill — terminate lingering teammates before filesystem cleanup
-  Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio && continue; kill -TERM "$pid" 2>/dev/null ;; esac; done`)
-  Bash(`sleep 5`)
-  Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio && continue; kill -KILL "$pid" 2>/dev/null ;; esac; done`)
+  // 5a. Process-level kill — READ-FIRST, KILL-SECOND (MCP-PROTECT-003)
+  // MANDATORY: Claude Code MUST read and understand the process list before killing ANY process.
+  // Step 1: READ — list all child processes with full details
+  const processListOutput = Bash(`ps -o pid,ppid,comm,args -p $(pgrep -P $PPID 2>/dev/null | head -30 | tr '\\n' ',') 2>/dev/null || echo "NO_CHILDREN"`)
+  // Step 2: UNDERSTAND — Claude Code classifies each process:
+  //   TEAMMATE (kill):   comm=node|claude|claude-*, args has NO --stdio/--lsp/mcp-server/connector
+  //   MCP_SERVER (keep): args contains --stdio, --lsp, mcp-server, mcp*server, figma-developer-mcp, context7-mcp
+  //   CONNECTOR (keep):  args contains @anthropic*connector or claude-connector
+  //   OTHER (keep):      comm is NOT node|claude|claude-*
+  // Step 3: KILL — only PIDs classified as TEAMMATE from Step 2
+  // Build kill list from classification (only TEAMMATE PIDs)
+  // Bash(`kill -TERM <teammate_pids> 2>/dev/null || true`)
+  // Bash(`sleep 5`)
+  // Bash(`kill -KILL <teammate_pids> 2>/dev/null || true`)  // survivors only
   // 5b. Filesystem cleanup
   Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/" 2>/dev/null`)
   // Deep mode: also clean wave-suffixed teams (v1.67.0+)

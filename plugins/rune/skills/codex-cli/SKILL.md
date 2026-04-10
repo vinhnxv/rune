@@ -199,7 +199,7 @@ designated path. Even skip/error messages are written so downstream phases know 
 
 ## Architecture Rules
 
-1. **Separate teammate**: Codex MUST run on a separate teammate (`Task` with `run_in_background: true`).
+1. **Separate teammate**: Codex MUST run on a separate teammate (`Agent` with `run_in_background: true`).
    Do not inline in the orchestrator. This isolates untrusted codex output from the main context window.
 
    **Lightweight Inline Exception** (v1.39.0+): Integration points that meet ALL of the following
