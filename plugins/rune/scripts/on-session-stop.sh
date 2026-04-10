@@ -169,7 +169,8 @@ _check_loop_ownership() {
       current_sid=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
     fi
     # Validate format (SEC-004)
-    if [[ -n "$current_sid" ]] && [[ ! "$current_sid" =~ ^[a-zA-Z0-9_-]{1,128}$ ]]; then
+    # NOTE: {1,128} quantifier not supported in Bash 3.2 (macOS) — use + and length check
+    if [[ -n "$current_sid" ]] && { [[ ${#current_sid} -gt 128 ]] || [[ ! "$current_sid" =~ ^[a-zA-Z0-9_-]+$ ]]; }; then
       current_sid=""
     fi
     if [[ -n "$current_sid" && "$sid" != "$current_sid" ]]; then

@@ -356,8 +356,9 @@ if [[ -n "$_raw_phase_summaries" ]]; then
     _group="${_entry%%:*}"
     _path="${_entry#*:}"
     # Validate (allowlist chars, prevent traversal, verify file exists)
-    [[ "$_group" =~ ^[a-zA-Z0-9_-]{1,32}$ ]] || continue
-    [[ "$_path" =~ ^[a-zA-Z0-9._/-]{1,256}$ ]] || continue
+    # NOTE: {1,N} quantifier not supported in Bash 3.2 (macOS) — use + and length check
+    [[ ${#_group} -le 32 ]] && [[ "$_group" =~ ^[a-zA-Z0-9_-]+$ ]] || continue
+    [[ ${#_path} -le 256 ]] && [[ "$_path" =~ ^[a-zA-Z0-9._/-]+$ ]] || continue
     [[ "$_path" == *".."* ]] && continue
     [[ -f "${CWD}/${_path}" ]] && [[ ! -L "${CWD}/${_path}" ]] || continue
     _valid_summaries="${_valid_summaries} ${_group}:${_path}"

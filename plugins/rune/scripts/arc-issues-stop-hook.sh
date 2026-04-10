@@ -170,7 +170,8 @@ _CURRENT_ISSUE_NUM=$(echo "$PROGRESS_CONTENT" | jq -r '
 ' 2>/dev/null || true)
 
 # Validate issue number: numeric only (SEC-001)
-if [[ -n "$_CURRENT_ISSUE_NUM" ]] && [[ ! "$_CURRENT_ISSUE_NUM" =~ ^[0-9]{1,7}$ ]]; then
+# NOTE: {1,7} quantifier not supported in Bash 3.2 (macOS) — use + and length check
+if [[ -n "$_CURRENT_ISSUE_NUM" ]] && { [[ ${#_CURRENT_ISSUE_NUM} -gt 7 ]] || [[ ! "$_CURRENT_ISSUE_NUM" =~ ^[0-9]+$ ]]; }; then
   _trace "Invalid issue number format — sanitizing to empty"
   _CURRENT_ISSUE_NUM=""
 fi
@@ -374,7 +375,8 @@ NEXT_ISSUE_NUM=$(echo "$UPDATED_PROGRESS" | jq -r '
 ' 2>/dev/null || true)
 
 # Validate next issue number: numeric only (SEC-001)
-if [[ -n "$NEXT_ISSUE_NUM" ]] && [[ ! "$NEXT_ISSUE_NUM" =~ ^[0-9]{1,7}$ ]]; then
+# NOTE: {1,7} quantifier not supported in Bash 3.2 (macOS) — use + and length check
+if [[ -n "$NEXT_ISSUE_NUM" ]] && { [[ ${#NEXT_ISSUE_NUM} -gt 7 ]] || [[ ! "$NEXT_ISSUE_NUM" =~ ^[0-9]+$ ]]; }; then
   _trace "Invalid next issue number format — sanitizing to empty"
   NEXT_ISSUE_NUM=""
 fi

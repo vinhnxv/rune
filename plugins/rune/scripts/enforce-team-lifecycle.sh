@@ -133,7 +133,8 @@ fi
 # ── EXTRACT: session_id from hook input (for session-scoped stale scan) ──
 HOOK_SESSION_ID=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
 # SEC-004: Validate session_id format to prevent injection via crafted hook input
-if [[ -n "$HOOK_SESSION_ID" ]] && [[ ! "$HOOK_SESSION_ID" =~ ^[a-zA-Z0-9_-]{1,128}$ ]]; then
+# NOTE: {1,128} quantifier not supported in Bash 3.2 (macOS) — use + and length check
+if [[ -n "$HOOK_SESSION_ID" ]] && { [[ ${#HOOK_SESSION_ID} -gt 128 ]] || [[ ! "$HOOK_SESSION_ID" =~ ^[a-zA-Z0-9_-]+$ ]]; }; then
   [[ "${RUNE_TRACE:-}" == "1" ]] && echo "TLC-001: Invalid session_id format — sanitizing to empty" >> "$_RUNE_TRACE_PATH" 2>/dev/null
   HOOK_SESSION_ID=""
 fi

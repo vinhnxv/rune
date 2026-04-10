@@ -43,7 +43,8 @@ _gh_timeout() {
 # ── Validate issue number format (numeric only, 1-7 digits) ──
 _is_valid_issue_num() {
   local num="$1"
-  [[ "$num" =~ ^[0-9]{1,7}$ ]] && [[ "$num" -gt 0 ]]
+  # NOTE: {1,7} quantifier not supported in Bash 3.2 (macOS) — use + and length check
+  [[ ${#num} -le 7 ]] && [[ "$num" =~ ^[0-9]+$ ]] && [[ "$num" -gt 0 ]]
 }
 
 # ── Collect issue numbers from args or stdin ──

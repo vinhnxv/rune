@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.43.2] - 2026-04-10
+
+### Fixed
+- **Bash 3.2 `{n,m}` regex crash**: Replace all `{n,m}` repetition quantifiers in `[[ =~ ]]` across 14 shell scripts — Bash 3.2 (macOS default) does not support ERE `{n,m}` in `=~`, causing "invalid repetition count" errors that silently kill arc phase Stop hooks via ERR trap. Critical fix for `arc-phase-stop-hook.sh:146` (root cause of phase loop death on all repos), `lib/stop-hook-common.sh:939` (`_iso_to_epoch` crash), and `lib/platform.sh` (timestamp parsing). Uses explicit `[0-9][0-9]` repetition or `+`/`*` with `${#var}` length checks
+- **test-cross-platform.sh**: Replace `mapfile` (Bash 4+) with `while read` loop for Bash 3.2 compatibility
+
 ## [2.43.1] - 2026-04-10
 
 ### Fixed

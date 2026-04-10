@@ -114,7 +114,8 @@ classify_stop_failure() {
       if [[ -n "${INPUT:-}" ]] && command -v jq &>/dev/null; then
         _session_id=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
         # SEC-004: Validate session_id format
-        if [[ -n "$_session_id" ]] && [[ ! "$_session_id" =~ ^[a-zA-Z0-9_-]{1,128}$ ]]; then
+        # NOTE: {1,128} quantifier not supported in Bash 3.2 (macOS) — use + and length check
+        if [[ -n "$_session_id" ]] && { [[ ${#_session_id} -gt 128 ]] || [[ ! "$_session_id" =~ ^[a-zA-Z0-9_-]+$ ]]; }; then
           _session_id=""
         fi
       fi

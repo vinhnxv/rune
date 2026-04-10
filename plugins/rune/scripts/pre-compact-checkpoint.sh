@@ -348,8 +348,9 @@ if [[ "$arc_checkpoint" != "{}" ]]; then
     _built_summaries="{}"
     while IFS=$'\t' read -r _group _path; do
       # Validate group name and path (SEC: allowlist chars, prevent traversal)
-      [[ "$_group" =~ ^[a-zA-Z0-9_-]{1,32}$ ]] || continue
-      [[ "$_path" =~ ^[a-zA-Z0-9._/-]{1,256}$ ]] || continue
+      # NOTE: {1,N} quantifier not supported in Bash 3.2 (macOS) — use + and length check
+      [[ ${#_group} -le 32 ]] && [[ "$_group" =~ ^[a-zA-Z0-9_-]+$ ]] || continue
+      [[ ${#_path} -le 256 ]] && [[ "$_path" =~ ^[a-zA-Z0-9._/-]+$ ]] || continue
       [[ "$_path" == *".."* ]] && continue
       # Verify file exists on disk
       _full="${CWD}/${_path}"

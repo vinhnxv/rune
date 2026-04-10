@@ -194,7 +194,8 @@ _validate_session_ownership_core() {
     hook_session_id=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
   fi
   # Validate: alphanumeric, hyphens, underscores only, max 128 chars. Reject invalid values.
-  if [[ -n "$hook_session_id" ]] && ! [[ "$hook_session_id" =~ ^[a-zA-Z0-9_-]{1,128}$ ]]; then
+  # NOTE: {1,128} quantifier not supported in Bash 3.2 (macOS) — use + and length check
+  if [[ -n "$hook_session_id" ]] && { [[ ${#hook_session_id} -gt 128 ]] || ! [[ "$hook_session_id" =~ ^[a-zA-Z0-9_-]+$ ]]; }; then
     hook_session_id=""
   fi
 
@@ -842,10 +843,11 @@ _find_arc_checkpoint() {
   local newest="" newest_mtime=0
 
   # XVER-SEC-006 FIX: Defense-in-depth — validate HOOK_SESSION_ID locally before grep interpolation
-  # CLD-002 FIX: Align to ^[a-zA-Z0-9_-]{1,128}$ (consistent with arc-stop-hook-common.sh:349)
+  # CLD-002 FIX: Align to ^[a-zA-Z0-9_-]+$ with length check (consistent with arc-stop-hook-common.sh:349)
   # CLD-003 FIX: Use local variable instead of mutating global HOOK_SESSION_ID
+  # NOTE: {1,128} quantifier not supported in Bash 3.2 (macOS) — use + and length check
   local _safe_session_id="${HOOK_SESSION_ID:-}"
-  if [[ -n "$_safe_session_id" ]] && [[ ! "$_safe_session_id" =~ ^[a-zA-Z0-9_-]{1,128}$ ]]; then
+  if [[ -n "$_safe_session_id" ]] && { [[ ${#_safe_session_id} -gt 128 ]] || [[ ! "$_safe_session_id" =~ ^[a-zA-Z0-9_-]+$ ]]; }; then
     _safe_session_id=""
   fi
 
@@ -934,7 +936,8 @@ _iso_to_epoch() {
     ts="${ts%%.*}Z"
   fi
   # Validate strict format: YYYY-MM-DDTHH:MM:SSZ (no other chars allowed)
-  [[ "$ts" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] || return 1
+  # NOTE: {N} quantifier not supported in Bash 3.2 (macOS) — use explicit repetition
+  [[ "$ts" =~ ^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z$ ]] || return 1
   local result
   result=$(_parse_iso_epoch "$ts")
   # R1-009 FIX: Use empty-string check — "0" is valid (Unix epoch 0 = 1970-01-01T00:00:00Z)

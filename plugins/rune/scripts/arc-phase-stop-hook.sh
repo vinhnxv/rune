@@ -143,7 +143,10 @@ PLAN_FILE=$(get_field "plan_file")
 BRANCH=$(get_field "branch")
 ARC_FLAGS=$(get_field "arc_flags")
 # Validate ARC_FLAGS before prompt embedding (SEC-001: only allow known flag characters)
-[[ "$ARC_FLAGS" =~ ^[a-zA-Z0-9\ _.=-]{0,256}$ ]] || ARC_FLAGS=""
+# NOTE: {0,256} quantifier not supported in Bash 3.2 (macOS) — use * + length check
+if [[ ${#ARC_FLAGS} -gt 256 ]] || [[ -n "$ARC_FLAGS" && ! "$ARC_FLAGS" =~ ^[a-zA-Z0-9\ _.=-]*$ ]]; then
+  ARC_FLAGS=""
+fi
 # Validate PLAN_FILE: reject path traversal and invalid characters (BACK-101)
 # CHECKPOINT_PATH has rigorous validation below (lines 138-152); PLAN_FILE gets the same treatment here.
 if [[ -z "$PLAN_FILE" ]] || [[ "$PLAN_FILE" == *".."* ]] || [[ "$PLAN_FILE" =~ [^a-zA-Z0-9._/-] ]]; then
@@ -264,7 +267,8 @@ fi
 
 # ── EXTRACT: session_id for session-scoped operations ──
 HOOK_SESSION_ID=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
-if [[ -n "$HOOK_SESSION_ID" ]] && [[ ! "$HOOK_SESSION_ID" =~ ^[a-zA-Z0-9_-]{1,128}$ ]]; then
+# NOTE: {1,128} quantifier not supported in Bash 3.2 (macOS) — use + and length check
+if [[ -n "$HOOK_SESSION_ID" ]] && { [[ ${#HOOK_SESSION_ID} -gt 128 ]] || [[ ! "$HOOK_SESSION_ID" =~ ^[a-zA-Z0-9_-]+$ ]]; }; then
   _trace "Invalid session_id format — sanitizing to empty"
   HOOK_SESSION_ID=""
 fi

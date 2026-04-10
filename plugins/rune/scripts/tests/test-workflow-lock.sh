@@ -180,7 +180,8 @@ fi
 # 2h. meta.json contains timestamp
 wf_ts=$(jq -r '.started' "$LOCK_BASE/test-wf1/meta.json" 2>/dev/null || echo "")
 TOTAL_COUNT=$(( TOTAL_COUNT + 1 ))
-if [[ "$wf_ts" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T ]]; then
+# NOTE: {N} quantifier not supported in Bash 3.2 (macOS) — use explicit repetition
+if [[ "$wf_ts" =~ ^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T ]]; then
   PASS_COUNT=$(( PASS_COUNT + 1 ))
   printf "  PASS: meta.json has ISO timestamp\n"
 else
