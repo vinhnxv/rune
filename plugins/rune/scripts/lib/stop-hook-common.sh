@@ -264,12 +264,13 @@ _validate_session_ownership_core() {
     # Process tree guard: verify hook is descendant of the owning session
     if [[ -n "$stored_pid" && "$stored_pid" =~ ^[0-9]+$ ]]; then
       local _ancestor="$PPID" _is_descendant=false
-      # VEIL-001: Walk up to 4 levels of the process tree. Observed chain depth as of
+      # VEIL-001: Walk up to 8 levels of the process tree. Observed chain depth as of
       # Claude Code 2.1.63: hook script (bash) → hook runner (node) → node worker → Claude Code
-      # session PID. 4 is sufficient for current architecture; increase if Claude Code adds
-      # intermediate processes (e.g., sandbox wrappers).
+      # session PID = 3-4 levels. Increased from 4 to 8 (v2.39.2) to accommodate
+      # sandbox wrappers, PTY layers, tmux/screen, and Greater-Will orchestration
+      # that add intermediate processes between hook and Claude Code PID.
       local _walk
-      for _walk in 1 2 3 4; do
+      for _walk in 1 2 3 4 5 6 7 8; do
         _ancestor=$(ps -o ppid= -p "$_ancestor" 2>/dev/null | tr -d ' ')
         [[ -n "$_ancestor" && "$_ancestor" =~ ^[0-9]+$ ]] || break
         [[ "$_ancestor" == "1" || "$_ancestor" == "0" ]] && break  # hit init/launchd
@@ -667,13 +668,16 @@ validate_state_file_integrity() {
   fi
 
   # ── INTEG-014: Branch drift — state file branch vs actual git branch ──
-  # If the state file says branch X but git is on branch Y, phases will execute on
-  # the wrong branch. This catches manual git checkout during arc execution.
+  # Downgraded from _integ_fail to _integ_warn (v2.39.2). Branch drift can occur
+  # legitimately during: detached HEAD (rebase, CI), worktree context, pre-commit
+  # hooks that checkout other branches, or parallel sessions. A hard fail here
+  # silently kills the arc (exit 0) with no user-visible message. The branch name
+  # in the phase prompt is informational — phases read the actual branch at runtime.
   if [[ -n "$_branch" ]] && [[ "$_branch" != "null" ]]; then
     local _git_branch=""
     _git_branch=$(cd "$cwd" && git branch --show-current 2>/dev/null || true)
     if [[ -n "$_git_branch" ]] && [[ "$_git_branch" != "$_branch" ]]; then
-      _integ_fail "INTEG-014" "branch drift: state file says '${_branch}' but git is on '${_git_branch}'"
+      _integ_warn "INTEG-014" "branch drift: state file says '${_branch}' but git is on '${_git_branch}' — continuing (non-blocking)"
     fi
   fi
 

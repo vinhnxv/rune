@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.43.3] - 2026-04-10
+
+### Fixed
+- **arc-phase-stop-hook.sh**: Re-parse FRONTMATTER after claim-on-first-touch in GUARD 5.7. Stale in-memory FRONTMATTER (still containing `session_id: unknown`) caused GUARD 5.8 INTEG-005 to reject valid state files on the very first Stop hook invocation, silently killing every arc before its second phase
+- **stop-hook-common.sh**: Increase process tree walk depth from 4 to 8 levels for claim-on-first-touch ancestry verification. Sandbox wrappers, PTY layers, tmux/screen, and Greater-Will orchestration add intermediate processes that exceeded the original depth, causing false ownership rejection
+- **stop-hook-common.sh**: Downgrade INTEG-014 (branch drift) from `_integ_fail` to `_integ_warn`. Branch changes during arc execution (detached HEAD, rebase, worktrees, parallel sessions) are legitimate and should not silently kill the pipeline
+- **arc-phase-stop-hook.sh**: Preserve STATE_FILE on iteration increment failure instead of deleting it. Transient disk errors (full, permissions) previously caused permanent arc death with no user notification — now the hook exits cleanly and retries on the next invocation
+
 ## [2.43.2] - 2026-04-10
 
 ### Fixed

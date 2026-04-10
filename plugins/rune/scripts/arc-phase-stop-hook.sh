@@ -283,6 +283,16 @@ if ! validate_session_ownership_strict "$STATE_FILE"; then
   exit 0
 fi
 
+# BUG FIX (v2.39.2): Re-parse FRONTMATTER after successful ownership check.
+# validate_session_ownership_strict may perform "claim on first touch" — writing
+# a new session_id and owner_pid to the state file on disk. The global FRONTMATTER
+# variable (parsed once at GUARD 5.5) still contains the old values (e.g.,
+# session_id: unknown). Without re-parsing, GUARD 5.8's INTEG-005 check reads
+# the stale "unknown" session_id from FRONTMATTER and rejects the state file,
+# silently killing the arc on the very first Stop hook invocation.
+# Also fixes INTEG-003 (checkpoint_path) reading stale data after GUARD 5.6 recovery.
+parse_frontmatter "$STATE_FILE"
+
 # ── GUARD 5.8: State file integrity validation (v2.29.8) ──
 # Validates ALL fields in the state file for completeness, correct format, and cross-field
 # consistency BEFORE any phase processing. Catches LLM variable drift (config_dir=tmp/arc/...),
@@ -1441,12 +1451,17 @@ if [[ ! -s "$STATE_FILE" ]]; then
   _trace "State file empty before iteration increment — aborting"
   exit 0
 fi
-_STATE_TMP=$(mktemp "${STATE_FILE}.XXXXXX" 2>/dev/null) || { rm -f "$STATE_FILE" 2>/dev/null; exit 0; }
+# BUG FIX (v2.39.2): On mv failure, preserve STATE_FILE instead of deleting it.
+# Previously, a transient mv failure (disk full, permissions) would delete the state
+# file, permanently killing the arc loop with no user notification. Now the state file
+# is preserved and the hook exits 0 — the next Stop hook invocation will retry with
+# the old iteration count (idempotent, since the phase hasn't changed).
+_STATE_TMP=$(mktemp "${STATE_FILE}.XXXXXX" 2>/dev/null) || { _trace "mktemp failed for iteration increment — preserving state file"; exit 0; }
 sed "s/^iteration: ${ITERATION}$/iteration: ${NEW_ITERATION}/" "$STATE_FILE" > "$_STATE_TMP" 2>/dev/null \
   && mv -f "$_STATE_TMP" "$STATE_FILE" 2>/dev/null \
-  || { rm -f "$_STATE_TMP" "$STATE_FILE" 2>/dev/null; exit 0; }
+  || { rm -f "$_STATE_TMP" 2>/dev/null; _trace "iteration increment mv failed — preserving state file, will retry"; exit 0; }
 if ! grep -q "^iteration: ${NEW_ITERATION}$" "$STATE_FILE" 2>/dev/null; then
-  rm -f "$STATE_FILE" 2>/dev/null
+  _trace "iteration increment verification failed — preserving state file, will retry"
   exit 0
 fi
 
