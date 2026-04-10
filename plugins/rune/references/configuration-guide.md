@@ -590,7 +590,7 @@ echoes:
   # auto_observation: true             # Auto-record Observations-tier echoes after task completion
 
 review:
-  # Context building (v1.99.0+) — architectural comprehension before Ash review
+  # Context building (v2.44.0+) — architectural comprehension before Ash review
   context_building: "auto"               # "auto" | "always" | "never" — gate context-builder agent
   context_building_threshold:
     lines: 500                           # Trigger when diff exceeds N lines (50-10000)
