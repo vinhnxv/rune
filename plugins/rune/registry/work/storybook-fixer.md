@@ -108,7 +108,7 @@ WHILE currentRound < maxRounds:
   // IMPORTANT: ONE change only per round
 
   // Step 4: Post-fix stabilization probe
-  Bash("sleep 3")  // Wait for Storybook HMR to propagate
+  Bash("sleep 3", { run_in_background: true })  // Wait for Storybook HMR to propagate
 
   // Step 5: Re-verify via agent-browser
   Navigate to story URL → screenshot → analyze

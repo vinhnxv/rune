@@ -328,7 +328,7 @@ for (let waveIdx = 0; waveIdx < totalWaves; waveIdx++) {
         : fixer.name
       SendMessage({ type: "shutdown_request", recipient: fixerName, content: "Wave complete" })
     }
-    Bash("sleep 12")  // Grace period — let fixers deregister (12s for reliable async deregistration)
+    Bash("sleep 12", { run_in_background: true })  // Grace period — let fixers deregister (12s for reliable async deregistration)
   }
 }
 ```

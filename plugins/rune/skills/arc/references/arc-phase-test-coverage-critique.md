@@ -133,7 +133,7 @@ if (!exists(`tmp/arc/${id}/test-critique.md`)) {
 
 // Cleanup team (single-member optimization: 12s grace — must exceed async deregistration time)
 try { SendMessage({ type: "shutdown_request", recipient: "codex-phase-handler-tc", content: "Phase complete" }) } catch (e) { /* member may have already exited */ }
-Bash("sleep 12")
+Bash("sleep 12", { run_in_background: true })
 // Retry-with-backoff pattern per CLAUDE.md cleanup standard (4 attempts: 0s, 3s, 6s, 10s)
 let tcCleanupSucceeded = false
 const TC_CLEANUP_DELAYS = [0, 3000, 6000, 10000]
@@ -146,7 +146,7 @@ for (let attempt = 0; attempt < TC_CLEANUP_DELAYS.length; attempt++) {
 // Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
 if (!tcCleanupSucceeded) {
   Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio && continue; kill -TERM "$pid" 2>/dev/null ;; esac; done`)
-  Bash("sleep 5")
+  Bash("sleep 5", { run_in_background: true })
   Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio && continue; kill -KILL "$pid" 2>/dev/null ;; esac; done`)
   Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/" 2>/dev/null`)
   try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }

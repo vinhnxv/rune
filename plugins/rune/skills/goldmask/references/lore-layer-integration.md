@@ -81,7 +81,7 @@ Output format: { "files": [{ "path", "tier", "risk_score", "metrics": { "frequen
   const LORE_POLL_MS = 5_000
   const maxPolls = Math.ceil(LORE_TIMEOUT_MS / LORE_POLL_MS)
   for (let poll = 0; poll < maxPolls; poll++) {
-    Bash(`sleep ${LORE_POLL_MS / 1000}`)
+    Bash(`sleep ${LORE_POLL_MS / 1000}`, { run_in_background: true })
     try {
       riskMap = Read(`${outputDir}/risk-map.json`)
       if (riskMap && riskMap.trim().length > 0) {

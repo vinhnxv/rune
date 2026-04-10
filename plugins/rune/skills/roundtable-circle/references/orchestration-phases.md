@@ -489,7 +489,7 @@ for (const wave of waves) {
     }
     // Grace period — let wave teammates deregister
     if (wave.agents.length > 0) {
-      Bash(`sleep 20`)
+      Bash(`sleep 20`, { run_in_background: true })
     }
     // Force-delete remaining tasks to prevent zombie contamination
     const remaining = TaskList().filter(t => t.status !== "completed")
@@ -1133,7 +1133,7 @@ for (const member of aliveMembers) {
 // VEIL-002: Check process liveness before declaring "all dead".
 // SendMessage failure does NOT guarantee process exit — processes may be hung.
 if (confirmedAlive > 0) {
-  Bash(`sleep ${Math.min(20, Math.max(5, confirmedAlive * 5))}`)
+  Bash(`sleep ${Math.min(20, Math.max(5, confirmedAlive * 5))}`, { run_in_background: true })
 } else {
   // VEIL-002: Check for hung processes before defaulting to minimal grace
   const hangCheck = Bash(`pgrep -P $PPID 2>/dev/null | wc -l`).trim()
@@ -1168,7 +1168,7 @@ try {
 const CLEANUP_DELAYS = [0, 3000, 6000, 10000]
 let cleanupTeamDeleteSucceeded = false
 for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
-  if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)
+  if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`, { run_in_background: true })
   try { TeamDelete(); cleanupTeamDeleteSucceeded = true; break } catch (e) {}
 }
 // Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)

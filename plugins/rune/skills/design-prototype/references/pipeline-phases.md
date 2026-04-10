@@ -335,7 +335,7 @@ if (!flags.noStorybook && Glob(`${outputDir}/prototypes/*/prototype.tsx`).length
   // 2. Kill stale Storybook, launch fresh
   Bash(`lsof -ti:6006 | xargs kill -9 2>/dev/null || true`)
   Bash(`cd "${bootstrapResult.storybook_dir}" && npm run storybook &`)
-  Bash(`sleep 10`)
+  Bash(`sleep 10`, { run_in_background: true })
 
   // 3. Open full-page composition in browser
   const fullPage = bootstrapResult.full_page_component

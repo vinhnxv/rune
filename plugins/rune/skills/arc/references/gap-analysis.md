@@ -1240,7 +1240,7 @@ const maxIterations = Math.ceil(960000 / 30000) // 32 iterations
 for (let i = 0; i < maxIterations && !completed; i++) {
   const tasks = TaskList()
   completed = tasks.every(t => t.status === "completed")
-  if (!completed) Bash("sleep 30")
+  if (!completed) Bash("sleep 30", { run_in_background: true })
 }
 ```
 
@@ -1254,12 +1254,12 @@ if (!exists(`tmp/arc/${id}/codex-gap-analysis.md`)) {
 
 // Cleanup team (single-member optimization: 12s grace — must exceed async deregistration time)
 try { SendMessage({ type: "shutdown_request", recipient: "codex-phase-handler-ga", content: "Phase complete" }) } catch (e) { /* member may have already exited */ }
-Bash("sleep 12")
+Bash("sleep 12", { run_in_background: true })
 // Retry-with-backoff pattern per CLAUDE.md cleanup standard (4 attempts: 0s, 3s, 6s, 10s)
 let gaCleanupSucceeded = false
 const GA_CLEANUP_DELAYS = [0, 3000, 6000, 10000]
 for (let attempt = 0; attempt < GA_CLEANUP_DELAYS.length; attempt++) {
-  if (attempt > 0) Bash(`sleep ${GA_CLEANUP_DELAYS[attempt] / 1000}`)
+  if (attempt > 0) Bash(`sleep ${GA_CLEANUP_DELAYS[attempt] / 1000}`, { run_in_background: true })
   try { TeamDelete(); gaCleanupSucceeded = true; break } catch (e) {
     if (attempt === GA_CLEANUP_DELAYS.length - 1) warn(`cleanup: TeamDelete failed after ${GA_CLEANUP_DELAYS.length} attempts`)
   }
@@ -1267,7 +1267,7 @@ for (let attempt = 0; attempt < GA_CLEANUP_DELAYS.length; attempt++) {
 // Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
 if (!gaCleanupSucceeded) {
   Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio && continue; kill -TERM "$pid" 2>/dev/null ;; esac; done`)
-  Bash("sleep 5")
+  Bash("sleep 5", { run_in_background: true })
   Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio && continue; kill -KILL "$pid" 2>/dev/null ;; esac; done`)
   Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/" 2>/dev/null`)
   try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
@@ -1530,7 +1530,7 @@ if (!/^[a-zA-Z0-9_-]+$/.test(inspectTeamName)) {
     for (let i = 0; i < vbMaxIterations; i++) {
       const tl = TaskList()
       if (tl.filter(t => t.status === "completed").length >= tl.length) break
-      Bash("sleep 10")
+      Bash("sleep 10", { run_in_background: true })
     }
   } else {
     Write(`tmp/arc/${id}/gap-analysis-verdict.md`, "No inspector outputs found — gap analysis VERDICT unavailable.")
@@ -1541,13 +1541,13 @@ if (!/^[a-zA-Z0-9_-]+$/.test(inspectTeamName)) {
     try { SendMessage({ type: "shutdown_request", recipient: inspector }) } catch (e) { /* already exited */ }
   }
   try { SendMessage({ type: "shutdown_request", recipient: "verdict-binder" }) } catch (e) { /* already exited */ }
-  Bash("sleep 20")  // Grace period — let teammates deregister
+  Bash("sleep 20", { run_in_background: true })  // Grace period — let teammates deregister
 
   // TeamDelete with retry-with-backoff (4 attempts: 0s, 3s, 6s, 10s)
   let cleanupTeamDeleteSucceeded = false
   const CLEANUP_DELAYS = [0, 3000, 6000, 10000]
   for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
-    if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)
+    if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`, { run_in_background: true })
     try { TeamDelete(); cleanupTeamDeleteSucceeded = true; break } catch (e) {
       if (attempt === CLEANUP_DELAYS.length - 1) warn(`gap-analysis cleanup: TeamDelete failed after ${CLEANUP_DELAYS.length} attempts`)
     }

@@ -200,7 +200,7 @@ for (const [file, fileTodos] of fileGroups) {
 // waitForCompletion(): Defined in polling-guard skill / monitor-utility.md.
 // TaskList-based polling per Core Rule 9. Count arg is CUMULATIVE total.
 // maxIterations = ceil(timeoutMs / pollIntervalMs) = ceil(180000 / 30000) = 6
-// Per cycle: TaskList() → count completed → check stale → Bash("sleep 30") → repeat
+// Per cycle: TaskList() → count completed → check stale → Bash("sleep 30", { run_in_background: true }) → repeat
 const contextTaskCount = fileIdx
 // Context gathering is read-only (no analysis) → shorter 3 min timeout
 waitForCompletion(teamName, contextTaskCount, {

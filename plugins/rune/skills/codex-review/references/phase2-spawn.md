@@ -112,7 +112,7 @@ Each Claude agent prompt includes ANCHOR/RE-ANCHOR Truthbinding, nonce-bounded c
 ```javascript
 // ATE-1: ALL Codex agents MUST use team_name
 for (let i = 0; i < codexAgents.length; i++) {
-  if (i > 0) Bash(`sleep 2`)  // Stagger to avoid Codex API rate limits (SEC-RATE-001)
+  if (i > 0) Bash(`sleep 2`, { run_in_background: true })  // Stagger to avoid Codex API rate limits (SEC-RATE-001)
   const agent = codexAgents[i]
   Agent({
     team_name: teamName,

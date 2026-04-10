@@ -145,7 +145,7 @@ Let teammates process shutdown_request and deregister before TeamDelete.
 
 ```javascript
 if (allMembers.length > 0) {
-  Bash(`sleep 20`)
+  Bash(`sleep 20`, { run_in_background: true })
 }
 ```
 
@@ -178,7 +178,7 @@ if (!cleanupTeamDeleteSucceeded) {
   const ownerPid = Bash(`echo $PPID`).trim()
   if (ownerPid && /^\d+$/.test(ownerPid)) {
     Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio && continue; kill -TERM "$pid" 2>/dev/null ;; esac; done`)
-    Bash(`sleep 3`)
+    Bash(`sleep 3`, { run_in_background: true })
     Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio && continue; kill -KILL "$pid" 2>/dev/null ;; esac; done`)
   }
 }

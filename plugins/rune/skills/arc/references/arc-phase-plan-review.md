@@ -357,7 +357,7 @@ if (hasCodeBlocks) {
       // SDK still thinks we're leading another team — clear and retry
       try { TeamDelete() } catch (e2) { /* ignore */ }
       Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${layer2TeamName}/" "$CHOME/tasks/${layer2TeamName}/" 2>/dev/null`)
-      Bash(`sleep 5`)
+      Bash(`sleep 5`, { run_in_background: true })
       TeamCreate({ team_name: layer2TeamName, description: `Plan inspect: code sample review for arc ${id}` })
     } else {
       throw e  // Unknown error — propagate
@@ -528,7 +528,7 @@ if (layer2Active) {
   for (const inspector of inspectors) {
     try { SendMessage({ type: "shutdown_request", recipient: inspector, content: "Plan review complete" }) } catch(e) {}
   }
-  Bash("sleep 20")  // Grace period — let teammates deregister
+  Bash("sleep 20", { run_in_background: true })  // Grace period — let teammates deregister
   // Layer 2 cleanup: always use filesystem fallback
   // (SDK tracks Layer 1 as "current team" — TeamDelete() would delete Layer 1, not Layer 2)
   Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${layer2TeamName}/" "$CHOME/tasks/${layer2TeamName}/" 2>/dev/null`)
@@ -563,7 +563,7 @@ for (const member of allMembers) { SendMessage({ type: "shutdown_request", recip
 
 // Grace period — let teammates deregister before TeamDelete
 if (allMembers.length > 0) {
-  Bash(`sleep 20`)
+  Bash(`sleep 20`, { run_in_background: true })
 }
 
 // SEC-003: id validated at arc init (/^arc-[a-zA-Z0-9_-]+$/) — see Initialize Checkpoint section
@@ -571,7 +571,7 @@ if (allMembers.length > 0) {
 let cleanupTeamDeleteSucceeded = false
 const CLEANUP_DELAYS = [0, 3000, 6000, 10000]
 for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
-  if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)
+  if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`, { run_in_background: true })
   try { TeamDelete(); cleanupTeamDeleteSucceeded = true; break } catch (e) {
     if (attempt === CLEANUP_DELAYS.length - 1) warn(`arc-plan-review cleanup: TeamDelete failed after ${CLEANUP_DELAYS.length} attempts`)
   }
@@ -583,7 +583,7 @@ if (!cleanupTeamDeleteSucceeded) {
   const ownerPid = Bash(`echo $PPID`).trim()
   if (ownerPid && /^\d+$/.test(ownerPid)) {
     Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio \&\& continue; kill -TERM "$pid" 2>/dev/null ;; esac; done`)
-    Bash(`sleep 5`)
+    Bash(`sleep 5`, { run_in_background: true })
     Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio \&\& continue; kill -KILL "$pid" 2>/dev/null ;; esac; done`)
   }
   // 5b. Filesystem fallback with CHOME

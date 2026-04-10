@@ -261,7 +261,7 @@ for iteration in 1..maxIterations:
   count completed tasks
   if all tasks completed: break
   if stale (no progress for 3 cycles): warn and continue
-  Bash("sleep 30")
+  Bash("sleep 30", { run_in_background: true })
 ```
 
 ### Step 1.5 — Collect Reports

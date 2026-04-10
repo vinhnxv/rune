@@ -284,7 +284,7 @@ for iteration in 1..MAX_ITERATIONS:
   2. Count completed vs ashCount
   3. If completed >= ashCount → break
   4. Check stale: any task in_progress > 5 min → log warning
-  5. Call Bash("sleep 30")
+  5. Call Bash("sleep 30", { run_in_background: true })
 ```
 
 **Stale detection**: If a task is `in_progress` for > 5 minutes, log a warning. No auto-release — review Ash findings are non-fungible.

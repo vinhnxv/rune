@@ -150,7 +150,7 @@ if (verifyResult !== "ok") {
   const startCmd = testingConfig?.tiers?.e2e?.start_command
   if (startCmd && browserTestConfig.auto_start_server !== false) {
     Bash(`${startCmd} &`)
-    Bash("sleep 5")  // Wait for server startup
+    Bash("sleep 5", { run_in_background: true })  // Wait for server startup
     const retryResult = verifyServerWithSnapshot(baseUrl, sessionName)
     if (retryResult !== "ok") {
       warn(`Dev server not responding at ${baseUrl} after auto-start — skipping browser tests`)

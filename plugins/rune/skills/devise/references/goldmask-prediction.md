@@ -257,7 +257,7 @@ YOUR LIFECYCLE:
     const phase23aStart: number = Date.now()
     let completedCount: number = 0
     while (Date.now() - phase23aStart < PHASE_23A_TIMEOUT_MS) {
-      Bash("sleep 30")
+      Bash("sleep 30", { run_in_background: true })
       const tasks = TaskList()
       completedCount = countCompleted(tasks, ["Lore analysis", "Business logic", "Data layer", "API contract"])
       if (completedCount >= 4) break

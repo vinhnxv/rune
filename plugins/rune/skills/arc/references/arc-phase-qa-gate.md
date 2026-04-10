@@ -755,13 +755,13 @@ async function runQAGate(id, parentPhase, checkpoint) {
     for (const member of allQAMembers) {
       try { SendMessage({ type: "shutdown_request", recipient: member, content: "QA complete" }); confirmedAlive++ } catch (_) {}
     }
-    if (confirmedAlive > 0) Bash(`sleep ${Math.min(20, Math.max(5, confirmedAlive * 5))}`)
-    else Bash("sleep 2")
+    if (confirmedAlive > 0) Bash(`sleep ${Math.min(20, Math.max(5, confirmedAlive * 5))}`, { run_in_background: true })
+    else Bash("sleep 2", { run_in_background: true })
 
     const DELAYS = [0, 3000, 6000, 10000]
     let cleanupTeamDeleteSucceeded = false
     for (let i = 0; i < DELAYS.length; i++) {
-      if (i > 0) Bash(`sleep ${DELAYS[i] / 1000}`)
+      if (i > 0) Bash(`sleep ${DELAYS[i] / 1000}`, { run_in_background: true })
       try { TeamDelete({ team_name: qaTeamName }); cleanupTeamDeleteSucceeded = true; break } catch (_) {}
     }
     if (!cleanupTeamDeleteSucceeded) {

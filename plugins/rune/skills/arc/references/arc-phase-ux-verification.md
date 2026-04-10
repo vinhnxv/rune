@@ -154,7 +154,7 @@ const aliveMembers = []
 for (const member of allMembers) {
   try { SendMessage({ type: "message", recipient: member, content: "Acknowledge: workflow completing" }); aliveMembers.push(member) } catch (e) { confirmedDead++ }
 }
-if (aliveMembers.length > 0) { Bash("sleep 2") }
+if (aliveMembers.length > 0) { Bash("sleep 2", { run_in_background: true }) }
 
 // 2c. Send shutdown_request
 for (const member of aliveMembers) {
@@ -163,16 +163,16 @@ for (const member of aliveMembers) {
 
 // 3. Adaptive grace period
 if (confirmedAlive > 0) {
-  Bash(`sleep ${Math.min(20, Math.max(5, confirmedAlive * 5))}`)
+  Bash(`sleep ${Math.min(20, Math.max(5, confirmedAlive * 5))}`, { run_in_background: true })
 } else {
-  Bash("sleep 2")
+  Bash("sleep 2", { run_in_background: true })
 }
 
 // 4. TeamDelete with retry-with-backoff
 let cleanupTeamDeleteSucceeded = false
 const CLEANUP_DELAYS = [0, 3000, 6000, 10000]
 for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
-  if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)
+  if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`, { run_in_background: true })
   try { TeamDelete(); cleanupTeamDeleteSucceeded = true; break } catch (e) {
     if (attempt === CLEANUP_DELAYS.length - 1) warn(`ux-verification cleanup: TeamDelete failed after ${CLEANUP_DELAYS.length} attempts`)
   }
@@ -181,7 +181,7 @@ for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
 // 5. Filesystem fallback (QUAL-012)
 if (!cleanupTeamDeleteSucceeded) {
   Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio && continue; kill -TERM "$pid" 2>/dev/null ;; esac; done`)
-  Bash(`sleep 5`)
+  Bash(`sleep 5`, { run_in_background: true })
   Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio && continue; kill -KILL "$pid" 2>/dev/null ;; esac; done`)
   Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/arc-ux-${id}/" "$CHOME/tasks/arc-ux-${id}/" 2>/dev/null`)
   try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }

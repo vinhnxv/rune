@@ -152,7 +152,8 @@ function waitForCompletion(teamName, expectedCount, opts) {
       }
     }
 
-    sleep(pollIntervalMs)
+    Bash(`sleep ${pollIntervalMs / 1000}`, { run_in_background: true })
+    // Agent is notified when sleep completes, then loop continues
   }
 }
 ```

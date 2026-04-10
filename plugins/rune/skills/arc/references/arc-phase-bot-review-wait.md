@@ -358,7 +358,7 @@ ${fc.annotations.map(a => `- **${a.path}:${a.start_line}** [${a.annotation_level
 
       // Wait for new CI checks to start (30s initial wait)
       log(`CI fix loop: waiting 30s for new CI checks on ${newSha.slice(0, 8)}...`)
-      Bash("sleep 30")
+      Bash("sleep 30", { run_in_background: true })
 
       // Poll for new CI results (up to 5 min per attempt)
       const ciPollStart = Date.now()

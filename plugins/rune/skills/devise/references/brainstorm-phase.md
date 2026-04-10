@@ -102,7 +102,7 @@ for (const member of brainstormMembers) {
   SendMessage({ type: "shutdown_request", recipient: member, content: "Brainstorm complete — devise continuing to research" })
 }
 // Brief grace period for deregistration (shorter than full cleanup — no TeamDelete needed)
-Bash("sleep 10")
+Bash("sleep 10", { run_in_background: true })
 ```
 
 7. **Quality gate influences research**: If brainstorm quality score < 0.70, Phase 1 research agents should treat brainstorm decisions as "exploratory" and validate assumptions independently.

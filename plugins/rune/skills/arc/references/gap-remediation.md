@@ -451,13 +451,13 @@ log(`Phase 5.8: ${fixedFiles.length} files modified by gap-fixer. Commits:\n${fi
 ```javascript
 // Shutdown gap-fixer
 try { SendMessage({ type: "shutdown_request", recipient: "gap-fixer" }) } catch (e) { /* already exited */ }
-Bash("sleep 20")  // Grace period — let teammate deregister
+Bash("sleep 20", { run_in_background: true })  // Grace period — let teammate deregister
 
 // TeamDelete with retry-with-backoff (4 attempts: 0s, 3s, 6s, 10s)
 let cleanupTeamDeleteSucceeded = false
 const CLEANUP_DELAYS = [0, 3000, 6000, 10000]
 for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
-  if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)
+  if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`, { run_in_background: true })
   try { TeamDelete(); cleanupTeamDeleteSucceeded = true; break } catch (e) {
     if (attempt === CLEANUP_DELAYS.length - 1) warn(`gap-remediation cleanup: TeamDelete failed after ${CLEANUP_DELAYS.length} attempts`)
   }

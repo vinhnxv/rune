@@ -286,7 +286,7 @@ for (const member of allMembers) {
 }
 
 // Step 2b: Single shared pause (2s covers tool-call completion)
-if (aliveMembers.length > 0) { Bash("sleep 2") }
+if (aliveMembers.length > 0) { Bash("sleep 2", { run_in_background: true }) }
 
 // Step 2c: Send shutdown_request to alive members
 for (const member of aliveMembers) {
@@ -296,16 +296,16 @@ for (const member of aliveMembers) {
 // 3. Adaptive grace period — scale based on confirmed-alive members
 // All dead (all threw) → 2s SDK propagation pause. Some alive → max(5, alive*5), capped at 20s.
 if (confirmedAlive > 0) {
-  Bash(`sleep ${Math.min(20, Math.max(5, confirmedAlive * 5))}`)
+  Bash(`sleep ${Math.min(20, Math.max(5, confirmedAlive * 5))}`, { run_in_background: true })
 } else {
-  Bash("sleep 2")
+  Bash("sleep 2", { run_in_background: true })
 }
 
 // 4. TeamDelete with retry-with-backoff (4 attempts: 0s, 3s, 6s, 10s = 19s total)
 let cleanupTeamDeleteSucceeded = false
 const CLEANUP_DELAYS = [0, 3000, 6000, 10000]
 for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
-  if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)
+  if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`, { run_in_background: true })
   try { TeamDelete(); cleanupTeamDeleteSucceeded = true; break } catch (e) {
     if (attempt === CLEANUP_DELAYS.length - 1) warn(`cleanup: TeamDelete failed after ${CLEANUP_DELAYS.length} attempts`)
   }
@@ -330,7 +330,7 @@ if (!cleanupTeamDeleteSucceeded) {
   // Build the kill list from Step 2 classification (only TEAMMATE PIDs)
   // Example: if PIDs 1234, 5678 are teammates and 9012 is MCP server:
   //   Bash(`kill -TERM 1234 5678 2>/dev/null || true`)  // only teammates
-  //   Bash(`sleep 5`)
+  //   Bash(`sleep 5`, { run_in_background: true })
   //   Bash(`kill -KILL 1234 5678 2>/dev/null || true`)  // survivors only
   // NEVER use a for-loop over pgrep output — always use the explicit PID list from Step 2.
 

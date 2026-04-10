@@ -65,7 +65,7 @@ function createTeam(config) {
     const RETRY_DELAYS = config.retryDelays ?? [3000, 8000]  // Skip first 0s delay (already done in probe)
     for (let attempt = 0; attempt < RETRY_DELAYS.length; attempt++) {
       warn(`teamTransition: TeamDelete retry ${attempt + 1}, waiting ${RETRY_DELAYS[attempt]/1000}s...`)
-      Bash(`sleep ${RETRY_DELAYS[attempt] / 1000}`)
+      Bash(`sleep ${RETRY_DELAYS[attempt] / 1000}`, { run_in_background: true })
       try {
         TeamDelete()
         teamDeleteSucceeded = true
@@ -390,7 +390,7 @@ function shutdownWave(handle) {
 
   // 3. Grace period — let teammates deregister
   if (waveMembers.length > 0) {
-    Bash(`sleep 20`)
+    Bash(`sleep 20`, { run_in_background: true })
   }
 
   // 4. Clean up completed tasks (prepare pool for next wave)
@@ -536,7 +536,7 @@ function shutdown(handle) {
   // completes. The 2s pause covers most tool completions but not all. For guaranteed
   // shutdown of hung teammates, the filesystem fallback (Step 5) provides the safety net.
   if (aliveMembers.length > 0) {
-    Bash("sleep 2")
+    Bash("sleep 2", { run_in_background: true })
   }
 
   // Step 2c: Send shutdown_request to all alive members
@@ -575,17 +575,17 @@ function shutdown(handle) {
   let gracePeriodUsed = 0
   if (confirmedAlive > 0) {
     gracePeriodUsed = Math.min(20, Math.max(5, confirmedAlive * 5))
-    Bash(`sleep ${gracePeriodUsed}`)
+    Bash(`sleep ${gracePeriodUsed}`, { run_in_background: true })
   } else if (processesStillRunning > 0) {
     // VEIL-002: Processes still running despite SendMessage failure — use proportional grace
     gracePeriodUsed = Math.min(15, Math.max(5, processesStillRunning * 3))
     warn(`cleanup: ${processesStillRunning} teammate processes still running despite SendMessage failure — using ${gracePeriodUsed}s grace`)
-    Bash(`sleep ${gracePeriodUsed}`)
+    Bash(`sleep ${gracePeriodUsed}`, { run_in_background: true })
   } else {
     // All confirmed dead AND no lingering processes — safe to use minimal pause.
     // Minimal pause for SDK internal state propagation (deregistration).
     gracePeriodUsed = 2
-    Bash(`sleep 2`)
+    Bash(`sleep 2`, { run_in_background: true })
   }
 
   // --- 4. TeamDelete with retry-with-backoff ---
@@ -604,7 +604,7 @@ function shutdown(handle) {
   const CLEANUP_DELAYS = [0, 3000, 6000, 10000]
   for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
     finalAttempt = attempt
-    if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)
+    if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`, { run_in_background: true })
     try {
       TeamDelete()
       cleanupTeamDeleteSucceeded = true

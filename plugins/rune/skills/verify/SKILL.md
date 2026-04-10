@@ -493,7 +493,7 @@ const aliveMembers = []
 for (const member of allMembers) {
   try { SendMessage({ to: member, message: "Acknowledge: workflow completing" }); aliveMembers.push(member) } catch (e) { /* already exited */ }
 }
-if (aliveMembers.length > 0) Bash("sleep 2")
+if (aliveMembers.length > 0) Bash("sleep 2", { run_in_background: true })
 let confirmedAlive = 0
 for (const member of aliveMembers) {
   try { SendMessage({ to: member, message: { type: "shutdown_request", reason: "Workflow complete" } }); confirmedAlive++ } catch (e) { /* already exited */ }
@@ -501,16 +501,16 @@ for (const member of aliveMembers) {
 
 // Adaptive grace period
 if (confirmedAlive > 0) {
-  Bash(`sleep ${Math.min(20, Math.max(5, confirmedAlive * 5))}`)
+  Bash(`sleep ${Math.min(20, Math.max(5, confirmedAlive * 5))}`, { run_in_background: true })
 } else {
-  Bash("sleep 2")
+  Bash("sleep 2", { run_in_background: true })
 }
 
 // TeamDelete with retry-with-backoff
 let cleanupTeamDeleteSucceeded = false
 const CLEANUP_DELAYS = [0, 3000, 6000, 10000]
 for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
-  if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)
+  if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`, { run_in_background: true })
   try { TeamDelete(); cleanupTeamDeleteSucceeded = true; break } catch (e) {
     if (attempt === CLEANUP_DELAYS.length - 1) warn("cleanup: TeamDelete failed after 4 attempts")
   }

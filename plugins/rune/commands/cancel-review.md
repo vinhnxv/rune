@@ -142,7 +142,7 @@ for (const member of allMembers) {
 }
 
 // Step 2: Brief pause for tool-call completion
-if (aliveMembers.length > 0) { Bash("sleep 2") }
+if (aliveMembers.length > 0) { Bash("sleep 2", { run_in_background: true }) }
 
 // Step 3: Send shutdown_request to alive members
 for (const member of aliveMembers) {
@@ -162,9 +162,9 @@ Let teammates process shutdown_request and deregister before TeamDelete.
 
 ```javascript
 if (aliveMembers.length > 0) {
-  Bash(`sleep ${Math.min(20, Math.max(5, aliveMembers.length * 5))}`)
+  Bash(`sleep ${Math.min(20, Math.max(5, aliveMembers.length * 5))}`, { run_in_background: true })
 } else {
-  Bash("sleep 2")
+  Bash("sleep 2", { run_in_background: true })
 }
 ```
 
@@ -197,7 +197,7 @@ if (!cleanupTeamDeleteSucceeded) {
   const ownerPid = Bash(`echo $PPID`).trim()
   if (ownerPid && /^\d+$/.test(ownerPid)) {
     Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio && continue; kill -TERM "$pid" 2>/dev/null ;; esac; done`)
-    Bash(`sleep 3`)
+    Bash(`sleep 3`, { run_in_background: true })
     Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio && continue; kill -KILL "$pid" 2>/dev/null ;; esac; done`)
   }
 }

@@ -115,15 +115,15 @@ function postPhaseCleanup(checkpoint, phaseName) {
             try { SendMessage({ type: "message", recipient: m.name, content: "Acknowledge: phase completing" }); aliveMembers.push(m.name) } catch (e) { /* member already exited */ }
           }
         }
-        if (aliveMembers.length > 0) Bash("sleep 2")
+        if (aliveMembers.length > 0) Bash("sleep 2", { run_in_background: true })
         let confirmedAlive = 0
         for (const name of aliveMembers) {
           try { SendMessage({ type: "shutdown_request", recipient: name, content: `Phase ${phaseName} complete — cleanup` }); confirmedAlive++ } catch (e) { /* member exited between steps */ }
         }
         if (confirmedAlive > 0) {
-          Bash(`sleep ${Math.min(20, Math.max(5, confirmedAlive * 5))}`)
+          Bash(`sleep ${Math.min(20, Math.max(5, confirmedAlive * 5))}`, { run_in_background: true })
         } else if (members.length > 0) {
-          Bash("sleep 2")  // SDK propagation pause
+          Bash("sleep 2", { run_in_background: true })  // SDK propagation pause
         }
       } catch (e) { /* team config unreadable — proceed to filesystem cleanup */ }
 
@@ -131,7 +131,7 @@ function postPhaseCleanup(checkpoint, phaseName) {
       let phaseCleanupSucceeded = false
       const PHASE_CLEANUP_DELAYS = [0, 3000, 6000, 10000]
       for (let attempt = 0; attempt < PHASE_CLEANUP_DELAYS.length; attempt++) {
-        if (attempt > 0) Bash(`sleep ${PHASE_CLEANUP_DELAYS[attempt] / 1000}`)
+        if (attempt > 0) Bash(`sleep ${PHASE_CLEANUP_DELAYS[attempt] / 1000}`, { run_in_background: true })
         try { TeamDelete(); phaseCleanupSucceeded = true; break } catch (e) {
           if (attempt === PHASE_CLEANUP_DELAYS.length - 1) warn(`postPhaseCleanup: TeamDelete failed after ${PHASE_CLEANUP_DELAYS.length} attempts for ${teamName}`)
         }

@@ -67,7 +67,7 @@ for i in 1..maxIterations:
     count completed tasks
     if all_completed: break
     if stale (no progress for 3 cycles): warn
-    Bash("sleep 30")  # NEVER combine with && echo — use bare sleep only (POLL-001)
+    Bash("sleep 30", { run_in_background: true })  # NEVER combine with && echo (POLL-001). Must use run_in_background for sleeps >= 2s.
 ```
 
 ## Phase 6: Graceful Degradation

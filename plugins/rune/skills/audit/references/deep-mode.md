@@ -147,7 +147,7 @@ if (doubtEnabled && doubtWorkflows.includes("audit")) {
       const tasks = TaskList()
       const doubtTask = tasks.find(t => t.subject.includes("doubt-seer"))
       if (doubtTask?.status === "completed") break
-      if (i < maxPoll - 1) Bash("sleep 30")
+      if (i < maxPoll - 1) Bash("sleep 30", { run_in_background: true })
     }
 
     // Check if doubt-seer completed or timed out

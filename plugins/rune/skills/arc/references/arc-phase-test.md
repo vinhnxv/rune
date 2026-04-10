@@ -952,7 +952,7 @@ if (historyEnabled) {
 
 // 1. All batch runners are foreground (blocking) — completed before reaching cleanup.
 // No shutdown_request needed. Brief SDK propagation pause only.
-Bash("sleep 2")
+Bash("sleep 2", { run_in_background: true })
 
 // 2. Close browser sessions (teammates already completed — foreground)
 // SEC-001 FIX: Use grep -F for literal matching and quote --session argument

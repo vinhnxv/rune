@@ -260,14 +260,14 @@ try {
 
   // ── Step 3: ONE single grace period (20s max) ──
   if (allMembers.length > 0) {
-    Bash(`sleep 20`)
+    Bash(`sleep 20`, { run_in_background: true })
   }
 
   // ── Step 4: TeamDelete — retry-with-backoff (4 attempts: 0s, 3s, 6s, 10s) ──
   let sweepCleared = false
   const SWEEP_CLEANUP_DELAYS = [0, 3000, 6000, 10000]
   for (let attempt = 0; attempt < SWEEP_CLEANUP_DELAYS.length; attempt++) {
-    if (attempt > 0) Bash(`sleep ${SWEEP_CLEANUP_DELAYS[attempt] / 1000}`)
+    if (attempt > 0) Bash(`sleep ${SWEEP_CLEANUP_DELAYS[attempt] / 1000}`, { run_in_background: true })
     try { TeamDelete(); sweepCleared = true; break } catch (e) {
       if (attempt === SWEEP_CLEANUP_DELAYS.length - 1) warn(`ARC-9: TeamDelete failed after ${SWEEP_CLEANUP_DELAYS.length} attempts`)
     }
@@ -277,7 +277,7 @@ try {
   if (!sweepCleared) {
     // Process-level kill — terminate lingering teammates before filesystem cleanup
     Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio && continue; kill -TERM "$pid" 2>/dev/null ;; esac; done`)
-    Bash(`sleep 5`)
+    Bash(`sleep 5`, { run_in_background: true })
     Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio && continue; kill -KILL "$pid" 2>/dev/null ;; esac; done`)
     // Filesystem cleanup for all checkpoint-recorded teams
     if (allTeamNames.length > 0) {

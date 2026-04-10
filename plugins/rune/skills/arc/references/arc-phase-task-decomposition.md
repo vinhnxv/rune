@@ -137,7 +137,7 @@ Base findings on actual plan content, not assumptions.
   for (let i = 0; i < maxIterations && !completed; i++) {
     const tasks = TaskList()
     completed = tasks.every(t => t.status === "completed")
-    if (!completed) Bash("sleep 30")
+    if (!completed) Bash("sleep 30", { run_in_background: true })
   }
 
   // Fallback: if teammate timed out, check file directly
@@ -147,12 +147,12 @@ Base findings on actual plan content, not assumptions.
 
   // Cleanup team (single-member optimization: 12s grace — must exceed async deregistration time)
   try { SendMessage({ type: "shutdown_request", recipient: "codex-phase-handler-td", content: "Phase complete" }) } catch (e) { /* member may have already exited */ }
-  Bash("sleep 12")
+  Bash("sleep 12", { run_in_background: true })
   // Retry-with-backoff pattern per CLAUDE.md cleanup standard (4 attempts: 0s, 3s, 6s, 10s)
   let tdCleanupSucceeded = false
   const TD_CLEANUP_DELAYS = [0, 3000, 6000, 10000]
   for (let attempt = 0; attempt < TD_CLEANUP_DELAYS.length; attempt++) {
-    if (attempt > 0) Bash(`sleep ${TD_CLEANUP_DELAYS[attempt] / 1000}`)
+    if (attempt > 0) Bash(`sleep ${TD_CLEANUP_DELAYS[attempt] / 1000}`, { run_in_background: true })
     try { TeamDelete(); tdCleanupSucceeded = true; break } catch (e) {
       if (attempt === TD_CLEANUP_DELAYS.length - 1) warn(`cleanup: TeamDelete failed after ${TD_CLEANUP_DELAYS.length} attempts`)
     }
@@ -160,7 +160,7 @@ Base findings on actual plan content, not assumptions.
   // Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
   if (!tdCleanupSucceeded) {
     Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio && continue; kill -TERM "$pid" 2>/dev/null ;; esac; done`)
-    Bash("sleep 5")
+    Bash("sleep 5", { run_in_background: true })
     Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio && continue; kill -KILL "$pid" 2>/dev/null ;; esac; done`)
     Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/" 2>/dev/null`)
     try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
