@@ -9,14 +9,16 @@
 # hooks — the output has already been returned to Claude. MCP output sanitization
 # requires a PreToolUse or platform-level filter (future enhancement).
 #
-# Matched tools (via hooks.json matchers):
-#   - mcp__plugin_rune_context7__*   (Context7 documentation)
-#   - WebSearch|WebFetch              (web content)
+# PAT-005 FIX: Matched tools (via hooks.json matchers):
+#   - mcp__plugin_rune_context7__*        (Context7 documentation)
+#   - WebSearch|WebFetch                  (web content)
 #   - mcp__plugin_rune_figma-to-react__*  (Figma design data)
 #   - mcp__plugin_rune_echo-search__*     (echo memory search)
+#   - mcp__plugin_rune_agent-search__*    (agent registry search)
 
 set -euo pipefail
 trap 'exit 0' ERR  # immediate fail-forward guard — upgraded below
+umask 077  # PAT-003 FIX
 
 # Fail-forward: crash allows operation (OPERATIONAL hook, not SECURITY)
 _rune_fail_forward() {

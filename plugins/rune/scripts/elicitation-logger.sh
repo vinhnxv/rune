@@ -75,15 +75,18 @@ TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || true)
 
 if command -v jq &>/dev/null; then
   # Append log entry atomically via temp file + cat
+  # SEC-005 FIX: Use --arg (string) instead of --argjson (parsed JSON) for untrusted input.
+  # Extract only the .response field to limit log surface area.
+  RESPONSE_FIELD=$(echo "$INPUT" | jq -r '.response // empty' 2>/dev/null || true)
   LOG_ENTRY=$(jq -n \
     --arg ts "$TIMESTAMP" \
     --arg src "$SOURCE" \
-    --argjson input "$INPUT" \
+    --arg response "${RESPONSE_FIELD:-(parse error)}" \
     '{
       timestamp: $ts,
       source: $src,
       hookEventName: "Elicitation",
-      request: $input
+      response: $response
     }' 2>/dev/null || true)
   if [[ -n "$LOG_ENTRY" ]]; then
     printf '%s\n' "$LOG_ENTRY" >> "$LOG_FILE" 2>/dev/null || true

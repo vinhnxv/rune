@@ -21,12 +21,25 @@
 
 set -euo pipefail
 umask 077
-trap 'exit 0' ERR
 
-# Pre-flight: jq is required for JSON parsing (SEC-002: fail-closed if missing).
+# SEC-003 FIX: Classification resolved — this is an OPERATIONAL hook (fail-forward).
+# The jq guard warns but does NOT block (exit 0), consistent with fail-forward behavior.
+_rune_fail_forward() {
+  if [[ "${RUNE_TRACE:-}" == "1" ]]; then
+    printf '[%s] %s: ERR trap — fail-forward (line %s)\n' \
+      "$(date +%H:%M:%S 2>/dev/null || true)" \
+      "${BASH_SOURCE[0]##*/}" \
+      "${BASH_LINENO[0]:-?}" \
+      >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}" 2>/dev/null
+  fi
+  exit 0
+}
+trap '_rune_fail_forward' ERR
+
+# Pre-flight: jq is required for JSON parsing.
 if ! command -v jq &>/dev/null; then
-  echo "BLOCKED: jq not found — validate-gap-fixer-paths.sh hook cannot validate file paths" >&2
-  exit 2
+  echo "WARNING: jq not found — validate-gap-fixer-paths.sh cannot validate file paths (fail-forward)" >&2
+  exit 0
 fi
 
 # Source shared PreToolUse Write guard

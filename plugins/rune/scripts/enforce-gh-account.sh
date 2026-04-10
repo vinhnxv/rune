@@ -32,7 +32,9 @@ _rune_fail_forward() {
   local line="${BASH_LINENO[0]}"
   echo "WARN: ${script_name}:${line} — fail-forward ERR trap, allowing operation" >&2
   if [[ "${RUNE_TRACE:-0}" == "1" ]]; then
-    [[ ! -L "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace.log}" ]] && echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) WARN ${script_name}:${line} ERR-trap" >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace.log}"
+    # COMPAT-002 FIX: Add PID scope to trace log path (prevents write race on Linux /tmp)
+    local _log="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
+    [[ ! -L "$_log" ]] && echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) WARN ${script_name}:${line} ERR-trap" >> "$_log"
   fi
   exit 0
 }

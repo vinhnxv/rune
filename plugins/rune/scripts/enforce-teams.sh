@@ -24,6 +24,7 @@
 set -euo pipefail
 trap 'exit 2' ERR  # XVER-SEC-002 FIX: fail-closed from start for SECURITY hook
 umask 077
+_RUNE_UID="${UID:-$(id -u)}"  # SEC-006 FIX: cache UID once (avoids subprocess fork on every ERR trap)
 
 # --- Fail-closed guard (SECURITY-ADJACENT hook) ---
 # SEC-001 FIX: ATE-1 enforcement is security-adjacent — crash mid-validation
@@ -35,7 +36,8 @@ _rune_fail_closed() {
     "${BASH_LINENO[0]:-?}" \
     >&2 2>/dev/null || true
   if [[ "${RUNE_TRACE:-}" == "1" ]]; then
-    local _log="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-${UID:-$(id -u)}.log}"
+    # SEC-006 FIX: Use cached _RUNE_UID instead of $(id -u) subprocess on every ERR trap
+    local _log="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-${_RUNE_UID:-${UID:-$(id -u)}}-${PPID}.log}"
     [[ ! -L "$_log" ]] && printf '[%s] %s: ERR trap — fail-closed activated (line %s)\n' \
       "$(date +%H:%M:%S 2>/dev/null || true)" \
       "${BASH_SOURCE[0]##*/}" \

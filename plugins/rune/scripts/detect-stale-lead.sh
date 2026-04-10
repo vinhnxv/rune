@@ -22,6 +22,7 @@
 
 set -euo pipefail
 trap 'exit 0' ERR  # immediate fail-forward guard — upgraded below
+umask 077  # PAT-003 FIX
 
 # OPERATIONAL: Capture hook start time for timeout budget tracking
 _HOOK_START_EPOCH=$(date +%s)
@@ -112,8 +113,15 @@ for loop_file in \
     if [[ -n "$_loop_cfg" && "$_loop_cfg" != "$RUNE_CURRENT_CFG" ]]; then
       continue
     fi
-    # Skip loop files from other live sessions
-    if [[ -n "$_loop_pid" && "$_loop_pid" =~ ^[0-9]+$ && "$_loop_pid" != "$PPID" ]]; then
+    # FLAW-005 FIX: Use session_id for ownership check (PPID unreliable in hooks)
+    _session_id=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null) || _session_id=""
+    _loop_sid=$(_get_fm_field "$_LOOP_FM" "session_id" 2>/dev/null) || _loop_sid=""
+    # Skip loop files from other live sessions (prefer session_id, fall back to PID)
+    if [[ -n "$_loop_sid" && -n "$_session_id" && "$_loop_sid" != "$_session_id" ]]; then
+      if [[ -n "$_loop_pid" && "$_loop_pid" =~ ^[0-9]+$ ]] && rune_pid_alive "$_loop_pid"; then
+        continue
+      fi
+    elif [[ -n "$_loop_pid" && "$_loop_pid" =~ ^[0-9]+$ && "$_loop_pid" != "$PPID" ]]; then
       if rune_pid_alive "$_loop_pid"; then
         continue
       fi

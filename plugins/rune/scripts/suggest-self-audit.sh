@@ -15,6 +15,7 @@
 
 set -euo pipefail
 trap 'exit 0' ERR  # immediate fail-forward guard — upgraded below
+umask 077  # PAT-003 FIX
 
 # Fail-forward: any error → exit 0 (allow stop, don't crash session)
 _rune_fail_forward() { exit 0; }
@@ -34,7 +35,7 @@ command -v jq >/dev/null 2>&1 || exit 0
 # ── Parse CWD from hook input ──
 INPUT=""
 if [[ ! -t 0 ]]; then
-  INPUT=$(head -c 65536)
+  INPUT=$(head -c 1048576 2>/dev/null || true)  # FLAW-006 FIX: 1MB cap consistent with all other hooks
 fi
 CWD=$(echo "$INPUT" | jq -r '.cwd // empty' 2>/dev/null) || CWD=""
 [[ -n "$CWD" && -d "$CWD" ]] || exit 0

@@ -77,7 +77,8 @@ readonly _SPAT_LIST_LOADED
 # Output: stdout (filtered text, with [REDACTED] placeholders)
 rune_strip_sensitive() {
   local max_chars="${1:-2000}"
-  max_chars=$(( "${max_chars}" + 0 )) 2>/dev/null || max_chars=2000
+  # SEC-009 FIX: Use regex validation instead of arithmetic eval (prevents $(()) injection)
+  [[ "$max_chars" =~ ^[0-9]+$ ]] || max_chars=2000
 
   local input
   input=$(head -c 1048576 2>/dev/null || true)

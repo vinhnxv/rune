@@ -267,8 +267,10 @@ fi
 # runs multiple child arcs sequentially, each taking 30-90 min).
 _HIERARCHY_STALE_MIN=150
 if _check_loop_ownership "${CWD}/${RUNE_STATE}/arc-hierarchy-loop.local.md"; then
+  # FLAW-004 FIX: Check both 'status' and 'active' fields (hierarchy uses either)
   _hier_status=$(_get_fm_field "$_LOOP_FM" "status")
-  if [[ "$_hier_status" == "active" ]]; then
+  _hier_active=$(_get_fm_field "$_LOOP_FM" "active")
+  if [[ "$_hier_status" == "active" || "$_hier_active" == "true" ]]; then
     _hier_mtime=$(_stat_mtime "${CWD}/${RUNE_STATE}/arc-hierarchy-loop.local.md"); _hier_mtime="${_hier_mtime:-0}"
     if [[ "$_hier_mtime" -le 0 ]]; then exit 0; fi
     _hier_age_min=$(( (NOW - _hier_mtime) / 60 ))

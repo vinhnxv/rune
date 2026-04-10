@@ -1151,15 +1151,18 @@ if [[ -n "$NEXT_PHASE" && -n "$_IMMEDIATE_PREV" ]]; then
         _ckpt_tmp=$(mktemp "${CWD}/${CHECKPOINT_PATH}.XXXXXX" 2>/dev/null) || _ckpt_tmp=""
         if [[ -n "$_ckpt_tmp" ]]; then
           if echo "$CKPT_CONTENT" | jq -e '.' > "$_ckpt_tmp" 2>/dev/null; then
-            mv -f "$_ckpt_tmp" "${CWD}/${CHECKPOINT_PATH}" 2>/dev/null || rm -f "$_ckpt_tmp" 2>/dev/null
+            if mv -f "$_ckpt_tmp" "${CWD}/${CHECKPOINT_PATH}" 2>/dev/null; then
+              # FLAW-002 FIX: Only override NEXT_PHASE on successful checkpoint write
+              NEXT_PHASE="$_IMMEDIATE_PREV"
+            else
+              rm -f "$_ckpt_tmp" 2>/dev/null
+            fi
           else
             _trace "WARNING: persistence retry checkpoint write failed — skipping retry"
             rm -f "$_ckpt_tmp" 2>/dev/null
             CKPT_CONTENT=$(cat "${CWD}/${CHECKPOINT_PATH}" 2>/dev/null || true)
           fi
         fi
-        # Re-inject the same phase by overriding NEXT_PHASE to the failed phase
-        NEXT_PHASE="$_IMMEDIATE_PREV"
       else
         _trace "PERSISTENCE: Budget exhausted for ${_IMMEDIATE_PREV} (retries=${_current_retries}/${_persist_max_retries}, cost=${_current_cost}c/${_persist_max_budget}c) — advancing"
         _log_phase "persistence_exhausted" "$_IMMEDIATE_PREV" "retries=${_current_retries},cost=${_current_cost}"
@@ -1343,7 +1346,7 @@ if [[ "$_needs_compact" == "true" ]] && [[ "$COMPACT_PENDING" != "true" ]] && [[
     awk 'NR>1 && /^---$/ && !done { print "compact_pending: true"; done=1 } { print }' "$STATE_FILE" > "$_STATE_TMP" 2>/dev/null
   fi
   if ! mv -f "$_STATE_TMP" "$STATE_FILE" 2>/dev/null; then
-    rm -f "$_STATE_TMP" "$STATE_FILE" 2>/dev/null; exit 0
+    rm -f "$_STATE_TMP" 2>/dev/null; exit 0  # BACK-004: preserve STATE_FILE on transient mv failure
   fi
   if ! grep -q '^compact_pending: true' "$STATE_FILE" 2>/dev/null; then
     _trace "compact_pending write verification failed — aborting"
@@ -1673,9 +1676,9 @@ if [[ "$NEXT_PHASE" == "test" ]]; then
                   && mv -f "$_STATE_TMP" "$STATE_FILE" 2>/dev/null \
                   || rm -f "$_STATE_TMP" 2>/dev/null
               else
-                # Insert test_finalized before LAST --- (closing frontmatter delimiter)
-                # Use awk to insert before the last --- line only (sed '/^---$/a' would match ALL --- lines)
-                awk 'BEGIN{found=0} /^---$/{if(found){print "test_finalized: true"} found=1} {print}' "$STATE_FILE" > "$_STATE_TMP" 2>/dev/null \
+                # FLAW-007 FIX: Insert test_finalized before SECOND --- only (closing frontmatter delimiter)
+                # Use 'done' flag to insert only once, preventing duplicate insertion on body --- lines
+                awk 'BEGIN{found=0} /^---$/{if(found && !done){print "test_finalized: true"; done=1} found=1} {print}' "$STATE_FILE" > "$_STATE_TMP" 2>/dev/null \
                   && mv -f "$_STATE_TMP" "$STATE_FILE" 2>/dev/null \
                   || rm -f "$_STATE_TMP" 2>/dev/null
               fi
