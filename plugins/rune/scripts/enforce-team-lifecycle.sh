@@ -88,8 +88,9 @@ if [[ -z "$CWD" || "$CWD" != /* ]]; then exit 0; fi
 
 # ── EXTRACT: team_name from tool_input (single-pass jq) ──
 TEAM_NAME=$(printf '%s\n' "$INPUT" | jq -r '.tool_input.team_name // empty' 2>/dev/null || true)
-# XBUG-002 FIX: Strip null bytes that could bypass regex validation (bash 3.2 edge case)
-TEAM_NAME="${TEAM_NAME//$'\0'/}"
+# XBUG-002 FIX: Strip null bytes that could bypass regex validation
+# Use tr instead of parameter expansion — bash 3.2 cannot handle $'\0' inside ${...}
+TEAM_NAME=$(printf '%s' "$TEAM_NAME" | tr -d '\0')
 if [[ -z "$TEAM_NAME" ]]; then
   exit 0  # No team_name — let SDK handle the error
 fi

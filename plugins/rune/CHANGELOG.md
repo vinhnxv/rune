@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.43.1] - 2026-04-10
+
+### Fixed
+- **enforce-team-lifecycle.sh**: Fix `bad substitution` error on macOS Bash 3.2 — replaced `${TEAM_NAME//$'\0'/}` (unsupported null byte in parameter expansion) with portable `tr -d '\0'` pipe
+
 ## [2.43.0] - 2026-04-09
 
 ### Added
