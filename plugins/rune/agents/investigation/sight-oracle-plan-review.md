@@ -4,6 +4,7 @@ description: |
   Plan code sample reviewer for /rune:inspect --mode plan.
   Reviews proposed code in plan files for architectural fit, performance
   concerns, pattern compliance, and coupling analysis before implementation.
+model: sonnet
 tools:
   - Read
   - Glob

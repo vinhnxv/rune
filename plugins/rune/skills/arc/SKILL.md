@@ -6,19 +6,19 @@ description: |
   plan-review, plan-refinement, verification, semantic-verification,
   design-extraction, design-prototype, design-verification, design-iteration, work,
   gap-analysis, codex-gap-analysis, gap-remediation, goldmask-verification,
-  code-review, goldmask-correlation, mend, verify-mend, test,
+  code-review, goldmask-correlation, verify, mend, verify-mend, test,
   browser-test, browser-test-fix, verify-browser-test,
   pre-ship-validation, bot-review-wait, pr-comment-resolution, ship, merge).
   Use when checkpoint resume is needed after a crash or session end.
-  44-phase pipeline with convergence loops, Goldmask risk analysis,
+  45-phase pipeline with convergence loops, Goldmask risk analysis,
   pre-ship validation, bot review integration, cross-model verification,
   and conditional design sync (Figma VSM extraction, prototype generation, fidelity verification, iteration).
   Keywords: arc, pipeline, --resume, checkpoint, convergence, forge, mend,
-  bot review, PR comments, ship, merge, design sync, Figma, VSM, 44 phases.
+  bot review, PR comments, ship, merge, design sync, Figma, VSM, 45 phases.
 
   <example>
   user: "/rune:arc plans/feat-user-auth-plan.md"
-  assistant: "The Tarnished begins the arc — 44 phases of forge, review, design sync, goldmask, test, browser test convergence, mend, convergence, pre-ship validation, bot review, ship, and merge..."
+  assistant: "The Tarnished begins the arc — 45 phases of forge, review, design sync, goldmask, test, browser test convergence, mend, convergence, pre-ship validation, bot review, ship, and merge..."
   </example>
 
   <example>
@@ -50,9 +50,9 @@ allowed-tools:
 
 # /rune:arc — End-to-End Orchestration Pipeline
 
-Chains forty-four phases into a single automated pipeline. Each phase runs as its own Claude Code turn with fresh context — the `arc-phase-stop-hook.sh` drives phase iteration via the Stop hook pattern. Artifact-based handoff connects phases. Checkpoint state enables resume after failure.
+Chains forty-five phases into a single automated pipeline. Each phase runs as its own Claude Code turn with fresh context — the `arc-phase-stop-hook.sh` drives phase iteration via the Stop hook pattern. Artifact-based handoff connects phases. Checkpoint state enables resume after failure.
 
-**Context budget advisory**: Full arc run: 44 phases x ~3.5min avg = ~154 minutes (lower bound). Context compaction is almost guaranteed in a single session. For constrained sessions, use `--no-forge` to skip Phase 1 enrichment, or split into multiple `/rune:arc --resume` sessions. The `PreCompact` hook saves checkpoint state automatically.
+**Context budget advisory**: Full arc run: 45 phases x ~3.5min avg = ~154 minutes (lower bound). Context compaction is almost guaranteed in a single session. For constrained sessions, use `--no-forge` to skip Phase 1 enrichment, or split into multiple `/rune:arc --resume` sessions. The `PreCompact` hook saves checkpoint state automatically.
 
 **Load skills**: `roundtable-circle`, `context-weaving`, `rune-echoes`, `rune-orchestration`, `elicitation`, `codex-cli`, `team-sdk`, `testing`, `agent-browser`, `polling-guard`, `zsh-compat`, `design-sync`
 
@@ -108,25 +108,26 @@ The pipeline uses **named phases** (not numeric IDs) in `PHASE_ORDER`. The numer
 | 6 | 25 | `code_review` | Team | 15 min | `/rune:appraise --deep` |
 | 6.1 | 26 | `code_review_qa` | Team | 5 min | QA gate (1 agent) |
 | 6.5 | 27 | `goldmask_correlation` | Inline | 1 min | — |
-| 7 | 28 | `mend` | Team | 23 min | `/rune:mend` |
-| 7.01 | 29 | `mend_qa` | Team | 5 min | QA gate (1 agent) |
-| 7.3 | 30 | `verify_mend` | Inline | 4 min | — |
-| 7.4 | 31 | `design_iteration` | Team | 15 min | Conditional: design fidelity |
-| 7.7 | 32 | `test` | Team | 25-50 min | Testing agents |
-| 7.71 | 33 | `test_qa` | Team | 5 min | QA gate (1 agent) |
-| 7.7.5 | 34 | `browser_test` | Team | 15 min | Conditional: frontend + agent-browser |
-| 7.7.6 | 35 | `browser_test_fix` | Team | 15 min | Conditional: browser_test failures |
-| 7.7.7 | 36 | `verify_browser_test` | Inline | 4 min | Convergence controller |
-| 7.8 | 37 | `test_coverage_critique` | Team | 15 min | Codex (conditional) |
-| 7.9 | 38 | `deploy_verify` | Team | 5 min | Conditional: deployment verification |
-| 8.5 | 39 | `pre_ship_validation` | Inline | 6 min | — |
-| 8.55 | 40 | `release_quality_check` | Team | 10 min | Codex (conditional) |
-| 9 | 41 | `ship` | Inline | 5 min | — |
-| 9.1 | 42 | `bot_review_wait` | Inline | 15 min | Conditional: `--bot-review` |
-| 9.2 | 43 | `pr_comment_resolution` | Inline | 20 min | Conditional: `--bot-review` |
-| 9.5 | 44 | `merge` | Inline | 10 min | — |
+| 6.6 | 28 | `verify` | Team | 10 min | Finding verification gate |
+| 7 | 29 | `mend` | Team | 23 min | `/rune:mend` |
+| 7.01 | 30 | `mend_qa` | Team | 5 min | QA gate (1 agent) |
+| 7.3 | 31 | `verify_mend` | Inline | 4 min | — |
+| 7.4 | 32 | `design_iteration` | Team | 15 min | Conditional: design fidelity |
+| 7.7 | 33 | `test` | Team | 25-50 min | Testing agents |
+| 7.71 | 34 | `test_qa` | Team | 5 min | QA gate (1 agent) |
+| 7.7.5 | 35 | `browser_test` | Team | 15 min | Conditional: frontend + agent-browser |
+| 7.7.6 | 36 | `browser_test_fix` | Team | 15 min | Conditional: browser_test failures |
+| 7.7.7 | 37 | `verify_browser_test` | Inline | 4 min | Convergence controller |
+| 7.8 | 38 | `test_coverage_critique` | Team | 15 min | Codex (conditional) |
+| 7.9 | 39 | `deploy_verify` | Team | 5 min | Conditional: deployment verification |
+| 8.5 | 40 | `pre_ship_validation` | Inline | 6 min | — |
+| 8.55 | 41 | `release_quality_check` | Team | 10 min | Codex (conditional) |
+| 9 | 42 | `ship` | Inline | 5 min | — |
+| 9.1 | 43 | `bot_review_wait` | Inline | 15 min | Conditional: `--bot-review` |
+| 9.2 | 44 | `pr_comment_resolution` | Inline | 20 min | Conditional: `--bot-review` |
+| 9.5 | 45 | `merge` | Inline | 10 min | — |
 
-> **Execution order**: The "Exec Order" column shows the actual sequence. Phase numbers (#) are for human reference only and are **non-monotonic** — e.g., 5.8 (gap_remediation) runs before 5.7 (goldmask_verification). Always use `PHASE_ORDER` array position, not numeric IDs. Total: 44 phases.
+> **Execution order**: The "Exec Order" column shows the actual sequence. Phase numbers (#) are for human reference only and are **non-monotonic** — e.g., 5.8 (gap_remediation) runs before 5.7 (goldmask_verification). Always use `PHASE_ORDER` array position, not numeric IDs. Total: 45 phases.
 
 ## Usage
 

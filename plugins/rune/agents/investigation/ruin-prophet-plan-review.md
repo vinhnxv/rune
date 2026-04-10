@@ -4,6 +4,7 @@ description: |
   Plan code sample reviewer for /rune:inspect --mode plan.
   Reviews proposed code in plan files for security vulnerabilities,
   failure modes, missing guards, and injection risks before implementation.
+model: sonnet
 tools:
   - Read
   - Glob

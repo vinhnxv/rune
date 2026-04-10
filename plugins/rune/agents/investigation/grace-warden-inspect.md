@@ -4,6 +4,7 @@ description: |
   Correctness and completeness inspector for /rune:inspect mode.
   Evaluates plan requirements against codebase implementation.
   Measures COMPLETE/PARTIAL/MISSING/DEVIATED status with evidence.
+model: sonnet
 tools:
   - Read
   - Glob

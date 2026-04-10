@@ -10,6 +10,7 @@ description: |
   All proposals require human approval before application.
 tools:
   - Read
+  - Write
   - Glob
   - Grep
   - Bash
@@ -18,7 +19,6 @@ tools:
   - TaskUpdate
   - SendMessage
 disallowedTools:
-  - Write
   - Edit
   - NotebookEdit
   - TeamCreate

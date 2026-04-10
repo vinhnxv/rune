@@ -6,6 +6,7 @@ description: |
   exact match → structural similarity → semantic similarity.
   Use when: "find more like this", "variant analysis", "similar bugs",
   "same pattern elsewhere", "hunt for variants".
+model: sonnet
 tools:
   - Read
   - Glob

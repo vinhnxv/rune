@@ -4,6 +4,7 @@ description: |
   Failure modes and security inspector for /rune:inspect mode.
   Evaluates error handling coverage, security posture, and operational
   readiness against plan requirements with evidence-based risk assessment.
+model: sonnet
 tools:
   - Read
   - Glob

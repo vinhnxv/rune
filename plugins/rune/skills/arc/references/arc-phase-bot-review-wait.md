@@ -334,7 +334,7 @@ ${fc.annotations.map(a => `- **${a.path}:${a.start_line}** [${a.annotation_level
         description: "Fix CI failures",
         prompt: ciFixerPrompt,
         subagent_type: "general-purpose",
-        mode: "bypassPermissions"
+        mode: "acceptEdits"
       })
 
       // Get new HEAD SHA after fixer's commits
