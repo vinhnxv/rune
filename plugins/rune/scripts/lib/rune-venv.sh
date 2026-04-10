@@ -97,6 +97,12 @@ rune_resolve_venv() {
   # Install/update dependencies
   if [[ -x "${venv_dir}/bin/pip" && -f "$req_file" ]]; then
     "${venv_dir}/bin/pip" install -q --no-cache-dir -r "$req_file" 2>/dev/null || true
+    # ERR-012 FIX: Verify at least one key dependency is importable
+    # If pip install silently failed, fall back to system python
+    if ! "${venv_dir}/bin/python3" -c "import yaml" 2>/dev/null; then
+      echo "python3"
+      return 1
+    fi
   fi
 
   # Write hash (atomic: write to tmp then rename)

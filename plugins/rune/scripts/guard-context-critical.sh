@@ -110,7 +110,8 @@ BRIDGE_FILE="${TMPDIR:-/tmp}/rune-ctx-${SESSION_ID}.json"
 
 # OS-level UID check (EC-H5)
 BRIDGE_UID=$(_stat_uid "$BRIDGE_FILE")
-if [[ -n "$BRIDGE_UID" && "$BRIDGE_UID" != "$(id -u)" ]]; then
+# PAT-007 FIX: Use cached _RUNE_UID or bash built-in $UID to avoid subprocess fork
+if [[ -n "$BRIDGE_UID" && "$BRIDGE_UID" != "${_RUNE_UID:-${UID:-$(id -u)}}" ]]; then
   exit 0  # Not our file
 fi
 

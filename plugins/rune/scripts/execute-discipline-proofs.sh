@@ -43,6 +43,20 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/platform.sh
 source "${SCRIPT_DIR}/lib/platform.sh" 2>/dev/null || true
 
+# PAT-002 FIX: Guard optional `timeout` tool (not available on macOS without coreutils)
+# Wrapper _timeout gracefully degrades to running without timeout on macOS
+_timeout() {
+  if command -v timeout &>/dev/null; then
+    timeout "$@"
+  elif command -v gtimeout &>/dev/null; then
+    gtimeout "$@"
+  else
+    # No timeout available — run command directly (skip first arg which is the duration)
+    shift
+    "$@"
+  fi
+}
+
 # --- Arguments ---
 CRITERIA_FILE="${1:?Usage: execute-discipline-proofs.sh <criteria.json> [cwd]}"
 CWD="${2:-.}"
@@ -100,7 +114,7 @@ proof_pattern_matches() {
     return
   fi
   # SEC-004 FIX: timeout on grep to mitigate ReDoS via crafted patterns
-  if timeout 10 grep -qE "$pattern" "$file" 2>/dev/null; then
+  if _timeout 10 grep -qE "$pattern" "$file" 2>/dev/null; then
     echo "PASS"
   else
     echo "FAIL"
@@ -118,7 +132,7 @@ proof_no_pattern_exists() {
   if [[ -z "$file" ]]; then
     # No file specified — search CWD recursively
     # SEC-004 FIX: timeout on grep to mitigate ReDoS
-    if timeout 10 grep -rqE "$pattern" . 2>/dev/null; then
+    if _timeout 10 grep -rqE "$pattern" . 2>/dev/null; then
       echo "FAIL"
     else
       echo "PASS"
@@ -126,7 +140,7 @@ proof_no_pattern_exists() {
     return
   fi
   # SEC-004 FIX: timeout on grep to mitigate ReDoS
-  if timeout 10 grep -qE "$pattern" "$file" 2>/dev/null; then
+  if _timeout 10 grep -qE "$pattern" "$file" 2>/dev/null; then
     echo "FAIL"
   else
     echo "PASS"
@@ -158,7 +172,7 @@ proof_test_passes() {
   # passes each element as a separate argument. Prevents word-split edge cases.
   local -a cmd_arr
   read -ra cmd_arr <<< "$cmd"
-  if timeout 60 "${cmd_arr[@]}" >/dev/null 2>&1; then
+  if _timeout 60 "${cmd_arr[@]}" >/dev/null 2>&1; then
     echo "PASS"
   else
     echo "FAIL"
@@ -188,7 +202,7 @@ proof_builds_clean() {
   # SEC-001 AUDIT FIX v4: Array-based execution (same pattern as proof_test_passes)
   local -a cmd_arr
   read -ra cmd_arr <<< "$cmd"
-  if timeout 120 "${cmd_arr[@]}" >/dev/null 2>&1; then
+  if _timeout 120 "${cmd_arr[@]}" >/dev/null 2>&1; then
     echo "PASS"
   else
     echo "FAIL"
@@ -246,7 +260,7 @@ Respond with EXACTLY this JSON format (no other text):
 
   # Invoke judge model with timeout (30s)
   local judge_output
-  judge_output="$(timeout 30 claude --model haiku -p "$prompt" 2>/dev/null)" || true
+  judge_output="$(_timeout 30 claude --model haiku -p "$prompt" 2>/dev/null)" || true
 
   # Handle timeout or empty response
   if [[ -z "$judge_output" ]]; then

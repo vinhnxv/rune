@@ -43,12 +43,13 @@ _handle_standalone_stop_failure() {
     RATE_LIMIT)
       local has_active=false
       local sf
-      for sf in $(find "${CWD}/tmp" -maxdepth 1 -name '.rune-*.json' -type f 2>/dev/null); do
-        [[ -L "$sf" ]] && continue
+      # ERR-017 FIX: Use while-read to avoid word-splitting on paths with spaces
+      while IFS= read -r sf; do
+        [[ -z "$sf" || -L "$sf" ]] && continue
         local sf_status
         sf_status=$(jq -r '.status // empty' "$sf" 2>/dev/null || true)
         [[ "$sf_status" == "active" ]] && has_active=true && break
-      done
+      done < <(find "${CWD}/tmp" -maxdepth 1 -name '.rune-*.json' -type f 2>/dev/null)
       if [[ "$has_active" == "true" ]]; then
         printf '[STOP-FAILURE] API rate limit during active Rune workflow. Wait %d seconds then retry.\n' "$wait_seconds" >&2
         exit 2

@@ -71,10 +71,10 @@ if [[ -n "$CWD" ]]; then
   # Arc loop state files live in ${CWD}/${RUNE_STATE}/ (project-local), NOT $CHOME (global config)
   # Use two separate find commands to avoid error when one dir doesn't exist.
   # Check both .rune/ and .claude/ (legacy).
-  _loop_names="-name arc-phase-loop.local.md -o -name arc-batch-loop.local.md -o -name arc-hierarchy-loop.local.md -o -name arc-issues-loop.local.md"
+  # SEC-005 FIX: Use inline find args instead of unquoted variable word-splitting
   ARC_LOOP_COUNT=$(
-    { find "${CWD}/${RUNE_STATE}" -maxdepth 1 \( $_loop_names \) 2>/dev/null; \
-      find "${CWD}/.claude" -maxdepth 1 \( $_loop_names \) 2>/dev/null; } | wc -l | tr -dc '0-9' || echo "0")
+    { find "${CWD}/${RUNE_STATE}" -maxdepth 1 \( -name arc-phase-loop.local.md -o -name arc-batch-loop.local.md -o -name arc-hierarchy-loop.local.md -o -name arc-issues-loop.local.md \) 2>/dev/null; \
+      find "${CWD}/.claude" -maxdepth 1 \( -name arc-phase-loop.local.md -o -name arc-batch-loop.local.md -o -name arc-hierarchy-loop.local.md -o -name arc-issues-loop.local.md \) 2>/dev/null; } | wc -l | tr -dc '0-9' || echo "0")
   [[ -z "$ARC_LOOP_COUNT" ]] && ARC_LOOP_COUNT=0
   if (( ARC_LOOP_COUNT > 0 )); then
     exit 0  # Arc loop active — let arc hooks handle continuation

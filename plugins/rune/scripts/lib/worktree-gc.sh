@@ -99,14 +99,26 @@ rune_clean_worktree() {
   wt_status=$(git -C "$wt_path" status --porcelain 2>/dev/null || true)
   if [[ -n "$wt_status" ]]; then
     # Salvage uncommitted work as patch (skip in session-stop for timeout)
+    local _salvage_ok=false
     if [[ "$mode" != "session-stop" && -n "$cwd" ]]; then
       local salvage_dir="${cwd}/tmp"
       # SEC-005: Symlink guard - prevent writing to attacker-controlled paths
       if [[ -d "$salvage_dir" && ! -L "$salvage_dir" ]]; then
-        git -C "$wt_path" diff HEAD > "${salvage_dir}/.rune-salvage-$(basename "$wt_path").patch" 2>/dev/null || true
+        # ERR-013 FIX: Track salvage success before allowing reset --hard
+        if git -C "$wt_path" diff HEAD > "${salvage_dir}/.rune-salvage-$(basename "$wt_path").patch" 2>/dev/null; then
+          _salvage_ok=true
+        else
+          echo "WARN: salvage failed for $wt_path — skipping reset --hard to preserve changes" >&2
+        fi
       fi
+    else
+      # session-stop mode: skip salvage, allow reset (timeout budget)
+      _salvage_ok=true
     fi
-    git -C "$wt_path" reset --hard HEAD 2>/dev/null || true
+    # ERR-013 FIX: Only reset if salvage succeeded or was intentionally skipped
+    if [[ "$_salvage_ok" == "true" ]]; then
+      git -C "$wt_path" reset --hard HEAD 2>/dev/null || true
+    fi
   fi
 
   # Remove worktree (retry with --force on failure)

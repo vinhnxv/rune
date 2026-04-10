@@ -110,8 +110,8 @@ else
   # Fallback: inline resolution (matches resolve-session-identity.sh logic)
   RUNE_CURRENT_CFG=$(cd "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" 2>/dev/null && pwd -P) || RUNE_CURRENT_CFG="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
   rune_pid_alive() {
-    local err rc
-    err=$(kill -0 "$1" 2>&1); rc=$?
+    local err rc=0
+    err=$(kill -0 "$1" 2>&1) || rc=$?
     [[ $rc -eq 0 ]] && return 0
     # EPERM means process exists but we lack permission — treat as alive
     # Single-call pattern avoids TOCTOU (matches resolve-session-identity.sh)

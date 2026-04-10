@@ -36,7 +36,8 @@ _tmp="${TMPDIR:-/tmp}"
 [[ "$_tmp" =~ ^/ ]] || _tmp="/tmp"
 
 # Per-user log file (safe for multi-user systems)
-LOG_FILE="${_tmp}/rune-elicitation-log-$(id -u).jsonl"
+# PAT-007 FIX: Use bash built-in $UID to avoid subprocess fork
+LOG_FILE="${_tmp}/rune-elicitation-log-${UID:-$(id -u)}.jsonl"
 
 # Max log size: 5MB
 MAX_LOG_BYTES=5242880
@@ -77,7 +78,7 @@ if command -v jq &>/dev/null; then
   # Append log entry atomically via temp file + cat
   # SEC-005 FIX: Use --arg (string) instead of --argjson (parsed JSON) for untrusted input.
   # Extract only the .response field to limit log surface area.
-  RESPONSE_FIELD=$(echo "$INPUT" | jq -r '.response // empty' 2>/dev/null || true)
+  RESPONSE_FIELD=$(printf '%s\n' "$INPUT" | jq -r '.response // empty' 2>/dev/null || true)
   LOG_ENTRY=$(jq -n \
     --arg ts "$TIMESTAMP" \
     --arg src "$SOURCE" \

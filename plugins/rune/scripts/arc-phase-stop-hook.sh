@@ -1705,11 +1705,15 @@ if [[ "$NEXT_PHASE" == "test" ]]; then
             CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
             CHOME=$(cd "$CHOME" 2>/dev/null && pwd -P || echo "$CHOME")
             if [[ -d "$CHOME/teams/${_force_test_team}" && ! -L "$CHOME/teams/${_force_test_team}" ]]; then
-              # Kill lingering teammate processes
-              for _fpid in $(pgrep -P "$PPID" 2>/dev/null || true); do
-                case "$(ps -p "$_fpid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$_fpid" -o args= 2>/dev/null | grep -q -- --stdio && continue; kill -TERM "$_fpid" 2>/dev/null ;; esac
-              done
-              sleep 2
+              # PAT-003 FIX: Use _rune_kill_tree with teammates filter (MCP-PROTECT-003)
+              # instead of blind pgrep|kill loop that could kill MCP servers
+              if [[ -f "${SCRIPT_DIR}/lib/process-tree.sh" ]]; then
+                source "${SCRIPT_DIR}/lib/process-tree.sh"
+                _rune_kill_tree "$PPID" "2stage" "5" "teammates" "${_force_test_team}" >/dev/null 2>&1 || true
+              else
+                # Fallback: sleep to allow graceful exit
+                sleep 2
+              fi
               rm -rf "$CHOME/teams/${_force_test_team}/" "$CHOME/tasks/${_force_test_team}/" 2>/dev/null
             fi
             _log_phase "phase_force_advanced" "test" "reason=finalization_retry_exceeded" "retries=${_fin_retries}"

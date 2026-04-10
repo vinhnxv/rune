@@ -37,7 +37,7 @@ INPUT=""
 if [[ ! -t 0 ]]; then
   INPUT=$(head -c 1048576 2>/dev/null || true)  # FLAW-006 FIX: 1MB cap consistent with all other hooks
 fi
-CWD=$(echo "$INPUT" | jq -r '.cwd // empty' 2>/dev/null) || CWD=""
+CWD=$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null) || CWD=""
 [[ -n "$CWD" && -d "$CWD" ]] || exit 0
 
 # ── Fast-path: active arc → exit 0 (don't suggest during arc) ──
@@ -52,11 +52,16 @@ done
 
 # ── Fast-path: debounce — max 1 suggestion per session ──
 # BACK-001 FIX: Use PPID as fallback for session isolation (session_id may be empty)
-_session_id=$(echo "$INPUT" | jq -r '.session_id // empty' 2>/dev/null) || _session_id=""
+_session_id=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null) || _session_id=""
+# SEC-001 FIX: Validate session_id format before using in filesystem path
+if [[ -n "$_session_id" ]] && [[ ! "$_session_id" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+  _session_id=""
+fi
 _owner_pid="${PPID:-$$}"
 _debounce_key="${_session_id:-pid-${_owner_pid}}"
 _debounce_file="${TMPDIR:-/tmp}/rune-self-audit-suggested-${_debounce_key}"
-if [[ -f "$_debounce_file" ]]; then
+# SEC-007 FIX: Reject symlink before reading debounce file
+if [[ -f "$_debounce_file" && ! -L "$_debounce_file" ]]; then
   exit 0
 fi
 
@@ -86,10 +91,9 @@ _marginal_count=0
 _checked=0
 _max_check=5
 
-for _vf in $(printf '%s\n' "${_verdict_files[@]}" | while read -r f; do
-  _mt=$(_stat_mtime "$f" 2>/dev/null || echo "0")
-  echo "${_mt} ${f}"
-done | sort -rn | head -"${_max_check}" | awk '{print $2}'); do
+# ERR-009 FIX: Use while-read loop to avoid word-splitting on paths with spaces
+while IFS= read -r _vf; do
+  [[ -z "$_vf" ]] && continue
   _score=$(jq -r '.scores.overall_score // 0' "$_vf" 2>/dev/null) || _score=0
   # Truncate float to integer
   _score="${_score%.*}"
@@ -100,7 +104,10 @@ done | sort -rn | head -"${_max_check}" | awk '{print $2}'); do
       (( _marginal_count++ )) || true
     fi
   fi
-done
+done < <(printf '%s\n' "${_verdict_files[@]}" | while read -r f; do
+  _mt=$(_stat_mtime "$f" 2>/dev/null || echo "0")
+  echo "${_mt} ${f}"
+done | sort -rn | head -"${_max_check}" | awk '{print $2}')
 
 # ── Decision: suggest if ≥60% of recent verdicts are marginal ──
 [[ "$_checked" -ge 3 ]] || exit 0

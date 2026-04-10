@@ -52,18 +52,20 @@ command_str=$(printf '%s\n' "$input" | jq -r '(.tool_input.command // .toolInput
 
 # Fast-path: skip if command doesn't involve gh or git push
 # This grep runs in <1ms for non-matching commands
-if ! echo "$command_str" | grep -qE '(^|\s|;|&&|\|\|)(gh\s+(pr|issue|api|repo)|git\s+push)'; then
+# SEC-002 FIX: Use printf instead of echo to avoid backslash expansion
+if ! printf '%s\n' "$command_str" | grep -qE '(^|\s|;|&&|\|\|)(gh\s+(pr|issue|api|repo)|git\s+push)'; then
   exit 0
 fi
 
 # Skip gh auth commands themselves (avoid infinite loop)
-if echo "$command_str" | grep -qE '(^|\s)gh\s+auth\s+(login|switch|status|setup-git)'; then
+if printf '%s\n' "$command_str" | grep -qE '(^|\s)gh\s+auth\s+(login|switch|status|setup-git)'; then
   exit 0
 fi
 
 # Debounce: only resolve once per session (write marker on success)
 DEBOUNCE_MARKER="${TMPDIR:-/tmp}/rune-gh-account-resolved-${CLAUDE_SESSION_ID:-${PPID:-unknown}}"
-if [[ -f "$DEBOUNCE_MARKER" ]]; then
+# SEC-004 FIX: Reject symlink before reading debounce marker (TOCTOU mitigation)
+if [[ -f "$DEBOUNCE_MARKER" && ! -L "$DEBOUNCE_MARKER" ]]; then
   # Already resolved this session — check if marker is fresh (< 30 min)
   local_now=$(date +%s 2>/dev/null || echo "0")
   marker_time=$(cat "$DEBOUNCE_MARKER" 2>/dev/null || echo "0")
@@ -101,8 +103,13 @@ resolve_output=$(rune_gh_ensure_correct_account 2>&1) || {
 date +%s > "$DEBOUNCE_MARKER" 2>/dev/null || true
 
 # If account was switched, inject context so Claude knows
-if echo "$resolve_output" | grep -q "Switched to account"; then
-  switched_account=$(echo "$resolve_output" | grep "Switched to account" | sed "s/.*Switched to account '\\([^']*\\)'.*/\\1/")
+# SEC-002/SEC-003 FIX: Use printf instead of echo; validate switched_account format
+if printf '%s\n' "$resolve_output" | grep -q "Switched to account"; then
+  switched_account=$(printf '%s\n' "$resolve_output" | grep "Switched to account" | sed "s/.*Switched to account '\\([^']*\\)'.*/\\1/")
+  # SEC-003 FIX: Validate account name format before embedding in message
+  if [[ ! "$switched_account" =~ ^[a-zA-Z0-9][a-zA-Z0-9_-]*$ ]]; then
+    switched_account="(unknown)"
+  fi
   jq -n --arg ctx "GH-ACCOUNT-001: Automatically switched GitHub account to '$switched_account' for this repository. Previous account did not have access." \
     '{hookSpecificOutput:{hookEventName:"PreToolUse",additionalContext:$ctx}}'
 fi

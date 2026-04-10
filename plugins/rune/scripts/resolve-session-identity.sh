@@ -55,7 +55,12 @@ if [[ -z "${RUNE_CURRENT_CFG:-}" && -f "$_RUNE_IDENTITY_CACHE" && ! -L "$_RUNE_I
   _RUNE_CACHE_TTL=3600  # 1 hour
   _cache_mtime_raw=""
   # Cross-platform stat: macOS uses -f, Linux uses -c (platform.sh may not be available here)
-  _cache_mtime_raw=$(stat -c '%Y' "$_RUNE_IDENTITY_CACHE" 2>/dev/null || stat -f '%m' "$_RUNE_IDENTITY_CACHE" 2>/dev/null || echo "")
+  # PAT-001 FIX: Prefer platform.sh helpers when available; fall back to inline stat
+  if type _stat_mtime &>/dev/null; then
+    _cache_mtime_raw=$(_stat_mtime "$_RUNE_IDENTITY_CACHE" 2>/dev/null || echo "")
+  else
+    _cache_mtime_raw=$(stat -c '%Y' "$_RUNE_IDENTITY_CACHE" 2>/dev/null || stat -f '%m' "$_RUNE_IDENTITY_CACHE" 2>/dev/null || echo "")
+  fi
   _cache_now=$(date +%s 2>/dev/null || echo "0")
   if [[ -n "$_cache_mtime_raw" && "$_cache_mtime_raw" =~ ^[0-9]+$ && "$_cache_now" =~ ^[0-9]+$ && "$_cache_now" != "0" ]]; then
     if [[ $(( _cache_now - _cache_mtime_raw )) -gt $_RUNE_CACHE_TTL ]]; then
@@ -67,8 +72,14 @@ if [[ -z "${RUNE_CURRENT_CFG:-}" && -f "$_RUNE_IDENTITY_CACHE" && ! -L "$_RUNE_I
   # Verify file is owned by current user (prevents attacker-planted files)
   # Re-check -f after potential TTL eviction
   if [[ -f "$_RUNE_IDENTITY_CACHE" && ! -L "$_RUNE_IDENTITY_CACHE" ]]; then
-    _cache_uid=$(stat -c '%u' "$_RUNE_IDENTITY_CACHE" 2>/dev/null || stat -f '%u' "$_RUNE_IDENTITY_CACHE" 2>/dev/null || echo "")
-    if [[ -n "$_cache_uid" && "$_cache_uid" == "$(id -u)" ]]; then
+    # PAT-001 FIX: Prefer platform.sh _stat_uid when available
+    if type _stat_uid &>/dev/null; then
+      _cache_uid=$(_stat_uid "$_RUNE_IDENTITY_CACHE" 2>/dev/null || echo "")
+    else
+      _cache_uid=$(stat -c '%u' "$_RUNE_IDENTITY_CACHE" 2>/dev/null || stat -f '%u' "$_RUNE_IDENTITY_CACHE" 2>/dev/null || echo "")
+    fi
+    # PAT-007 FIX: Use bash built-in $UID (zero forks) instead of $(id -u)
+    if [[ -n "$_cache_uid" && "$_cache_uid" == "${UID:-$(id -u)}" ]]; then
       # Parse key=value lines safely — only accept expected variable names
       while IFS='=' read -r _key _val; do
         _key="${_key## }"  # trim leading space

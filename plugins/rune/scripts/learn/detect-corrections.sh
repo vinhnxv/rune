@@ -60,7 +60,8 @@ MARKER="${CWD}/tmp/.rune-learn-watch"
 
 # ── GUARD 3: Validate session ownership ──
 # Read marker JSON to check config_dir + owner_pid
-MARKER_DATA=$(cat "$MARKER" 2>/dev/null || true)
+# ERR-008 FIX: Add size cap consistent with other hook scripts (64KB for marker files)
+MARKER_DATA=$(head -c 65536 "$MARKER" 2>/dev/null || true)
 [[ -n "$MARKER_DATA" ]] || exit 0
 
 MARKER_CONFIG_DIR=$(printf '%s\n' "$MARKER_DATA" | jq -r '.config_dir // empty' 2>/dev/null || true)
@@ -78,6 +79,9 @@ kill -0 "$MARKER_OWNER_PID" 2>/dev/null || exit 0
 # Avoid interrupting arc/strive/batch/hierarchy/issues pipelines
 # shopt is bash-only — safe here because this script has #!/bin/bash shebang.
 # The 2>/dev/null || true is defensive but should never trigger under bash.
+# ERR-002 FIX: Save/restore nullglob to prevent state leaking
+_nullglob_was_set=0
+shopt -q nullglob && _nullglob_was_set=1
 shopt -s nullglob 2>/dev/null || true
 for sf in "${CWD}"/tmp/.rune-*.json; do
   # Active workflow detected — don't suggest learning mid-workflow
@@ -89,10 +93,16 @@ for sf in "${CWD}"/tmp/arc-*/*.json; do
   _trace "Active arc workflow detected, skipping correction suggestion"
   exit 0
 done 2>/dev/null || true
+# ERR-002 FIX: Restore nullglob state
+[[ "$_nullglob_was_set" -eq 0 ]] && shopt -u nullglob 2>/dev/null || true
 
 # ── GUARD 5: Debounce — max 1 suggestion per session ──
 # FLAW-008 FIX: Use session_id for debounce key (PPID unreliable in hooks)
 _session_id=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null) || _session_id=""
+# SEC-016 FIX: Validate session_id format before using in filesystem path
+if [[ -n "$_session_id" ]] && [[ ! "$_session_id" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+  _session_id=""
+fi
 _debounce_key="${_session_id:-pid-${PPID}}"
 DEBOUNCE="${CWD}/tmp/.rune-signals/.learn-suggested-${_debounce_key}"
 [[ -f "$DEBOUNCE" && ! -L "$DEBOUNCE" ]] && exit 0
