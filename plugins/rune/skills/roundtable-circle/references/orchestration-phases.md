@@ -1187,6 +1187,7 @@ if (!cleanupTeamDeleteSucceeded) {
   // Bash(`kill -TERM <teammate_pids> 2>/dev/null || true`)
   // Bash(`sleep 5`)
   // Bash(`kill -KILL <teammate_pids> 2>/dev/null || true`)  // survivors only
+  Bash(`source "${RUNE_PLUGIN_ROOT}/scripts/lib/process-tree.sh" && _rune_kill_tree "${ownerPid}" "2stage" "5" "teammates" "${teamName}"`)
   // 5b. Filesystem cleanup
   Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/" 2>/dev/null`)
   // Deep mode: also clean wave-suffixed teams (v1.67.0+)

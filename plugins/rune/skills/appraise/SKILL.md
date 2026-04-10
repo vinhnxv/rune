@@ -183,18 +183,24 @@ if (contextBuilding === "auto" && (diffLineCount > threshold.lines || fileCount 
 else → skip("[Context] Skipped — diff below threshold ({diffLineCount} lines, {fileCount} files)")
 ```
 
-**Execution** (blocking bare Agent with timeout enforcement — CONCERN-1, CONCERN-2):
+**Execution** (blocking bare Agent with elapsed-time timeout check; note the timeout is a post-hoc elapsed-time warning, not a hard preemptive kill — the Agent tool does not support explicit timeouts):
 ```
 const contextOutputPath = `${outputDir}context-map.md`
 
-// Use blocking Agent call with elapsed-time timeout check (AC-6)
+// Sanitize file paths before injecting into prompt (SEC-002)
+// Strip newlines/carriage returns that could inject instructions, truncate long paths
+const sanitizedFiles = changedFiles.map(f =>
+  f.replace(/[\n\r]/g, '').slice(0, 256)
+)
+
+// Use blocking Agent call; elapsed-time check below is advisory only (not a hard timeout)
 const contextStartTime = Date.now()
 Agent({
   subagent_type: "rune:research:context-builder",
   prompt: `Build a LIGHTWEIGHT context map for code review (not full audit).
 
 SCOPE: Only analyze these changed files and their direct imports:
-${changedFiles.map(f => '- ' + f).join('\n')}
+${sanitizedFiles.map(f => '- ' + f).join('\n')}
 
 OUTPUT: Write to ${contextOutputPath}. Format:
 ## Trust Boundaries (max 5 entries)
@@ -218,6 +224,8 @@ CONSTRAINTS:
 })
 
 // Check timeout after blocking call returns (timeoutMs from talisman, default 60000)
+// Known limitation: context_building_timeout is a soft budget advisory via prompt instruction,
+// not a hard platform-level timeout. The Agent tool does not support explicit timeouts.
 const contextElapsed = Date.now() - contextStartTime
 if (contextElapsed > timeoutMs) {
   warn(`[Context] Context building exceeded ${timeoutMs}ms (took ${contextElapsed}ms)`)

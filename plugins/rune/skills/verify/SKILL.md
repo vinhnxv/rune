@@ -491,12 +491,12 @@ try {
 // Force-reply + shutdown_request
 const aliveMembers = []
 for (const member of allMembers) {
-  try { SendMessage({ type: "message", recipient: member, content: "Acknowledge: workflow completing" }); aliveMembers.push(member) } catch (e) { /* already exited */ }
+  try { SendMessage({ to: member, message: "Acknowledge: workflow completing" }); aliveMembers.push(member) } catch (e) { /* already exited */ }
 }
 if (aliveMembers.length > 0) Bash("sleep 2")
 let confirmedAlive = 0
 for (const member of aliveMembers) {
-  try { SendMessage({ type: "shutdown_request", recipient: member, content: "Workflow complete" }); confirmedAlive++ } catch (e) { /* already exited */ }
+  try { SendMessage({ to: member, message: { type: "shutdown_request", reason: "Workflow complete" } }); confirmedAlive++ } catch (e) { /* already exited */ }
 }
 
 // Adaptive grace period
@@ -528,7 +528,13 @@ if (!cleanupTeamDeleteSucceeded) {
   // Bash(`sleep 5`)
   // Bash(`kill -KILL ${teammatePids.join(' ')} 2>/dev/null || true`)
   // Alternative (preferred): use process-tree.sh helper
-  Bash(`source "\${RUNE_PLUGIN_ROOT}/scripts/lib/process-tree.sh" && _rune_kill_tree "\${ownerPid}" "2stage" "5" "teammates" "\${teamName}"`)
+  // Pattern choice: process-tree.sh provides MCP-PROTECT-003 positive whitelist + 2-stage kill with grace period
+  const ownerPid = Bash("echo $PPID").trim()
+  if (!Bash(`test -n "${RUNE_PLUGIN_ROOT}" && test -f "${RUNE_PLUGIN_ROOT}/scripts/lib/process-tree.sh" && echo OK`).includes("OK")) {
+    warn("[Cleanup] process-tree.sh not found — falling back to manual kill list above")
+  } else {
+    Bash(`source "\${RUNE_PLUGIN_ROOT}/scripts/lib/process-tree.sh" && _rune_kill_tree "\${ownerPid}" "2stage" "5" "teammates" "\${teamName}"`)
+  }
 
   Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/" 2>/dev/null`)
   try { TeamDelete() } catch (e) { /* best effort */ }

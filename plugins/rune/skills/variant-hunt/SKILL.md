@@ -126,7 +126,7 @@ for (let i = 0; i < maxHunters; i++) {
 // Step 6: Cleanup — 5-component standard pattern (CLAUDE.md Agent Team Cleanup)
 const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
 
-// 6.1. Dynamic member discovery
+// 1. Dynamic member discovery
 let allMembers = []
 try {
   const teamConfig = JSON.parse(Read(`${CHOME}/teams/${teamName}/config.json`))
@@ -137,7 +137,7 @@ try {
   allMembers = ["variant-hunter-1", "variant-hunter-2", "variant-hunter-3"]
 }
 
-// 6.2. Force-reply pattern + shutdown_request
+// 2. shutdown_request to all members — track delivery failures for adaptive grace
 let confirmedAlive = 0
 let confirmedDead = 0
 const aliveMembers = []
@@ -155,14 +155,14 @@ for (const member of aliveMembers) {
   try { SendMessage({ type: "shutdown_request", recipient: member, content: "Variant hunt complete" }); confirmedAlive++ } catch (e) { confirmedDead++ }
 }
 
-// 6.3. Adaptive grace period — scale by confirmed-alive count, cap at 20s
+// 3. Adaptive grace period — scale based on confirmed-alive members
 if (confirmedAlive > 0) {
   Bash(`sleep ${Math.min(20, Math.max(5, confirmedAlive * 5))}`)
 } else {
   Bash("sleep 2")
 }
 
-// 6.4. TeamDelete with retry-with-backoff (4 attempts: 0s, 3s, 6s, 10s)
+// 4. TeamDelete with retry-with-backoff (4 attempts: 0s, 3s, 6s, 10s = 19s total)
 let cleanupTeamDeleteSucceeded = false
 const CLEANUP_DELAYS = [0, 3000, 6000, 10000]
 for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
@@ -172,14 +172,14 @@ for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
   }
 }
 
-// 6.5. Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
+// 5. Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
 if (!cleanupTeamDeleteSucceeded) {
   // Process-level kill — READ-FIRST, KILL-SECOND (MCP-PROTECT-003)
   const processListOutput = Bash(`ps -o pid,ppid,comm,args -p $(pgrep -P $PPID 2>/dev/null | head -30 | tr '\n' ',') 2>/dev/null || echo "NO_CHILDREN"`)
   // Classify each process: TEAMMATE (kill) vs MCP_SERVER/CONNECTOR/OTHER (protect)
   // TEAMMATE = comm is node|claude|claude-* AND args has NO --stdio/--lsp/mcp-server/connector
   // Only kill PIDs classified as TEAMMATE — NEVER blind for-loop over pgrep output
-  Bash("sleep 5")
+  // Bash("sleep 5")  // Commented: no kill calls surround this sleep
   // Filesystem cleanup
   Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/" 2>/dev/null`)
   try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }

@@ -16,7 +16,7 @@ mcpServers:
   - echo-search
 source: builtin
 priority: 100
-primary_phase: audit
+primary_phase: review
 compatible_phases:
   - audit
   - inspect

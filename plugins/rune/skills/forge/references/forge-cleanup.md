@@ -53,6 +53,7 @@ if (cleanupOwnerPid && /^\d+$/.test(cleanupOwnerPid)) {
   // Step 3: KILL — only PIDs classified as TEAMMATE from Step 2
   // Build kill list from classification (only TEAMMATE PIDs)
   // Bash(`kill -TERM <teammate_pids> 2>/dev/null || true`)
+  Bash(`source "${RUNE_PLUGIN_ROOT}/scripts/lib/process-tree.sh" && _rune_kill_tree "${cleanupOwnerPid}" "2stage" "5" "teammates" "rune-forge-${timestamp}"`)
 }
 
 // Update state file to completed (preserve session identity — BEFORE lock release per engines.md)

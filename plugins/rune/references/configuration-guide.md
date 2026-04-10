@@ -297,7 +297,7 @@ See [docs/guides/mcp-integration-spec.en.md](../../../docs/guides/mcp-integratio
 | `review.context_building` | string | `"auto"` | Context building gate: `auto` (trigger on large diffs), `always`, `never` |
 | `review.context_building_threshold.lines` | number | `500` | Diff line count threshold for auto mode (50-10000) |
 | `review.context_building_threshold.files` | number | `5` | File count threshold for auto mode (2-100) |
-| `review.context_building_timeout` | number | `60000` | Context builder timeout in ms (10000-300000) |
+| `review.context_building_timeout` | number | `60000` | Post-hoc elapsed-time warning threshold in ms — emits warn() if context builder exceeds this; does not preempt the agent (10000-300000) |
 
 ### `work` — Swarm Execution
 

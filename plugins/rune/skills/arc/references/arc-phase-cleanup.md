@@ -151,6 +151,7 @@ function postPhaseCleanup(checkpoint, phaseName) {
         // Bash(`kill -TERM <teammate_pids> 2>/dev/null || true`)
         // Bash(`sleep 5`)
         // Bash(`kill -KILL <teammate_pids> 2>/dev/null || true`)  // survivors only
+        Bash(`source "${RUNE_PLUGIN_ROOT}/scripts/lib/process-tree.sh" && _rune_kill_tree "$PPID" "2stage" "5" "teammates" "${teamName}"`)
         // SEC: teamName validated above with /^[a-zA-Z0-9_-]+$/ — shell injection not possible
         Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/" 2>/dev/null`)
         try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
