@@ -1123,7 +1123,7 @@ for (const member of allMembers) {
   try { SendMessage({ type: "message", recipient: member, content: "Acknowledge: workflow completing" }); aliveMembers.push(member) } catch (e) { confirmedDead++ /* member already exited */ }
 }
 // Step 2b: Single shared pause — teammates process the force-reply message
-if (aliveMembers.length > 0) { Bash("sleep 2") }
+if (aliveMembers.length > 0) { Bash("sleep 2", { run_in_background: true }) }
 // Step 2c: Send shutdown_request to alive members
 for (const member of aliveMembers) {
   try { SendMessage({ type: "shutdown_request", recipient: member, content: `${label} complete` }); confirmedAlive++ } catch (e) { confirmedDead++ }
@@ -1139,9 +1139,9 @@ if (confirmedAlive > 0) {
   const hangCheck = Bash(`pgrep -P $PPID 2>/dev/null | wc -l`).trim()
   const processesStillRunning = parseInt(hangCheck, 10) || 0
   if (processesStillRunning > 0) {
-    Bash(`sleep ${Math.min(15, Math.max(5, processesStillRunning * 3))}`)
+    Bash(`sleep ${Math.min(15, Math.max(5, processesStillRunning * 3))}`, { run_in_background: true })
   } else {
-    Bash("sleep 2")
+    Bash("sleep 2", { run_in_background: true })
   }
 }
 
