@@ -284,6 +284,17 @@ Vietnamese guides are also available — see `docs/guides/*-vi.md`.
 </details>
 
 <details>
+<summary>Stop Hook Safety (v2.44.1)</summary>
+
+Rune uses 10 Stop hooks for arc phase loop driving, workflow cleanup, and stale teammate detection. Session isolation uses `session_id` as the primary ownership signal (not `$PPID`, which is unreliable in hook subprocess context per Claude Code architecture). Key safety properties:
+- **Fail-forward**: All operational hooks exit 0 on errors — never block the session
+- **EXIT trap safety**: `arc-phase-stop-hook.sh` forces exit 0 on any unintended error, preserving exit 2 only for intentional phase injection
+- **Conservative defer**: Cleanup hooks defer to active arc loops via freshness checks even when ownership cannot be determined
+- **Timeout budgets**: Per-loop budget guards prevent jq-heavy iteration from exceeding hook timeouts
+
+</details>
+
+<details>
 <summary>Codex Oracle (Cross-Model Verification)</summary>
 
 When the `codex` CLI is installed, Rune adds Codex Oracle as a built-in Ash (review agent) for cross-model verification — a second AI perspective catching single-model blind spots. See [Advanced Workflows Guide](../../docs/guides/rune-advanced-workflows-guide.en.md).

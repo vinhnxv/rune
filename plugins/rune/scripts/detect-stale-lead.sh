@@ -77,6 +77,15 @@ if [[ -f "${SCRIPT_DIR}/lib/platform.sh" ]]; then
   source "${SCRIPT_DIR}/lib/platform.sh"
 fi
 source "${SCRIPT_DIR}/lib/rune-state.sh"
+if [[ -f "${SCRIPT_DIR}/lib/frontmatter-utils.sh" ]]; then
+  source "${SCRIPT_DIR}/lib/frontmatter-utils.sh"
+else
+  _get_fm_field() {
+    local fm="$1" field="$2"
+    [[ "$field" =~ ^[a-zA-Z0-9_-]+$ ]] || return 1
+    printf '%s\n' "$fm" | grep "^${field}:" | sed "s/^${field}:[[:space:]]*//" | sed 's/^"//' | sed 's/"$//' | head -1 || true
+  }
+fi
 
 # Inline _trace (QUAL-007)
 RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
@@ -115,7 +124,7 @@ for loop_file in \
     fi
     # FLAW-005 FIX: Use session_id for ownership check (PPID unreliable in hooks)
     _session_id=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null) || _session_id=""
-    _loop_sid=$(_get_fm_field "$_LOOP_FM" "session_id" 2>/dev/null) || _loop_sid=""
+    _loop_sid=$(_get_fm_field "$_loop_fm" "session_id" 2>/dev/null) || _loop_sid=""
     # Skip loop files from other live sessions (prefer session_id, fall back to PID)
     if [[ -n "$_loop_sid" && -n "$_session_id" && "$_loop_sid" != "$_session_id" ]]; then
       if [[ -n "$_loop_pid" && "$_loop_pid" =~ ^[0-9]+$ ]] && rune_pid_alive "$_loop_pid"; then

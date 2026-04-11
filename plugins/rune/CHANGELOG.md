@@ -1,5 +1,31 @@
 # Changelog
 
+## [2.44.1] - 2026-04-11
+
+### Fixed
+- **arc-phase-stop-hook.sh**: Fix EXIT trap capturing non-zero exit code when `_rune_fail_forward` stderr write fails — root cause of "Failed with non-blocking status code: No stderr output" error. EXIT trap now forces exit 0 unless intentional exit 2 (M-1)
+- **arc-phase-stop-hook.sh**: Fix `_IMMEDIATE_PREV` tracking any non-pending phase (including skipped) instead of only completed — caused compact interlude to misfire on skipped heavy phases (H-1)
+- **arc-phase-stop-hook.sh**: Backport FLAW-007 awk `found` counter to compact Phase A insertion — prevents frontmatter corruption when markdown body contains `---` lines (M-3)
+- **arc-phase-stop-hook.sh**: Fix jq dot-notation injection risk — all `.phases.${var}.status` patterns now use `--arg p "$var" '.phases[$p].status'` for safety with hyphenated phase names
+- **arc-phase-stop-hook.sh**: Fix `${ARC_ID:-unknown}` → `${_ARC_ID_FOR_LOG:-unknown}` in context exhaustion messages — was always showing "unknown"
+- **arc-phase-stop-hook.sh**: Fix crash signal off-by-one — change `-gt 60` to `-ge 60` for cleanup threshold
+- **detect-stale-lead.sh**: Fix `$_LOOP_FM` (uppercase) case mismatch — should be `$_loop_fm` (lowercase) as set on line 107. Session_id ownership check was silently broken (C-1)
+- **detect-stale-lead.sh**: Add missing `source lib/frontmatter-utils.sh` — `_get_fm_field` was undefined, causing ERR trap abort whenever arc loop files exist (C-1)
+- **detect-workflow-complete.sh**: Add `session_id` as primary ownership check in GUARD 2 (loop file defer) — `$PPID` is unreliable in hook context per CLAUDE.md rule #11 (C-2)
+- **detect-workflow-complete.sh**: Add `session_id` check in GUARD 2.5 (checkpoint freshness) — same PPID inconsistency fix (C-3)
+- **detect-workflow-complete.sh**: Fix timeout budget guard using `HOOK_START_TIME` (post-guard) instead of `_HOOK_START_EPOCH` (true start) — budget was 3-5s shorter than intended (H-7)
+- **detect-workflow-complete.sh**: Change `continue` to `exit 0` for legacy loop file mtime failure — conservatively defer entire hook instead of skipping one file (M-10)
+- **on-session-stop.sh**: Add conservative defer fallback for GUARD 5d — when `_check_loop_ownership` returns 1 but phase loop file exists and is fresh (<150 min), defer with exit 0 instead of falling through to cleanup (H-2)
+- **on-session-stop.sh**: Add `session_id` as primary ownership signal at 3 cleanup sites (BUILD STATE FILE TEAM SET, Phase 2, Phase 3) — `$PPID` fallback only when session_id unavailable (H-4)
+- **on-session-stop.sh**: Add timeout budget guard (3s) to signal dir cleanup loop — prevents O(N×M) jq calls from exhausting 10s hook timeout (M-12)
+- **on-session-stop.sh**: Return 1 (ownership unknown) instead of 0 (allow cleanup) when `_check_loop_ownership` finds empty YAML frontmatter — prevents corrupt files from triggering cleanup of another session's state (M-13)
+- **stop-hook-common.sh**: Widen `_iso_to_epoch()` to accept non-UTC timestamps (`+HH:MM`/`-HH:MM` offsets) — GUARD 10 rapid-iteration check was silently bypassed for non-UTC timezones (C-4)
+- **stop-hook-common.sh**: Fix fractional-seconds stripping to handle non-Z suffixes (M-4)
+- **stop-hook-common.sh**: Add `:-0` default after `_stat_mtime` in `_validate_session_ownership_core` — prevents arithmetic failure on empty result (H-9)
+- **stop-hook-common.sh**: Replace `$(id -u)` with `${_RUNE_UID:-$(id -u)}` in `_check_context_at_threshold` — avoids subprocess fork per invocation (H-3)
+- **arc-stop-hook-common.sh**: Add `:-0` defaults after both `_stat_mtime` calls in `arc_guard_context_critical_with_stale_bridge` — prevents integer comparison failure on empty strings (H-8)
+- **hooks.json**: Increase `on-session-stop.sh` timeout from 5s to 10s — 5s was insufficient for projects with 50+ state files (~200+ jq subprocess calls) (H-11)
+
 ## [2.44.0] - 2026-04-10
 
 ### Added

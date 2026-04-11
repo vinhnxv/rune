@@ -493,9 +493,9 @@ arc_guard_context_critical_with_stale_bridge() {
     local _bridge_file="${TMPDIR:-/tmp}/rune-ctx-${HOOK_SESSION_ID}.json"
     if [[ -f "$_bridge_file" && ! -L "$_bridge_file" ]]; then
       local _bridge_mtime
-      _bridge_mtime=$(_stat_mtime "$_bridge_file" 2>/dev/null || echo "0")
+      _bridge_mtime=$(_stat_mtime "$_bridge_file" 2>/dev/null || echo "0"); _bridge_mtime="${_bridge_mtime:-0}"
       local _state_mtime
-      _state_mtime=$(_stat_mtime "$state_file" 2>/dev/null || echo "0")
+      _state_mtime=$(_stat_mtime "$state_file" 2>/dev/null || echo "0"); _state_mtime="${_state_mtime:-0}"
       # Bridge file older than state file → stale (written before compact interlude)
       if [[ "$_bridge_mtime" -le "$_state_mtime" ]]; then
         _skip_context_check="true"

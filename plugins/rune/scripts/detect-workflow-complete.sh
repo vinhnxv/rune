@@ -138,6 +138,11 @@ _trace() { [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "$RUNE_TRACE_LOG" ]] && [[ 
 HOOK_START_TIME=$(date +%s)
 _trace "ENTER detect-workflow-complete.sh"
 
+# Extract session_id from hook input ONCE — used by GUARD 2 and GUARD 2.5 session_id checks.
+# CLAUDE.md rule #11: $PPID is unreliable in hooks (hook runner subprocess differs from skill PPID).
+# Prefer session_id for ownership decisions when available.
+_hook_sid=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
+
 # ── GUARD 1: Fast-path — any state files at all? ──
 # Bash 3.2 compatible (no readarray): collect state files via loop
 STATE_FILES=()
@@ -172,13 +177,30 @@ for loop_file in \
     _loop_fm=$(sed -n '/^---$/,/^---$/p' "$loop_file" 2>/dev/null | sed '1d;$d')
     _loop_cfg=$(_get_fm_field "$_loop_fm" "config_dir")
     _loop_pid=$(_get_fm_field "$_loop_fm" "owner_pid")
+    _loop_sid=$(_get_fm_field "$_loop_fm" "session_id")
+    # Prefer session_id for ownership (PPID unreliable in hooks per CLAUDE.md rule #11)
+    if [[ -n "$_loop_sid" && -n "$_hook_sid" && "$_loop_sid" == "$_hook_sid" ]]; then
+      # Same session — defer to arc loop hooks
+      _loop_mtime=$(_stat_mtime "$loop_file"); _loop_mtime="${_loop_mtime:-0}"
+      if [[ -n "$_loop_mtime" && "$_loop_mtime" =~ ^[0-9]+$ ]]; then
+        age_min=$(( (HOOK_START_TIME - _loop_mtime) / 60 ))
+        [[ $age_min -lt 0 ]] && age_min=0
+        if [[ $age_min -lt 150 ]]; then
+          _trace "DEFER: OUR active loop file $(basename "$loop_file") via session_id match (${age_min}m old)"
+          exit 0
+        fi
+      else
+        _trace "DEFER: loop file $(basename "$loop_file") — mtime invalid, deferring conservatively"
+        exit 0
+      fi
+    fi
 
     # Skip loop files from different installations
     if [[ -n "$_loop_cfg" && "$_loop_cfg" != "$RUNE_CURRENT_CFG" ]]; then
       _trace "SKIP loop file $(basename "$loop_file"): config_dir mismatch"
       continue
     fi
-    # Skip loop files from other live sessions
+    # Fallback: PPID-based ownership check for loop files without session_id
     if [[ -n "$_loop_pid" && "$_loop_pid" =~ ^[0-9]+$ && "$_loop_pid" != "$PPID" ]]; then
       if rune_pid_alive "$_loop_pid"; then
         _trace "SKIP loop file $(basename "$loop_file"): belongs to live session PID=$_loop_pid"
@@ -201,9 +223,12 @@ for loop_file in \
     # (e.g., macOS stat variant issue via lib/platform.sh), we prefer deferring all loop
     # files over risking premature cleanup of an active arc. Trace logging below captures
     # the raw return value to aid platform debugging (RUNE_TRACE=1).
+    # M-10 FIX: Use exit 0 (not continue) for legacy loop files — conservatively defer
+    # the entire hook rather than just skipping the one file. A legacy loop file with
+    # unreadable mtime could be an active arc from an older Rune version.
     if [[ -z "$_loop_mtime" || ! "$_loop_mtime" =~ ^[0-9]+$ ]]; then
-      _trace "DEFER: $(basename "$loop_file") — mtime invalid (raw='${_loop_mtime:-<empty>}'), skipping. If recurring, check _stat_mtime platform compat in lib/platform.sh"
-      continue
+      _trace "DEFER: $(basename "$loop_file") — mtime invalid (raw='${_loop_mtime:-<empty>}'), deferring hook. If recurring, check _stat_mtime platform compat in lib/platform.sh"
+      exit 0
     fi
     age_min=$(( ($HOOK_START_TIME - _loop_mtime) / 60 ))
     # EDGE-002 FIX: Guard against clock skew producing negative age
@@ -230,6 +255,20 @@ if [[ -d "${CWD}/${RUNE_STATE}/arc" ]]; then
       continue  # Different installation — not our checkpoint
     fi
     _ckpt_pid=$(jq -r '.owner_pid // empty' "$_ckpt_file" 2>/dev/null || true)
+    _ckpt_sid=$(jq -r '.session_id // empty' "$_ckpt_file" 2>/dev/null || true)
+    # Prefer session_id for ownership (PPID unreliable in hooks per CLAUDE.md rule #11)
+    if [[ -n "$_ckpt_sid" && -n "$_hook_sid" && "$_ckpt_sid" == "$_hook_sid" ]]; then
+      # Our checkpoint — check freshness
+      _ckpt_mtime=$(_stat_mtime "$_ckpt_file"); _ckpt_mtime="${_ckpt_mtime:-0}"
+      if [[ "$_ckpt_mtime" =~ ^[0-9]+$ ]]; then
+        _ckpt_age=$(( HOOK_START_TIME - _ckpt_mtime ))
+        if [[ "$_ckpt_age" -ge 0 && "$_ckpt_age" -lt 60 ]]; then
+          _trace "GUARD 2.5: DEFER — fresh checkpoint via session_id match (${_ckpt_age}s)"
+          exit 0
+        fi
+      fi
+    fi
+    # Fallback: PPID-based ownership check for checkpoints without session_id
     if [[ -n "$_ckpt_pid" && "$_ckpt_pid" =~ ^[0-9]+$ && "$_ckpt_pid" != "$PPID" ]]; then
       if rune_pid_alive "$_ckpt_pid"; then
         continue  # Belongs to another live session
@@ -275,7 +314,9 @@ for sf in "${STATE_FILES[@]}"; do
   [[ -L "$sf" ]] && continue  # skip symlinks
 
   # VEIL-005: Per-iteration timeout budget guard — abort if <5s remaining in 30s budget
-  elapsed_total=$(( $(date +%s) - HOOK_START_TIME ))
+  # H-7 FIX: Use _HOOK_START_EPOCH (captured before guards) not HOOK_START_TIME (same value here
+  # but _HOOK_START_EPOCH is the canonical "true start" variable; keeps usage consistent)
+  elapsed_total=$(( $(date +%s) - _HOOK_START_EPOCH ))
   if [[ $elapsed_total -gt 25 ]]; then
     _trace "TIMEOUT GUARD: >${elapsed_total}s elapsed, aborting loop"
     break

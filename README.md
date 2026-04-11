@@ -7,7 +7,7 @@
 Plan, implement, review, test, and audit your codebase using coordinated Agent Teams — each teammate with its own dedicated context window.
 
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-Supported-7F4DFF)](https://docs.anthropic.com/en/docs/claude-code)
-[![Version](https://img.shields.io/badge/version-2.31.0-blue)](.claude-plugin/marketplace.json)
+[![Version](https://img.shields.io/badge/version-2.44.1-blue)](.claude-plugin/marketplace.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Agents](https://img.shields.io/badge/agents-151-purple)](#agents)
 [![Skills](https://img.shields.io/badge/skills-61-orange)](#skills)

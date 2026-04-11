@@ -111,6 +111,18 @@
         ]
       },
       {
+        "matcher": "Bash",
+        "_rationale": "SLEEP-BG-001: Auto-adds run_in_background:true for sleep commands >= 2 seconds. Prevents Claude Code harness from blocking sleep commands. OPERATIONAL — fail-forward.",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/enforce-sleep-background.sh",
+            "timeout": 2,
+            "statusMessage": "Checking sleep command..."
+          }
+        ]
+      },
+      {
         "matcher": "Write|Edit|NotebookEdit",
         "hooks": [
           {
@@ -666,7 +678,7 @@
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/scripts/on-session-stop.sh",
-            "timeout": 5,
+            "timeout": 10,
             "statusMessage": "Checking for active Rune workflows..."
           }
         ]

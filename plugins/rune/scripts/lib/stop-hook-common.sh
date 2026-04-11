@@ -249,7 +249,7 @@ _validate_session_ownership_core() {
     # can't distinguish "slow session" from "different session with recycled PID".
     local _MAX_CLAIM_AGE=120  # 2 minutes
     local _state_mtime _now_epoch _state_age
-    _state_mtime=$(_stat_mtime "$state_file")
+    _state_mtime=$(_stat_mtime "$state_file"); _state_mtime="${_state_mtime:-0}"
     _now_epoch=$(date +%s 2>/dev/null || echo "0")
     if [[ -n "$_state_mtime" && "$_state_mtime" =~ ^[0-9]+$ && "$_now_epoch" =~ ^[0-9]+$ && "$_now_epoch" != "0" ]]; then
       _state_age=$(( _now_epoch - _state_mtime ))
@@ -935,13 +935,13 @@ _find_arc_checkpoint() {
 # Delegates to _parse_iso_epoch from lib/platform.sh for cross-platform date parsing.
 _iso_to_epoch() {
   local ts="$1"
-  # Strip optional fractional seconds (.NNN) before terminal Z
-  if [[ "$ts" =~ \.[0-9]+Z$ ]]; then
-    ts="${ts%%.*}Z"
+  # Strip fractional seconds (e.g., .123Z → Z, .123+09:00 → +09:00)
+  if [[ "$ts" =~ \.[0-9]+ ]]; then
+    ts="${ts%%.*}${ts##*[0-9]}"  # Remove .NNN, keep suffix (Z or +HH:MM or -HH:MM)
   fi
-  # Validate strict format: YYYY-MM-DDTHH:MM:SSZ (no other chars allowed)
+  # Accept ISO-8601: YYYY-MM-DDTHH:MM:SSZ or YYYY-MM-DDTHH:MM:SS+HH:MM or -HH:MM
   # NOTE: {N} quantifier not supported in Bash 3.2 (macOS) — use explicit repetition
-  [[ "$ts" =~ ^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z$ ]] || return 1
+  [[ "$ts" =~ ^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9](Z|[+-][0-9][0-9]:[0-9][0-9])$ ]] || return 1
   local result
   result=$(_parse_iso_epoch "$ts")
   # R1-009 FIX: Use empty-string check — "0" is valid (Unix epoch 0 = 1970-01-01T00:00:00Z)
@@ -968,7 +968,7 @@ _check_context_at_threshold() {
   # UID ownership check (prevent reading other users' bridge files)
   local bridge_uid=""
   bridge_uid=$(_stat_uid "$bridge_file")
-  [[ -n "$bridge_uid" && "$bridge_uid" != "$(id -u)" ]] && return 1
+  [[ -n "$bridge_uid" && "$bridge_uid" != "${_RUNE_UID:-$(id -u)}" ]] && return 1
 
   # Freshness check (180s — more lenient than PreToolUse's 30s because
   # Stop hooks fire after Claude responds and may chain through multiple hooks.

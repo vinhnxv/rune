@@ -85,6 +85,8 @@ INPUT=$(head -c 1048576 2>/dev/null || true)
 # ── GUARD 3: Loop prevention ──
 # If stop_hook_active is true, we already cleaned on a previous pass — allow stop
 STOP_HOOK_ACTIVE=$(printf '%s\n' "$INPUT" | jq -r '.stop_hook_active // empty' 2>/dev/null || true)  # Use printf instead of echo for JSON safety (prevents shell interpretation of special chars)
+# H-4 FIX: Extract hook session_id once (PPID unreliable in hooks per CLAUDE.md rule #11)
+_HOOK_SID=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
 if [[ "$STOP_HOOK_ACTIVE" == "true" ]]; then
   exit 0
 fi
@@ -154,6 +156,10 @@ _check_loop_ownership() {
   local state_file="$1"
   [[ -f "$state_file" ]] && [[ ! -L "$state_file" ]] || return 1
   _LOOP_FM=$(sed -n '/^---$/,/^---$/p' "$state_file" 2>/dev/null | sed '1d;$d')
+  # AUDIT-FIX: Empty frontmatter = corrupt file — return 1 (ownership unknown) instead of 0 (allow cleanup)
+  if [[ -z "$_LOOP_FM" ]]; then
+    return 1
+  fi
   local cfg pid sid
   cfg=$(_get_fm_field "$_LOOP_FM" "config_dir")
   pid=$(_get_fm_field "$_LOOP_FM" "owner_pid")
@@ -228,6 +234,18 @@ if _check_loop_ownership "${CWD}/${RUNE_STATE}/arc-phase-loop.local.md"; then
     fi
   else
     rm -f "${CWD}/${RUNE_STATE}/arc-phase-loop.local.md" 2>/dev/null
+  fi
+fi
+
+# AUDIT-FIX: Conservative defer — if phase loop file exists but ownership unclear, check freshness
+if [[ -f "${CWD}/${RUNE_STATE}/arc-phase-loop.local.md" && ! -L "${CWD}/${RUNE_STATE}/arc-phase-loop.local.md" ]]; then
+  _phase_mtime=$(_stat_mtime "${CWD}/${RUNE_STATE}/arc-phase-loop.local.md"); _phase_mtime="${_phase_mtime:-0}"
+  if [[ "$_phase_mtime" =~ ^[0-9]+$ && "$_phase_mtime" -gt 0 ]]; then
+    _phase_age_min=$(( (NOW - _phase_mtime) / 60 ))
+    [[ $_phase_age_min -lt 0 ]] && _phase_age_min=0
+    if [[ $_phase_age_min -lt $_PHASE_STALE_MIN ]]; then
+      exit 0  # Fresh phase loop file — defer conservatively even if ownership unclear
+    fi
   fi
 fi
 
@@ -390,6 +408,13 @@ if [[ -d "${CWD}/tmp" ]]; then
       sf_cfg=$(jq -r '.config_dir // empty' "$sf" 2>/dev/null || true)
       sf_pid=$(jq -r '.owner_pid // empty' "$sf" 2>/dev/null || true)
       if [[ -n "$sf_cfg" && "$sf_cfg" != "$RUNE_CURRENT_CFG" ]]; then continue; fi
+      # H-4 FIX: Prefer session_id for ownership (PPID unreliable in hooks per CLAUDE.md rule #11)
+      sf_sid=$(jq -r '.session_id // empty' "$sf" 2>/dev/null || true)
+      if [[ -n "$sf_sid" && -n "$_HOOK_SID" && "$sf_sid" != "$_HOOK_SID" ]]; then
+        if [[ -n "$sf_pid" && "$sf_pid" =~ ^[0-9]+$ ]] && rune_pid_alive "$sf_pid"; then
+          continue  # Different live session
+        fi
+      fi
       if [[ -n "$sf_pid" && "$sf_pid" =~ ^[0-9]+$ && "$sf_pid" != "$PPID" ]]; then
         rune_pid_alive "$sf_pid" && continue  # alive = different session
       fi
@@ -495,6 +520,13 @@ if [[ -d "${CWD}/tmp" ]]; then
       f_cfg=$(jq -r '.config_dir // empty' "$f" 2>/dev/null || true)
       f_pid=$(jq -r '.owner_pid // empty' "$f" 2>/dev/null || true)
       if [[ -n "$f_cfg" && "$f_cfg" != "$RUNE_CURRENT_CFG" ]]; then continue; fi
+      # H-4 FIX: Prefer session_id for ownership (PPID unreliable in hooks per CLAUDE.md rule #11)
+      f_sid=$(jq -r '.session_id // empty' "$f" 2>/dev/null || true)
+      if [[ -n "$f_sid" && -n "$_HOOK_SID" && "$f_sid" != "$_HOOK_SID" ]]; then
+        if [[ -n "$f_pid" && "$f_pid" =~ ^[0-9]+$ ]] && rune_pid_alive "$f_pid"; then
+          continue  # Different live session
+        fi
+      fi
       if [[ -n "$f_pid" && "$f_pid" =~ ^[0-9]+$ && "$f_pid" != "$PPID" ]]; then
         rune_pid_alive "$f_pid" && continue  # alive = different session
       fi
@@ -541,6 +573,13 @@ if [[ -d "${CWD}/${RUNE_STATE}/arc/" ]]; then
       f_cfg=$(jq -r '.config_dir // empty' "$f" 2>/dev/null || true)
       f_pid=$(jq -r '.owner_pid // empty' "$f" 2>/dev/null || true)
       if [[ -n "$f_cfg" && "$f_cfg" != "$RUNE_CURRENT_CFG" ]]; then continue; fi
+      # H-4 FIX: Prefer session_id for ownership (PPID unreliable in hooks per CLAUDE.md rule #11)
+      f_sid=$(jq -r '.session_id // empty' "$f" 2>/dev/null || true)
+      if [[ -n "$f_sid" && -n "$_HOOK_SID" && "$f_sid" != "$_HOOK_SID" ]]; then
+        if [[ -n "$f_pid" && "$f_pid" =~ ^[0-9]+$ ]] && rune_pid_alive "$f_pid"; then
+          continue  # Different live session
+        fi
+      fi
       if [[ -n "$f_pid" && "$f_pid" =~ ^[0-9]+$ && "$f_pid" != "$PPID" ]]; then
         rune_pid_alive "$f_pid" && continue  # alive = different session
       fi
@@ -658,6 +697,11 @@ if [[ -d "${CWD}/tmp/.rune-signals/" ]]; then
                "${CWD}/tmp/.rune-signals/"rune-mend-*/; do
     [[ ! -d "$sdir" ]] && continue
     [[ -L "$sdir" ]] && continue
+    # M-12 FIX: Timeout budget guard — skip remaining signal dir cleanup if elapsed > 3s
+    _cleanup_elapsed=$(( $(date +%s) - NOW ))
+    if [[ $_cleanup_elapsed -gt 3 ]]; then
+      break  # Budget exhausted — skip remaining signal dir cleanup
+    fi
     sdirname="${sdir%/}"
     sdirname="${sdirname##*/}"
     [[ "$sdirname" =~ ^[a-zA-Z0-9_-]+$ ]] || continue
