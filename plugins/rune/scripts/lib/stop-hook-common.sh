@@ -936,8 +936,13 @@ _find_arc_checkpoint() {
 _iso_to_epoch() {
   local ts="$1"
   # Strip fractional seconds (e.g., .123Z → Z, .123+09:00 → +09:00)
-  if [[ "$ts" =~ \.[0-9]+ ]]; then
-    ts="${ts%%.*}${ts##*[0-9]}"  # Remove .NNN, keep suffix (Z or +HH:MM or -HH:MM)
+  # FLAW-008 FIX: Use regex capture groups instead of parameter expansion.
+  # The old ${ts##*[0-9]} approach fails for +HH:MM suffixes because the last
+  # digit in "+09:00" consumes the entire suffix.
+  if [[ "$ts" =~ ^([0-9T:-]+)\.[0-9]+(Z|[+-][0-9][0-9]:[0-9][0-9])$ ]]; then
+    ts="${BASH_REMATCH[1]}${BASH_REMATCH[2]}"
+  elif [[ "$ts" =~ \.[0-9]+Z$ ]]; then
+    ts="${ts%%.*}Z"  # Simple case: fractional + Z suffix
   fi
   # Accept ISO-8601: YYYY-MM-DDTHH:MM:SSZ or YYYY-MM-DDTHH:MM:SS+HH:MM or -HH:MM
   # NOTE: {N} quantifier not supported in Bash 3.2 (macOS) — use explicit repetition

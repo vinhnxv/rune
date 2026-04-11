@@ -26,6 +26,18 @@
 - **arc-stop-hook-common.sh**: Add `:-0` defaults after both `_stat_mtime` calls in `arc_guard_context_critical_with_stale_bridge` — prevents integer comparison failure on empty strings (H-8)
 - **hooks.json**: Increase `on-session-stop.sh` timeout from 5s to 10s — 5s was insufficient for projects with 50+ state files (~200+ jq subprocess calls) (H-11)
 
+### Fixed (Mend Pass — Post-Review)
+- **stop-hook-common.sh**: Fix `_iso_to_epoch` fractional-second stripping destroying timezone suffix for non-UTC timestamps — `${ts##*[0-9]}` consumed `+09:00` suffix. Now uses regex capture groups (FLAW-008)
+- **arc-phase-stop-hook.sh**: Fix fallback `_IMMEDIATE_PREV` loop accepting skipped/failed phases — diverged from fixed jq primary path that correctly restricts to `completed` only (FLAW-001)
+- **detect-stale-lead.sh**: Complete session_id migration at 3 remaining PPID-only sites — state file ownership check, debounce marker read-back, and mtime-invalid defer path (SEC-004, FLAW-002, BACK-007)
+- **arc-stop-hook-common.sh**: Add `-${PPID}` suffix to verbose ERR trap trace log path — was shared across concurrent debug sessions (SEC-001)
+- **arc-phase-stop-hook.sh**: Remove `rm -f "$STATE_FILE"` from mktemp/sed failure paths — preserves arc state on transient filesystem errors, matching `arc_compact_interlude_phase_b` pattern (FLAW-009)
+- **arc-phase-stop-hook.sh**: Add EXIT trap trace logging when converting unexpected exit codes to 0 (BACK-004)
+- **arc-phase-stop-hook.sh**: Standardize `_stat_mtime` with `:-0` default at compact interlude (PAT-002)
+- **enforce-sleep-background.sh**: Remove dead duplicate ERR trap, add RUNE_TRACE logging, document regex scope limitation, use `jq -n` for JSON output safety (PAT-003, SEC-003, SEC-005, BACK-005)
+- **on-session-stop.sh**: Add trace logging for GUARD 5d conservative defer (BACK-003)
+- **CLAUDE.md**: Update on-session-stop.sh timeout documentation from 5s to 10s (BACK-008)
+
 ## [2.44.0] - 2026-04-10
 
 ### Added

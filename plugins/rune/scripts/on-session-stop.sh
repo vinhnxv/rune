@@ -244,6 +244,8 @@ if [[ -f "${CWD}/${RUNE_STATE}/arc-phase-loop.local.md" && ! -L "${CWD}/${RUNE_S
     _phase_age_min=$(( (NOW - _phase_mtime) / 60 ))
     [[ $_phase_age_min -lt 0 ]] && _phase_age_min=0
     if [[ $_phase_age_min -lt $_PHASE_STALE_MIN ]]; then
+      # BACK-003 FIX: Add trace logging for silent defer visibility
+      _trace "GUARD 5d: DEFER — fresh phase loop file (${_phase_age_min}m < ${_PHASE_STALE_MIN}m), ownership unclear"
       exit 0  # Fresh phase loop file — defer conservatively even if ownership unclear
     fi
   fi

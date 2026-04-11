@@ -32,7 +32,7 @@ source "${SCRIPT_DIR}/lib/arc-stop-hook-common.sh"
 # Block A (verbose): _rune_fail_forward with always-on trace log + stderr output
 # Used by arc-phase (inner loop) where silent failures are especially dangerous.
 arc_setup_err_trap verbose
-trap '_rc=$?; [[ -n "${_STATE_TMP:-}" ]] && rm -f "${_STATE_TMP}" 2>/dev/null; [[ $_rc -eq 2 ]] && exit 2 || exit 0' EXIT
+trap '_rc=$?; [[ -n "${_STATE_TMP:-}" ]] && rm -f "${_STATE_TMP}" 2>/dev/null; [[ $_rc -ne 0 && $_rc -ne 2 ]] && _trace "EXIT trap: converting exit code ${_rc} to 0" 2>/dev/null; [[ $_rc -eq 2 ]] && exit 2 || exit 0' EXIT
 umask 077
 
 # Block B: trace log init (SEC-004 TMPDIR validation + TOME-011 -${PPID} suffix)
@@ -907,8 +907,10 @@ if [[ -z "${NEXT_PHASE:-}" ]]; then
     if [[ "$phase_status" == "pending" ]]; then
       NEXT_PHASE="$phase"
       break
+    elif [[ "$phase_status" == "completed" ]]; then
+      # FLAW-001 FIX: Only track completed phases as _IMMEDIATE_PREV (match jq primary path)
+      _IMMEDIATE_PREV="$phase"
     fi
-    _IMMEDIATE_PREV="$phase"
   done
 fi
 _trace "TIMING: phase_find done at +$(( $(date +%s) - _HOOK_START_EPOCH ))s"
@@ -1250,18 +1252,20 @@ COMPACT_PENDING=$(get_field "compact_pending")
 
 # Stale compact_pending recovery (same pattern as arc-batch F-02)
 if [[ "$COMPACT_PENDING" == "true" ]]; then
-  _sf_mtime=$(_stat_mtime "$STATE_FILE")
-  if [[ -z "$_sf_mtime" ]]; then
+  # PAT-002 FIX: Apply :-0 default consistent with stop-hook-common.sh pattern
+  _sf_mtime=$(_stat_mtime "$STATE_FILE"); _sf_mtime="${_sf_mtime:-0}"
+  if [[ "$_sf_mtime" == "0" ]]; then
     _trace "Stale compact_pending check: stat failed — keeping compact_pending state"
   else
     _sf_now=$(date +%s)
     _sf_age=$(( _sf_now - _sf_mtime ))
     if [[ "$_sf_age" -gt 300 ]]; then
       _trace "Stale compact_pending (${_sf_age}s > 300s) — resetting"
-      _STATE_TMP=$(mktemp "${STATE_FILE}.XXXXXX" 2>/dev/null) || { rm -f "$STATE_FILE" 2>/dev/null; exit 0; }
+      # FLAW-009 FIX: Preserve STATE_FILE on mktemp failure (match arc_compact_interlude_phase_b)
+      _STATE_TMP=$(mktemp "${STATE_FILE}.XXXXXX" 2>/dev/null) || { _trace "mktemp failed for compact_pending reset — preserving state"; exit 0; }
       sed 's/^compact_pending: true$/compact_pending: false/' "$STATE_FILE" > "$_STATE_TMP" 2>/dev/null \
         && mv -f "$_STATE_TMP" "$STATE_FILE" 2>/dev/null \
-        || { rm -f "$_STATE_TMP" "$STATE_FILE" 2>/dev/null; exit 0; }
+        || { rm -f "$_STATE_TMP" 2>/dev/null; _trace "compact_pending sed/mv failed — preserving state"; exit 0; }
       COMPACT_PENDING="false"
     fi
   fi  # end else (stat succeeded)

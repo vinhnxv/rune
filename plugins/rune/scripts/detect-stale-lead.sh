@@ -151,9 +151,9 @@ for loop_file in \
           exit 0
         fi
       else
-        # Can't determine freshness — defer conservatively
-        _trace "DEFER: arc loop $(basename "$loop_file") — mtime invalid"
-        continue
+        # BACK-007 FIX: Use exit 0 (defer entire hook) not continue — matches detect-workflow-complete.sh
+        _trace "DEFER: arc loop $(basename "$loop_file") — mtime invalid, deferring hook"
+        exit 0
       fi
     fi
     # status == "completed" → arc finished, proceed with stale lead detection
@@ -229,17 +229,27 @@ for sf in "${STATE_FILES[@]}"; do
     continue
   fi
 
-  # Session isolation: owner_pid must match OR be dead (orphan)
-  if [[ -n "$SF_PID" && "$SF_PID" =~ ^[0-9]+$ ]]; then
-    if [[ "$SF_PID" != "$PPID" ]]; then
-      if rune_pid_alive "$SF_PID"; then
-        _trace "SKIP $sf: belongs to live session PID=$SF_PID"
-        continue
-      fi
-      # Owner dead = orphan — let detect-workflow-complete handle it
-      _trace "SKIP $sf: orphan (PID=$SF_PID dead) — defer to detect-workflow-complete"
+  # Session isolation: prefer session_id, fall back to owner_pid (PPID unreliable in hooks)
+  # SEC-004/FLAW-007 FIX: Add session_id-first ownership check, matching detect-workflow-complete.sh pattern
+  SF_SID=$(jq -r '.session_id // empty' "$sf" 2>/dev/null || true)
+  if [[ -n "$SF_SID" && -n "$_session_id" && "$SF_SID" != "$_session_id" ]]; then
+    if [[ -n "$SF_PID" && "$SF_PID" =~ ^[0-9]+$ ]] && rune_pid_alive "$SF_PID"; then
+      _trace "SKIP $sf: belongs to live session SID=$SF_SID"
       continue
     fi
+    # Owner dead = orphan — let detect-workflow-complete handle it
+    _trace "SKIP $sf: orphan (SID=$SF_SID, PID=$SF_PID dead) — defer to detect-workflow-complete"
+    continue
+  fi
+  # Fallback: PPID-based ownership check for state files without session_id
+  if [[ -n "$SF_PID" && "$SF_PID" =~ ^[0-9]+$ && "$SF_PID" != "$PPID" ]]; then
+    if rune_pid_alive "$SF_PID"; then
+      _trace "SKIP $sf: belongs to live session PID=$SF_PID"
+      continue
+    fi
+    # Owner dead = orphan — let detect-workflow-complete handle it
+    _trace "SKIP $sf: orphan (PID=$SF_PID dead) — defer to detect-workflow-complete"
+    continue
   fi
 
   # SEC-4: Validate team name
@@ -260,8 +270,11 @@ for sf in "${STATE_FILES[@]}"; do
   SIGNAL_DIR="${CWD}/tmp/.rune-signals/${SF_TEAM}"
   DEBOUNCE_MARKER="${SIGNAL_DIR}/.lead-woken"
   if [[ -f "$DEBOUNCE_MARKER" && ! -L "$DEBOUNCE_MARKER" ]]; then
+    # FLAW-002 FIX: Prefer session_id for debounce ownership (PPID unreliable in hooks)
+    _marker_sid=$(jq -r '.session_id // empty' "$DEBOUNCE_MARKER" 2>/dev/null || true)
     _marker_pid=$(jq -r '.owner_pid // empty' "$DEBOUNCE_MARKER" 2>/dev/null || true)
-    if [[ "$_marker_pid" == "$PPID" ]]; then
+    if [[ -n "$_marker_sid" && -n "$_session_id" && "$_marker_sid" == "$_session_id" ]] || \
+       [[ -z "$_marker_sid" && "$_marker_pid" == "$PPID" ]]; then
       # Same session — check age
       _marker_mtime=$(_stat_mtime "$DEBOUNCE_MARKER"); _marker_mtime="${_marker_mtime:-0}"
       _marker_age=$(( HOOK_NOW - _marker_mtime ))

@@ -69,7 +69,7 @@ arc_setup_err_trap() {
       local _err_cmd="${BASH_COMMAND:-unknown}"
       local _crash_script="${BASH_SOURCE[1]##*/}"  # [1] = caller, [0] = this function
       local _crash_msg="ERR trap — fail-forward at ${_crash_script}:${_err_line} (cmd=${_err_cmd})"
-      local _ffl="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u 2>/dev/null || echo 0).log}"
+      local _ffl="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u 2>/dev/null || echo 0)-${PPID}.log}"
       if [[ -n "$_ffl" && ! -L "$_ffl" && ! -L "${_ffl%/*}" ]]; then
         printf '[%s] arc-phase-stop: %s\n' \
           "$(date +%H:%M:%S 2>/dev/null || true)" \
