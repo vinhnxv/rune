@@ -16,6 +16,19 @@
 | AGT-023 | PM-011 (Grounding) | **Grounding Anchor for Review Agents** — Review and investigation agents include a grounding reference (TRUTHBINDING, checklist, rubric, or reference file link) beyond just the ANCHOR section | P2 (Warning) | Check: agent in `agents/review/` or `agents/investigation/` AND body lacks `(?i)(checklist|rubric|reference|heuristic|rule.set|criteria.matrix|\[.*\.md\])` (excluding ANCHOR/RE-ANCHOR sections) | Non-review/non-investigation agents. Agents in `agents/shared/`. |
 | AGT-024 | PM-014 (Context Budget) | **Context Budget Defined** — Agent prompt includes budget or prioritization guidance via patterns like "budget", "prioritize", "batch", "limit", "cap", "max" | P3 (Info) | Regex: `(?i)(context.budget|prioriti[zs]e|batch.size|processing.limit|cap.at|max.findings|finding.caps|token.budget)` in body | Agents in `agents/shared/` (template files). Simple utility agents with single-pass execution. |
 
+## Pass/Fail Examples
+
+| Rule | Pass Example | Fail Pattern |
+|------|-------------|--------------|
+| AGT-017 | `breach-hunter.md` — has `## Scan Protocol` heading with structured input context | Agent body with no `## Input`, `## Context`, or `## Scan Protocol` heading |
+| AGT-018 | `rune-smith.md` — has `## Output` and `## Seal Format` sections defining completion | Work agent body with no `## Output`, `## Seal Format`, or `## Exit Conditions` heading |
+| AGT-019 | `breach-hunter.md` — description uses "Hunts for security breaches" (precise verb) | Description using "Handles security stuff" or "Manages code review" (vague verbs) |
+| AGT-020 | `micro-evaluator.md` — has `## Scoring` section with dimension scores | Work agent body with no `## Scoring`, `## Quality Gates`, or `## Success Criteria` heading |
+| AGT-021 | `mend-fixer.md` — has "MUST NOT modify files outside assigned group" scope boundary | Agent with Write/Edit tools but no "MUST NOT", "only touch", or "scope:" instruction |
+| AGT-022 | `ward-sentinel.md` — 6 subsections (within limit) | Agent with >8 H2/H3 headings suggesting too many responsibilities |
+| AGT-023 | `doubt-seer.md` — references `[rubric]` and criteria matrix for grounding | Review agent with only TRUTHBINDING ANCHOR but no checklist, rubric, or reference link |
+| AGT-024 | `prompt-linter.md` — has "process in batches of 15-20" budget guidance | Agent with no "max", "batch", "prioritize", or "budget" instructions |
+
 ## Detection Notes
 
 ### Severity Assignment Logic
