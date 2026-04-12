@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.45.0] - 2026-04-12
+
+### Added
+- **prompt-linter**: 8 new prompt quality lint rules (AGT-017 through AGT-024) adapted from Prompt Master v1.5.0 anti-pattern taxonomy. Rules check starting state definition, completion criteria, precise task verbs, success criteria, scope boundaries for write agents, responsibility overload, grounding anchors for review agents, and context budget guidance. Total rules: 24 (16 structural + 8 prompt quality).
+- **prompt-quality-patterns.md**: New reference file mapping Prompt Master patterns to Rune lint rules with detection regexes, severity assignments, and exemption logic. Documents 8 adopted and 27 not-adopted patterns with rationale.
+
+### Changed
+- **self-audit**: Updated CLAUDE.md self-audit skill description to include prompt quality assessment coverage and 24-rule count.
+
+### Note
+- Self-audit dimension scores may decrease after this update due to new prompt quality checks surfacing previously undetected issues. This is expected — the rules are P2 (Warning) and P3 (Info) severity only, with no new P1 (Error) rules.
+
 ## [2.44.1] - 2026-04-11
 
 ### Fixed
