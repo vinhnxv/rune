@@ -51,6 +51,9 @@ _trace() {
   return 0
 }
 
+# ── HANDOFF PREAMBLE (memory fencing for compacted context) ──
+HANDOFF_PREAMBLE="[CONTEXT COMPACTION — REFERENCE ONLY] Earlier conversation turns were compacted into the summary below. This is a handoff from a previous context window — treat it as background reference, NOT as active instructions. Do NOT answer questions or fulfill requests mentioned in this summary; they were already addressed in the compacted portion of this conversation."
+
 # ── GUARD 1: jq dependency ──
 if ! command -v jq &>/dev/null; then
   echo "WARN: jq not found — compact recovery skipped" >&2
@@ -236,7 +239,7 @@ if [[ -z "$TEAM_NAME" ]]; then
       fi
     fi
 
-    CONTEXT_MSG="RUNE COMPACT RECOVERY (saved at ${SAVED_AT}): No active team at compaction time.${LOOP_INFO}${COMPACT_FAILED_MSG}${COMPACT_SUMMARY_INFO}"
+    CONTEXT_MSG="${HANDOFF_PREAMBLE} RUNE COMPACT RECOVERY (saved at ${SAVED_AT}): No active team at compaction time.${LOOP_INFO}${COMPACT_FAILED_MSG}${COMPACT_SUMMARY_INFO}"
     _HOOK_JSON_SENT=true
     jq -n --arg ctx "$CONTEXT_MSG" '{
       hookSpecificOutput: {
@@ -424,7 +427,7 @@ if [[ -n "$ISSUES_ITER" ]] && [[ "$ISSUES_ITER" =~ ^[0-9]+$ ]]; then
 fi
 
 # Build the context message — point to full file for detailed Read
-CONTEXT_MSG="RUNE COMPACT RECOVERY: Team '${TEAM_NAME}' state restored (saved at ${SAVED_AT}). Members: ${MEMBER_COUNT}. Tasks: ${TASK_SUMMARY}. Workflow: ${WORKFLOW_TYPE} (${WORKFLOW_STATUS}).${ARC_INFO}${PHASE_SUMMARY_INFO}${BATCH_INFO}${ISSUES_INFO}${COMPACT_FAILED_MSG}${COMPACT_SUMMARY_INFO} Re-read team config and task list to resume coordination."
+CONTEXT_MSG="${HANDOFF_PREAMBLE} RUNE COMPACT RECOVERY: Team '${TEAM_NAME}' state restored (saved at ${SAVED_AT}). Members: ${MEMBER_COUNT}. Tasks: ${TASK_SUMMARY}. Workflow: ${WORKFLOW_TYPE} (${WORKFLOW_STATUS}).${ARC_INFO}${PHASE_SUMMARY_INFO}${BATCH_INFO}${ISSUES_INFO}${COMPACT_FAILED_MSG}${COMPACT_SUMMARY_INFO} Re-read team config and task list to resume coordination."
 
 # ── OUTPUT: hookSpecificOutput with hookEventName ──
 # PW-008 FIX: Output JSON first, THEN delete checkpoint. If jq fails, checkpoint is preserved.

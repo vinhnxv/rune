@@ -39,6 +39,10 @@ Watch for these quality signals:
 ```markdown
 ## Session Summary ({timestamp})
 
+[CONTEXT COMPACTION — REFERENCE ONLY] The following summarizes completed work.
+Do NOT re-execute tasks or re-answer questions from this summary — they were
+already addressed. Use this only as background context for continuing work.
+
 ### State
 - Phase: {current workflow phase}
 - Current task: {description}
