@@ -13,7 +13,6 @@ function improveSkill(skillName, maxIterations = 3):
   mkdir(reportDir)
 
   iteration = 0
-  previousFindingCount = Infinity
 
   while iteration < maxIterations:
     iteration += 1
@@ -50,14 +49,12 @@ function improveSkill(skillName, maxIterations = 3):
     reFindings = runComplianceChecks(skillPath)
     critMajor = reFindings.filter(f => f.severity in ["CRITICAL", "MAJOR"])
 
-    writeReport(reportDir, iteration, findings, fixCount)
-
     // Phase 5: CONVERGE
     if critMajor.length == 0:
-      writeReport(reportDir, iteration, reFindings, "CONVERGED")
+      writeReport(reportDir, iteration, reFindings, fixCount, "CONVERGED")
       break
-
-    previousFindingCount = critMajor.length
+    else:
+      writeReport(reportDir, iteration, findings, fixCount, "IN_PROGRESS")
 
   // Post-loop: persist patterns to echoes
   persistToEchoes(skillName, reportDir)
@@ -94,10 +91,8 @@ Any category NOT in this enum is classified as semantic and blocked from auto-fi
 function classifySeverity(finding):
   if finding.category in ["frontmatter-missing", "frontmatter-invalid", "namespace-bare"]:
     return "CRITICAL"    // Skill won't load or resolve correctly
-  if finding.category in ["reference-broken", "line-limit-exceeded"]:
-    return "MAJOR"       // Skill loads but has broken references or compliance issues
-  if finding.category in ["reference-backtick", "section-missing", "creation-log-missing"]:
-    return "MINOR"       // Style/completeness issues
+  if finding.category in ["reference-broken", "line-limit-exceeded", "reference-backtick", "section-missing", "creation-log-missing"]:
+    return "MAJOR"       // Skill loads but has structural issues that should be auto-fixed
   // Semantic findings
   return finding.observedSeverity or "MINOR"
 ```
@@ -155,14 +150,17 @@ function persistToEchoes(skillName, reportDir):
     content: formatEchoContent(report)
   }
 
-  // Use echo-append.sh from lib
+  // Use echo-append.sh from lib (CLI flag interface)
   source "${RUNE_PLUGIN_ROOT}/scripts/lib/echo-append.sh"
-  rune_echo_append(
-    role = "skill-tester",
-    layer = "observations",
-    content = entry.content,
-    dedup_key = "skill-improve-${skillName}-${report.iteration}"
-  )
+  rune_echo_append \
+    --role "skill-tester" \
+    --layer "observations" \
+    --source "rune:skill-testing --improve ${skillName}" \
+    --title "Skill improvement: ${skillName} iteration ${report.iteration}" \
+    --content "${entry.content}" \
+    --confidence "MEDIUM" \
+    --tags "skill-improvement,meta-qa,${skillName}" \
+    --domain "skill-engineering"
 ```
 
 The `rune_echo_append()` function from `scripts/lib/echo-append.sh` handles:
@@ -191,12 +189,15 @@ function detectCrossSkillPatterns():
   crossPatterns = categoryCounts.filter(count >= 2)
 
   if crossPatterns.length > 0:
-    rune_echo_append(
-      role = "skill-tester",
-      layer = "inscribed",        // promoted layer for cross-skill patterns
-      content = formatCrossPatterns(crossPatterns),
-      dedup_key = "cross-skill-patterns-${date}"
-    )
+    rune_echo_append \
+      --role "skill-tester" \
+      --layer "inscribed" \
+      --source "rune:skill-testing --improve (cross-skill)" \
+      --title "Cross-skill patterns: ${crossPatterns.length} recurring categories" \
+      --content "$(formatCrossPatterns(crossPatterns))" \
+      --confidence "HIGH" \
+      --tags "skill-improvement,cross-skill,meta-qa" \
+      --domain "skill-engineering"
 
   return crossPatterns
 ```
