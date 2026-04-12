@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.46.1] - 2026-04-13
+
+### Fixed
+- **detect-stale-lead.sh**: Initialize `_session_id=""` before conditional loop — variable was only set inside `if [[ -f "$loop_file" ]]` block but referenced at lines 235 and 276 outside it, causing `unbound variable` crash with `set -u`
+
 ## [2.46.0] - 2026-04-12
 
 ### Added

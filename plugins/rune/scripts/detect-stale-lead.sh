@@ -93,6 +93,9 @@ _trace() { [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "$RUNE_TRACE_LOG" ]] && [[ 
 
 _trace "ENTER detect-stale-lead.sh"
 
+# Initialize variables that may be set conditionally inside loops
+_session_id=""
+
 # ── GUARD 2: Fast-path — any state files at all? ──
 STATE_FILES=()
 while IFS= read -r _sf; do
