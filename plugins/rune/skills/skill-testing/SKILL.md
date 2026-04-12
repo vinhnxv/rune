@@ -9,7 +9,7 @@ description: |
   Keywords: pressure test, rationalization, skill compliance, TDD for docs, red-green-refactor
   skills, agent bypass, rule evasion, skill audit, bulletproofing, writing skills.
 user-invocable: true
-allowed-tools: Read, Glob, Grep
+argument-hint: "<skill-name> [--improve] [--max-iterations N]"
 ---
 
 # Skill Testing Framework
@@ -154,7 +154,75 @@ After writing any skill, verify:
 - [ ] Skill was tested with at least 3 pressure combinations
 - [ ] Agent can quote the Iron Law when asked why it followed the rule
 
+## --improve Mode: Convergence Loop
+
+> **Usage**: `/rune:skill-testing --improve <skill-name> [--max-iterations N]`
+
+Chains test → categorize → fix → re-test into an automated convergence loop. Only structural and compliance fixes are applied — semantic changes (workflow logic, prompt content, agent config) are never modified.
+
+Default `--max-iterations`: 3. Hard cap: 5.
+
+### Loop Algorithm
+
+1. **TEST**: Run existing pressure scenarios and compliance checks against the target skill
+2. **CATEGORIZE**: Classify each finding as CRITICAL, MAJOR, or MINOR with a structural/semantic tag
+3. **FIX**: Apply inline edits for CRITICAL and MAJOR structural findings only
+4. **RE-TEST**: Re-run identical scenarios to verify fixes
+5. **CONVERGE**: Exit when no CRITICAL/MAJOR findings remain, or max iterations reached
+
+Stagnation detection: if an iteration applies 0 fixes, the loop exits with STAGNATED status.
+
+### Structural Fix Categories (safe to auto-fix)
+
+| Category | Description | Example |
+|----------|-------------|---------|
+| `frontmatter-missing` | Missing YAML fields | Add `name: {directory-name}` |
+| `frontmatter-invalid` | Invalid YAML syntax | Fix malformed YAML |
+| `reference-broken` | Broken file links | Fix path to existing file |
+| `reference-backtick` | Backtick paths instead of markdown links | `ref.md` → [ref.md](references/ref.md) |
+| `section-missing` | Missing standard sections | Add "When NOT to use" template |
+| `line-limit-exceeded` | >500 lines without references | Extract sections to references/ |
+| `namespace-bare` | Missing rune: prefix on Skill() calls | Add `rune:` prefix |
+| `creation-log-missing` | Missing CREATION-LOG.md | Create from template |
+
+### Semantic Categories (blocked from auto-fix)
+
+- Workflow logic changes
+- Prompt content modifications
+- Agent configuration changes
+- Flag behavior modifications
+
+Any finding not in the structural categories is logged as "Skipped — semantic change" and left for manual review.
+
+### Per-Iteration Change Report
+
+Each iteration produces a structured report at `tmp/skill-improve/{skill-name}/improvement-report.md`:
+
+```
+## Iteration N Changes
+
+### Fix 1: {finding description}
+- **Finding**: {what was found}
+- **Action**: {what was changed}
+- **Confidence**: HIGH|MEDIUM|LOW
+
+### Skipped: {finding description}
+- **Action**: SKIPPED — semantic change
+```
+
+### Echo Persistence
+
+After improvement completes, patterns are persisted to Rune Echoes via `echo-append.sh`:
+- **Role**: `skill-tester`
+- **Layer**: `observations`
+- **Tags**: `skill-improvement,meta-qa,{skill-name}`
+
+Cross-skill patterns (same category appearing in 2+ skills) enable systemic batch fixes.
+
+For detailed algorithm documentation, see [improve-mode.md](references/improve-mode.md).
+
 ## References
 
 - [Pressure scenarios](references/pressure-scenarios.md) — Detailed scenario scripts per target skill
 - [Rationalization tables](references/rationalization-tables.md) — Observed patterns by agent type and severity
+- [Anti-rationalization scenarios](references/anti-rationalization-scenarios.md) — Counter-examples for common agent evasion patterns

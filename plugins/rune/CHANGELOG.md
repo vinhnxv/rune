@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.46.0] - 2026-04-12
+
+### Added
+- **skill-testing --improve**: Convergence loop mode that chains test → categorize → fix → re-test in up to N iterations (default 3, max 5). Includes per-iteration change delta reporting, semantic change guard (structural fixes only — workflow logic never modified), and echo persistence for cross-skill pattern tracking. New reference file `references/improve-mode.md` documents the full algorithm.
+
+### Changed
+- **skill-testing**: Removed `allowed-tools` restriction from frontmatter to support `--improve` mode's Edit/Write requirements. Added `argument-hint` for CLI autocomplete.
+
 ## [2.45.0] - 2026-04-12
 
 ### Added
