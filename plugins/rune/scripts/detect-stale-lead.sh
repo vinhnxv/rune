@@ -244,14 +244,15 @@ for sf in "${STATE_FILES[@]}"; do
     _trace "SKIP $sf: orphan (SID=$SF_SID, PID=$SF_PID dead) — defer to detect-workflow-complete"
     continue
   fi
-  # Fallback: PPID-based ownership check for state files without session_id
-  if [[ -n "$SF_PID" && "$SF_PID" =~ ^[0-9]+$ && "$SF_PID" != "$PPID" ]]; then
-    if rune_pid_alive "$SF_PID"; then
-      _trace "SKIP $sf: belongs to live session PID=$SF_PID"
-      continue
-    fi
-    # Owner dead = orphan — let detect-workflow-complete handle it
-    _trace "SKIP $sf: orphan (PID=$SF_PID dead) — defer to detect-workflow-complete"
+  # RC-3 FIX: Removed PPID-based ownership fallback.
+  # Per CLAUDE.md rule 11: $PPID is NOT consistent between hook invocations and skill
+  # Bash() calls. The previous fallback wrongly classified the OWNING session's live
+  # workflow as "different session" and skipped waking the lead — directly causing
+  # phase-stall symptoms on legacy state files (pre-v1.144.16) that lack session_id.
+  # Defer no-SID state files to detect-workflow-complete.sh which handles orphans
+  # via process-liveness check (which IS reliable, unlike PPID equality).
+  if [[ -z "$SF_SID" ]]; then
+    _trace "SKIP $sf: no session_id field — defer to detect-workflow-complete (PPID fallback removed, see RC-3)"
     continue
   fi
 

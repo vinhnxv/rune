@@ -7,6 +7,12 @@
 - Phase 4.6 Blind Verification in strive quality-gates — conditional, opt-in via `blind_verification.enabled`
 - `blind_verification` talisman section with configurable model, timeout, and remediation settings
 
+## [2.46.2] - 2026-04-13
+
+### Fixed
+- **arc-phase-stop-hook.sh**: Eliminated three sites that deleted the live `$STATE_FILE` on transient I/O failure during the compact-interlude state machine (lines 1357, 1381, 1384). The inline implementation had drifted from the hardened library version (`lib/arc-stop-hook-common.sh:248-251, 325-328`) — any transient `mktemp`/`awk`/`sed`/`mv` failure would permanently terminate the arc phase loop with no user-visible signal. Now matches library behavior: preserves state file for retry, logs via `_trace`, only removes the `_STATE_TMP` scratch file. Direct fix for "không go next phase" stalls on long arcs that cross the compact threshold (work, code_review, mend phases).
+- **detect-stale-lead.sh**: Removed PPID-based ownership fallback at line 248 that contradicted CLAUDE.md rule 11 (`$PPID` is NOT consistent between hook invocations and skill `Bash()` calls). The fallback wrongly classified the OWNING session's live workflow as "different session" and skipped waking the team lead — directly causing phase-stall symptoms on legacy state files (pre-v1.144.16) that lack `session_id`. State files without `session_id` now defer to `detect-workflow-complete.sh`, which uses reliable process-liveness checks instead of unreliable PPID equality.
+
 ## [2.46.1] - 2026-04-13
 
 ### Fixed
