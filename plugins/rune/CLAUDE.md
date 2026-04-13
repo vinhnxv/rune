@@ -479,7 +479,7 @@ echo "Commands: $(find plugins/rune/commands -name '*.md' -not -path '*/referenc
 
 ## References
 
-- [Agent registry](references/agent-registry.md) — 152 agent definitions (109 CORE in agents/ + 43 EXTENDED in registry/, 13 shared). 12 stack specialist reviewers are prompt templates, not registered agents
+- [Agent registry](references/agent-registry.md) — 153 agent definitions (110 CORE in agents/ + 43 EXTENDED in registry/, 13 shared). 12 stack specialist reviewers are prompt templates, not registered agents
 - [Key concepts](references/key-concepts.md) — Tarnished, Ash, TOME, Arc, Mend, Forge Gaze, Echoes
 - [Lore glossary](references/lore-glossary.md) — Elden Ring terminology mapping
 - [Output conventions](references/output-conventions.md) — Directory structure per workflow
