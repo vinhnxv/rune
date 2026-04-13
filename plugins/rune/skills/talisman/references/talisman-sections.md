@@ -21,7 +21,7 @@ This list reflects the documented schema used by Rune (including default-injecte
 | 12 | `deployment_verification` | Deploy artifact generation | `enabled`, `go_no_go`, `rollback_plan`, `monitoring_plan` |
 | 13 | `schema_drift` | Migration/model consistency | `enabled`, `frameworks`, `strict`, `ignore_patterns` |
 | 14 | `elicitation` | Reasoning methods | `max_parallel_sages`, `phase_filter` |
-| 15 | `echoes` | Agent memory | `version_controlled`, `session_summary`, `fts_enabled`, `auto_observation`, `scoring`, `groups`, `reranking`, `retry` |
+| 15 | `echoes` | Agent memory | `version_controlled`, `session_summary`, `fts_enabled`, `auto_observation`, `scoring`, `groups`, `reranking`, `retry`, `artifact_indexing` |
 | 16 | `mend` | Finding resolution | `cross_file_batch_size` |
 | 17 | `review` | Review settings | `diff_scope`, `convergence`, `arc_convergence_*`, `shard_*` |
 | 18 | `work` | Work/strive settings | `ward_commands`, `max_workers`, `commit_format`, `co_authors`, `branch_prefix`, `unrestricted_shared_files`, `worktree.*` |
@@ -353,3 +353,56 @@ Companion file boundaries (authoring concern) do NOT align 1:1 with shard bounda
 - The `gates` shard aggregates from both `talisman.ashes.yml` (`doubt_seer`) and `talisman.integrations.yml` (`elicitation`, `horizon`, `evidence`)
 
 This is architecturally correct because merge happens BEFORE sharding — the shard layer sees a single unified JSON regardless of how many source files contributed.
+
+## Echoes — Artifact Indexing (`echoes.artifact_indexing`)
+
+Controls cross-session recall of arc run artifacts. Before `/rune:rest` deletes `tmp/`, key artifacts
+(TOME findings, resolution reports, work summaries, gap analyses, inspect verdicts) are extracted to
+`.rune/arc-history/{arc-id}/` and indexed into a separate `artifacts.db` SQLite database. The
+`artifact_search` MCP tool then enables queries like "what did the last review find about auth?".
+
+### Configuration Schema
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `enabled` | bool | `true` | Enable arc artifact indexing for cross-session recall |
+| `max_runs` | int | `10` | Retention: keep last N arc runs in `.rune/arc-history/` |
+| `artifact_types` | list | all types | Which artifact files to extract and index |
+
+### Example
+
+```yaml
+echoes:
+  artifact_indexing:
+    enabled: true            # Index arc artifacts for cross-session recall
+    max_runs: 10             # Retention: keep last N arc runs in .rune/arc-history/
+    artifact_types:          # Which artifacts to index (all by default)
+      - tome
+      - resolution
+      - work_summary
+      - gap_analysis
+      - inspect_verdict
+```
+
+### Artifact Types
+
+| Type | Source File | Content Indexed |
+|------|-------------|----------------|
+| `tome` | `tome.md` | RUNE:FINDING blocks — severity, prefix, file, description |
+| `resolution` | `resolution-report.md` | Per-finding fix status (FIXED/DEFERRED/FALSE_POSITIVE) |
+| `work_summary` | `work-summary.md` | Task completion statuses and key decisions |
+| `gap_analysis` | `gap-analysis.md` | Gap IDs with categories and statuses |
+| `inspect_verdict` | `inspect-verdict.md` | Dimension scores and gap classifications |
+
+### How It Works
+
+1. `/rune:rest` Step 4.5 extracts key artifacts to `.rune/arc-history/{arc-id}/` before cleanup
+2. `annotate-hook.sh` detects writes to `.rune/arc-history/` and writes `.artifact-dirty` signal
+3. `artifact_search` MCP tool checks the dirty signal and reindexes before returning results
+4. Retention policy enforced by `max_runs` — oldest directories removed when limit exceeded
+
+### Storage & Performance
+
+- Storage: ~50KB per arc run × 10 runs = ~500KB (negligible)
+- Separate `artifacts.db` from `echoes.db` — no impact on `echo_search` performance
+- FTS5 index handles 1000s of entries efficiently with BM25 ranking

@@ -2,15 +2,23 @@
 
 Provides SQLite connection helpers (WAL mode, Row factory), global DB
 connection caching (lazy — zero cost when scope=project), and versioned
-schema migrations (V1–V4).
+schema migrations (V1–V5).
+
+V5 adds a SEPARATE artifact store for arc run artifacts (TOME findings,
+resolution reports, work summaries, gap analyses, inspect verdicts).
+The artifact tables live in a separate DB file (artifacts.db) to keep
+echo and artifact indexes independent — ``ensure_artifact_schema()`` is
+used for that DB, NOT the standard ``ensure_schema()`` which would create
+unused echo tables.
 
 Functions:
-    get_db          — Open a SQLite connection with WAL mode and Row factory.
-    get_global_conn — Lazily open (and cache) the global echo DB connection.
-    ensure_schema   — Run forward-only migrations up to SCHEMA_VERSION.
+    get_db                 — Open a SQLite connection with WAL mode and Row factory.
+    get_global_conn        — Lazily open (and cache) the global echo DB connection.
+    ensure_schema          — Run forward-only migrations (V1–V5) for the echo DB.
+    ensure_artifact_schema — Run only V5 migration for the separate artifacts DB.
 
 Internal / migration helpers:
-    _ensure_global_dir, _migrate_v1 .. _migrate_v4
+    _ensure_global_dir, _migrate_v1 .. _migrate_v5
 """
 
 from __future__ import annotations
@@ -110,7 +118,7 @@ def get_global_conn() -> Optional[sqlite3.Connection]:
 # Schema versioning and migrations
 # ---------------------------------------------------------------------------
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 assert isinstance(SCHEMA_VERSION, int) and 0 <= SCHEMA_VERSION <= 1000
 
 
@@ -176,6 +184,53 @@ def _migrate_v4(conn: sqlite3.Connection) -> None:
         " ON echo_entries(domain)")
 
 
+def _migrate_v5(conn: sqlite3.Connection) -> None:
+    """Apply V5 schema: artifact entries table and FTS index for arc history.
+
+    Creates the ``artifact_entries`` table and ``artifact_entries_fts`` FTS5
+    virtual table for indexing arc run artifacts (TOME findings, resolution
+    reports, work summaries, gap analyses, inspect verdicts).
+
+    Includes ``role`` and ``layer`` columns alongside ``arc_id`` and
+    ``artifact_type`` to match the entry dict schema produced by
+    ``artifact_indexer.py`` parsers.
+
+    Note: This migration is intentionally additive (CREATE TABLE IF NOT EXISTS)
+    and safe for existing installations. It is applied to BOTH the main echo DB
+    (via ensure_schema) and the separate artifacts.db (via ensure_artifact_schema).
+    The echo DB path runs it as part of the version chain; artifacts.db uses the
+    dedicated ``ensure_artifact_schema()`` function to avoid creating unused echo
+    tables (decree-arbiter Gap 3).
+    """
+    conn.execute("""CREATE TABLE IF NOT EXISTS artifact_entries (
+        id TEXT PRIMARY KEY,
+        arc_id TEXT NOT NULL,
+        artifact_type TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT '',
+        layer TEXT NOT NULL DEFAULT 'inscribed',
+        date TEXT,
+        content TEXT NOT NULL,
+        tags TEXT DEFAULT '',
+        severity TEXT,
+        finding_id TEXT,
+        file_path TEXT,
+        plan_file TEXT)""")
+    cursor = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='artifact_entries_fts'")
+    if cursor.fetchone() is None:
+        conn.execute("""CREATE VIRTUAL TABLE artifact_entries_fts USING fts5(
+            content, tags, artifact_type,
+            content=artifact_entries, tokenize='porter unicode61')""")
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_artifact_entries_arc_id ON artifact_entries(arc_id)")
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_artifact_entries_type ON artifact_entries(artifact_type)")
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_artifact_entries_severity ON artifact_entries(severity)")
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_artifact_entries_layer ON artifact_entries(layer)")
+
+
 def ensure_schema(conn: sqlite3.Connection) -> None:
     """Ensure database schema is at the current version via PRAGMA user_version."""
     conn.execute("PRAGMA foreign_keys = ON")
@@ -192,6 +247,8 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
                 _migrate_v3(conn)
             if version < 4:
                 _migrate_v4(conn)
+            if version < 5:
+                _migrate_v5(conn)
             conn.commit()
         except (sqlite3.Error, OSError):
             conn.rollback()
@@ -203,3 +260,29 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
         # Set user_version AFTER commit — PRAGMA is not transactional in SQLite,
         # so placing it inside the transaction would persist even on rollback.
         conn.execute(f"PRAGMA user_version = {int(SCHEMA_VERSION)}")
+
+
+def ensure_artifact_schema(conn: sqlite3.Connection) -> None:
+    """Ensure the artifact-only database has the V5 schema.
+
+    Unlike ``ensure_schema()``, this function ONLY runs _migrate_v5() and
+    does NOT apply V1–V4 echo migrations. This prevents creating unused echo
+    tables (echo_entries, semantic_groups, echo_access_log, etc.) in the
+    separate artifacts.db file (decree-arbiter Gap 3).
+
+    Args:
+        conn: Open SQLite connection to the artifacts DB (artifacts.db).
+    """
+    conn.execute("PRAGMA foreign_keys = ON")
+    # Use PRAGMA user_version for consistency with the main DB versioning scheme
+    version = conn.execute("PRAGMA user_version").fetchone()[0]
+    if version < 5:
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            _migrate_v5(conn)
+            conn.commit()
+        except (sqlite3.Error, OSError):
+            conn.rollback()
+            raise
+        # SAFE: int literal — same pattern as ensure_schema()
+        conn.execute("PRAGMA user_version = 5")

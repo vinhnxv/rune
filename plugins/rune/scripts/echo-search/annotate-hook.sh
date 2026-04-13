@@ -42,4 +42,13 @@ if [[ "$FILE_PATH" == *".rune/echoes/"*"MEMORY.md" ]] || \
   printf '1' > "$SIGNAL_DIR/.echo-dirty" 2>/dev/null
 fi
 
+# Artifact index dirty signal: mark artifact index for reindex when arc-history files change
+if [[ "$FILE_PATH" == *".rune/arc-history/"* ]]; then
+  HOOK_CWD=$(printf '%s' "$TOOL_INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
+  [[ -n "$HOOK_CWD" ]] && HOOK_CWD=$(cd "$HOOK_CWD" 2>/dev/null && pwd -P) || HOOK_CWD=""
+  SIGNAL_DIR="${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-$(pwd)}}/tmp/.rune-signals"
+  mkdir -p "$SIGNAL_DIR" 2>/dev/null
+  printf '1' > "$SIGNAL_DIR/.artifact-dirty" 2>/dev/null
+fi
+
 exit 0
