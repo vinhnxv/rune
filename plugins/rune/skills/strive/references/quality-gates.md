@@ -48,6 +48,9 @@ if (verdictFiles.length > 0) {
   let approveCount = 0
   let refineCount = 0
   let pivotCount = 0
+  const allUnmetCriteria = new Set()
+  let totalACCount = 0
+  let metACCount = 0
   for (const vf of verdictFiles) {
     try {
       const verdict = JSON.parse(Read(vf))
@@ -55,6 +58,15 @@ if (verdictFiles.length > 0) {
       if (verdict.verdict === "APPROVE") approveCount++
       else if (verdict.verdict === "REFINE") refineCount++
       else if (verdict.verdict === "PIVOT") pivotCount++
+      // AC alignment aggregation (graceful — skip if not present)
+      if (verdict.ac_alignment) {
+        const unmet = verdict.ac_alignment.unmet_criteria || []
+        unmet.forEach(id => allUnmetCriteria.add(id))
+        if (verdict.ac_alignment.total_criteria !== undefined) {
+          totalACCount += verdict.ac_alignment.total_criteria
+          metACCount += verdict.ac_alignment.total_criteria - unmet.length
+        }
+      }
     } catch (e) {
       warn(`Phase 3.8: skipping malformed verdict file ${vf}: ${e.message}`)
     }
@@ -62,6 +74,20 @@ if (verdictFiles.length > 0) {
   log(`Micro-Evaluator Summary: ${verdictFiles.length} tasks evaluated, ` +
       `${approveCount} approved, ${refineCount} refined, ${pivotCount} pivoted, ` +
       `${totalIterations} total iterations`)
+  // AC coverage summary (non-blocking)
+  if (totalACCount > 0 || allUnmetCriteria.size > 0) {
+    const unmetIds = [...allUnmetCriteria]
+    const acCoverage = {
+      total: totalACCount,
+      met: metACCount,
+      unmet: allUnmetCriteria.size,
+      unmet_ids: unmetIds
+    }
+    log(`AC Coverage: ${metACCount}/${totalACCount} criteria met`)
+    if (unmetIds.length > 0) {
+      warn(`AC coverage gap: ${unmetIds.length} criteria unmet: ${unmetIds.join(", ")}`)
+    }
+  }
   // Advisory only — does NOT block ward check
 }
 ```
