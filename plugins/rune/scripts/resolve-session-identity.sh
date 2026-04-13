@@ -42,6 +42,20 @@
 #     fi
 #   fi
 
+# ── Source platform.sh for _stat_mtime / _stat_uid ──
+# BACK-004 FIX: Source platform.sh here (same pattern as lib/find-teammate-session.sh)
+# so macOS users don't pay 2 wasted stat forks per hook cold-start before the inline
+# `stat -c` fallback fails. Fail-soft (|| true) because this file is sourced — we must
+# not hijack caller's error handling.
+if [[ -z "${_RUNE_PLATFORM_SOURCED:-}" ]]; then
+  _RSID_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P 2>/dev/null)" || _RSID_DIR=""
+  if [[ -n "$_RSID_DIR" && -f "${_RSID_DIR}/lib/platform.sh" ]]; then
+    # shellcheck source=lib/platform.sh
+    source "${_RSID_DIR}/lib/platform.sh" 2>/dev/null || true
+  fi
+  unset _RSID_DIR
+fi
+
 # ── Cache file path (PID-scoped) ──
 _RUNE_IDENTITY_CACHE="${TMPDIR:-/tmp}/rune-identity-${PPID}"
 

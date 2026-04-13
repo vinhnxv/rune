@@ -79,7 +79,7 @@ const RETRY_DELAYS = [0, 3000, 8000]
 for (let attempt = 0; attempt < RETRY_DELAYS.length; attempt++) {
   if (attempt > 0) {
     warn(`arc-plan-review: TeamDelete attempt ${attempt + 1} failed, retrying in ${RETRY_DELAYS[attempt]/1000}s...`)
-    Bash(`sleep ${RETRY_DELAYS[attempt] / 1000}`)
+    Bash(`sleep ${RETRY_DELAYS[attempt] / 1000}`, { run_in_background: true })
   }
   try {
     TeamDelete()
@@ -481,7 +481,7 @@ if (layer2Active) {
     }
 
     log(`Layer 2: [${i+1}/${layer2MaxIterations}] ${completed}/${total} tasks completed`)
-    Bash(`sleep ${layer2PollInterval / 1000}`)
+    Bash(`sleep ${layer2PollInterval / 1000}`, { run_in_background: true })
   }
 }
 ```

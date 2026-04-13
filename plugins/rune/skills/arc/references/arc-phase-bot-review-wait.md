@@ -112,7 +112,7 @@ const phaseStart = Date.now()
 
 // 4. Initial wait — let bots start processing
 log(`Waiting ${INITIAL_WAIT_MS / 1000}s for review bots to start...`)
-Bash(`sleep ${Math.round(INITIAL_WAIT_MS / 1000)}`)
+Bash(`sleep ${Math.round(INITIAL_WAIT_MS / 1000)}`, { run_in_background: true })
 
 // 5. Get head commit SHA for check runs
 let headSha = Bash("git rev-parse HEAD").trim()
@@ -172,7 +172,7 @@ while (Date.now() - phaseStart < HARD_TIMEOUT_MS) {
     const resetTime = parseInt(resetRaw, 10)
     const waitSecs = Math.max(0, resetTime - Math.floor(Date.now() / 1000)) + 5
     warn(`GitHub API rate limit low (${rateLimitRemaining} remaining). Waiting ${waitSecs}s for reset.`)
-    Bash(`sleep ${Math.min(waitSecs, 120)}`)  // Cap at 2 min wait
+    Bash(`sleep ${Math.min(waitSecs, 120)}`, { run_in_background: true })  // Cap at 2 min wait
   }
 
   // Signal 1: Check Runs — consolidated single API call (was 4 calls pre-v26)
@@ -367,7 +367,7 @@ ${fc.annotations.map(a => `- **${a.path}:${a.start_line}** [${a.annotation_level
       while (Date.now() - ciPollStart < CI_POLL_TIMEOUT_MS) {
         newCheckResult = evaluateCheckRuns(owner, repo, newSha)
         if (newCheckResult.in_progress === 0 && newCheckResult.completed > 0) break
-        Bash(`sleep ${Math.round(POLL_INTERVAL_MS / 1000)}`)
+        Bash(`sleep ${Math.round(POLL_INTERVAL_MS / 1000)}`, { run_in_background: true })
       }
 
       if (!newCheckResult || newCheckResult.in_progress > 0) {
@@ -431,7 +431,7 @@ ${fc.annotations.map(a => `- **${a.path}:${a.start_line}** [${a.annotation_level
   }
 
   log(`Polling... ${currentCommentCount} bot comments, ${currentCheckRunCount}/${totalCheckRuns} checks complete, ${inProgressCount} in-progress. Stability: ${Math.round(timeSinceLastActivity / 1000)}s/${Math.round(STABILITY_WINDOW_MS / 1000)}s`)
-  Bash(`sleep ${Math.round(POLL_INTERVAL_MS / 1000)}`)
+  Bash(`sleep ${Math.round(POLL_INTERVAL_MS / 1000)}`, { run_in_background: true })
 }
 
 // 7. Write bot review wait report

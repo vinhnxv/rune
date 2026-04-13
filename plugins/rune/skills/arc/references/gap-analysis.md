@@ -1407,7 +1407,7 @@ if (!/^[a-zA-Z0-9_-]+$/.test(inspectTeamName)) {
   const B_RETRY_DELAYS = [0, 3000, 8000]
   let bDeleteSucceeded = false
   for (let attempt = 0; attempt < B_RETRY_DELAYS.length; attempt++) {
-    if (attempt > 0) Bash(`sleep ${B_RETRY_DELAYS[attempt] / 1000}`)
+    if (attempt > 0) Bash(`sleep ${B_RETRY_DELAYS[attempt] / 1000}`, { run_in_background: true })
     try { TeamDelete(); bDeleteSucceeded = true; break } catch (e) { /* retry */ }
   }
   if (!bDeleteSucceeded) {
@@ -1493,7 +1493,7 @@ if (!/^[a-zA-Z0-9_-]+$/.test(inspectTeamName)) {
       bPreviousCompleted = bCompleted
     }
 
-    Bash(`sleep ${bPollIntervalMs / 1000}`)
+    Bash(`sleep ${bPollIntervalMs / 1000}`, { run_in_background: true })
   }
 
   // STEP B.9: Summon Verdict Binder to aggregate inspector outputs

@@ -69,6 +69,10 @@ if [[ -f "$DEBOUNCE_MARKER" && ! -L "$DEBOUNCE_MARKER" ]]; then
   # Already resolved this session — check if marker is fresh (< 30 min)
   local_now=$(date +%s 2>/dev/null || echo "0")
   marker_time=$(cat "$DEBOUNCE_MARKER" 2>/dev/null || echo "0")
+  # SEC-001 FIX: Explicit integer validation — attacker with $TMPDIR write access could
+  # populate the marker with non-numeric garbage. Arithmetic coercion to 0 is defensive
+  # by accident; enforce explicitly so future refactors can't remove the implicit sanitize.
+  [[ "$marker_time" =~ ^[0-9]+$ ]] || marker_time=0
   if [[ "$local_now" -gt 0 ]] && [[ "$marker_time" -gt 0 ]]; then
     age=$(( local_now - marker_time ))
     if [[ "$age" -lt 1800 ]]; then

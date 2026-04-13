@@ -103,12 +103,11 @@ for manifest in "${json_files[@]}"; do
   [[ -z "$last_updated" ]] && continue
 
   # Parse date and compute age
-  if type _parse_iso_epoch &>/dev/null; then
-    updated_epoch=$(_parse_iso_epoch "$last_updated" 2>/dev/null || echo 0)
-  else
-    # Fallback: try date parsing directly
-    updated_epoch=$(date -d "$last_updated" +%s 2>/dev/null || date -j -f "%Y-%m-%d" "$last_updated" +%s 2>/dev/null || echo 0)
-  fi
+  # BACK-005 FIX: Require platform.sh _parse_iso_epoch — drops brittle inline fallback
+  # that used `%Y-%m-%d` exactly and missed timezone-bearing ISO-8601 timestamps,
+  # silently returning 0 (treated as "skip, not stale"). The sourced helper is loaded
+  # unconditionally at script top (PATT-001 pattern from find-teammate-session.sh).
+  updated_epoch=$(_parse_iso_epoch "$last_updated" 2>/dev/null || echo 0)
   [[ "$updated_epoch" == "0" ]] && continue
 
   age_days=$(( (now - updated_epoch) / 86400 ))

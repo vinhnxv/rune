@@ -644,7 +644,7 @@ function prePhaseCleanup(checkpoint) {
     // Retry-with-backoff (3 attempts: 0s, 3s, 8s)
     const CLEANUP_DELAYS = [0, 3000, 8000]
     for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
-      if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`)
+      if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`, { run_in_background: true })
       try { TeamDelete(); break } catch (e) {
         warn(`ARC-6: TeamDelete attempt ${attempt + 1} failed: ${e.message}`)
       }
@@ -762,7 +762,8 @@ const ARC_TEAM_PREFIXES = [
   "arc-browser-test-", "arc-browser-fix-",  // browser test convergence loop teams (conditional — frontend + agent-browser)
   "arc-deploy-",  // deployment verification team (conditional — deployment-relevant files in diff)
   "arc-codex-sv-", "arc-codex-td-", "arc-codex-ga-", "arc-codex-tc-", "arc-codex-rq-",  // Codex phase handler teams (delegated to codex-phase-handler teammate)
-  "rune-forge-", "rune-work-", "rune-review-", "rune-mend-", "rune-mend-deep-", "rune-audit-", "rune-verify-",  // sub-command teams (rune-verify- = standalone /rune:verify)
+  "rune-forge-", "rune-work-", "rune-review-", "rune-mend-", "rune-mend-deep-", "rune-verify-",  // sub-command teams (rune-verify- = standalone /rune:verify)
+  "rune-audit-",  // CLEAN-005: retained as a safety net for standalone /rune:audit orphans — NOT spawned by arc directly. Cross-workflow orphan sweep only.
   "rune-brainstorm-",  // brainstorm skill teams (Solo/Roundtable/Deep modes)
   "rune-plan-",  // devise skill teams (orphaned from prior /rune:devise sessions)
   "rune-prototype-",  // design-prototype skill teams (conditional — design_sync.enabled)

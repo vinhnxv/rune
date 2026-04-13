@@ -518,7 +518,9 @@ RESOLVED_AT=$("$RUNE_PYTHON" -c "from datetime import datetime, timezone; print(
 # SEC-001 FIX: Canonicalize and validate config_dir path structure
 CURRENT_CFG=$(cd "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" 2>/dev/null && pwd -P) || CURRENT_CFG="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 if [[ ! "$CURRENT_CFG" =~ ^/ ]]; then
-  CURRENT_CFG="$HOME/.claude"
+  # PATT-005 FIX: Use CHOME pattern so multi-account users (CLAUDE_CONFIG_DIR override)
+  # are not silently redirected to $HOME/.claude when cd fails.
+  CURRENT_CFG="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 fi
 OWNER_PID="${PPID:-0}"
 

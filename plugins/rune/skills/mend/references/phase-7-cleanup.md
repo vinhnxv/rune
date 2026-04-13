@@ -1,7 +1,7 @@
 # Phase 7: CLEANUP
 
 1. **Dynamic member discovery** — read team config for ALL teammates (fallback: static worst-case array covering base, deep, and wave-based fixer names)
-2. **Shutdown all members** — `SendMessage(shutdown_request)` to each
+2. **Shutdown all members** — force-reply pre-message (Step 2a) → sleep 2s (Step 2b) → `SendMessage(shutdown_request)` (Step 2c). See [engines.md](../../team-sdk/references/engines.md) `shutdown()` for the force-reply rationale (GitHub #31389).
 3. **Adaptive grace period** — `Math.min(20, Math.max(5, confirmedAlive * 5))` (or 2s if all confirmed dead)
 4. **ID validation** — defense-in-depth `..` check + regex guard (SEC-003)
 5. **TeamDelete with retry-with-backoff** (4 attempts: 0s, 3s, 6s, 10s) + process kill + filesystem fallback

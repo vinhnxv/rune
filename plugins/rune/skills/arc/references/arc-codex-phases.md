@@ -157,7 +157,7 @@ If no contradictions found, output: "No scope/timeline contradictions detected."
     let svCleanupSucceeded = false
     const SV_CLEANUP_DELAYS = [0, 3000, 6000, 10000]
     for (let attempt = 0; attempt < SV_CLEANUP_DELAYS.length; attempt++) {
-      if (attempt > 0) Bash(`sleep ${SV_CLEANUP_DELAYS[attempt] / 1000}`)
+      if (attempt > 0) Bash(`sleep ${SV_CLEANUP_DELAYS[attempt] / 1000}`, { run_in_background: true })
       try { TeamDelete(); svCleanupSucceeded = true; break } catch (e) {
         if (attempt === SV_CLEANUP_DELAYS.length - 1) warn(`cleanup: TeamDelete failed after ${SV_CLEANUP_DELAYS.length} attempts`)
       }
@@ -394,7 +394,7 @@ If no issues found, output: "No integrity gaps detected."
     let gaCleanupSucceeded = false
     const GA_CLEANUP_DELAYS = [0, 3000, 6000, 10000]
     for (let attempt = 0; attempt < GA_CLEANUP_DELAYS.length; attempt++) {
-      if (attempt > 0) Bash(`sleep ${GA_CLEANUP_DELAYS[attempt] / 1000}`)
+      if (attempt > 0) Bash(`sleep ${GA_CLEANUP_DELAYS[attempt] / 1000}`, { run_in_background: true })
       try { TeamDelete(); gaCleanupSucceeded = true; break } catch (e) {
         if (attempt === GA_CLEANUP_DELAYS.length - 1) warn(`cleanup: TeamDelete failed after ${GA_CLEANUP_DELAYS.length} attempts`)
       }

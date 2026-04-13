@@ -439,7 +439,8 @@ stale_state_count=$(
       # FIX-2: Fallback to epoch 0 (Jan 1 1970) if stat fails. Math: (NOW - 0) / 60 = ~29M minutes
       # = always triggers stale (>30 min). Forge suggested 999999999 but that's wrong: (NOW - 999999999)
       # could be small for timestamps near 2001. Epoch 0 is the safe default.
-      # BACK-002 NOTE: macOS stat -f first, then Linux stat -c, then epoch-0 (assume stale)
+      # Use platform.sh _stat_mtime helper (see lib/platform.sh); returns 0 on failure,
+      # which the `|| 0` fallback treats as "very old" (assume stale).
       file_mtime=$(_stat_mtime "$f"); file_mtime="${file_mtime:-0}"
       file_age_min=$(( (NOW - file_mtime) / 60 ))
       if [[ $file_age_min -gt 30 ]]; then

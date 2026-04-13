@@ -213,9 +213,24 @@ if [[ -z "$match_found" ]]; then
           continue  # Skip potentially dangerous patterns
         fi
         # WARD-001 FIX: Wrap in timeout to prevent ReDoS stalling the hook
-        if timeout 1 grep -qE "$pat" <<< "$NORMALIZED" 2>/dev/null; then
-          match_found="custom"
-          break
+        # BACK-002 FIX: macOS without coreutils lacks `timeout` — `gtimeout` may exist via brew.
+        # Without a guard, missing `timeout` silently exits 127 and treats as "no match",
+        # bypassing the ReDoS protection entirely. Fall back to bare grep on stock macOS.
+        if command -v timeout >/dev/null 2>&1; then
+          if timeout 1 grep -qE "$pat" <<< "$NORMALIZED" 2>/dev/null; then
+            match_found="custom"
+            break
+          fi
+        elif command -v gtimeout >/dev/null 2>&1; then
+          if gtimeout 1 grep -qE "$pat" <<< "$NORMALIZED" 2>/dev/null; then
+            match_found="custom"
+            break
+          fi
+        else
+          if grep -qE "$pat" <<< "$NORMALIZED" 2>/dev/null; then
+            match_found="custom"
+            break
+          fi
         fi
       done <<< "$EXTRA_PATTERNS"
     fi
@@ -232,9 +247,22 @@ if [[ -z "$match_found" ]]; then
           if [[ ${#pat} -gt 100 ]] || [[ "$pat" =~ \\[0-9] ]] || [[ "$pat" =~ \(\.\*\)\+ ]] || [[ "$pat" =~ \(.+\)\+ ]] || [[ "$pat" =~ \(.+\)\* ]]; then
             continue
           fi
-          if timeout 1 grep -qE "$pat" <<< "$NORMALIZED" 2>/dev/null; then
-            match_found="custom"
-            break
+          # BACK-002 FIX: guard timeout command (see earlier block for rationale)
+          if command -v timeout >/dev/null 2>&1; then
+            if timeout 1 grep -qE "$pat" <<< "$NORMALIZED" 2>/dev/null; then
+              match_found="custom"
+              break
+            fi
+          elif command -v gtimeout >/dev/null 2>&1; then
+            if gtimeout 1 grep -qE "$pat" <<< "$NORMALIZED" 2>/dev/null; then
+              match_found="custom"
+              break
+            fi
+          else
+            if grep -qE "$pat" <<< "$NORMALIZED" 2>/dev/null; then
+              match_found="custom"
+              break
+            fi
           fi
         done <<< "$EXTRA_PATTERNS"
       fi

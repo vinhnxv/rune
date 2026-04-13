@@ -854,7 +854,7 @@ Each `*_qa` phase is inserted into PHASE_ORDER immediately after its parent phas
 const PHASE_ORDER = [
   "forge",
   "forge_qa",              // ← QA gate for forge phase
-  "plan_review", "plan_refinement", "verification", "semantic_verification",
+  "plan_review", "plan_refine", "verification", "semantic_verification",
   "design_extraction", "design_prototype", "task_decomposition",
   "work",
   "work_qa",               // ← QA gate for work phase
@@ -879,7 +879,7 @@ const PHASE_ORDER = [
 PHASE_ORDER=(
   forge
   forge_qa               # QA gate for forge phase
-  plan_review plan_refinement verification semantic_verification
+  plan_review plan_refine verification semantic_verification
   design_extraction design_prototype task_decomposition
   work
   work_qa                # QA gate for work phase
