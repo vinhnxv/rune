@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- **`artifact_search` MCP tool**: New tool on the echo-search MCP server that searches past arc run artifacts (TOME findings, resolution reports, work summaries, gap analyses, inspect verdicts). Enables cross-session queries like "what did the last review find about auth?" powered by a separate FTS5 SQLite index (`artifacts.db`).
+- **Pre-rest artifact extraction** (`commands/rest.md` Step 4.5): Before `/rune:rest` deletes `tmp/`, key artifacts are extracted to `.rune/arc-history/{arc-id}/`. Includes configurable retention policy (`max_runs`, default 10) and talisman-gated enable flag.
+- **Artifact DB V5 schema migration** (`database.py`): Additive `artifact_entries` + `artifact_entries_fts` tables with BM25 FTS5 index. Separate `ensure_artifact_schema()` prevents echo tables from leaking into `artifacts.db`.
+- **`artifact_indexer.py`**: Parser module for TOME findings (severity/prefix/description extraction), resolution reports, work summaries, gap analyses, and inspect verdicts. Deterministic SHA-256 entry IDs for idempotent indexing.
+- **Dirty-signal integration** (`annotate-hook.sh`): PostToolUse hook now detects writes to `.rune/arc-history/` and writes `.artifact-dirty` signal for lazy reindex on next `artifact_search` call.
+- **Config constants** (`config.py`): `ARTIFACT_DB_PATH`, `ARC_HISTORY_DIR`, `_check_and_clear_artifact_dirty()` following the existing dirty-signal helper pattern.
+- **Talisman `echoes.artifact_indexing` section**: New config subsection with `enabled` (bool), `max_runs` (int), and `artifact_types` (list) fields. Documented in `talisman-sections.md`.
+
 ## [2.48.0] - 2026-04-14
 
 ### Fixed

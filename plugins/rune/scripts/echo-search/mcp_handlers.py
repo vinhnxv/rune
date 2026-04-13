@@ -27,17 +27,24 @@ from config import (
     ECHO_ELICITATION_ENABLED,
     GLOBAL_DB_PATH,
     GLOBAL_ECHO_DIR,
+    ARTIFACT_DB_PATH,
+    ARC_HISTORY_DIR,
     _check_and_clear_dirty,
     _check_and_clear_global_dirty,
+    _check_and_clear_artifact_dirty,
 )
-from database import ensure_schema, get_db, get_global_conn
+from database import ensure_schema, get_db, get_global_conn, ensure_artifact_schema
 from grouping import upsert_semantic_group
 from pipeline import pipeline_search
 from indexing import do_reindex
 from scoring import _LAYER_IMPORTANCE, _record_access
-from search import get_details, get_stats
+from search import get_details, get_stats, build_fts_query
+from artifact_indexer import do_artifact_reindex
 
 logger = logging.getLogger("echo-search")
+
+# ARTIFACT_DB_PATH, ARC_HISTORY_DIR, and _check_and_clear_artifact_dirty
+# are now imported from config.py (canonical definitions live there).
 
 ECHO_FENCE_PREAMBLE = (
     "[RECALLED MEMORY — REFERENCE ONLY] The following are recalled learnings "
@@ -83,6 +90,55 @@ def _get_ready_conn(
                 "empty" if count == 0 else "stale", exc,
             )
         conn = get_db(db_path)
+    return conn
+
+
+def _get_ready_artifact_conn() -> sqlite3.Connection:
+    """Open the artifact DB, ensure schema, and reindex if dirty or empty.
+
+    Analogous to ``_get_ready_conn()`` for the echo DB but uses the separate
+    ``artifacts.db`` file and ``ensure_artifact_schema()`` (V5 only, no echo
+    tables) to keep artifact and echo indexes independent (decree-arbiter Gap 2).
+
+    The dirty signal (``.artifact-dirty``) is written by ``/rune:rest`` Step 4.5
+    after arc artifact extraction. On first call or dirty signal, triggers a full
+    reindex via ``do_artifact_reindex()``.
+
+    Returns:
+        Open SQLite connection to artifacts.db. Caller is responsible for closing.
+
+    Raises:
+        OSError: If ARTIFACT_DB_PATH is not configured.
+    """
+    if not ARTIFACT_DB_PATH:
+        raise OSError("ARTIFACT_DB_PATH not configured — artifact_search unavailable")
+
+    # Ensure the parent directory exists (same pattern as _validate_mcp_env)
+    db_parent = os.path.dirname(ARTIFACT_DB_PATH)
+    if db_parent:
+        os.makedirs(db_parent, exist_ok=True)
+
+    conn = get_db(ARTIFACT_DB_PATH)
+    ensure_artifact_schema(conn)
+
+    # Check entry count and dirty signal (same logic as _get_ready_conn)
+    count = conn.execute(
+        "SELECT COUNT(*) FROM artifact_entries"
+    ).fetchone()[0]
+    is_dirty = _check_and_clear_artifact_dirty(ARC_HISTORY_DIR)
+
+    if count == 0 or is_dirty:
+        conn.close()
+        try:
+            do_artifact_reindex(ARC_HISTORY_DIR, ARTIFACT_DB_PATH)
+        except (sqlite3.Error, OSError, IOError) as exc:
+            logger.warning(
+                "artifact reindex failed, proceeding with %s index: %s",
+                "empty" if count == 0 else "stale", exc,
+            )
+        conn = get_db(ARTIFACT_DB_PATH)
+        ensure_artifact_schema(conn)
+
     return conn
 
 
@@ -610,6 +666,101 @@ async def _mcp_handle_upsert_group(arguments):
     return {"group_id": group_id, "memberships": count, "entry_ids": entry_ids}, False
 
 
+async def _mcp_handle_artifact_search(arguments: Dict) -> Tuple[Dict, bool]:
+    """Handle artifact_search — search past arc run artifacts.
+
+    Searches TOME findings, resolution reports, work summaries, gap analyses,
+    and inspect verdicts indexed from ``.rune/arc-history/``.  Uses the
+    separate artifacts.db (opened via ``_get_ready_artifact_conn()``) to keep
+    artifact search independent from the echo_search index.
+
+    Supports optional ``type`` filter (tome/resolution/work/gap/inspect) and
+    ``arc_id`` filter to scope results to a specific arc run.
+
+    Args:
+        arguments: MCP tool input dict with ``query``, optional ``type``,
+            optional ``arc_id``, and optional ``limit`` keys.
+
+    Returns:
+        ``(data_dict, is_error)`` tuple following the handler contract.
+    """
+    query = arguments.get("query", "")
+    if not isinstance(query, str) or not query.strip():
+        return {"error": "query must be a non-empty string"}, True
+
+    artifact_type = arguments.get("type")
+    if artifact_type is not None and not isinstance(artifact_type, str):
+        artifact_type = None
+
+    arc_id = arguments.get("arc_id")
+    if arc_id is not None:
+        if not isinstance(arc_id, str) or not arc_id.strip():
+            arc_id = None
+
+    limit = arguments.get("limit", 10)
+    if not isinstance(limit, int) or limit < 1:
+        limit = 10
+    limit = min(limit, 50)
+
+    try:
+        conn = _get_ready_artifact_conn()
+    except OSError as exc:
+        return {"error": "artifact_search unavailable: %s" % exc}, True
+
+    try:
+        fts_query = build_fts_query(query)
+        if not fts_query:
+            return {"results": [], "total": 0, "context_preamble": ECHO_FENCE_PREAMBLE_SHORT}, False
+
+        sql = """SELECT e.id, e.arc_id, e.artifact_type, e.role, e.layer,
+                        e.date, substr(e.content, 1, 300) AS content_preview,
+                        e.tags, e.severity, e.finding_id, e.file_path,
+                        e.plan_file,
+                        bm25(artifact_entries_fts) AS score
+                 FROM artifact_entries_fts f
+                 JOIN artifact_entries e ON e.rowid = f.rowid
+                 WHERE artifact_entries_fts MATCH ?"""
+        params: List[Any] = [fts_query]
+
+        # Optional type filter — validated against known artifact types
+        _VALID_ARTIFACT_TYPES = frozenset(
+            {"tome", "resolution", "work_summary", "work", "gap_analysis",
+             "gap", "inspect_verdict", "inspect"}
+        )
+        if artifact_type and artifact_type.lower() in _VALID_ARTIFACT_TYPES:
+            # Normalize short aliases to full type names stored in the DB
+            type_map = {"work": "work_summary", "gap": "gap_analysis", "inspect": "inspect_verdict"}
+            db_type = type_map.get(artifact_type.lower(), artifact_type.lower())
+            sql += " AND e.artifact_type = ?"
+            params.append(db_type)
+
+        # Optional arc_id filter — SEC-002: validate before use in SQL
+        if arc_id:
+            import re as _re
+            if _re.match(r"^arc-[a-zA-Z0-9_-]+$", arc_id):
+                sql += " AND e.arc_id = ?"
+                params.append(arc_id)
+
+        # BM25 scores are negative in SQLite FTS5 — ORDER BY ASC = best first
+        sql += " ORDER BY bm25(artifact_entries_fts) ASC LIMIT ?"
+        params.append(limit)
+
+        rows = conn.execute(sql, params).fetchall()
+        results = [dict(row) for row in rows]
+
+    except (sqlite3.Error, OSError) as exc:
+        logger.warning("artifact_search query failed: %s", exc)
+        return {"error": "artifact_search query failed: %s" % exc}, True
+    finally:
+        conn.close()
+
+    return {
+        "context_preamble": ECHO_FENCE_PREAMBLE_SHORT,
+        "results": results,
+        "total": len(results),
+    }, False
+
+
 # MCP tool schema definitions (originally in server.py, extracted during decomposition)
 TOOL_SCHEMAS = [
     {
@@ -710,6 +861,42 @@ TOOL_SCHEMAS = [
             "required": ["entry_ids"],
         },
     },
+    {
+        "name": "artifact_search",
+        "description": (
+            "Search past arc run artifacts (TOME findings, resolution reports, "
+            "work summaries, gap analyses, inspect verdicts). Use when asking "
+            "about past reviews, audits, or implementation runs. Complements "
+            "echo_search — artifacts are raw run data, echoes are curated learnings."
+        ),
+        "annotations": {
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": False,
+        },
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Search query (natural language or keywords)"},
+                "type": {
+                    "type": "string",
+                    "enum": ["tome", "resolution", "work", "gap", "inspect"],
+                    "description": "Filter by artifact type: tome (TOME findings), resolution (fix reports), work (task summaries), gap (gap analysis), inspect (verdict reports)",
+                },
+                "arc_id": {
+                    "type": "string",
+                    "description": "Filter to a specific arc run ID (e.g. arc-1776106675852)",
+                },
+                "limit": {
+                    "type": "integer",
+                    "default": 10,
+                    "description": "Max results to return (default 10, cap 50)",
+                },
+            },
+            "required": ["query"],
+        },
+    },
 ]
 
 
@@ -721,6 +908,7 @@ _MCP_HANDLERS = {
     "echo_stats": _mcp_handle_stats,
     "echo_record_access": _mcp_handle_record_access,
     "echo_upsert_group": _mcp_handle_upsert_group,
+    "artifact_search": _mcp_handle_artifact_search,
 }
 
 

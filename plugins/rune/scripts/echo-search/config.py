@@ -14,7 +14,8 @@ Key exports
 -----------
 Constants:
     ECHO_DIR, DB_PATH, GLOBAL_ECHO_DIR, GLOBAL_DB_PATH,
-    ECHO_ELICITATION_ENABLED, STOPWORDS
+    ECHO_ELICITATION_ENABLED, STOPWORDS,
+    ARTIFACT_DB_PATH, ARC_HISTORY_DIR
 
 Security:
     _FORBIDDEN_PREFIXES  (module-level validation runs at import time)
@@ -25,7 +26,8 @@ SQL helpers:
 Dirty-signal helpers:
     _signal_path, _check_and_clear_dirty, _write_dirty_signal,
     _GLOBAL_DIRTY_FILENAME, _global_dirty_path,
-    _check_and_clear_global_dirty, _write_global_dirty_signal
+    _check_and_clear_global_dirty, _write_global_dirty_signal,
+    _check_and_clear_artifact_dirty
 
 Trace / diagnostics:
     _RUNE_TRACE, _trace(stage, start)
@@ -111,6 +113,13 @@ if DB_PATH:
             file=sys.stderr,
         )
         sys.exit(1)
+
+# Artifact index path — separate SQLite DB alongside the echo DB
+# Derived from DB_PATH directory so it inherits the same security validation.
+ARTIFACT_DB_PATH = os.path.join(os.path.dirname(DB_PATH), "artifacts.db") if DB_PATH else ""
+
+# Arc history directory — where pre-rest artifact extraction persists arc artifacts
+ARC_HISTORY_DIR = os.path.join(os.environ.get("CLAUDE_PROJECT_DIR", "."), ".rune", "arc-history")
 
 # Global echo store — cross-project knowledge + doc packs (lazy, optional)
 GLOBAL_ECHO_DIR = os.environ.get("GLOBAL_ECHO_DIR", "")
@@ -315,6 +324,41 @@ def _write_global_dirty_signal() -> None:
             f.write("dirty")
     except OSError:
         pass
+
+
+# ---------------------------------------------------------------------------
+# Artifact dirty signal helpers
+# ---------------------------------------------------------------------------
+# The annotate-hook.sh PostToolUse hook writes .artifact-dirty when files in
+# .rune/arc-history/ are modified. Before each artifact_search we check for
+# this file and trigger a reindex so newly persisted artifacts appear promptly.
+
+
+def _check_and_clear_artifact_dirty(arc_history_dir: str) -> bool:
+    """Check and clear the artifact dirty signal file.
+
+    Follows the same pattern as _check_and_clear_dirty() for echo indexes.
+    The signal file lives at <project>/tmp/.rune-signals/.artifact-dirty.
+
+    Args:
+        arc_history_dir: Path to .rune/arc-history/ (used to derive project root).
+
+    Returns:
+        True if the signal was present and has been cleared, False otherwise.
+    """
+    # arc_history_dir is <project>/.rune/arc-history
+    # Walk up two levels to reach project root, then into tmp/.rune-signals/
+    rune_dir = os.path.dirname(arc_history_dir.rstrip(os.sep))   # <project>/.rune
+    project_root = os.path.dirname(rune_dir)                       # <project>
+    signal_dir = os.path.join(project_root, "tmp", ".rune-signals")
+    signal_path = os.path.join(signal_dir, ".artifact-dirty")
+    if os.path.isfile(signal_path):
+        try:
+            os.remove(signal_path)
+        except OSError:
+            pass  # Already consumed by another process or permission issue
+        return True
+    return False
 
 
 # ---------------------------------------------------------------------------

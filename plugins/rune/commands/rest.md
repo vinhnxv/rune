@@ -160,6 +160,92 @@ fi
 
 Any path that resolves outside `tmp/` or is a symlink is skipped with a warning.
 
+### 4.5. Arc Artifact Persistence (pre-cleanup)
+
+Extract key arc artifacts to `.rune/arc-history/` before they are deleted in Step 5.
+Only runs when arc dirs exist and artifact indexing is enabled.
+
+```bash
+# ── Step 4.5: Arc Artifact Persistence (pre-cleanup) ──
+# Extract key artifacts before they are deleted in Step 5.
+# Only runs when arc dirs exist and artifact_indexing is enabled.
+ARC_HISTORY=".rune/arc-history"
+ARTIFACT_EXTRACTED="false"
+
+# Read retention config from talisman (default: 10)
+MAX_RUNS=10
+if command -v jq >/dev/null 2>&1 && [ -f "tmp/.talisman-resolved/misc.json" ]; then
+  talisman_max=$(jq -r '.echoes.artifact_indexing.max_runs // empty' tmp/.talisman-resolved/misc.json 2>/dev/null || true)
+  if [[ "$talisman_max" =~ ^[0-9]+$ ]] && [ "$talisman_max" -gt 0 ] && [ "$talisman_max" -le 100 ]; then
+    MAX_RUNS="$talisman_max"
+  fi
+fi
+
+# Check if artifact indexing is enabled (default: true)
+ARTIFACT_ENABLED="true"
+if command -v jq >/dev/null 2>&1 && [ -f "tmp/.talisman-resolved/misc.json" ]; then
+  enabled_val=$(jq -r '.echoes.artifact_indexing.enabled // empty' tmp/.talisman-resolved/misc.json 2>/dev/null || true)
+  if [[ "$enabled_val" == "false" ]]; then
+    ARTIFACT_ENABLED="false"
+  fi
+fi
+
+if [[ "$ARTIFACT_ENABLED" == "true" ]]; then
+  # ZSH-SAFE: Use (N) glob qualifier to prevent NOMATCH errors
+  for arc_dir in tmp/arc/arc-*(N)/; do
+    [ -d "$arc_dir" ] || continue
+    arc_id=$(basename "$arc_dir")
+
+    # SEC-002: Validate arc_id against path traversal
+    if [[ "$arc_id" == *".."* || "$arc_id" == *"/"* || ! "$arc_id" =~ ^arc-[a-zA-Z0-9_-]+$ ]]; then
+      echo "SKIP: invalid arc_id: $arc_id"
+      continue
+    fi
+
+    mkdir -p "$ARC_HISTORY/$arc_id"
+
+    # Core artifacts — also check uppercase VERDICT.md variant (Codex finding #6)
+    for artifact in tome.md TOME.md resolution-report.md work-summary.md gap-analysis.md inspect-verdict.md VERDICT.md; do
+      [ -f "$arc_dir/$artifact" ] && cp -- "$arc_dir/$artifact" "$ARC_HISTORY/$arc_id/" 2>/dev/null || true
+    done
+
+    # Also persist the QA dashboard if present
+    [ -f "$arc_dir/qa/dashboard.md" ] && cp -- "$arc_dir/qa/dashboard.md" "$ARC_HISTORY/$arc_id/" 2>/dev/null || true
+
+    # Metadata from checkpoint (plan_file, not plan)
+    plan_file=""
+    if command -v jq >/dev/null 2>&1 && [ -f ".rune/arc/$arc_id/checkpoint.json" ]; then
+      plan_file=$(jq -r '.plan_file // empty' ".rune/arc/$arc_id/checkpoint.json" 2>/dev/null || true)
+    fi
+    printf '{"arc_id":"%s","date":"%s","plan_file":"%s"}\n' \
+      "$arc_id" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$plan_file" \
+      > "$ARC_HISTORY/$arc_id/meta.json"
+
+    ARTIFACT_EXTRACTED="true"
+  done
+
+  # Retention: remove oldest runs beyond MAX_RUNS
+  # Sort by directory mtime, keep newest MAX_RUNS
+  if [ -d "$ARC_HISTORY" ]; then
+    arc_count=$(find "$ARC_HISTORY" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')
+    if [ "$arc_count" -gt "$MAX_RUNS" ]; then
+      to_remove=$((arc_count - MAX_RUNS))
+      # ls -tr: oldest first. head -n N: take N oldest.
+      find "$ARC_HISTORY" -mindepth 1 -maxdepth 1 -type d -print0 2>/dev/null \
+        | xargs -0 ls -dtr 2>/dev/null \
+        | head -n "$to_remove" \
+        | while IFS= read -r old_dir; do
+            # SEC-002: Validate path stays inside ARC_HISTORY
+            [[ "$old_dir" == "$ARC_HISTORY"/* ]] && rm -rf "$old_dir"
+          done
+      echo "Artifact retention: removed $to_remove oldest arc runs (kept $MAX_RUNS)"
+    fi
+  fi
+fi
+# NOTE: .artifact-dirty signal write happens AFTER tmp/.rune-signals cleanup in Step 5
+# (Codex finding #1: writing before cleanup means the signal is deleted immediately)
+```
+
 ### 5. Remove Artifacts
 
 Remove only paths that passed validation in Step 4:
@@ -316,6 +402,14 @@ if [[ ! -L "tmp/.rune-signals" ]] && [[ -d "tmp/.rune-signals" ]]; then
   # Remove .obs-* dedup files older than 7 days (on-task-observation.sh dedup keys)
   find tmp/.rune-signals -maxdepth 2 -name '.obs-*' -mtime +7 -delete 2>/dev/null || true
   _safe_remove_tmp_dir "tmp/.rune-signals" "rune-signals"
+fi
+
+# Write .artifact-dirty signal AFTER tmp/.rune-signals cleanup so it survives rest
+# (Codex finding #1: signal written before cleanup is deleted by the cleanup itself)
+if [[ "${ARTIFACT_EXTRACTED:-false}" == "true" ]]; then
+  SIGNAL_DIR="tmp/.rune-signals"
+  mkdir -p "$SIGNAL_DIR" 2>/dev/null
+  printf '1' > "$SIGNAL_DIR/.artifact-dirty" 2>/dev/null
 fi
 
 # Clean up stale workflow lock directories (PID-guarded)
