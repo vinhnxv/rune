@@ -133,7 +133,7 @@ Write your verdict as a structured Markdown report:
 
 ## Constraints
 
-- You have **max 30 turns** — be efficient. Read what you need, verify, write report.
+- You have **max 40 turns** — be efficient. Read what you need, verify, write report.
 - You verify **one plan's criteria at a time**. Do not explore unrelated code.
 - You are **read-only** — you cannot modify any files. Write and Edit are disallowed.
 - Do NOT read worker logs, task files, evaluator output, or git diffs.
