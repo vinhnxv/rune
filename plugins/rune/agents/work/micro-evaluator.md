@@ -55,6 +55,7 @@ Each request contains:
 - `task_file`: Path to the task file with acceptance criteria
 - `changed_files`: List of files modified by the worker
 - `iteration`: Current evaluation iteration (1-based, max from talisman)
+- `acceptance_criteria`: Array of acceptance criteria from the task (may be empty)
 
 ## Evaluation Protocol
 
@@ -86,6 +87,23 @@ Each request contains:
 - Are abbreviations consistent with the codebase?
 - Are public API names clear and descriptive?
 
+### 5. Acceptance Criteria Alignment (weight: HIGH)
+
+When the evaluation request includes an `acceptance_criteria` array:
+- Does the diff satisfy each AC listed in the task file?
+- Are all required patterns/files/behaviors present?
+- Flag any AC that appears unaddressed by the changes
+
+**Proof-guided checking**: Use the `proof` field from each AC:
+- `pattern_matches` → grep for the pattern in changed files
+- `file_exists` → check file presence
+- `test_passes` → skip (out of scope for micro-evaluator)
+- `semantic` → skip with "SKIPPED" note
+
+**Graceful Skip**: When the request has no `acceptance_criteria` array or it is empty,
+set `ac_alignment.score: 1.0` with notes "No acceptance criteria provided — dimension
+skipped" and `unmet_criteria: []`.
+
 ## Verdict Format
 
 Write your verdict as JSON to `tmp/work/{timestamp}/evaluator/{task-id}.json`:
@@ -102,6 +120,11 @@ Write your verdict as JSON to `tmp/work/{timestamp}/evaluator/{task-id}.json`:
     "edge_cases": { "score": 0.0-1.0, "notes": "..." },
     "naming_consistency": { "score": 0.0-1.0, "notes": "..." }
   },
+  "ac_alignment": {
+    "score": 0.0-1.0,
+    "notes": "Per-criterion assessment summary",
+    "unmet_criteria": ["AC-2"]
+  },
   "feedback": "Human-readable summary of findings",
   "suggestions": ["Specific actionable suggestion 1", "..."]
 }
@@ -112,6 +135,11 @@ Write your verdict as JSON to `tmp/work/{timestamp}/evaluator/{task-id}.json`:
 - **APPROVE** (confidence >= 0.8): Changes meet quality bar. No significant issues found.
 - **REFINE** (confidence >= 0.4 and < 0.8): Changes need targeted improvements. Provide specific suggestions.
 - **PIVOT** (confidence < 0.4): Approach is fundamentally flawed. Explain why and suggest alternative.
+
+### AC Alignment Override
+
+If `ac_alignment.score < 0.5`, force REFINE regardless of other dimension scores.
+This ensures workers address missing acceptance criteria even when code quality is high.
 
 ## Constraints
 
