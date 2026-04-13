@@ -311,7 +311,7 @@ let fixDeleteSucceeded = false
 for (let attempt = 0; attempt < FIX_RETRY_DELAYS.length; attempt++) {
   if (attempt > 0) {
     warn(`Phase 5.8: TeamDelete attempt ${attempt + 1} failed, retrying in ${FIX_RETRY_DELAYS[attempt] / 1000}s...`)
-    Bash(`sleep ${FIX_RETRY_DELAYS[attempt] / 1000}`)
+    Bash(`sleep ${FIX_RETRY_DELAYS[attempt] / 1000}`, { run_in_background: true })
   }
   try { TeamDelete(); fixDeleteSucceeded = true; break } catch (e) { /* retry */ }
 }
@@ -423,7 +423,7 @@ for (let i = 0; i < fixMaxIterations; i++) {
     fixPreviousCompleted = fixCompleted
   }
 
-  Bash(`sleep ${fixPollIntervalMs / 1000}`)
+  Bash(`sleep ${fixPollIntervalMs / 1000}`, { run_in_background: true })
 }
 
 // Post-fix verification: get fresh diff to see what was actually changed

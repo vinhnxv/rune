@@ -383,21 +383,16 @@ fi
 FULL_OUTPUT_PATH="${CWD}/${OUTPUT_DIR}${EXPECTED_OUTPUT}"
 
 # SEC-004: Canonicalize and verify output path stays within output_dir
-# QUAL-005 AUDIT FIX: Use lib/platform.sh _resolve_path() instead of inline duplicate.
-# The fallback is safe because .. is already rejected above (lines 72, 92).
-if [[ -f "${SCRIPT_DIR}/lib/platform.sh" ]]; then
-  source "${SCRIPT_DIR}/lib/platform.sh"
+# BACK-003 FIX: require lib/platform.sh for canonical _resolve_path. Previous inline
+# fallback was broken on BSD (`readlink -f` has no -f flag, `realpath -m` is GNU-only)
+# and could return the literal path, enabling string-prefix bypass of the boundary
+# check. Fail closed if platform.sh is missing rather than silently degrading.
+if [[ ! -f "${SCRIPT_DIR}/lib/platform.sh" ]]; then
+  printf 'FATAL: platform.sh missing at %s — cannot canonicalize paths\n' "${SCRIPT_DIR}/lib/platform.sh" >&2
+  exit 2
 fi
-resolve_path() {
-  if type _resolve_path &>/dev/null; then
-    _resolve_path "$1"
-  else
-    # Fallback if platform.sh unavailable (same chain as before)
-    grealpath -m "$1" 2>/dev/null || realpath -m "$1" 2>/dev/null || \
-      { command -v readlink >/dev/null 2>&1 && readlink -f "$1" 2>/dev/null; } || \
-      { echo "WARN: realpath not available, skipping canonicalization" >&2; echo "$1"; }
-  fi
-}
+source "${SCRIPT_DIR}/lib/platform.sh"
+resolve_path() { _resolve_path "$1"; }
 RESOLVED_OUTPUT=$(resolve_path "$FULL_OUTPUT_PATH")
 RESOLVED_OUTDIR=$(resolve_path "${CWD}/${OUTPUT_DIR}")
 if [[ "$RESOLVED_OUTPUT" != "$RESOLVED_OUTDIR"* ]]; then

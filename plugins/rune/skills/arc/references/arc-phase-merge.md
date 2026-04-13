@@ -212,7 +212,7 @@ function verifyMergeCompleted(owner, repo, prNumber, timeoutMs) {
 
     // PR still open — wait and poll again
     if (i < maxIterations - 1) {
-      Bash(`sleep ${pollIntervalMs / 1000}`)
+      Bash(`sleep ${pollIntervalMs / 1000}`, { run_in_background: true })
     }
   }
 

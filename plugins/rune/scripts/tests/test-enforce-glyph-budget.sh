@@ -102,10 +102,12 @@ generate_words() {
 }
 
 # Create a project with an active rune workflow
+# PATT-001: Include full session-isolation triple (config_dir, owner_pid, session_id)
+# to match Rune Session Isolation Rule schema.
 ACTIVECWD="$TMPWORK/active-project"
 mkdir -p "$ACTIVECWD/tmp"
-cat > "$ACTIVECWD/tmp/.rune-review-abc123.json" <<'EOF'
-{"status": "active"}
+cat > "$ACTIVECWD/tmp/.rune-review-abc123.json" <<EOF
+{"status":"active","config_dir":"${CLAUDE_CONFIG_DIR:-$HOME/.claude}","owner_pid":"$PPID","session_id":"${CLAUDE_SESSION_ID:-test-session}"}
 EOF
 
 # Create a project WITHOUT an active rune workflow

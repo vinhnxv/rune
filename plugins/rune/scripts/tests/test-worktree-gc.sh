@@ -150,17 +150,17 @@ rune_wt_is_orphaned "$REPO_DIR" "nonexistent-ts" && rc=0 || rc=1
 assert_eq "No state file = orphan" "0" "$rc"
 
 # 3c. State file with dead PID -> orphan
-printf '{"config_dir":"%s","owner_pid":"99999"}' "$(cd "$CLAUDE_CONFIG_DIR" && pwd -P)" > "$REPO_DIR/tmp/.rune-work-dead-pid.json"
+printf '{"config_dir":"%s","owner_pid":"99999","session_id":"%s"}' "$(cd "$CLAUDE_CONFIG_DIR" && pwd -P)" "${CLAUDE_SESSION_ID:-test-session}" > "$REPO_DIR/tmp/.rune-work-dead-pid.json"
 rune_wt_is_orphaned "$REPO_DIR" "dead-pid" && rc=0 || rc=1
 assert_eq "Dead PID = orphan" "0" "$rc"
 
 # 3d. State file with our PID -> orphan (our own session, safe to clean)
-printf '{"config_dir":"%s","owner_pid":"%s"}' "$(cd "$CLAUDE_CONFIG_DIR" && pwd -P)" "$PPID" > "$REPO_DIR/tmp/.rune-work-our-pid.json"
+printf '{"config_dir":"%s","owner_pid":"%s","session_id":"%s"}' "$(cd "$CLAUDE_CONFIG_DIR" && pwd -P)" "$PPID" "${CLAUDE_SESSION_ID:-test-session}" > "$REPO_DIR/tmp/.rune-work-our-pid.json"
 rune_wt_is_orphaned "$REPO_DIR" "our-pid" && rc=0 || rc=1
 assert_eq "Our PID = safe to clean" "0" "$rc"
 
 # 3e. State file with live different PID -> NOT orphan (skip)
-printf '{"config_dir":"%s","owner_pid":"%s"}' "$(cd "$CLAUDE_CONFIG_DIR" && pwd -P)" "$$" > "$REPO_DIR/tmp/.rune-work-live-pid.json"
+printf '{"config_dir":"%s","owner_pid":"%s","session_id":"%s"}' "$(cd "$CLAUDE_CONFIG_DIR" && pwd -P)" "$$" "${CLAUDE_SESSION_ID:-test-session}" > "$REPO_DIR/tmp/.rune-work-live-pid.json"
 rune_wt_is_orphaned "$REPO_DIR" "live-pid" && rc=0 || rc=1
 assert_eq "Live different PID = not orphan (skip)" "1" "$rc"
 

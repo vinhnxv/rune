@@ -72,7 +72,7 @@ const PHASE_PREFIX_MAP = {
   test_qa:                ["arc-qa-"],                             // QA gate for test phase
   design_verification_qa: ["arc-qa-"],                             // QA gate for design_verification phase
 }
-// NOTE: 23 delegated phases (9 original + 1 storybook phase + 3 design phases + 1 UX phase + 5 Codex handler phases + 1 design-prototype + 1 deploy-verify + 2 browser test phases). Phases removed in v1.67.0 (audit, audit_mend) are NOT listed.
+// NOTE: 34 delegated phases — exact count matches keys in PHASE_PREFIX_MAP above. Includes base lifecycle phases, QA gates, design sync phases (design_extraction, design_prototype, design_verification, design_iteration, ux_verification), Codex handler phases, storybook_verification, browser_test/browser_test_fix, deploy_verify, and inspect phases. Phases removed in v1.67.0 (audit, audit_mend) are NOT listed.
 // Multi-prefix entries: plan_review has Layer 2 inspect team (arc-plan-inspect-), mend has ephemeral sage team (arc-sage-).
 // Design phases are conditional — only create teams when design_sync.enabled === true.
 // UX verification is conditional — only creates teams when ux.enabled === true + frontend files detected.

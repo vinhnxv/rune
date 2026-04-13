@@ -1,5 +1,41 @@
 # Changelog
 
+## [2.47.1] - 2026-04-14
+
+### Fixed
+
+Resolves 17 audit findings from `tmp/audit/20260413-213105/TOME.md` (2 P1 + 5 P2 + 10 P3).
+
+- **arc-phase-bot-review-wait.md** (CLEAN-001, P1): Added `{ run_in_background: true }` to 4 blocking `Bash("sleep N")` calls (lines 115/175/370/434). The default 120s initial wait previously froze the LLM harness for the full duration, wasting budget and risking stop-hook timeouts.
+- **Test fixtures** (PATT-001, P1): Added session-isolation triple (`config_dir`, `owner_pid`, `session_id`) to `test-worktree-gc.sh:153,158,163` and `test-enforce-glyph-budget.sh:108` so fixtures encode the full Rune Session Isolation Rule schema. `test-validate-strive-worker-paths.sh` comments now explicitly flag the intentional `owner_pid` omission as a test-harness-only workaround (not a schema contract).
+- **Arc phase sleeps** (CLEAN-002, P2): Added `{ run_in_background: true }` to 14 sleep call-sites across 10 arc phase reference files (arc-phase-mend, arc-phase-plan-review, gap-remediation, gap-analysis, arc-codex-phases, arc-phase-test, arc-phase-test-coverage-critique, arc-preflight, arc-phase-pr-comment-resolution, arc-phase-merge). Eliminates cumulative wall-time waste on TeamDelete retry backoffs (3s/6s/10s) during arc runs.
+- **arc-phase-qa-gate.md** (CLEAN-003, P2): Renamed `plan_refinement` → `plan_refine` in illustrative PHASE_ORDER blocks to match the canonical name used by `arc-phase-constants.md` and `arc-phase-stop-hook.sh`. Prevents checkpoint-key mismatch when maintainers follow the qa-gate illustration.
+- **enforce-bash-timeout.sh** (BACK-002, P2): Added three-tier `command -v timeout` / `gtimeout` / bare-grep fallback at both ReDoS-guard call sites. Stock macOS without coreutils now evaluates user-supplied talisman patterns instead of silently treating exit 127 from missing `timeout` as "no match".
+- **on-teammate-idle.sh** (BACK-003, P2): Deleted broken inline `resolve_path` BSD fallback (`readlink -f`, `realpath -m`, `grealpath` all have BSD/GNU drift bugs that could return the literal path unchanged, allowing SEC-004 boundary-check bypass via string-prefix match). Now fails closed with `exit 2` if `lib/platform.sh` is missing; otherwise delegates unconditionally to canonical `_resolve_path`.
+- **orchestration-phases.md** (TLC-001, P2): Added `{ run_in_background: true }` to the inter-wave `WAVE_CLEANUP_DELAYS` retry sleep at line 503. Matches canonical `engines.md:607` pattern.
+- **arc-phase-cleanup.md** (CLEAN-004, P3): Updated stale `"23 delegated phases"` comment to `"34 delegated phases"` with a framing that discourages future drift.
+- **arc-preflight.md** (CLEAN-005, P3): Separated `rune-audit-` prefix onto its own line in `ARC_TEAM_PREFIXES` with an explicit comment clarifying it is retained as a cross-workflow safety net for standalone `/rune:audit` orphans, NOT spawned by arc.
+- **talisman-resolve.sh** (PATT-005, P3): Replaced hardcoded `$HOME/.claude` fallback at line 521 with the `${CLAUDE_CONFIG_DIR:-$HOME/.claude}` CHOME pattern. Prevents multi-account users from being silently redirected to the default account when the `cd` to their primary config dir fails.
+- **mend/phase-7-cleanup.md** (TLC-002, P3): Updated step-2 summary to include the force-reply pre-message (2a) → sleep (2b) → shutdown_request (2c) sequence with an `engines.md` cross-link (GitHub #31389 rationale).
+- **resolve-session-identity.sh** (BACK-004, P3): Added explicit `source lib/platform.sh` block at script top (following `find-teammate-session.sh` pattern). Eliminates 2 wasted `stat` forks per macOS hook cold-start.
+- **doc-pack-staleness.sh** (BACK-005, P3): Removed brittle inline `date -d || date -j -f "%Y-%m-%d"` fallback that silently returned 0 on timezone-bearing ISO-8601 timestamps (masking pack staleness). Now relies on canonical `_parse_iso_epoch` from the already-sourced `platform.sh`.
+- **arc-batch-stop-hook.sh** (BACK-007, P3): Reordered `sed | head` → `head | sed` in SEC-009 git-log sanitization. Combined with `set -o pipefail`, eliminates the SIGPIPE race where a malicious commit message on line 21+ could escape backtick sanitization.
+- **enforce-gh-account.sh** (SEC-001, P3): Added explicit integer validation (`[[ "$marker_time" =~ ^[0-9]+$ ]] || marker_time=0`) after `cat "$DEBOUNCE_MARKER"`. Documents intent and prevents future refactors from removing the implicit arithmetic-coercion sanitization.
+- **session-team-hygiene.sh** (BACK-N-001): Replaced stale `BACK-002 NOTE` comment at 442 with accurate `platform.sh _stat_mtime` reference.
+
+### Deferred
+
+Codemod-scope findings from the same TOME are tracked for dedicated follow-up PRs:
+
+- PATT-002/PATT-003: Log prefix standardization (new `lib/log.sh` + migration across 30+ scripts).
+- PATT-004: Shebang normalization (~85 files).
+- BACK-006/SEC-002: Platform helper consolidation (`_epoch_to_datetime`, `_resolve_chome` additions to `lib/platform.sh`).
+- SEC-003: Support-script strict-mode audit with CI lint.
+- TLC-003/TLC-004: VEIL-002 pgrep liveness check in `postPhaseCleanup`/`verify` (accepted design tradeoff — retry-with-backoff provides equivalent coverage).
+- BACK-001 was a FALSE_POSITIVE against the current tree — every listed script already declares `set -euo pipefail`; the finding snapshot predated upstream fixes.
+
+Full per-finding disposition report: `tmp/mend/20260413-213105/resolution-report.md`.
+
 ## [2.47.0] - 2026-04-13
 
 ### Added

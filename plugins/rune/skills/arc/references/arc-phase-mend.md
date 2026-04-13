@@ -181,7 +181,7 @@ if (elicitEnabled && (p1Findings.length > 0 || recurringPatterns >= 5)) {
     let sageCleanupSucceeded = false
     const SAGE_CLEANUP_DELAYS = [0, 3000, 6000, 10000]
     for (let attempt = 0; attempt < SAGE_CLEANUP_DELAYS.length; attempt++) {
-      if (attempt > 0) Bash(`sleep ${SAGE_CLEANUP_DELAYS[attempt] / 1000}`)
+      if (attempt > 0) Bash(`sleep ${SAGE_CLEANUP_DELAYS[attempt] / 1000}`, { run_in_background: true })
       try { TeamDelete(); sageCleanupSucceeded = true; break } catch (e) {
         if (attempt === SAGE_CLEANUP_DELAYS.length - 1) warn(`mend sage cleanup: TeamDelete failed after ${SAGE_CLEANUP_DELAYS.length} attempts`)
       }

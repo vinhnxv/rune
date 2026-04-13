@@ -308,7 +308,7 @@ while (round < MAX_ROUNDS) {
   // Wait for bots to re-review after push (reduced initial wait)
   const reducedWait = Math.round((botReviewConfig.initial_wait_ms ?? 120_000) * 0.5)
   log(`Round ${round} complete. Waiting ${reducedWait / 1000}s for bots to re-review...`)
-  Bash(`sleep ${Math.round(reducedWait / 1000)}`)
+  Bash(`sleep ${Math.round(reducedWait / 1000)}`, { run_in_background: true })
 
   // Quick check: any new bot activity?
   const newBotComments = Bash(`${GH_ENV} gh api "repos/${owner}/${repo}/issues/${safePrNumber}/comments" --jq '[.[] | select(.user.login | test("${botPattern}"))] | length'`).trim()

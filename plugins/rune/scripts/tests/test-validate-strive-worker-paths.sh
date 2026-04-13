@@ -87,11 +87,14 @@ setup_strive_project() {
   mkdir -p "${project_dir}/tmp/work/${identifier}"
 
   # Create active state file.
-  # IMPORTANT: owner_pid is omitted so the session ownership check is bypassed.
-  # When the script runs in a subshell ($() capture), $PPID inside the script
-  # differs from $PPID/$$ in the test harness, so we cannot predict the correct
-  # value. Omitting owner_pid causes rune_verify_session_ownership() to skip
-  # the PID check entirely (empty field → no enforcement).
+  # PATT-001 EXCEPTION: owner_pid is deliberately omitted so the session
+  # ownership check is bypassed for THIS test only. When the validator runs
+  # in a subshell ($() capture), $PPID inside the validator differs from
+  # $PPID/$$ in the test harness, so we cannot predict the correct value.
+  # Omitting owner_pid causes rune_verify_session_ownership() to skip the
+  # PID check entirely (empty field → no enforcement). This is an explicit
+  # test-harness-only workaround, NOT a schema contract — production state
+  # files MUST include all three session-isolation fields per CLAUDE.md.
   local chome="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
   printf '{"status":"active","config_dir":"%s","session_id":"test-session"}\n' \
     "$chome" > "${project_dir}/tmp/.rune-work-${identifier}.json"
@@ -172,6 +175,10 @@ exit_code="${result%%	*}"
 assert_eq "No state file exits 0 (pass-through)" "0" "$exit_code"
 
 # 3b. State file exists but not active
+# PATT-001: `status:completed` alone is sufficient because the validator
+# short-circuits on non-"active" status before reading session fields.
+# Session-isolation triple is omitted intentionally to assert that a
+# minimal inactive record is still handled correctly (schema-permissive).
 mkdir -p "${TMPDIR_ROOT}/inactive-project/tmp"
 printf '{"status":"completed"}\n' > "${TMPDIR_ROOT}/inactive-project/tmp/.rune-work-done123.json"
 json=$(build_hook_input "Write" "${TMPDIR_ROOT}/inactive-project/src/app.ts" "${TMPDIR_ROOT}/inactive-project")

@@ -500,7 +500,7 @@ for (const wave of waves) {
     const WAVE_CLEANUP_DELAYS = [0, 3000, 6000, 10000]
     let waveCleanupOk = false
     for (let attempt = 0; attempt < WAVE_CLEANUP_DELAYS.length; attempt++) {
-      if (attempt > 0) Bash(`sleep ${WAVE_CLEANUP_DELAYS[attempt] / 1000}`)
+      if (attempt > 0) Bash(`sleep ${WAVE_CLEANUP_DELAYS[attempt] / 1000}`, { run_in_background: true })
       try { TeamDelete(); waveCleanupOk = true; break } catch (e) {
         if (attempt === WAVE_CLEANUP_DELAYS.length - 1) warn(`inter-wave cleanup: TeamDelete failed after ${WAVE_CLEANUP_DELAYS.length} attempts`)
       }

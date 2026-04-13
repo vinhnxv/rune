@@ -233,7 +233,11 @@ if [[ "$SUMMARY_ENABLED" != "false" ]]; then
     fi
     # SEC-009: Sanitize git log output — strip backtick sequences to prevent
     # code fence escape and prompt injection via malicious commit messages.
-    GIT_LOG_STAT=$(printf '%s' "$GIT_LOG_STAT" | sed 's/```/` ` `/g' | head -20)
+    # BACK-007 FIX: truncate with `head -20` BEFORE sanitizing so SIGPIPE race
+    # during `sed` cannot leave later lines (21+) un-sanitized. Combined with
+    # `set -o pipefail` any pipe failure now surfaces rather than silently
+    # returning a partial result.
+    GIT_LOG_STAT=$(printf '%s' "$GIT_LOG_STAT" | head -20 | sed 's/```/` ` `/g')
 
     # Extract PR URL from arc result signal (v1.109.2) or checkpoint (fallback).
     # PERF FIX (v1.109.2): Previously called _find_arc_checkpoint() here which scans
