@@ -283,7 +283,7 @@ Integrates at 3 points: **Phase 5** (work loop with AC criteria), **Phase 8.5** 
 
 ### Blind AC Verification (Phase 5 — strive-internal)
 
-When `blind_verification.enabled: true` in talisman, strive Phase 4.6 runs a blind AC verification gate within the work phase. A blind-validation-agent receives ONLY the plan's acceptance criteria and the committed code — no worker context, no task files, no implementation notes. This is NOT a separate arc phase; it runs inside `/rune:strive` as a quality gate before Phase 5 (echo persist). Config: `blind_verification.model` (default: `"sonnet"`), `blind_verification.fail_on_partial` (default: `true`), `blind_verification.max_remediation` (default: `1`), `blind_verification.timeout_ms` (default: `300000`).
+When `blind_verification.enabled: true` in talisman, strive Phase 4.6 runs a blind AC verification gate within the work phase. A blind-validation-agent receives ONLY the plan's acceptance criteria and the committed code — no worker context, no task files, no implementation notes. This is NOT a separate arc phase; it runs inside `/rune:strive` as a quality gate before Phase 5 (echo persist). Config: `blind_verification.model` (default: `"sonnet"`), `blind_verification.fail_on_partial` (default: `false`), `blind_verification.max_remediation` (default: `1`), `blind_verification.timeout_ms` (default: `120000`).
 
 ## QA Discipline Protocol
 

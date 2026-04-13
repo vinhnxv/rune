@@ -140,7 +140,7 @@ Write your verdict as a structured Markdown report:
 - Do NOT use TaskList or TaskGet — these would expose worker context and break blind isolation.
 - If a criterion references a specific file or pattern, go directly to it.
 - If a criterion is vague, search broadly but timebox to 3 turns per criterion.
-- When running tests via Bash, use a 60-second timeout: `timeout 60 <command>`
+- When running tests via Bash, limit execution time. Use `timeout 60 <command> 2>/dev/null || <command>` — if `timeout` is unavailable (macOS), the command runs without a timeout cap. Keep test commands short.
 
 ## Communication Protocol
 

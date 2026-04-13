@@ -346,7 +346,7 @@ if (!blindEnabled) {
       const acEntries = block.split(/\n(?=\s*-\s*id:\s*AC-)/)
       for (const entry of acEntries) {
         const idMatch = entry.match(/id:\s*(AC-\d+)/)
-        const descMatch = entry.match(/description:\s*["']?(.+?)["']?\s*$/)
+        const descMatch = entry.match(/(?:description|text):\s*["']?(.+?)["']?\s*$/m)
         const proofMatch = entry.match(/proof:\s*(\w+)/)
         if (idMatch) {
           acBlocks.push({
@@ -387,7 +387,7 @@ After writing the verdict, send results to team lead via SendMessage, then mark 
     Agent({
       team_name: `rune-work-${timestamp}`,
       name: "blind-verifier",
-      subagent_type: "blind-verifier",
+      subagent_type: "general-purpose",
       prompt: blindPrompt,
       run_in_background: true
     })
