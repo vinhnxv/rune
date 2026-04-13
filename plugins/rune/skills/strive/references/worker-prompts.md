@@ -336,7 +336,8 @@ Agent({
          a. Write a signal file for the evaluator:
             Write tmp/work/{timestamp}/evaluator/request-{task-id}.json with:
             { task_id, task_file: "tmp/work/{timestamp}/tasks/task-{task-id}.md",
-              changed_files: [list of files you modified], iteration: 1 }
+              changed_files: [list of files you modified], iteration: 1,
+              acceptance_criteria: [extracted from task file YAML frontmatter acceptance_criteria section parsed in step 4.1 — if no acceptance_criteria section exists or YAML is malformed, set to empty array []] }
          b. Poll for verdict (max 30s, check every 5s):
             - Try: Read tmp/work/{timestamp}/evaluator/{task-id}.json
             - If file not found: wait 5s and retry (not an error)
@@ -708,7 +709,8 @@ Agent({
          a. Write a signal file for the evaluator:
             Write tmp/work/{timestamp}/evaluator/request-{task-id}.json with:
             { task_id, task_file: "tmp/work/{timestamp}/tasks/task-{task-id}.md",
-              changed_files: [list of test files you modified], iteration: 1 }
+              changed_files: [list of test files you modified], iteration: 1,
+              acceptance_criteria: [extracted from task file YAML frontmatter acceptance_criteria section parsed in step 4.1 — if no acceptance_criteria section exists or YAML is malformed, set to empty array []] }
          b. Poll for verdict (max 30s, check every 5s):
             - Try: Read tmp/work/{timestamp}/evaluator/{task-id}.json
             - If file not found: wait 5s and retry (not an error)
