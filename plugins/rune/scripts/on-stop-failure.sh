@@ -1,7 +1,17 @@
 #!/bin/bash
 # scripts/on-stop-failure.sh
 # STOP-FAILURE-001: Handle API errors during arc pipeline and standalone workflows.
-# Hook event: StopFailure
+#
+# ⚠ ORPHAN SCRIPT (T5 / HOOK-001, audit 20260414-012408) ⚠
+# The `StopFailure` hook event does NOT exist in Claude Code — this script has
+# never fired in production. The hooks.json entry has been renamed to
+# `_StopFailure_disabled` until we pick a migration path:
+#   (a) inline into Stop hook with branch detection, or
+#   (b) rewire to PostToolUseFailure / SessionEnd.
+# Until then: API-error checkpoint preservation is NOT active. The script is
+# preserved intact so its classifier/backoff logic is ready to wire up.
+#
+# Hook event: StopFailure (historical — currently unused)
 # Exit 0: No active workflow — allow failure (stdout/stderr discarded by Claude Code)
 # Exit 2 + stderr: Re-inject recovery prompt (with backoff for rate limits)
 #

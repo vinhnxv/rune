@@ -133,6 +133,14 @@ fi
 # Do NOT enable RUNE_TRACE in shared environments without reviewing log contents.
 # SEC-005 FIX: Include session PID in trace log path to avoid predictable path
 RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
+# T7 / SEC-001+SEC-009 FIX: TMPDIR allowlist — reject attacker-supplied trace paths
+# outside TMPDIR or /tmp. Without this, RUNE_TRACE_LOG=/var/spool/cron/crontabs/user
+# combined with RUNE_TRACE=1 would write hook trace content to arbitrary paths.
+# Pattern matches the canonical mitigation in session-team-hygiene.sh:71-74.
+case "$RUNE_TRACE_LOG" in
+  "${TMPDIR:-/tmp}/"*|/tmp/*) ;;
+  *) RUNE_TRACE_LOG="${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log" ;;
+esac
 _trace() { [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "$RUNE_TRACE_LOG" ]] && [[ ! -L "${RUNE_TRACE_LOG%/*}" ]] && printf '[%s] detect-workflow-complete: %s\n' "$(date +%H:%M:%S)" "$*" >> "$RUNE_TRACE_LOG"; return 0; }
 
 HOOK_START_TIME=$(date +%s)

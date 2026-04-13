@@ -297,11 +297,20 @@ ENTRY="${ENTRY}
 ${ENTRY_CONTENT}
 "
 
-# Atomic append via temp file
-TMPFILE=$(mktemp "${TMPDIR:-/tmp}/rune-echo-XXXXXX" 2>/dev/null) || { echo "WARN: mktemp failed" >&2; exit 0; }
-printf '%s\n' "$ENTRY" > "$TMPFILE"
-cat "$TMPFILE" >> "$MEMORY_FILE" 2>/dev/null || { rm -f "$TMPFILE"; exit 0; }
-rm -f "$TMPFILE"
+# T8 / RUIN-001 FIX: Atomic append via read-modify-mv. Previous implementation
+# used `cat TMPFILE >> MEMORY_FILE`, which is NOT atomic — a kill/timeout
+# mid-write left MEMORY.md with a partial entry, corrupting the YAML/markdown
+# index. Pattern: (1) copy existing contents to temp on same filesystem,
+# (2) append new entry to temp, (3) rename temp over MEMORY.md. Rename is
+# atomic on POSIX filesystems, so either the whole new entry lands or none.
+_MEMORY_DIR="${MEMORY_FILE%/*}"
+[[ -d "$_MEMORY_DIR" ]] || mkdir -p "$_MEMORY_DIR" 2>/dev/null || { echo "WARN: cannot create memory dir" >&2; exit 0; }
+TMPFILE=$(mktemp "${_MEMORY_DIR}/.MEMORY.md.XXXXXX" 2>/dev/null) || { echo "WARN: mktemp failed in memory dir" >&2; exit 0; }
+if [[ -f "$MEMORY_FILE" ]]; then
+  cat "$MEMORY_FILE" > "$TMPFILE" 2>/dev/null || { rm -f "$TMPFILE"; exit 0; }
+fi
+printf '%s\n' "$ENTRY" >> "$TMPFILE" 2>/dev/null || { rm -f "$TMPFILE"; exit 0; }
+mv -f "$TMPFILE" "$MEMORY_FILE" 2>/dev/null || { rm -f "$TMPFILE"; exit 0; }
 
 # ── Write dirty signal for echo-search auto-reindex ──
 SIGNAL_DIR="${PROJECT_DIR}/tmp/.rune-signals"

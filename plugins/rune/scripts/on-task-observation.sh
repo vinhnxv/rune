@@ -146,11 +146,19 @@ ENTRY="${ENTRY//__TEAM_NAME__/$TEAM_NAME}"
 ENTRY="${ENTRY//__AGENT_NAME__/$AGENT_NAME}"
 ENTRY="${ENTRY//__TASK_DESC__/$TASK_DESC}"
 
-# Best-effort append via temp file (source data written fully before append, but append itself is not atomic)
-TMPFILE=$(mktemp 2>/dev/null) || exit 0
-printf '%s\n' "$ENTRY" > "$TMPFILE"
-cat "$TMPFILE" >> "$MEMORY_FILE" 2>/dev/null || { rm -f "$TMPFILE"; exit 0; }
-rm -f "$TMPFILE"
+# T8 / RUIN-005 FIX: Atomic append via read-modify-mv. Previous implementation
+# appended with `cat TMPFILE >> MEMORY_FILE`, which is NOT atomic — a
+# TaskCompleted hook killed mid-append left MEMORY.md with a partial
+# observation entry, corrupting the echo index on reload. Now we stage the
+# full target file in a sibling temp, then atomically rename over it.
+_MEMORY_DIR="${MEMORY_FILE%/*}"
+[[ -d "$_MEMORY_DIR" ]] || mkdir -p "$_MEMORY_DIR" 2>/dev/null || exit 0
+TMPFILE=$(mktemp "${_MEMORY_DIR}/.MEMORY.md.XXXXXX" 2>/dev/null) || exit 0
+if [[ -f "$MEMORY_FILE" ]]; then
+  cat "$MEMORY_FILE" > "$TMPFILE" 2>/dev/null || { rm -f "$TMPFILE"; exit 0; }
+fi
+printf '%s\n' "$ENTRY" >> "$TMPFILE" 2>/dev/null || { rm -f "$TMPFILE"; exit 0; }
+mv -f "$TMPFILE" "$MEMORY_FILE" 2>/dev/null || { rm -f "$TMPFILE"; exit 0; }
 
 # --- Step 10: Signal echo-search dirty for auto-reindex ---
 touch "$SIGNAL_DIR/.echo-dirty" 2>/dev/null || true

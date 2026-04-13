@@ -134,20 +134,41 @@ fi
 
 # ── Atomic write ──
 TMP_FILE=$(mktemp "${CHECKPOINT_PATH}.XXXXXX" 2>/dev/null) || {
-  echo "ERROR: failed to create temp file" >&2
+  echo "ERROR: failed to create temp file (disk full? permission?) at $(dirname "$CHECKPOINT_PATH")" >&2
   exit 5
 }
 # Pretty-print for readability + debugging
 echo "$MERGED" | jq '.' > "$TMP_FILE" 2>/dev/null || {
   rm -f "$TMP_FILE" 2>/dev/null
-  echo "ERROR: failed to write merged JSON" >&2
+  echo "ERROR: failed to write merged JSON to $TMP_FILE (likely disk full / ENOSPC / permission)" >&2
   exit 5
 }
+
+# T9 / RUIN-004 FIX: explicit post-write verification. Previously the script
+# trusted pipefail + stderr redirection to surface ENOSPC, but a truncated
+# write could still land a short/empty temp file and then mv over the real
+# checkpoint, silently reverting a "completed" phase on next read. Now we
+# check (a) non-empty, (b) valid JSON before promoting the temp file.
+if [[ ! -s "$TMP_FILE" ]]; then
+  rm -f "$TMP_FILE" 2>/dev/null
+  echo "ERROR: checkpoint temp file is empty after write — aborting to preserve existing checkpoint ($CHECKPOINT_PATH). Likely disk full." >&2
+  exit 5
+fi
+if ! jq empty "$TMP_FILE" 2>/dev/null; then
+  rm -f "$TMP_FILE" 2>/dev/null
+  echo "ERROR: checkpoint temp file is not valid JSON after write — aborting to preserve existing checkpoint ($CHECKPOINT_PATH)." >&2
+  exit 5
+fi
+
 mv -f "$TMP_FILE" "$CHECKPOINT_PATH" || {
   rm -f "$TMP_FILE" 2>/dev/null
-  echo "ERROR: atomic mv failed" >&2
+  echo "ERROR: atomic mv failed for $CHECKPOINT_PATH (disk full? cross-filesystem?)" >&2
   exit 5
 }
+
+# T9 / RUIN-004 FIX: best-effort flush to disk so a post-mv crash does not lose
+# the committed checkpoint. sync() is fast and per-filesystem on macOS/Linux.
+sync 2>/dev/null || true
 
 # ── Post-write validation ──
 # Quick sanity check: required fields still present

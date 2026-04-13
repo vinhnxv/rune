@@ -29,6 +29,18 @@ set -euo pipefail
 trap 'exit 0' ERR  # immediate fail-forward guard — upgraded below
 umask 077
 
+# T7 / SEC-001+SEC-009 FIX: Pin RUNE_TRACE_LOG to TMPDIR/tmp before any trace
+# write. Without this, an attacker setting RUNE_TRACE_LOG=/var/spool/cron/...
+# plus RUNE_TRACE=1 could redirect hook trace output to arbitrary files. The
+# fail-forward ERR trap below is the first writer, so the guard must precede it.
+# Pattern matches the canonical mitigation in session-team-hygiene.sh:71-74.
+RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
+case "$RUNE_TRACE_LOG" in
+  "${TMPDIR:-/tmp}/"*|/tmp/*) ;;
+  *) RUNE_TRACE_LOG="${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log" ;;
+esac
+export RUNE_TRACE_LOG
+
 # --- Fail-forward guard (OPERATIONAL hook) ---
 # Crash before validation → allow operation (don't stall workflows).
 _rune_fail_forward() {
@@ -130,6 +142,26 @@ if [[ -f "${SCRIPT_DIR}/lib/platform.sh" ]]; then
 fi
 source "${SCRIPT_DIR}/lib/rune-state.sh"
 
+# T3 fix: source arc-stop-hook-common.sh for arc_delete_state_file() 3-tier guard.
+# Without this, bare `rm -f` on loop state files can fail silently on immutable
+# filesystems (macOS SIP, Linux chattr +i), leaving the state file to re-fire
+# the same Stop block forever — the v1.101.1 infinite-loop bug.
+if [[ -f "${SCRIPT_DIR}/lib/arc-stop-hook-common.sh" ]]; then
+  # shellcheck source=lib/arc-stop-hook-common.sh
+  source "${SCRIPT_DIR}/lib/arc-stop-hook-common.sh"
+fi
+# Fallback shim if the lib is missing (degraded but safer than bare rm -f).
+if ! declare -f arc_delete_state_file &>/dev/null; then
+  arc_delete_state_file() {
+    local f="$1"
+    rm -f "$f" 2>/dev/null
+    if [[ -f "$f" ]]; then
+      chmod 644 "$f" 2>/dev/null; rm -f "$f" 2>/dev/null
+      [[ -f "$f" ]] && : > "$f" 2>/dev/null
+    fi
+  }
+fi
+
 # Source process tree kill library for centralized 2-stage SIGTERM→SIGKILL
 if [[ -f "${SCRIPT_DIR}/lib/process-tree.sh" ]]; then
   # shellcheck source=lib/process-tree.sh
@@ -228,12 +260,12 @@ if _check_loop_ownership "${CWD}/${RUNE_STATE}/arc-phase-loop.local.md"; then
     if [[ "$_phase_mtime" -le 0 ]]; then exit 0; fi
     _phase_age_min=$(( (NOW - _phase_mtime) / 60 ))
     if [[ $_phase_age_min -gt $_PHASE_STALE_MIN ]]; then
-      rm -f "${CWD}/${RUNE_STATE}/arc-phase-loop.local.md" 2>/dev/null
+      arc_delete_state_file "${CWD}/${RUNE_STATE}/arc-phase-loop.local.md"
     else
       exit 0
     fi
   else
-    rm -f "${CWD}/${RUNE_STATE}/arc-phase-loop.local.md" 2>/dev/null
+    arc_delete_state_file "${CWD}/${RUNE_STATE}/arc-phase-loop.local.md"
   fi
 fi
 
@@ -271,14 +303,14 @@ if _check_loop_ownership "${CWD}/${RUNE_STATE}/arc-batch-loop.local.md"; then
     _batch_age_min=$(( (NOW - _batch_mtime) / 60 ))
     if [[ $_batch_age_min -gt $_BATCH_STALE_MIN ]]; then
       # Stale loop file — force cleanup instead of deferring
-      rm -f "${CWD}/${RUNE_STATE}/arc-batch-loop.local.md" 2>/dev/null
+      arc_delete_state_file "${CWD}/${RUNE_STATE}/arc-batch-loop.local.md"
     else
       # Fresh active batch — defer to arc-batch-stop-hook.sh
       exit 0
     fi
   else
     # Not active (completed/cancelled) — clean up orphaned file
-    rm -f "${CWD}/${RUNE_STATE}/arc-batch-loop.local.md" 2>/dev/null
+    arc_delete_state_file "${CWD}/${RUNE_STATE}/arc-batch-loop.local.md"
   fi
 fi
 
@@ -295,13 +327,13 @@ if _check_loop_ownership "${CWD}/${RUNE_STATE}/arc-hierarchy-loop.local.md"; the
     if [[ "$_hier_mtime" -le 0 ]]; then exit 0; fi
     _hier_age_min=$(( (NOW - _hier_mtime) / 60 ))
     if [[ $_hier_age_min -gt $_HIERARCHY_STALE_MIN ]]; then
-      rm -f "${CWD}/${RUNE_STATE}/arc-hierarchy-loop.local.md" 2>/dev/null
+      arc_delete_state_file "${CWD}/${RUNE_STATE}/arc-hierarchy-loop.local.md"
     else
       exit 0
     fi
   else
     # Not active (completed/cancelled) — clean up orphaned file
-    rm -f "${CWD}/${RUNE_STATE}/arc-hierarchy-loop.local.md" 2>/dev/null
+    arc_delete_state_file "${CWD}/${RUNE_STATE}/arc-hierarchy-loop.local.md"
   fi
 fi
 
@@ -316,13 +348,13 @@ if _check_loop_ownership "${CWD}/${RUNE_STATE}/arc-issues-loop.local.md"; then
     if [[ "$_issues_mtime" -le 0 ]]; then exit 0; fi
     _issues_age_min=$(( (NOW - _issues_mtime) / 60 ))
     if [[ $_issues_age_min -gt $_ISSUES_STALE_MIN ]]; then
-      rm -f "${CWD}/${RUNE_STATE}/arc-issues-loop.local.md" 2>/dev/null
+      arc_delete_state_file "${CWD}/${RUNE_STATE}/arc-issues-loop.local.md"
     else
       exit 0
     fi
   else
     # Not active (completed/cancelled) — clean up orphaned file
-    rm -f "${CWD}/${RUNE_STATE}/arc-issues-loop.local.md" 2>/dev/null
+    arc_delete_state_file "${CWD}/${RUNE_STATE}/arc-issues-loop.local.md"
   fi
 fi
 
