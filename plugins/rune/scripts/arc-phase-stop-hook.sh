@@ -1353,8 +1353,10 @@ if [[ "$_needs_compact" == "true" ]] && [[ "$COMPACT_PENDING" != "true" ]] && [[
     rm -f "$_STATE_TMP" 2>/dev/null; exit 0  # BACK-004: preserve STATE_FILE on transient mv failure
   fi
   if ! grep -q '^compact_pending: true' "$STATE_FILE" 2>/dev/null; then
-    _trace "compact_pending write verification failed — aborting"
-    rm -f "$STATE_FILE" 2>/dev/null
+    _trace "compact_pending write verification failed — preserving state file for retry"
+    # RC-1 FIX: Do not delete STATE_FILE on transient verification failure.
+    # Matches lib/arc-stop-hook-common.sh:248-251 hardened pattern. Deleting
+    # the live state file permanently terminates the loop on transient I/O failure.
     exit 0
   fi
   _trace "Compact interlude Phase A [${_compact_reason}] before: ${NEXT_PHASE}"
@@ -1378,10 +1380,12 @@ if [[ "$COMPACT_PENDING" == "true" ]]; then
     _trace "State file empty before compact Phase B — aborting"
     exit 0
   fi
-  _STATE_TMP=$(mktemp "${STATE_FILE}.XXXXXX" 2>/dev/null) || { rm -f "$STATE_FILE" 2>/dev/null; exit 0; }
+  # RC-1 FIX: Do not delete STATE_FILE on transient mktemp/mv failure.
+  # Matches lib/arc-stop-hook-common.sh:325-328 hardened pattern.
+  _STATE_TMP=$(mktemp "${STATE_FILE}.XXXXXX" 2>/dev/null) || { _trace "Phase B mktemp failed — preserving state file for retry"; exit 0; }
   sed 's/^compact_pending: true$/compact_pending: false/' "$STATE_FILE" > "$_STATE_TMP" 2>/dev/null \
     && mv -f "$_STATE_TMP" "$STATE_FILE" 2>/dev/null \
-    || { rm -f "$_STATE_TMP" "$STATE_FILE" 2>/dev/null; exit 0; }
+    || { rm -f "$_STATE_TMP" 2>/dev/null; _trace "Phase B sed/mv failed — preserving state file for retry"; exit 0; }
   _trace "Compact interlude Phase B: proceeding to ${NEXT_PHASE}"
   _JUST_COMPLETED_COMPACT="true"
 fi
