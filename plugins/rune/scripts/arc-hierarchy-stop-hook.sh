@@ -515,8 +515,10 @@ fi
 
 # ── MORE CHILDREN TO PROCESS ──
 
-# ── GUARD 11: Validate NEXT_CHILD path ──
-if [[ "$NEXT_CHILD" == *".."* ]] || [[ "$NEXT_CHILD" == /* ]] || [[ "$NEXT_CHILD" =~ [^a-zA-Z0-9._/-] ]]; then
+# ── GUARD 11: Validate NEXT_CHILD path (SEC-002 / T6: prompt injection prevention) ──
+# T6 fix: anchored positive-match makes the allowed alphabet explicit. NEXT_CHILD
+# flows into the Skill() call at line ~655 via NEXT_CHILD_FULL.
+if ! [[ "$NEXT_CHILD" =~ ^[a-zA-Z0-9._/-]+$ ]] || [[ "$NEXT_CHILD" == *".."* ]] || [[ "$NEXT_CHILD" == /* ]]; then
   rm -f "$STATE_FILE" 2>/dev/null
   exit 0
 fi

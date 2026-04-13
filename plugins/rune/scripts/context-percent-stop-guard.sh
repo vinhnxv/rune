@@ -66,19 +66,37 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 source "${SCRIPT_DIR}/lib/platform.sh"
 source "${SCRIPT_DIR}/lib/rune-state.sh"
 
-CWD=$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
-if [[ -n "$CWD" ]]; then
-  # Arc loop state files live in ${CWD}/${RUNE_STATE}/ (project-local), NOT $CHOME (global config)
-  # Use two separate find commands to avoid error when one dir doesn't exist.
-  # Check both .rune/ and .claude/ (legacy).
-  # SEC-005 FIX: Use inline find args instead of unquoted variable word-splitting
-  ARC_LOOP_COUNT=$(
-    { find "${CWD}/${RUNE_STATE}" -maxdepth 1 \( -name arc-phase-loop.local.md -o -name arc-batch-loop.local.md -o -name arc-hierarchy-loop.local.md -o -name arc-issues-loop.local.md \) 2>/dev/null; \
-      find "${CWD}/.claude" -maxdepth 1 \( -name arc-phase-loop.local.md -o -name arc-batch-loop.local.md -o -name arc-hierarchy-loop.local.md -o -name arc-issues-loop.local.md \) 2>/dev/null; } | wc -l | tr -dc '0-9' || echo "0")
-  [[ -z "$ARC_LOOP_COUNT" ]] && ARC_LOOP_COUNT=0
-  if (( ARC_LOOP_COUNT > 0 )); then
-    exit 0  # Arc loop active — let arc hooks handle continuation
-  fi
+# T4 fix: use resolve_cwd() for CLAUDE_PROJECT_DIR fallback + canonicalization.
+# Inline `jq -r '.cwd'` alone returns empty when Claude Code omits .cwd from the
+# Stop hook input, which bypassed arc-loop detection entirely and let the
+# threshold check compete with a live arc phase loop (two exit-2 prompts).
+if [[ -f "${SCRIPT_DIR}/lib/stop-hook-common.sh" ]]; then
+  # shellcheck source=lib/stop-hook-common.sh
+  source "${SCRIPT_DIR}/lib/stop-hook-common.sh"
+fi
+if declare -f resolve_cwd &>/dev/null; then
+  resolve_cwd "$INPUT" || true
+else
+  CWD=$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
+  [[ -z "$CWD" ]] && CWD="${CLAUDE_PROJECT_DIR:-}"
+fi
+
+# T4 fix: without a resolved CWD we cannot safely detect arc-loop coexistence —
+# abort now rather than issue a threshold exit-2 that might fight an active loop.
+if [[ -z "$CWD" ]]; then
+  exit 0
+fi
+
+# Arc loop state files live in ${CWD}/${RUNE_STATE}/ (project-local), NOT $CHOME (global config)
+# Use two separate find commands to avoid error when one dir doesn't exist.
+# Check both .rune/ and .claude/ (legacy).
+# SEC-005 FIX: Use inline find args instead of unquoted variable word-splitting
+ARC_LOOP_COUNT=$(
+  { find "${CWD}/${RUNE_STATE}" -maxdepth 1 \( -name arc-phase-loop.local.md -o -name arc-batch-loop.local.md -o -name arc-hierarchy-loop.local.md -o -name arc-issues-loop.local.md \) 2>/dev/null; \
+    find "${CWD}/.claude" -maxdepth 1 \( -name arc-phase-loop.local.md -o -name arc-batch-loop.local.md -o -name arc-hierarchy-loop.local.md -o -name arc-issues-loop.local.md \) 2>/dev/null; } | wc -l | tr -dc '0-9' || echo "0")
+[[ -z "$ARC_LOOP_COUNT" ]] && ARC_LOOP_COUNT=0
+if (( ARC_LOOP_COUNT > 0 )); then
+  exit 0  # Arc loop active — let arc hooks handle continuation
 fi
 
 # --- Talisman gate (project → system fallback; symlink-safe via helper) ---

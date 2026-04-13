@@ -35,6 +35,17 @@ IFS=$'\t' read -r MODEL DIR SESSION_ID REMAINING USED COST GIT_WORKTREE <<< "$(
     (.workspace.git_worktree // "")
   ] | @tsv' 2>/dev/null
 )" || { echo "[Rune] parse error"; exit 0; }
+
+# T10 / FLAW-001 FIX: Guard against empty/non-numeric USED before any `[[ -ge ]]`
+# arithmetic comparison. If jq produced fewer @tsv columns (malformed INPUT, or
+# early-session stats missing), USED would be "" and `[[ "" -ge 90 ]]` is a
+# fatal bash error — the ERR trap exits 0 silently, the bridge file never
+# updates, and downstream consumers (context-percent-stop-guard,
+# rune-context-monitor) read stale data. Normalize to 0 to keep the pipeline
+# live with a conservative default.
+if [[ -z "$USED" || ! "$USED" =~ ^[0-9]+$ ]]; then USED=0; fi
+if [[ -z "$REMAINING" || ! "$REMAINING" =~ ^[0-9]+$ ]]; then REMAINING=100; fi
+
 _trace "PARSED model=$MODEL used=$USED remaining=$REMAINING worktree=${GIT_WORKTREE:-}"
 
 # --- Bridge file write (best-effort, never crash statusline) ---

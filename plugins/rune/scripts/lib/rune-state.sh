@@ -76,13 +76,24 @@ _rune_migrate_legacy() {
     return 0
   }
   if ! mkdir "${_lockdir}" 2>/dev/null; then
-    # Another process holds the lock — skip (it will complete the migration)
-    return 0
+    # Lock held — check if stale (>5 min old = likely from crashed prior session).
+    # T1 fix: stale-check + force-remove + retry recovers from the scenario where a
+    # previous migration died before cleanup (trap-less by design for sourced files).
+    if [[ -n "$(find "${_lockdir}" -maxdepth 0 -mmin +5 2>/dev/null)" ]]; then
+      rm -rf "${_lockdir}" 2>/dev/null
+      if ! mkdir "${_lockdir}" 2>/dev/null; then
+        return 0
+      fi
+    else
+      # Active lock from another session — skip (it will complete the migration)
+      return 0
+    fi
   fi
   # Ensure lock is released on function exit (normal or error)
   # FLAW-001 fix: Explicit cleanup at each exit point instead of trap.
   # trap ... RETURN leaks to callers on bash 4.0+; trap ... EXIT overwrites
   # the caller's EXIT trap when this file is sourced. Both are unsafe.
+  # T1 fix: stale-check above is the compensating mechanism for mid-function crashes.
 
   # Helper: migrate a single item with error logging
   _migrate_item() {
@@ -119,7 +130,8 @@ _rune_migrate_legacy() {
   if [[ $_critical_failed -eq 1 ]]; then
     echo >&2 "[rune] CRITICAL: Migration of core state items failed — skipping remaining items."
     echo >&2 "[rune] CRITICAL: Manual migration may be needed: check both .claude/ and .rune/"
-    rmdir "${_lockdir}" 2>/dev/null || true
+    # T1 fix: rm -rf (not rmdir) so any residue inside the lockdir is also removed.
+    rm -rf "${_lockdir}" 2>/dev/null || true
     return 0
   fi
 
@@ -202,8 +214,8 @@ _rune_migrate_legacy() {
   fi
 
   # FLAW-001: Explicit lock release (no trap — see comment at lock acquisition)
-  # BACK-002 FIX: Check rmdir result — stale lock could cause migration skips
-  if ! rmdir "${_lockdir}" 2>/dev/null; then
-    echo >&2 "[rune] WARNING: failed to release migration lock: ${_lockdir} — remove manually if migrations are skipped"
-  fi
+  # T1 fix: force-remove with rm -rf. Prior `rmdir` failed silently on non-empty
+  # lockdirs (e.g., after a crashed subprocess left residue), blocking all future
+  # migrations. Stale-lock detection at acquisition handles mid-function crashes.
+  rm -rf "${_lockdir}" 2>/dev/null || true
 }

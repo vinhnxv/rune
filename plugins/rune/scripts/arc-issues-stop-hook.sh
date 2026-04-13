@@ -450,8 +450,10 @@ fi
 
 # ── MORE PLANS TO PROCESS ──
 
-# ── GUARD 9: Validate NEXT_PLAN path (SEC-002: prompt injection prevention) ──
-if [[ "$NEXT_PLAN" == *".."* ]] || [[ "$NEXT_PLAN" == /* ]] || [[ "$NEXT_PLAN" =~ [^a-zA-Z0-9._/-] ]]; then
+# ── GUARD 9: Validate NEXT_PLAN path (SEC-002 / T6: prompt injection prevention) ──
+# T6 fix: anchored positive-match makes the allowed alphabet explicit. NEXT_PLAN
+# flows into the Skill() call at line ~634; this is the only chokepoint.
+if ! [[ "$NEXT_PLAN" =~ ^[a-zA-Z0-9._/-]+$ ]] || [[ "$NEXT_PLAN" == *".."* ]] || [[ "$NEXT_PLAN" == /* ]]; then
   rm -f "$STATE_FILE" 2>/dev/null
   exit 0
 fi

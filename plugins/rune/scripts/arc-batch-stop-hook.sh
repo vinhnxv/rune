@@ -456,9 +456,14 @@ _abort_batch() {
     echo "$abort_progress" > "$tmpfile" \
       && mv -f "$tmpfile" "${CWD}/${PROGRESS_FILE}" || rm -f "$tmpfile" 2>/dev/null
   else
-    _trace "WARN: mktemp failed in _abort_batch — direct overwrite"
-    # Direct write as fallback (less atomic but prevents stuck plans)
-    printf '%s\n' "$abort_progress" > "${CWD}/${PROGRESS_FILE}" 2>/dev/null || true
+    # T2 fix: NEVER fall back to direct `> PROGRESS_FILE` write. A hook killed
+    # mid-write truncates the file to 0 bytes, silently destroying all batch
+    # progress. Preserve the existing file and bail — `--resume` can still
+    # continue from the last committed state, which is strictly better than
+    # risking total loss to stamp an abort annotation.
+    _trace "WARN: mktemp failed in _abort_batch — preserving existing progress file (no overwrite)"
+    rm -f "$STATE_FILE" 2>/dev/null
+    exit 0
   fi
   rm -f "$STATE_FILE" 2>/dev/null
 
@@ -608,8 +613,12 @@ Present the summary clearly and concisely. After presenting, STOP responding imm
 fi
 
 # ── MORE PLANS TO PROCESS ──
-# ── GUARD 9: Validate NEXT_PLAN path (SEC-002: prompt injection prevention) ──
-if [[ "$NEXT_PLAN" == *".."* ]] || [[ "$NEXT_PLAN" == /* ]] || [[ "$NEXT_PLAN" =~ [^a-zA-Z0-9._/-] ]]; then
+# ── GUARD 9: Validate NEXT_PLAN path (SEC-002 / T6: prompt injection prevention) ──
+# T6 fix: anchored positive-match enforced + ".." rejected. The previous negative
+# check was functionally equivalent for non-empty input, but anchoring makes the
+# allowed alphabet explicit and survives future refactors that might drop the
+# upstream `[[ -z "$NEXT_PLAN" ]]` guard.
+if ! [[ "$NEXT_PLAN" =~ ^[a-zA-Z0-9._/-]+$ ]] || [[ "$NEXT_PLAN" == *".."* ]] || [[ "$NEXT_PLAN" == /* ]]; then
   rm -f "$STATE_FILE" 2>/dev/null
   exit 0
 fi

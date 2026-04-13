@@ -684,15 +684,15 @@
         ]
       }
     ],
-    "StopFailure": [
+    "_StopFailure_disabled": [
       {
-        "_rationale": "STOP-FAILURE-001: Handle API errors during arc pipeline. Classifies error (rate_limit/auth/server/unknown), applies backoff for rate limits, preserves checkpoint for resume. Lightweight — does NOT re-run full phase loop logic.",
+        "_rationale": "T5 (HOOK-001): 'StopFailure' is NOT a valid Claude Code hook event — on-stop-failure.sh never fired. Entry renamed to _StopFailure_disabled so it is loaded but inert (Claude Code ignores unknown event names) while we decide how to migrate the STOP-FAILURE-001 recovery logic. Options: (a) inline the classifier/backoff into the Stop handler with branch detection, or (b) wire on-stop-failure.sh to PostToolUseFailure / SessionEnd. Until resolved, API-error checkpoint preservation is NOT active — do not rely on it.",
         "hooks": [
           {
             "type": "command",
             "command": "${CLAUDE_PLUGIN_ROOT}/scripts/on-stop-failure.sh",
             "timeout": 15,
-            "statusMessage": "Handling API error during arc pipeline..."
+            "statusMessage": "[DISABLED] Handling API error during arc pipeline..."
           }
         ]
       }

