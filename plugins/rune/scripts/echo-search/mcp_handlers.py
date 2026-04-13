@@ -27,8 +27,11 @@ from config import (
     ECHO_ELICITATION_ENABLED,
     GLOBAL_DB_PATH,
     GLOBAL_ECHO_DIR,
+    ARTIFACT_DB_PATH,
+    ARC_HISTORY_DIR,
     _check_and_clear_dirty,
     _check_and_clear_global_dirty,
+    _check_and_clear_artifact_dirty,
 )
 from database import ensure_schema, get_db, get_global_conn, ensure_artifact_schema
 from grouping import upsert_semantic_group
@@ -40,21 +43,8 @@ from artifact_indexer import do_artifact_reindex
 
 logger = logging.getLogger("echo-search")
 
-# ---------------------------------------------------------------------------
-# Artifact DB path (separate from echo DB — keeps artifact and echo indexes independent)
-# ---------------------------------------------------------------------------
-# Derived from DB_PATH: same directory, different filename (artifacts.db).
-# Full path management (ARTIFACT_DB_PATH, ARC_HISTORY_DIR, dirty-signal helpers)
-# is owned by config.py (Task 4). We derive the minimum needed here to avoid
-# a hard dependency on config.py being updated first.
-import os as _os
-ARTIFACT_DB_PATH: str = (
-    _os.path.join(_os.path.dirname(DB_PATH), "artifacts.db") if DB_PATH else ""
-)
-ARC_HISTORY_DIR: str = _os.path.join(
-    _os.environ.get("CLAUDE_PROJECT_DIR", "."), ".rune", "arc-history"
-)
-del _os  # Clean up — _os alias is only for this block
+# ARTIFACT_DB_PATH, ARC_HISTORY_DIR, and _check_and_clear_artifact_dirty
+# are now imported from config.py (canonical definitions live there).
 
 ECHO_FENCE_PREAMBLE = (
     "[RECALLED MEMORY — REFERENCE ONLY] The following are recalled learnings "
@@ -103,37 +93,6 @@ def _get_ready_conn(
     return conn
 
 
-# ---------------------------------------------------------------------------
-# Artifact connection helper (separate DB — decree-arbiter Gap 2)
-# ---------------------------------------------------------------------------
-
-
-def _check_and_clear_artifact_dirty() -> bool:
-    """Check and clear the .artifact-dirty signal file.
-
-    Mirrors ``_check_and_clear_dirty()`` from config.py but targets the
-    dedicated ``.artifact-dirty`` signal written by the Step 4.5 arc
-    artifact extraction block in ``commands/rest.md``.
-
-    Returns:
-        True if the signal was present and cleared, False otherwise.
-    """
-    signal_path = os.path.join(
-        os.path.dirname(os.path.dirname(ARC_HISTORY_DIR)),
-        "tmp", ".rune-signals", ".artifact-dirty",
-    )
-    if not signal_path:
-        return False
-    try:
-        os.remove(signal_path)
-        return True
-    except FileNotFoundError:
-        pass
-    except OSError:
-        pass
-    return False
-
-
 def _get_ready_artifact_conn() -> sqlite3.Connection:
     """Open the artifact DB, ensure schema, and reindex if dirty or empty.
 
@@ -166,7 +125,7 @@ def _get_ready_artifact_conn() -> sqlite3.Connection:
     count = conn.execute(
         "SELECT COUNT(*) FROM artifact_entries"
     ).fetchone()[0]
-    is_dirty = _check_and_clear_artifact_dirty()
+    is_dirty = _check_and_clear_artifact_dirty(ARC_HISTORY_DIR)
 
     if count == 0 or is_dirty:
         conn.close()

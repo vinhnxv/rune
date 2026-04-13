@@ -177,7 +177,14 @@ def _parse_tome(content: str, arc_id: str, date: str) -> List[Dict[str, Any]]:
 def _parse_resolution(content: str, arc_id: str, date: str) -> List[Dict[str, Any]]:
     """Parse resolution-report.md into indexed entries.
 
-    Extracts per-finding resolution status (FIXED / DEFERRED / FALSE_POSITIVE).
+    Extracts per-finding resolution status using HTML comment markers.
+
+    Actual format:
+        <!-- RESOLVED:DOC-001:FIXED -->
+        ### DOC-001: title
+        **Status**: FIXED
+        ...
+        <!-- /RESOLVED:DOC-001 -->
 
     Args:
         content: Full resolution report file content.
@@ -190,21 +197,17 @@ def _parse_resolution(content: str, arc_id: str, date: str) -> List[Dict[str, An
     entries: List[Dict[str, Any]] = []
     idx = 0
 
-    # Match lines like: "### FINDING-ID — FIXED" or "### FINDING-ID: DEFERRED"
-    _status_re = re.compile(
-        r'^###\s+([\w-]+)[:\s\u2014\-]+\s*(FIXED|DEFERRED|FALSE_POSITIVE|SKIPPED|IN_PROGRESS)',
-        re.IGNORECASE | re.MULTILINE,
+    # Match <!-- RESOLVED:ID:STATUS --> ... <!-- /RESOLVED:ID --> blocks
+    _resolved_block_re = re.compile(
+        r'<!--\s*RESOLVED:([\w-]+):([\w]+)\s*-->(.*?)<!--\s*/RESOLVED:\1\s*-->',
+        re.DOTALL,
     )
 
-    heading_positions = [(m.start(), m) for m in _status_re.finditer(content)]
-
-    for i, (start_pos, m) in enumerate(heading_positions):
+    for m in _resolved_block_re.finditer(content):
         try:
             finding_id = m.group(1).strip()
             resolution_status = m.group(2).strip().upper()
-
-            end_pos = heading_positions[i + 1][0] if i + 1 < len(heading_positions) else len(content)
-            block_text = content[start_pos:end_pos].strip()
+            block_text = m.group(0).strip()
 
             entry: Dict[str, Any] = {
                 "id": generate_artifact_id(arc_id, "resolution", idx),
@@ -334,7 +337,12 @@ def _parse_work_summary(content: str, arc_id: str, date: str) -> List[Dict[str, 
 def _parse_gap_analysis(content: str, arc_id: str, date: str) -> List[Dict[str, Any]]:
     """Parse gap-analysis.md into indexed entries.
 
-    Extracts gap IDs with their categories and statuses.
+    Extracts AC IDs with their statuses from pipe-delimited compliance matrices.
+
+    Actual format:
+        | AC | Description | Status | Evidence |
+        |----|-------------|--------|----------|
+        | AC-1 | Description text | COMPLETE | Evidence |
 
     Args:
         content: Full gap analysis file content.
@@ -347,33 +355,42 @@ def _parse_gap_analysis(content: str, arc_id: str, date: str) -> List[Dict[str, 
     entries: List[Dict[str, Any]] = []
     idx = 0
 
-    # Match gap headings: "### GAP-001" or "### WIRE-001: Description"
-    _gap_re = re.compile(
-        r'^###\s+([A-Z]+-\d+)[:\s]*(.*)$',
+    # Match pipe-delimited table rows with at least 4 columns
+    _table_row_re = re.compile(
+        r'^\|([^|\n]+)\|([^|\n]+)\|([^|\n]+)\|([^|\n]*)\|',
         re.MULTILINE,
     )
+    # Separator rows contain only dashes, colons, and pipes
+    _sep_re = re.compile(r'^[-:\s]+$')
+    # Known header column names (skip these rows)
+    _header_first_cols = frozenset({"ac", "requirement", "gap id", "id", "criterion"})
 
-    heading_positions = [(m.start(), m) for m in _gap_re.finditer(content)]
-
-    for i, (start_pos, m) in enumerate(heading_positions):
+    for m in _table_row_re.finditer(content):
         try:
-            gap_id = m.group(1).strip()
-            gap_desc = m.group(2).strip()
+            ac_id = m.group(1).strip()
+            description = m.group(2).strip()
+            status = m.group(3).strip()
+            evidence = m.group(4).strip()
 
-            end_pos = heading_positions[i + 1][0] if i + 1 < len(heading_positions) else len(content)
-            block_text = content[start_pos:end_pos].strip()
+            # Skip separator rows (e.g. |----|)
+            if _sep_re.match(ac_id):
+                continue
+            # Skip header rows
+            if ac_id.lower() in _header_first_cols:
+                continue
+            # Skip rows where the status column is a header name
+            if status.lower() in ("status", "evidence", "score", "description"):
+                continue
+            # Skip rows that are clearly not data (no recognisable AC/gap ID)
+            if not ac_id:
+                continue
 
-            # Detect gap category from prefix
-            prefix = gap_id.split("-")[0].lower() if "-" in gap_id else "gap"
-
-            # Detect status
-            status = ""
-            if re.search(r'\b(FIXABLE|AUTO-FIX)\b', block_text, re.IGNORECASE):
-                status = "fixable"
-            elif re.search(r'\b(MANUAL|REQUIRES-HUMAN)\b', block_text, re.IGNORECASE):
-                status = "manual"
-            elif re.search(r'\bFIXED\b', block_text, re.IGNORECASE):
-                status = "fixed"
+            prefix = ac_id.split("-")[0].lower() if "-" in ac_id else "ac"
+            entry_content = (
+                description
+                + "\n\nStatus: " + status
+                + ("\n\nEvidence: " + evidence if evidence else "")
+            ).strip()
 
             entry: Dict[str, Any] = {
                 "id": generate_artifact_id(arc_id, "gap_analysis", idx),
@@ -382,10 +399,10 @@ def _parse_gap_analysis(content: str, arc_id: str, date: str) -> List[Dict[str, 
                 "role": "arc-gap-analysis",
                 "layer": _ARTIFACT_LAYER,
                 "date": date,
-                "content": (gap_desc + "\n\n" + block_text).strip(),
-                "tags": "gap-analysis " + prefix + " " + status,
+                "content": entry_content,
+                "tags": "gap-analysis " + prefix + " " + status.lower(),
                 "severity": "",
-                "finding_id": gap_id,
+                "finding_id": ac_id,
                 "file_path": "",
                 "plan_file": "",
             }
@@ -421,7 +438,17 @@ def _parse_gap_analysis(content: str, arc_id: str, date: str) -> List[Dict[str, 
 def _parse_inspect_verdict(content: str, arc_id: str, date: str) -> List[Dict[str, Any]]:
     """Parse inspect-verdict.md / VERDICT.md into indexed entries.
 
-    Extracts dimension scores and the overall verdict classification.
+    Extracts dimension scores and requirement statuses from table rows.
+
+    Actual format (Dimension Scores table):
+        | Dimension | Score | Status |
+        |-----------|-------|--------|
+        | Correctness | 95% | All 5 ACs implemented |
+
+    Actual format (Requirement Matrix table):
+        | Requirement | Status | Evidence |
+        |-------------|--------|----------|
+        | AC-1: Loop | COMPLETE | SKILL.md:L14 ... |
 
     Args:
         content: Full inspect verdict file content.
@@ -434,13 +461,7 @@ def _parse_inspect_verdict(content: str, arc_id: str, date: str) -> List[Dict[st
     entries: List[Dict[str, Any]] = []
     idx = 0
 
-    # Match dimension headings in verdict: "### Dimension N: ..." or "## Score"
-    _dim_re = re.compile(
-        r'^#{2,3}\s+(?:Dimension\s+\d+|Gap\s+\d+|Score|Verdict|VERDICT)[:\s]*(.*)$',
-        re.IGNORECASE | re.MULTILINE,
-    )
-
-    # Overall verdict from first line: READY / GAPS_FOUND / CRITICAL_ISSUES etc.
+    # Overall verdict from file content: READY / GAPS_FOUND / CRITICAL_ISSUES etc.
     _verdict_re = re.compile(
         r'\b(READY|READY_PARTIAL|GAPS_FOUND|INCOMPLETE|CRITICAL_ISSUES)\b',
         re.IGNORECASE,
@@ -450,13 +471,41 @@ def _parse_inspect_verdict(content: str, arc_id: str, date: str) -> List[Dict[st
     if verdict_match:
         overall_verdict = verdict_match.group(1).upper()
 
-    heading_positions = [(m.start(), m) for m in _dim_re.finditer(content)]
+    # Match pipe-delimited table rows with at least 3 columns
+    _table_row_re = re.compile(
+        r'^\|([^|\n]+)\|([^|\n]+)\|([^|\n]*)\|',
+        re.MULTILINE,
+    )
+    # Separator rows
+    _sep_re = re.compile(r'^[-:\s]+$')
+    # Header column names to skip
+    _header_first_cols = frozenset({
+        "dimension", "requirement", "metric", "gap", "finding",
+        "criterion", "aspect", "category",
+    })
 
-    for i, (start_pos, m) in enumerate(heading_positions):
+    for m in _table_row_re.finditer(content):
         try:
-            dim_desc = m.group(1).strip()
-            end_pos = heading_positions[i + 1][0] if i + 1 < len(heading_positions) else len(content)
-            block_text = content[start_pos:end_pos].strip()
+            col0 = m.group(1).strip()   # dimension name / requirement
+            col1 = m.group(2).strip()   # score / status
+            col2 = m.group(3).strip()   # description / evidence
+
+            # Skip separator rows
+            if _sep_re.match(col0):
+                continue
+            # Skip header rows
+            if col0.lower() in _header_first_cols:
+                continue
+            if col1.lower() in ("score", "status", "value"):
+                continue
+            if not col0:
+                continue
+
+            entry_content = (
+                col0
+                + " | " + col1
+                + (" | " + col2 if col2 else "")
+            )
 
             entry: Dict[str, Any] = {
                 "id": generate_artifact_id(arc_id, "inspect_verdict", idx),
@@ -465,8 +514,8 @@ def _parse_inspect_verdict(content: str, arc_id: str, date: str) -> List[Dict[st
                 "role": "arc-inspect-verdict",
                 "layer": _ARTIFACT_LAYER,
                 "date": date,
-                "content": block_text,
-                "tags": "inspect-verdict " + overall_verdict.lower() + " " + dim_desc[:40].lower(),
+                "content": entry_content,
+                "tags": "inspect-verdict " + overall_verdict.lower() + " " + col0[:40].lower(),
                 "severity": "",
                 "finding_id": "",
                 "file_path": "",
