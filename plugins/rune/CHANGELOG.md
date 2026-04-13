@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.47.2] - 2026-04-14
+
+### Fixed
+- **Version & count sync**: Root README badges updated from v2.44.1 to v2.47.2, agent count 151→152, skills 61→69
+- **Root README**: Updated arc phase count 44→45, architecture tree directory counts (utility 16→17, work 6→7, skills 62→69, core agents 108→109)
+- **Root README skills table**: Added 7 missing skills (codex-status, verify, react-composition-patterns, react-native-patterns, react-performance-rules, react-view-transitions, web-interface-rules)
+- **plugin.json & marketplace.json**: Corrected agent description from "153 (110 core)" to "152 (109 core)" to match actual file counts
+- **Plugin README**: Added per-category breakdown in agent architecture section
+
 ## [2.47.1] - 2026-04-14
 
 ### Fixed

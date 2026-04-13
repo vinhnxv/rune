@@ -7,16 +7,16 @@
 Plan, implement, review, test, and audit your codebase using coordinated Agent Teams — each teammate with its own dedicated context window.
 
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-Supported-7F4DFF)](https://docs.anthropic.com/en/docs/claude-code)
-[![Version](https://img.shields.io/badge/version-2.44.1-blue)](.claude-plugin/marketplace.json)
+[![Version](https://img.shields.io/badge/version-2.47.2-blue)](.claude-plugin/marketplace.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Agents](https://img.shields.io/badge/agents-151-purple)](#agents)
-[![Skills](https://img.shields.io/badge/skills-61-orange)](#skills)
+[![Agents](https://img.shields.io/badge/agents-152-purple)](#agents)
+[![Skills](https://img.shields.io/badge/skills-69-orange)](#skills)
 
 ---
 
 ## What Is This?
 
-Rune is a **Claude Code plugin** that turns a single-agent coding session into a coordinated multi-agent engineering team. It provides 151 specialized AI agents, 62 skills, and a 44-phase end-to-end pipeline that handles planning, implementation, code review, testing, and PR creation — all orchestrated through Claude Code's Agent Teams.
+Rune is a **Claude Code plugin** that turns a single-agent coding session into a coordinated multi-agent engineering team. It provides 152 specialized AI agents, 69 skills, and a 45-phase end-to-end pipeline that handles planning, implementation, code review, testing, and PR creation — all orchestrated through Claude Code's Agent Teams.
 
 **Compatibility:** Requires **Claude Code 2.1.81+** with Agent Teams support. macOS 12+ or Linux. See [full requirements](#requirements).
 
@@ -50,7 +50,7 @@ The trade-off is token cost — multi-agent workflows consume more tokens than a
 > | `/rune:appraise` | 5–20 min | Up to 8 review agents analyzing your diff in parallel — scales with LOC changed |
 > | `/rune:audit` | 10–30 min | Full codebase scan — same agents, broader scope |
 > | `/rune:strive` | 10–30 min | Swarm workers implementing tasks in parallel |
-> | `/rune:arc` | **1–2 hours** | Full 44-phase pipeline (forge → plan review → work → gap analysis → code review → mend → test → ship → merge) |
+> | `/rune:arc` | **1–2 hours** | Full 45-phase pipeline (forge → plan review → work → gap analysis → code review → mend → test → ship → merge) |
 > | `/rune:arc` (complex) | **up to 3 hours** | Large plans with multiple review-mend convergence loops |
 >
 > `/rune:arc` is intentionally slow because it runs the **entire software development lifecycle** autonomously — planning enrichment, parallel implementation, multi-agent code review, automated fixes, 3-tier testing, and PR creation. Each phase spawns and tears down a separate agent team. The result is higher quality, but it takes time.
@@ -250,7 +250,7 @@ Output: `plans/YYYY-MM-DD-{type}-{name}-plan.md`
 
 ### <a name="arc"></a> `/rune:arc` — End-to-End Pipeline
 
-The full pipeline from plan to merged PR, with 44 phases:
+The full pipeline from plan to merged PR, with 45 phases:
 
 ```
 Forge → Plan Review → Refinement → Verification → Semantic Verification
@@ -350,7 +350,7 @@ Compares a plan against its implementation across 10 quality dimensions:
 
 ## Agents
 
-**151 specialized agents** across 8 categories:
+**152 specialized agents** across 8 categories:
 
 ### Review Agents (50)
 
@@ -522,7 +522,7 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 
 ## Skills
 
-62 skills providing background knowledge, workflow orchestration, and tool integration:
+69 skills providing background knowledge, workflow orchestration, and tool integration:
 
 | Skill | Type | Purpose |
 |-------|------|---------|
@@ -588,6 +588,13 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | `variant-hunt` | Analysis | Systematic variant analysis — "find more like this" for confirmed findings |
 | `supply-chain-audit` | Security | Dependency risk analysis (maintainer count, CVE history, abandonment) |
 | `pr-guardian` | Automation | Cron-based PR shepherd loop — comments, lint, CI, rebase, migrations, browser test, auto-merge |
+| `codex-status` | Reporting | Codex activity summary for current/recent arc run |
+| `verify` | Workflow | Verify TOME findings before mend (TRUE_POSITIVE/FALSE_POSITIVE classification) |
+| `react-composition-patterns` | Intelligence | React compound components, state lifting, explicit variants, React 19 APIs |
+| `react-native-patterns` | Intelligence | React Native/Expo best practices (FlashList, Reanimated, native navigation) |
+| `react-performance-rules` | Intelligence | React/Next.js performance — 69 rules across 8 categories |
+| `react-view-transitions` | Intelligence | React View Transition API — placement, types, CSS recipes, Next.js integration |
+| `web-interface-rules` | Intelligence | Web interface quality — 100+ UI/UX/a11y rules across 15 categories |
 
 ---
 
@@ -758,16 +765,16 @@ rune/
     └── rune/                     # Main plugin
         ├── .claude-plugin/
         │   └── plugin.json       # Plugin manifest (v1.128.0)
-        ├── agents/               # 108 core agent definitions
+        ├── agents/               # 109 core agent definitions
         │   ├── review/           #   17 review agents
         │   ├── investigation/    #   31 investigation agents
-        │   ├── utility/          #   16 utility agents
+        │   ├── utility/          #   17 utility agents
         │   ├── research/         #    8 research agents
-        │   ├── work/             #    6 work agents
+        │   ├── work/             #    7 work agents
         │   ├── qa/               #    8 QA agents
         │   └── meta-qa/          #    9 meta-QA agents
         ├── registry/             # 43 extended agents
-        ├── skills/               # 62 skills
+        ├── skills/               # 69 skills
         ├── commands/             # 16 slash commands
         ├── hooks/                # Event-driven hooks
         │   └── hooks.json
