@@ -1,4 +1,4 @@
-# Quality Gates — Phases 3.7, 4, 4.1, 4.3, 4.4, 4.5
+# Quality Gates — Phases 3.7, 4, 4.1, 4.3, 4.4, 4.5, 4.6
 
 Post-implementation quality pipeline. Runs after all worker tasks complete and the commit/merge broker has finished.
 
@@ -360,7 +360,7 @@ if (!blindEnabled) {
   }
 
   if (acBlocks.length === 0) {
-    log("Phase 4.6: Blind Verification skipped — no acceptance_criteria blocks in plan")
+    warn("Phase 4.6: Blind Verification skipped — no acceptance_criteria blocks found in plan (check YAML block format)")
   } else {
     log(`Phase 4.6: Blind Verification — ${acBlocks.length} acceptance criteria found, spawning blind-verifier...`)
 
@@ -421,14 +421,20 @@ After writing the verdict, send results to team lead via SendMessage, then mark 
       if (verdict === "FAIL") {
         const unverifiedMatches = blindContent.match(/\*\*Status\*\*:\s*UNVERIFIED/g) || []
         warn(`Blind Verification FAIL: ${unverifiedMatches.length} criteria unverified — review ${blindResultPath}`)
+      } else if (verdict === "PARTIAL") {
+        const inconclusiveMatches = blindContent.match(/\*\*Status\*\*:\s*(UNVERIFIED|INCONCLUSIVE)/g) || []
+        warn(`Blind Verification PARTIAL: ${inconclusiveMatches.length} criteria not fully verified — review ${blindResultPath}`)
       }
 
       // Advisory: append to checks array for completion report
       checks.push(`INFO: Blind Verification: ${verdict} (${coverage}) — see ${blindResultPath}`)
 
       // If configured as blocking, gate on verdict
-      if (talisman?.blind_verification?.blocking === true && verdict === "FAIL") {
+      const isBlocking = talisman?.blind_verification?.blocking === true
+      if (isBlocking && verdict === "FAIL") {
         checks.push(`WARN: Blind Verification FAIL is blocking — review unverified criteria before shipping`)
+      } else if (isBlocking && verdict === "PARTIAL") {
+        checks.push(`WARN: Blind Verification PARTIAL is blocking — some criteria not fully verified`)
       }
     }
 
@@ -443,3 +449,5 @@ After writing the verdict, send results to team lead via SendMessage, then mark 
 - **Opt-in activation:** Requires `blind_verification.enabled: true` in talisman.yml. Zero overhead when disabled.
 - **Graceful degradation:** Timeout, crash, or missing plan → skip silently. No criteria in plan → skip silently.
 - **Independent evidence:** The blind-verifier uses Read, Glob, Grep, and Bash to find its own evidence. It cannot access TaskList/TaskGet (which would expose worker context).
+- **Timeout scaling:** The default `timeout_seconds: 120` is adequate for Haiku/Sonnet sessions with fewer than 6 ACs. For Opus sessions or plans with many semantic ACs, configure `blind_verification.timeout_seconds: 300` in talisman.yml. The verifier uses up to 40 tool calls — at ~3-5s latency on Opus, 120s may be insufficient.
+- **Bash residual vector:** The blind-verifier has `Bash` access for `test_passes` proof-type verification. This tool could theoretically read worker context via shell commands (`git diff`, `cat tmp/work/*/...`). The BLIND-001 Iron Law and Truthbinding enforce isolation at the prompt level. For stricter enforcement, consider adding a PreToolUse:Bash hook scoped to blind-verifier sessions.
