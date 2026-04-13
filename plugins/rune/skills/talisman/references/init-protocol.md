@@ -117,6 +117,7 @@ Based on detected stack, customize the template:
 - `testing:` — if test framework detected
 - `context_monitor:` / `context_weaving:` — always include defaults
 - `integrations:` — if `.mcp.json` contains custom MCP servers (not built-in like context7)
+- `blind_verification:` — scaffolded when `discipline.enabled` or arc usage detected. Omit to use defaults (`enabled: false`). When enabled, runs AC-only verification within strive Phase 4.6 using a blind agent that receives acceptance criteria but no implementation context
 
 **Design Review gates (v1.149.0) — under `design_review:`:**
 

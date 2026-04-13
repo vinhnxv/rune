@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.47.0] - 2026-04-13
+
+### Added
+- New `blind-verifier` agent in `agents/work/` — post-strive AC-only verification that independently validates implementation without seeing diffs or worker output (eliminates anchoring bias)
+- Phase 4.6 Blind Verification in strive quality-gates — conditional, opt-in via `blind_verification.enabled`
+- `blind_verification` talisman section with configurable model, timeout, and remediation settings
+
 ## [2.46.2] - 2026-04-13
 
 ### Fixed

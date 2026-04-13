@@ -96,7 +96,9 @@ Phase 4.4: Quick Goldmask -> Compare predicted CRITICAL files vs committed (orch
     |
 Phase 4.5: Codex Advisory -> Optional plan-vs-implementation review (non-blocking)
     |
-Phase 4.6: Drift Signals -> Workers write drift signal files to tmp/work/{timestamp}/drift-signals/ when plan-reality mismatches are detected
+Phase 4.6: Blind AC Verification -> AC-only verification by blind agent (optional, gated by blind_verification.enabled)
+    |
+Phase 4.7: Drift Signals -> Workers write drift signal files to tmp/work/{timestamp}/drift-signals/ when plan-reality mismatches are detected
     |
 Phase 5: Echo Persist -> Save learnings
     |

@@ -313,3 +313,133 @@ if (codexAvailable && !codexDisabled) {
 - **Diff-based, not file-based:** Reviews the aggregate diff rather than individual files.
 - **Single invocation:** One `codex exec` call with plan + diff context. Keeps token cost bounded.
 - **Talisman kill switch:** Disable via `codex.work_advisory.enabled: false` in talisman.yml.
+
+---
+
+## Phase 4.6: Blind Verification (conditional, non-blocking by default)
+
+Post-work AC-only verification using the blind-verifier agent. Spawns an independent verifier that receives ONLY plan acceptance criteria — never diffs, worker reports, or evaluator output. Eliminates anchoring bias by ensuring the verifier discovers evidence independently.
+
+**Skip conditions**: `blind_verification.enabled !== true` (talisman), plan has no `acceptance_criteria` blocks.
+
+**Inputs**: planPath, timestamp, talisman
+**Outputs**: `tmp/work/{timestamp}/blind-verification.md` with per-AC VERIFIED/UNVERIFIED/INCONCLUSIVE verdicts
+**Preconditions**: Ward check passed (Phase 4), all workers completed/shutdown
+**Error handling**: Verifier timeout or crash → skip silently (non-blocking). Missing plan → skip silently.
+
+```javascript
+// Phase 4.6: Blind Verification (conditional, non-blocking by default)
+const blindEnabled = talisman?.blind_verification?.enabled === true
+if (!blindEnabled) {
+  log("Phase 4.6: Blind Verification skipped — blind_verification.enabled !== true")
+} else {
+  // Extract acceptance criteria from plan
+  const planContent = Read(planPath)
+  const acBlocks = []
+  const acRegex = /```ya?ml\s*\n([\s\S]*?)\n```/g
+  let match
+  while ((match = acRegex.exec(planContent)) !== null) {
+    const block = match[1]
+    // Look for AC-* identifiers in YAML blocks
+    if (/AC-\d+/.test(block)) {
+      // Parse individual AC entries from the YAML block
+      const acEntries = block.split(/\n(?=\s*-\s*id:\s*AC-)/)
+      for (const entry of acEntries) {
+        const idMatch = entry.match(/id:\s*(AC-\d+)/)
+        const descMatch = entry.match(/description:\s*["']?(.+?)["']?\s*$/)
+        const proofMatch = entry.match(/proof:\s*(\w+)/)
+        if (idMatch) {
+          acBlocks.push({
+            id: idMatch[1],
+            description: descMatch ? descMatch[1] : "(no description)",
+            proof: proofMatch ? proofMatch[1] : "semantic"
+          })
+        }
+      }
+    }
+  }
+
+  if (acBlocks.length === 0) {
+    log("Phase 4.6: Blind Verification skipped — no acceptance_criteria blocks in plan")
+  } else {
+    log(`Phase 4.6: Blind Verification — ${acBlocks.length} acceptance criteria found, spawning blind-verifier...`)
+
+    // CRITICAL: Spawn prompt contains ONLY plan_path, acceptance_criteria, and timestamp
+    // NO git diff, NO worker reports, NO task files, NO evaluator output
+    const blindPrompt = `You are blind-verifier. Independently verify these acceptance criteria by reading the codebase.
+
+PLAN PATH: ${planPath}
+
+ACCEPTANCE CRITERIA:
+${JSON.stringify(acBlocks, null, 2)}
+
+TIMESTAMP: ${timestamp}
+
+Write your verdict to: tmp/work/${timestamp}/blind-verification.md
+
+After writing the verdict, send results to team lead via SendMessage, then mark your task as completed via TaskUpdate.`
+
+    TaskCreate({
+      subject: "Blind Verification: independent AC verification",
+      description: `Verify ${acBlocks.length} acceptance criteria independently. Output: tmp/work/${timestamp}/blind-verification.md`
+    })
+
+    Agent({
+      team_name: `rune-work-${timestamp}`,
+      name: "blind-verifier",
+      subagent_type: "blind-verifier",
+      prompt: blindPrompt,
+      run_in_background: true
+    })
+
+    // Monitor: wait for blind-verifier to complete
+    const blindTimeout = (talisman?.blind_verification?.timeout_seconds ?? 120) * 1000
+    const blindStart = Date.now()
+    while (true) {
+      const tasks = TaskList()
+      const blindTask = tasks.find(t => t.subject?.includes("Blind Verification"))
+      if (blindTask?.status === "completed") break
+      if (Date.now() - blindStart > blindTimeout) {
+        warn(`Phase 4.6: Blind Verification timeout after ${Math.round(blindTimeout / 1000)}s — proceeding without verification`)
+        break
+      }
+      Bash("sleep 15", { run_in_background: true })
+    }
+
+    // Read results (non-blocking — advisory only)
+    const blindResultPath = `tmp/work/${timestamp}/blind-verification.md`
+    if (exists(blindResultPath)) {
+      const blindContent = Read(blindResultPath)
+      const verdictMatch = blindContent.match(/\*\*Overall Verdict\*\*:\s*(PASS|PARTIAL|FAIL)/)
+      const coverageMatch = blindContent.match(/\*\*Coverage\*\*:\s*(\d+\/\d+)\s*\((\d+)%\)/)
+      const verdict = verdictMatch ? verdictMatch[1] : "UNKNOWN"
+      const coverage = coverageMatch ? coverageMatch[1] : "N/A"
+      const coveragePct = coverageMatch ? parseInt(coverageMatch[2]) : null
+
+      log(`Phase 4.6: Blind Verification — ${verdict} (${coverage})`)
+
+      if (verdict === "FAIL") {
+        const unverifiedMatches = blindContent.match(/\*\*Status\*\*:\s*UNVERIFIED/g) || []
+        warn(`Blind Verification FAIL: ${unverifiedMatches.length} criteria unverified — review ${blindResultPath}`)
+      }
+
+      // Advisory: append to checks array for completion report
+      checks.push(`INFO: Blind Verification: ${verdict} (${coverage}) — see ${blindResultPath}`)
+
+      // If configured as blocking, gate on verdict
+      if (talisman?.blind_verification?.blocking === true && verdict === "FAIL") {
+        checks.push(`WARN: Blind Verification FAIL is blocking — review unverified criteria before shipping`)
+      }
+    }
+
+    SendMessage({ type: "shutdown_request", recipient: "blind-verifier" })
+  }
+}
+```
+
+**Key design decisions:**
+- **Blind by design:** The spawn prompt contains ONLY plan path, acceptance criteria, and timestamp. No diffs, no worker reports, no evaluator output — ensuring zero anchoring bias.
+- **Non-blocking by default:** Blind verification results are `INFO`-level. Configure `blind_verification.blocking: true` in talisman to make FAIL verdicts blocking.
+- **Opt-in activation:** Requires `blind_verification.enabled: true` in talisman.yml. Zero overhead when disabled.
+- **Graceful degradation:** Timeout, crash, or missing plan → skip silently. No criteria in plan → skip silently.
+- **Independent evidence:** The blind-verifier uses Read, Glob, Grep, and Bash to find its own evidence. It cannot access TaskList/TaskGet (which would expose worker context).
