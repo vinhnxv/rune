@@ -89,7 +89,8 @@ _ATTR_RE = re.compile(r'(\w+)="([^"]*)"')
 
 # Finding heading: ### FINDING-ID (P1): Description text
 _FINDING_HEADING_RE = re.compile(
-    r'^###\s+([\w-]+)\s+\((P[123])\)\s*:\s*(.+)$'
+    r'^###\s+([\w-]+)\s+\((P[123])\)\s*:\s*(.+)$',
+    re.MULTILINE,
 )
 
 # File path in finding body: - **File**: `path/to/file`
@@ -114,7 +115,7 @@ def _parse_tome(content: str, arc_id: str, date: str) -> List[Dict[str, Any]]:
     idx = 0
 
     # Split on finding headings to extract per-finding blocks
-    heading_positions = [(m.start(), m) for m in _FINDING_HEADING_RE.finditer(content, re.MULTILINE)]
+    heading_positions = [(m.start(), m) for m in _FINDING_HEADING_RE.finditer(content)]
     comment_index: Dict[str, Dict[str, str]] = {}
 
     # Index comment anchors by finding ID for fast lookup

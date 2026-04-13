@@ -2,9 +2,7 @@
 # Users opt-in to version control by removing this line
 .rune/
 # .rune/arc-history/ is covered by .rune/ above — arc run artifacts are project-local,
-# not committed. Negation patterns below allow only the directory anchor to be tracked.
-!.rune/arc-history/
-!.rune/arc-history/.gitkeep
+# not committed. Directory is created at runtime by /rune:rest Step 4.5.
 
 # Legacy Rune state (pre-2.0.0, kept during migration period)
 .claude/arc/
