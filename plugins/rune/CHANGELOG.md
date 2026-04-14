@@ -16,6 +16,14 @@
 - **Config constants** (`config.py`): `ARTIFACT_DB_PATH`, `ARC_HISTORY_DIR`, `_check_and_clear_artifact_dirty()` following the existing dirty-signal helper pattern.
 - **Talisman `echoes.artifact_indexing` section**: New config subsection with `enabled` (bool), `max_runs` (int), and `artifact_types` (list) fields. Documented in `talisman-sections.md`.
 
+## [2.50.1] - 2026-04-14
+
+### Fixed
+
+- **ARC-FORGE-001** (`skills/arc/references/arc-phase-forge.md`): Restored the "mark-before-work" contract and the missing `/rune:forge` delegation call in the forge phase pseudocode. Previously, `updateCheckpoint({status: "in_progress"})` was called at line 82 — **after** state-file discovery, which only succeeds post-delegation — meaning the checkpoint transitioned `pending → in_progress → completed` in one burst. A forge crash mid-enrichment left the checkpoint stuck at `pending`, indistinguishable from "never started", defeating `/rune:cancel-arc` discovery and crash-recovery resume. Additionally, the actual `Skill("rune:forge", forgePlanPath)` invocation was absent from pseudocode — only comments described delegation, leaving dispatcher-to-skill handoff implicit and ambiguous. Fix splits STEP 2 into 2a (stale-file cleanup, pre-delegation) / 2b (explicit `Skill("rune:forge", ...)` call with required `rune:` namespace prefix) / 2c (post-delegation team_name discovery + validation), and adds a new STEP 1.5 that calls `updateCheckpoint({status: "in_progress", team_name: null})` before any work — mirroring the canonical pattern in `arc-phase-mend.md:87`. Two checkpoint writes preserve both phase visibility (null team upfront) and cancel-arc discovery (team_name backfilled after `/rune:forge` writes its state file).
+
+Version bumped PATCH because this is a documentation/pseudocode-level fix — no agent, skill, command, or talisman schema changes. Upgrade recommended for anyone relying on `/rune:arc --resume` or `/rune:cancel-arc` to correctly detect forge phase state.
+
 ## [2.50.0] — 2026-04-14
 ### Added
 - Inner Flame Layer 0: pre-execution assumption gate (`validate-assumption-gate.sh`) — PreToolUse:Write|Edit|NotebookEdit hook that gates first write per strive task on `[ASSUMPTION-N]` declaration in the worker's task file. Pass marker written on allow; subsequent writes bypass re-check. Talisman-gated via `inner_flame.assumption_gate.*`.
