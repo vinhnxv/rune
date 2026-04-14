@@ -663,70 +663,42 @@ function shutdown(handle) {
   }
 
   // --- 5. Filesystem fallback — only if TeamDelete never succeeded (QUAL-012) ---
+  // Delegates to lib/team-shutdown.sh which handles:
+  //   5a. Process-level kill — READ-FIRST, KILL-SECOND (MCP-PROTECT-003)
+  //       Uses deterministic _rune_kill_tree with positive-PID-whitelist (VP-006 HARDENING)
+  //   5b. Filesystem cleanup — CHOME-aware rm -rf of teams/ and tasks/ dirs
+  //   5c. Best-effort TeamDelete to clear SDK leadership state
+  //   6.  Cleanup diagnostic — JSON file + stderr trace
   if (!cleanupTeamDeleteSucceeded) {
-    // 5a. Process-level kill — READ-FIRST, KILL-SECOND (MCP-PROTECT-003)
-    //
-    // VP-006 HARDENING (audit 20260414-194615): The MANDATORY path is the deterministic
-    // bash implementation `_rune_kill_tree "teammates"` in lib/process-tree.sh. It applies
-    // a positive-PID-whitelist with 3-layer binary detection (comm check + args check +
-    // connector/MCP exclusion) without any LLM-in-the-loop classification. Under
-    // time pressure in a degraded state (after 4 failed TeamDelete retries), LLM
-    // classification of `ps` output is the weakest possible safety mechanism — a
-    // misclassification kills an MCP server mid-cleanup with no recovery path.
-    //
-    // The inline LLM-classification steps (kept below as commented reference only) are
-    // NOT production pseudocode — they document the invariants that _rune_kill_tree
-    // already enforces in pure bash.
-    const ownerPid = handle.ownerPid || Bash(`echo $PPID`).trim()
-    if (ownerPid && /^\d+$/.test(ownerPid)) {
-      // PRIMARY (mandatory) path — deterministic bash kill with positive whitelist:
-      Bash(`source "\${RUNE_PLUGIN_ROOT}/scripts/lib/process-tree.sh" && _RUNE_PT_CWD="$(pwd)" && _rune_kill_tree "${ownerPid}" "2stage" "5" "teammates" "${handle.teamName}"`)
-
-      // REFERENCE ONLY — invariants enforced by _rune_kill_tree above.
-      // Do NOT run these steps inline in production code paths; listed here solely to
-      // document the classification rules for auditability.
-      //
-      // Step 1 (READ) would list child processes via
-      //   ps -o pid,ppid,comm,args -p $(pgrep -P ${ownerPid} | head -30 | tr '\n' ',')
-      //
-      // Step 2 (CLASSIFY) — rules applied by _collect_teammate_pids():
-      //   TEAMMATE (kill):   comm=node|claude|claude-*, args has NO --stdio/--lsp/mcp-server/connector
-      //   MCP_SERVER (keep): args contains --stdio, --lsp, mcp-server, mcp*server, figma-developer-mcp, context7-mcp
-      //   CONNECTOR (keep):  args contains @anthropic*connector or claude-connector
-      //   OTHER (keep):      comm is NOT node|claude|claude-*
-      //
-      // Step 3 (KILL) — only PIDs classified as TEAMMATE, via explicit PID list:
-      //   kill -TERM <teammate-pids>; sleep 5; kill -KILL <survivors>
-      // NEVER use a blind for-loop over pgrep output.
-    }
-
-    // 5b. Filesystem cleanup
-    Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${handle.teamName}/" "$CHOME/tasks/${handle.teamName}/" 2>/dev/null`)
-    try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
+    Bash(`source "\${RUNE_PLUGIN_ROOT}/scripts/lib/team-shutdown.sh" && \
+          rune_team_shutdown_fallback "\${handle.teamName}" "\${ownerPid}" \
+          "\${handle.workflow}" "\${allMembers.join(',')}"`)
   }
 
   // --- 6. Cleanup diagnostic ---
-  // Dual output: warn() for immediate trace + JSON file for post-mortem.
-  // Variables hoisted from prior steps: confirmedAlive, confirmedDead,
-  // gracePeriodUsed, finalAttempt, cleanupTeamDeleteSucceeded.
-  const diagnostic = {
-    team_name: handle.teamName,
-    workflow: handle.workflow,
-    timestamp: new Date().toISOString(),
-    cleanup_succeeded: cleanupTeamDeleteSucceeded,
-    total_members: allMembers.length,
-    confirmed_alive: confirmedAlive,
-    confirmed_dead: confirmedDead,
-    grace_period_secs: gracePeriodUsed,
-    retry_attempts: finalAttempt + 1,
-    filesystem_fallback_used: !cleanupTeamDeleteSucceeded,
-    owner_pid: handle.ownerPid
-  }
-  warn(`cleanup diagnostic: ${JSON.stringify(diagnostic)}`)
-  try {
-    Write(`tmp/.rune-cleanup-${handle.teamName}.json`, JSON.stringify(diagnostic, null, 2))
-  } catch (e) {
-    // Non-critical — warn() already emitted the diagnostic
+  // NOTE: When filesystem fallback runs (Step 5), the lib emits its own diagnostic
+  // to tmp/.rune-cleanup-{teamName}.json and stderr. The diagnostic below covers
+  // the SDK-path-only case (when TeamDelete succeeded without fallback).
+  if (cleanupTeamDeleteSucceeded) {
+    const diagnostic = {
+      team_name: handle.teamName,
+      workflow: handle.workflow,
+      timestamp: new Date().toISOString(),
+      cleanup_succeeded: true,
+      total_members: allMembers.length,
+      confirmed_alive: confirmedAlive,
+      confirmed_dead: confirmedDead,
+      grace_period_secs: gracePeriodUsed,
+      retry_attempts: finalAttempt + 1,
+      filesystem_fallback_used: false,
+      owner_pid: handle.ownerPid
+    }
+    warn(`cleanup diagnostic: ${JSON.stringify(diagnostic)}`)
+    try {
+      Write(`tmp/.rune-cleanup-${handle.teamName}.json`, JSON.stringify(diagnostic, null, 2))
+    } catch (e) {
+      // Non-critical — warn() already emitted the diagnostic
+    }
   }
 }
 ```

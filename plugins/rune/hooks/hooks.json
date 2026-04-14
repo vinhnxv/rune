@@ -180,6 +180,18 @@
         ]
       },
       {
+        "matcher": "Write|Edit",
+        "_rationale": "SHUTDOWN-DRIFT: Advisory check that canonical consumers of the team shutdown fallback pattern source lib/team-shutdown.sh instead of inlining the 80-line pattern. Never blocks — additionalContext only. OPERATIONAL — fail-forward.",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/validate-shutdown-pattern.sh",
+            "timeout": 5,
+            "statusMessage": "Checking shutdown pattern compliance..."
+          }
+        ]
+      },
+      {
         "matcher": "Task|Agent",
         "hooks": [
           {
