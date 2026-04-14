@@ -16,6 +16,14 @@
 - **Config constants** (`config.py`): `ARTIFACT_DB_PATH`, `ARC_HISTORY_DIR`, `_check_and_clear_artifact_dirty()` following the existing dirty-signal helper pattern.
 - **Talisman `echoes.artifact_indexing` section**: New config subsection with `enabled` (bool), `max_runs` (int), and `artifact_types` (list) fields. Documented in `talisman-sections.md`.
 
+## [2.49.1] - 2026-04-14
+
+### Fixed
+
+- **HOOK-002** (`hooks/hooks.json`): Removed the `_StopFailure_disabled` key that was introduced in 2.48.0 as an inert rename to "disable" the orphan StopFailure hook. Modern Claude Code now validates `hooks.*` keys against a closed enum of 27 canonical event names (PreToolUse, PostToolUse, StopFailure, etc.) and hard-fails the entire file on any unknown key, rather than ignoring it as prior versions did. Symptom: `Failed to load hooks from .../hooks.json: [{"code":"invalid_key", "path":["hooks","_StopFailure_disabled"]}]` — **every Rune hook stopped firing** (enforce-teams, on-session-stop, arc-phase-stop-hook, context-percent-stop-guard, and ~40 others), silently breaking arc loops, stop-hook-driven cleanup, and security enforcement. The `on-stop-failure.sh` script remains on disk as an orphan pending migration to either `StopFailure` (now a valid event as of Claude Code v2.17.1) or inlining into `Stop` with branch detection; CLAUDE.md audit note T5/HOOK-001 still applies and the API-error checkpoint preservation path remains inactive until that migration decision lands.
+
+Version bumped PATCH because this is a pure hook-config repair — no agent, skill, command, or talisman schema changes. Upgrade is strongly recommended for anyone on 2.48.0 or 2.49.0, since hook loading is all-or-nothing: one invalid key disables every hook in the file.
+
 ## [2.48.0] - 2026-04-14
 
 ### Fixed

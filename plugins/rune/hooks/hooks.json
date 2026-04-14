@@ -684,19 +684,6 @@
         ]
       }
     ],
-    "_StopFailure_disabled": [
-      {
-        "_rationale": "T5 (HOOK-001): 'StopFailure' is NOT a valid Claude Code hook event — on-stop-failure.sh never fired. Entry renamed to _StopFailure_disabled so it is loaded but inert (Claude Code ignores unknown event names) while we decide how to migrate the STOP-FAILURE-001 recovery logic. Options: (a) inline the classifier/backoff into the Stop handler with branch detection, or (b) wire on-stop-failure.sh to PostToolUseFailure / SessionEnd. Until resolved, API-error checkpoint preservation is NOT active — do not rely on it.",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/on-stop-failure.sh",
-            "timeout": 15,
-            "statusMessage": "[DISABLED] Handling API error during arc pipeline..."
-          }
-        ]
-      }
-    ],
     "Elicitation": [
       {
         "_rationale": "ELIX-LOG-001: Append-only audit log for elicitation requests from echo-search and figma-to-react prompts. Logs to ${TMPDIR}/rune-elicitation-log-$(id -u).jsonl with a 5MB size cap. OPERATIONAL — fail-forward, never blocks.",
