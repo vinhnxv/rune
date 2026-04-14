@@ -97,6 +97,7 @@ rune_team_shutdown_fallback() {
   if [[ -n "$owner_pid" ]] && kill -0 "$owner_pid" 2>/dev/null; then
     [[ "${RUNE_TRACE:-}" == "1" ]] && printf '[team-shutdown] Step 5a: killing tree for pid=%s team=%s\n' "$owner_pid" "$team_name" >&2
     killed=$(_rune_kill_tree "$owner_pid" "2stage" "5" "teammates" "$team_name")
+    [[ "$killed" =~ ^[0-9]+$ ]] || killed=0
     if [[ "$killed" -gt 0 ]]; then
       fallback_exercised=true
     fi
@@ -118,6 +119,10 @@ rune_team_shutdown_fallback() {
   timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || echo "unknown")
 
   # Build diagnostic JSON without jq (Bash 3.2 compatible)
+  # SEC-001: Sanitize string fields to prevent JSON injection
+  local _safe_label _safe_members
+  _safe_label=$(printf '%s' "$workflow_label" | tr -cd 'a-zA-Z0-9_. -')
+  _safe_members=$(printf '%s' "$fallback_members" | tr -cd 'a-zA-Z0-9_., -')
   local diag_json
   diag_json=$(printf '{
   "team_name": "%s",
@@ -131,8 +136,8 @@ rune_team_shutdown_fallback() {
 }' \
     "$team_name" \
     "$owner_pid" \
-    "$workflow_label" \
-    "$fallback_members" \
+    "$_safe_label" \
+    "$_safe_members" \
     "$killed" \
     "$fallback_exercised" \
     "$timestamp" \

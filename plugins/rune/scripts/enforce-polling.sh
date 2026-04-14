@@ -165,7 +165,8 @@ if [[ -z "$active_workflow" ]]; then
            "${CWD}"/tmp/.rune-plan-*.json "${CWD}"/tmp/.rune-forge-*.json \
            "${CWD}"/tmp/.rune-inspect-*.json "${CWD}"/tmp/.rune-goldmask-*.json \
            "${CWD}"/tmp/.rune-brainstorm-*.json "${CWD}"/tmp/.rune-debug-*.json \
-           "${CWD}"/tmp/.rune-design-sync-*.json; do
+           "${CWD}"/tmp/.rune-design-sync-*.json "${CWD}"/tmp/.rune-codex-review-*.json \
+           "${CWD}"/tmp/.rune-resolve-todos-*.json "${CWD}"/tmp/.rune-self-audit-*.json; do
     [[ -f "$f" ]] || continue
     # Consolidated jq: extract status + ownership fields in one call (was 3 separate calls)
     # Uses Unit Separator (\u001f) — see arc checkpoint comment for rationale.

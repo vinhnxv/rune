@@ -16,6 +16,20 @@
 - **Config constants** (`config.py`): `ARTIFACT_DB_PATH`, `ARC_HISTORY_DIR`, `_check_and_clear_artifact_dirty()` following the existing dirty-signal helper pattern.
 - **Talisman `echoes.artifact_indexing` section**: New config subsection with `enabled` (bool), `max_runs` (int), and `artifact_types` (list) fields. Documented in `talisman-sections.md`.
 
+## [2.51.1] - 2026-04-15
+
+### Fixed
+
+- **ARC-002+003**: Added missing `rune-mend-deep-` and `rune-verify-` prefixes to `PHASE_PREFIX_MAP` in `arc-phase-cleanup.md` — prevents orphaned teams going undetected after crash recovery
+- **FLAW-002**: Added numeric validation for `_rune_kill_tree` return value in `team-shutdown.sh` — prevents `-gt` comparison crash under `set -e`
+- **PAT-001**: Synchronized state file workflow patterns across `enforce-bash-timeout.sh`, `enforce-polling.sh`, and `enforce-glyph-budget.sh` — added missing `.rune-codex-review-*`, `.rune-resolve-todos-*`, `.rune-self-audit-*` patterns
+- **FLAW-001**: Clarified `*)` fallback case in `echo-append.sh` argument parser with explicit `shift; continue`
+- **SEC-001**: Added character-set sanitization for `workflow_label` and `fallback_members` in `team-shutdown.sh` diagnostic JSON — prevents JSON injection via untrusted string fields
+- **FLAW-004**: Unified dual timestamp variables in `detect-workflow-complete.sh` — replaced `HOOK_START_TIME` with `_HOOK_START_EPOCH` to eliminate 1-3s timing inconsistency
+- **FLAW-007**: Added missing `_trace()` function definition in `on-session-stop.sh` — was causing silent ERR trap on line 280, making defer path invisible in trace logs
+- **FLAW-008**: Added path canonicalization and whitespace trimming for `checkpoint_path` in `enforce-strive-delegation.sh` — prevents relative path resolution against wrong CWD
+- **ARC-004+005**: Updated stale checkpoint schema version claims from v20/v23 to v28 in `arc/SKILL.md` and `arc-checkpoint-init.md`
+
 ## [2.51.0] - 2026-04-14
 
 ### Added

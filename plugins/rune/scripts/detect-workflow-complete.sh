@@ -143,7 +143,8 @@ case "$RUNE_TRACE_LOG" in
 esac
 _trace() { [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "$RUNE_TRACE_LOG" ]] && [[ ! -L "${RUNE_TRACE_LOG%/*}" ]] && printf '[%s] detect-workflow-complete: %s\n' "$(date +%H:%M:%S)" "$*" >> "$RUNE_TRACE_LOG"; return 0; }
 
-HOOK_START_TIME=$(date +%s)
+# FLAW-004 FIX: Removed _HOOK_START_EPOCH — use _HOOK_START_EPOCH (captured at line 26) for all
+# timestamp calculations. The 1-3s gap between captures caused inconsistent age calculations.
 _trace "ENTER detect-workflow-complete.sh"
 
 # Extract session_id from hook input ONCE — used by GUARD 2 and GUARD 2.5 session_id checks.
@@ -191,7 +192,7 @@ for loop_file in \
       # Same session — defer to arc loop hooks
       _loop_mtime=$(_stat_mtime "$loop_file"); _loop_mtime="${_loop_mtime:-0}"
       if [[ -n "$_loop_mtime" && "$_loop_mtime" =~ ^[0-9]+$ ]]; then
-        age_min=$(( (HOOK_START_TIME - _loop_mtime) / 60 ))
+        age_min=$(( (_HOOK_START_EPOCH - _loop_mtime) / 60 ))
         [[ $age_min -lt 0 ]] && age_min=0
         if [[ $age_min -lt 150 ]]; then
           _trace "DEFER: OUR active loop file $(basename "$loop_file") via session_id match (${age_min}m old)"
@@ -238,7 +239,7 @@ for loop_file in \
       _trace "DEFER: $(basename "$loop_file") — mtime invalid (raw='${_loop_mtime:-<empty>}'), deferring hook. If recurring, check _stat_mtime platform compat in lib/platform.sh"
       exit 0
     fi
-    age_min=$(( ($HOOK_START_TIME - _loop_mtime) / 60 ))
+    age_min=$(( ($_HOOK_START_EPOCH - _loop_mtime) / 60 ))
     # EDGE-002 FIX: Guard against clock skew producing negative age
     [[ $age_min -lt 0 ]] && age_min=0
     if [[ $age_min -lt 150 ]]; then
@@ -269,7 +270,7 @@ if [[ -d "${CWD}/${RUNE_STATE}/arc" ]]; then
       # Our checkpoint — check freshness
       _ckpt_mtime=$(_stat_mtime "$_ckpt_file"); _ckpt_mtime="${_ckpt_mtime:-0}"
       if [[ "$_ckpt_mtime" =~ ^[0-9]+$ ]]; then
-        _ckpt_age=$(( HOOK_START_TIME - _ckpt_mtime ))
+        _ckpt_age=$(( _HOOK_START_EPOCH - _ckpt_mtime ))
         if [[ "$_ckpt_age" -ge 0 && "$_ckpt_age" -lt 60 ]]; then
           _trace "GUARD 2.5: DEFER — fresh checkpoint via session_id match (${_ckpt_age}s)"
           exit 0
@@ -284,7 +285,7 @@ if [[ -d "${CWD}/${RUNE_STATE}/arc" ]]; then
     fi
     _ckpt_mtime=$(_stat_mtime "$_ckpt_file")
     if [[ -n "$_ckpt_mtime" && "$_ckpt_mtime" =~ ^[0-9]+$ ]]; then
-      _ckpt_age=$(( HOOK_START_TIME - _ckpt_mtime ))
+      _ckpt_age=$(( _HOOK_START_EPOCH - _ckpt_mtime ))
       [[ $_ckpt_age -lt 0 ]] && _ckpt_age=0  # clock skew guard
       if [[ $_ckpt_age -lt 60 ]]; then
         _trace "DEFER: arc checkpoint fresh (${_ckpt_age}s) — phase transition likely"
@@ -322,7 +323,7 @@ for sf in "${STATE_FILES[@]}"; do
   [[ -L "$sf" ]] && continue  # skip symlinks
 
   # VEIL-005: Per-iteration timeout budget guard — abort if <5s remaining in 30s budget
-  # H-7 FIX: Use _HOOK_START_EPOCH (captured before guards) not HOOK_START_TIME (same value here
+  # H-7 FIX: Use _HOOK_START_EPOCH (captured before guards) not _HOOK_START_EPOCH (same value here
   # but _HOOK_START_EPOCH is the canonical "true start" variable; keeps usage consistent)
   elapsed_total=$(( $(date +%s) - _HOOK_START_EPOCH ))
   if [[ $elapsed_total -gt 25 ]]; then
@@ -523,7 +524,7 @@ if [[ "$_artifact_now" =~ ^[0-9]+$ && "$_artifact_now" -gt 0 ]]; then
     [[ -L "$meta_file" ]] && continue  # skip symlinks
 
     # Per-iteration timeout guard
-    _art_elapsed=$(( $(date +%s) - HOOK_START_TIME ))
+    _art_elapsed=$(( $(date +%s) - _HOOK_START_EPOCH ))
     if [[ $_art_elapsed -gt 28 ]]; then
       _trace "ARTIFACT SCAN TIMEOUT: >${_art_elapsed}s elapsed, aborting"
       break

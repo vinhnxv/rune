@@ -1,10 +1,10 @@
 # Initialize Checkpoint (ARC-2) — Full Algorithm
 
 Checkpoint initialization: config resolution (3-layer), session identity,
-checkpoint schema v23 creation, skip map computation, and initial state write.
+checkpoint schema v28 creation, skip map computation, and initial state write.
 
 **Inputs**: plan path, talisman config, arc arguments, `freshnessResult` from Freshness Check
-**Outputs**: checkpoint object (schema v23), resolved arc config (`arcConfig`), pre-computed `skip_map`
+**Outputs**: checkpoint object (schema v28), resolved arc config (`arcConfig`), pre-computed `skip_map`
 **Error handling**: Fail arc if plan file missing or config invalid
 **Consumers**: SKILL.md checkpoint-init stub, resume logic in [arc-resume.md](arc-resume.md)
 
