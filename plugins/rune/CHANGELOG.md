@@ -16,6 +16,23 @@
 - **Config constants** (`config.py`): `ARTIFACT_DB_PATH`, `ARC_HISTORY_DIR`, `_check_and_clear_artifact_dirty()` following the existing dirty-signal helper pattern.
 - **Talisman `echoes.artifact_indexing` section**: New config subsection with `enabled` (bool), `max_runs` (int), and `artifact_types` (list) fields. Documented in `talisman-sections.md`.
 
+## [2.51.0] - 2026-04-14
+
+### Added
+
+- **`lib/team-shutdown.sh`** — Extracted the 80-line team shutdown fallback pattern (Steps 5-6: process kill + filesystem cleanup + diagnostic) into a shared library with `rune_team_shutdown_fallback()`. Session-isolated, MCP-safe (uses `_rune_kill_tree "teammates"`), Bash 3.2 compatible. Sourcing guard prevents double-load.
+- **`validate-shutdown-pattern.sh`** — PreToolUse hook (SHUTDOWN-DRIFT) that verifies the 3 canonical consumers of the shutdown fallback pattern source `lib/team-shutdown.sh` instead of inlining the pattern. Advisory only — never blocks writes. OPERATIONAL (fail-forward).
+- **`test-team-shutdown.sh`** — 8 bats test scenarios for `rune_team_shutdown_fallback()` covering happy path, session isolation, invalid input, and edge cases.
+- **SHUTDOWN-DRIFT Pre-Commit Checklist entry** in `plugins/rune/CLAUDE.md`.
+
+### Changed
+
+- **`engines.md` Step 5** — Delegates to `source lib/team-shutdown.sh` + `rune_team_shutdown_fallback()` instead of inline 80-line pattern.
+- **`orchestration-phases.md`** — Delegates Step 5 shutdown fallback to shared library.
+- **`phase-7-cleanup.md`** — Delegates Step 5 shutdown fallback to shared library.
+- **`team-lifecycle-reviewer.md`** — Added TLC-006 finding for inline Step 5 patterns that should source `lib/team-shutdown.sh`. Updated description and severity guide.
+- **`CLAUDE.md` inline pattern** — Updated to pointer referencing `lib/team-shutdown.sh`.
+
 ## [2.50.2] - 2026-04-14
 
 ### Fixed

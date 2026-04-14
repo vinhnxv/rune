@@ -173,6 +173,7 @@ For workflows that reuse a team across phases, cleanup must be at the FINAL phas
 | Single TeamDelete (no retry) | P3 | Transient failures leave stale teams |
 | Missing grace period | P3 | TeamDelete may fail due to active members |
 | Cleanup at intermediate phase | P2 | Kills teammates still needed in later phases |
+| Inline Step 5 instead of lib/team-shutdown.sh | P3 | Pattern drift risk — shared lib prevents divergence |
 
 ## Output Format
 
