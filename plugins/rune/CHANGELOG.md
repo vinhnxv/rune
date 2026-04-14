@@ -16,6 +16,22 @@
 - **Config constants** (`config.py`): `ARTIFACT_DB_PATH`, `ARC_HISTORY_DIR`, `_check_and_clear_artifact_dirty()` following the existing dirty-signal helper pattern.
 - **Talisman `echoes.artifact_indexing` section**: New config subsection with `enabled` (bool), `max_runs` (int), and `artifact_types` (list) fields. Documented in `talisman-sections.md`.
 
+## [2.50.1] - 2026-04-14
+
+### Fixed
+
+- **ARC-FORGE-001** (`skills/arc/references/arc-phase-forge.md`): Restored the "mark-before-work" contract and the missing `/rune:forge` delegation call in the forge phase pseudocode. Previously, `updateCheckpoint({status: "in_progress"})` was called at line 82 — **after** state-file discovery, which only succeeds post-delegation — meaning the checkpoint transitioned `pending → in_progress → completed` in one burst. A forge crash mid-enrichment left the checkpoint stuck at `pending`, indistinguishable from "never started", defeating `/rune:cancel-arc` discovery and crash-recovery resume. Additionally, the actual `Skill("rune:forge", forgePlanPath)` invocation was absent from pseudocode — only comments described delegation, leaving dispatcher-to-skill handoff implicit and ambiguous. Fix splits STEP 2 into 2a (stale-file cleanup, pre-delegation) / 2b (explicit `Skill("rune:forge", ...)` call with required `rune:` namespace prefix) / 2c (post-delegation team_name discovery + validation), and adds a new STEP 1.5 that calls `updateCheckpoint({status: "in_progress", team_name: null})` before any work — mirroring the canonical pattern in `arc-phase-mend.md:87`. Two checkpoint writes preserve both phase visibility (null team upfront) and cancel-arc discovery (team_name backfilled after `/rune:forge` writes its state file).
+
+- **ARC-FORGE-001 (variant sweep)**: Applied the same mark-before-work contract to three additional phases that exhibited the identical bug (`TeamCreate` fired before any `status: "in_progress"` checkpoint write):
+  - `skills/arc/references/arc-phase-test-coverage-critique.md` (Phase 7.8) — `TeamCreate` at line 40 previously had no `in_progress` checkpoint before it; first `updateCheckpoint` was `status: "completed"` at line 163.
+  - `skills/arc/references/arc-phase-task-decomposition.md` (Phase 4.5) — `TeamCreate` at line 52 previously had no `in_progress` checkpoint before it; only a `status: "skipped"` path at line 28 and `status: "completed"` at line 180.
+  - `skills/arc/references/arc-phase-pre-ship-validator.md` (Phase 8.55 `release_quality_check` — the embedded second phase, NOT Phase 8.5 `pre_ship_validation` which was already clean) — `TeamCreate` at line 577 previously had no `in_progress` checkpoint before it; first `updateCheckpoint` was `status: "completed"` at line 690.
+- **ARC-STORYBOOK-001** (`skills/arc/references/arc-phase-storybook-verification.md`): Replaced direct `checkpoint.phases.storybook_verification.status = "in_progress"` object mutation (which fired AFTER `TeamCreate` at line 219) with a proper `updateCheckpoint({status: "in_progress", team_name: null})` call moved BEFORE `TeamCreate`. Consistent with the canonical pattern used by every other phase and closes the same crash-recovery visibility gap as ARC-FORGE-001.
+
+All four fixes follow the two-step pattern: (1) `updateCheckpoint({status: "in_progress", team_name: null})` before `TeamCreate`, (2) backfill `team_name` in a second `updateCheckpoint` after `TeamCreate` succeeds. Preserves phase visibility for crash recovery while still surfacing the real team name to `/rune:cancel-arc` for team-shutdown targeting.
+
+Version bumped PATCH because this is a documentation/pseudocode-level fix — no agent, skill, command, or talisman schema changes. Upgrade recommended for anyone relying on `/rune:arc --resume` or `/rune:cancel-arc` to correctly detect forge, test-coverage-critique, task-decomposition, release-quality-check, or storybook-verification phase state.
+
 ## [2.50.0] — 2026-04-14
 ### Added
 - Inner Flame Layer 0: pre-execution assumption gate (`validate-assumption-gate.sh`) — PreToolUse:Write|Edit|NotebookEdit hook that gates first write per strive task on `[ASSUMPTION-N]` declaration in the worker's task file. Pass marker written on allow; subsequent writes bypass re-check. Talisman-gated via `inner_flame.assumption_gate.*`.

@@ -574,7 +574,29 @@ const { timeout, reasoning, model: codexModel } = resolveCodexConfig(talisman, "
 })
 
 const teamName = `arc-codex-rq-${id}`
+
+// ARC-FORGE-001 FIX: Mark phase in_progress BEFORE TeamCreate (mark-before-work contract).
+// team_name is null here — updated after TeamCreate succeeds. Without this, a crash
+// between TeamCreate and the final updateCheckpoint("completed") leaves the phase
+// stuck at "pending", invisible to /rune:cancel-arc and /rune:arc --resume.
+// Note: Phase 8.5 (pre_ship_validation) is separately tracked — this checkpoint is
+// for Phase 8.55 (release_quality_check), a distinct phase that runs after 8.5.
+// Pattern mirrors arc-phase-mend.md:87 and arc-phase-forge.md STEP 1.5.
+updateCheckpoint({
+  phase: "release_quality_check",
+  status: "in_progress",
+  phase_sequence: 8.55,
+  team_name: null
+})
+
 TeamCreate({ team_name: teamName })
+// Backfill team_name in checkpoint now that team exists.
+updateCheckpoint({
+  phase: "release_quality_check",
+  status: "in_progress",
+  team_name: teamName
+})
+
 TaskCreate({
   subject: "Codex release quality check",
   description: "Execute single-aspect release quality check via codex-exec.sh"

@@ -36,15 +36,17 @@ Bash(`mkdir -p "tmp/arc/${id}"`)
 Bash(`cp -- "${planFile}" "tmp/arc/${id}/enriched-plan.md"`)
 const forgePlanPath = `tmp/arc/${id}/enriched-plan.md`
 
-// STEP 2: Delegate to /rune:forge
-// /rune:forge manages its own team lifecycle (TeamCreate, Forge Gaze agent selection,
-// section-level enrichment, Codex Oracle, custom Ashes, cleanup, TeamDelete).
-// Arc records the team_name for cancel-arc discovery.
-// Delegation pattern: /rune:forge creates its own team (e.g., rune-forge-{timestamp}).
-// Arc reads the team name from the forge state file.
-// SEC-002 FIX: Clean stale forge state files before delegation to prevent TOCTOU confusion.
-// Only remove completed/cancelled/expired files — preserve active sessions (< 30 min old).
-// DOC-006 FIX: staleForgeFiles = pre-delegation cleanup (lines below); forgeStateFiles = post-delegation discovery (line 65+)
+// STEP 1.5: Mark phase in_progress BEFORE delegation (contract: mark-before-work).
+// team_name is null until /rune:forge creates its team and writes state file.
+// CRITICAL: This must come before Skill() invocation so crash recovery and
+// /rune:cancel-arc can detect forge as the active phase. Without this, a forge
+// crash leaves the checkpoint in "pending" — indistinguishable from "never started".
+// Pattern mirrors arc-phase-mend.md:87 (pre-delegation checkpoint with null team_name).
+updateCheckpoint({ phase: "forge", status: "in_progress", phase_sequence: 1, team_name: null })
+
+// STEP 2a: Clean stale forge state files BEFORE delegation to prevent TOCTOU confusion.
+// SEC-002 FIX: Only remove completed/cancelled/expired files — preserve active sessions (< 30 min old).
+// DOC-006 FIX: staleForgeFiles = pre-delegation cleanup; forgeStateFiles below = post-delegation discovery.
 // ZSH-SAFE: MUST use Glob() for wildcard resolution, then rm per-file with quoted path.
 // NEVER use raw glob in Bash (e.g., `rm -f tmp/.rune-forge-*.json`) — ZSH NOMATCH kills the command.
 const staleForgeFiles = Glob("tmp/.rune-forge-*.json")
@@ -62,9 +64,18 @@ for (const sf of staleForgeFiles) {
     Bash(`rm -f "${sf}" 2>/dev/null`)  // "${sf}" is a resolved path — safe
   }
 }
+
+// STEP 2b: Delegate to /rune:forge
+// /rune:forge manages its own team lifecycle (TeamCreate, Forge Gaze agent selection,
+// section-level enrichment, Codex Oracle, custom Ashes, cleanup, TeamDelete).
+// Delegation pattern: /rune:forge creates its own team (e.g., rune-forge-{timestamp}).
+// Arc reads the team name from the forge state file after delegation returns.
+// NAMESPACE: MUST use "rune:forge" prefix — bare "forge" fails silently in plugin context.
+Skill("rune:forge", forgePlanPath)
+
+// STEP 2c: Discover team_name from state file written by /rune:forge and update checkpoint.
 // SEC-12 FIX: Use Glob() to resolve wildcard — Read() does not support glob expansion.
 // CDX-2 NOTE: Glob matches ALL forge state files — [0] is most recent by mtime.
-// After /rune:forge invocation completes, read state file to discover team name:
 const forgeStateFiles = Glob("tmp/.rune-forge-*.json")
 if (forgeStateFiles.length > 1) warn(`Multiple forge state files found (${forgeStateFiles.length}) — using most recent`)
 let forgeTeamName = forgeStateFiles.length > 0
@@ -79,6 +90,7 @@ if (forgeStateFiles.length > 0 && !forgeTeamExists) {
   warn(`Forge state file references team "${forgeTeamName}" but team does not exist — using fallback`)
   forgeTeamName = `rune-forge-${Date.now()}`
 }
+// Update checkpoint with discovered team_name (still in_progress — completion marked in STEP 4).
 updateCheckpoint({ phase: "forge", status: "in_progress", phase_sequence: 1, team_name: forgeTeamName })
 
 // STEP 3: Verify enriched plan exists and has content
