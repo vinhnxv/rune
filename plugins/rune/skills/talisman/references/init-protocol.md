@@ -118,6 +118,28 @@ Based on detected stack, customize the template:
 - `context_monitor:` / `context_weaving:` — always include defaults
 - `integrations:` — if `.mcp.json` contains custom MCP servers (not built-in like context7)
 - `blind_verification:` — scaffolded when `discipline.enabled` or arc usage detected. Omit to use defaults (`enabled: false`). When enabled, runs AC-only verification within strive Phase 4.6 using a blind agent that receives acceptance criteria but no implementation context
+- `echoes.skill_promotion:` — scaffolded with defaults (`enabled: true`, `min_access_count: 5`, `min_score: 0.6`, `target: project`) only when the `echoes:` section does NOT already contain a `skill_promotion:` subkey. Idempotent: preserves user customizations on re-run. See `plugins/rune/skills/talisman/references/talisman-sections.md` for the full schema and tier-eligibility table.
+
+### Idempotent Echo-Section Defaults
+
+When writing or updating `echoes:`, always check for existing subkeys before emitting defaults — do NOT overwrite user configuration:
+
+```python
+# Pseudocode for idempotent talisman writes
+talisman = read_talisman()
+echoes = talisman.setdefault("echoes", {})
+
+if "skill_promotion" not in echoes:
+    echoes["skill_promotion"] = {
+        "enabled": True,
+        "min_access_count": 5,
+        "min_score": 0.6,
+        "target": "project",
+    }
+# If skill_promotion already exists, leave it untouched — user may have customized
+```
+
+This rule applies to ALL `echoes:` subkeys (skill_promotion, artifact_indexing, session_summary, etc.). Idempotent writes are a hard requirement for `init-protocol.md` because it runs on every `/rune:talisman init` and `/rune:talisman update` invocation.
 
 **Design Review gates (v1.149.0) — under `design_review:`:**
 
