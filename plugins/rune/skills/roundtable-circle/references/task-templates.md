@@ -134,6 +134,8 @@ Agent({
 
 ```
 Agent({
+  // WARNING: NOT FOR RUNE WORKFLOWS — no team_name.
+  // For Rune, use the Background Teammate template above.
   subagent_type: "general-purpose",
   description: "{role} review",
   prompt: [from ../../../agents/{category}/{role}.md],

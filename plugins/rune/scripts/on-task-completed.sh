@@ -129,6 +129,14 @@ if [[ ! "$TASK_ID" =~ ^[a-zA-Z0-9_-]+$ ]]; then
   exit 0
 fi
 
+# SEC-003 FIX (audit 20260414-194615): Validate TEAMMATE_NAME char-set before it's
+# interpolated into the dup-check signal file path. Matches SEC-4 pattern in
+# on-teammate-idle.sh:64. Empty or invalid names are set to "unknown" so dup-check
+# still runs but can't escape SIGNAL_DIR via path traversal (e.g., "../../..").
+if [[ ! "$TEAMMATE_NAME" =~ ^[a-zA-Z0-9_:-]+$ ]]; then
+  TEAMMATE_NAME="unknown"
+fi
+
 # Derive absolute path from hook input CWD (not relative — CWD is not guaranteed)
 CWD=$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
 # BACK-009: Add warning when CWD is missing

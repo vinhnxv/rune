@@ -23,7 +23,7 @@ _rune_fail_forward() {
       "$(date +%H:%M:%S 2>/dev/null || true)" \
       "${BASH_SOURCE[0]##*/}" \
       "$_crash_line" \
-      >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-${UID:-$(id -u)}.log}" 2>/dev/null
+      >> "${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}" 2>/dev/null
   fi
   echo "WARN: ${BASH_SOURCE[0]##*/} crashed at line $_crash_line — fail-forward." >&2
   exit 0
@@ -31,7 +31,15 @@ _rune_fail_forward() {
 trap '_rune_fail_forward' ERR
 
 # PAT-009 FIX: Add _trace() for observability
-RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-${UID:-$(id -u)}.log}"
+# SEC-001/SEC-004 FIX (audit 20260414-194615): Pin RUNE_TRACE_LOG to TMPDIR/tmp before first
+# trace write; add ${PPID} suffix for session isolation parity with on-session-stop.sh:37-41.
+# Pattern matches the canonical mitigation in on-session-stop.sh:32-42.
+RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
+case "$RUNE_TRACE_LOG" in
+  "${TMPDIR:-/tmp}/"*|/tmp/*) ;;
+  *) RUNE_TRACE_LOG="${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log" ;;
+esac
+export RUNE_TRACE_LOG
 _trace() { [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "$RUNE_TRACE_LOG" ]] && printf '[%s] on-task-observation: %s\n' "$(date +%H:%M:%S)" "$*" >> "$RUNE_TRACE_LOG"; return 0; }
 
 # Guard: jq required for safe JSON parsing
@@ -61,9 +69,28 @@ IFS=$'\t' read -r TEAM_NAME TASK_ID TASK_SUBJECT TASK_DESC AGENT_NAME < <(
 
 [[ -z "$TEAM_NAME" ]] && exit 0
 
-# SEC-002 FIX: Strip markdown headers from task data to prevent header injection
+# SEC-002 FIX (audit 20260414-194615): Strip markdown headers + route through sanitize_untrusted_text()
+# to block cross-session prompt injection via .rune/echoes/*/MEMORY.md. Task subject/description are
+# LLM-generated — YAML frontmatter, fences, and directive prefixes must be neutralized before they
+# reach the echoes file that's loaded at next session start.
 TASK_SUBJECT="${TASK_SUBJECT//#/}"
 TASK_DESC="${TASK_DESC//#/}"
+if [[ -r "${SCRIPT_DIR}/lib/sanitize-text.sh" ]]; then
+  # shellcheck source=lib/sanitize-text.sh disable=SC1091
+  source "${SCRIPT_DIR}/lib/sanitize-text.sh" 2>/dev/null || true
+  if command -v sanitize_untrusted_text >/dev/null 2>&1; then
+    TASK_SUBJECT=$(printf '%s' "$TASK_SUBJECT" | sanitize_untrusted_text 2>/dev/null | head -c 256 | tr -d '\n\r')
+    TASK_DESC=$(printf '%s' "$TASK_DESC" | sanitize_untrusted_text 2>/dev/null | head -c 500 | tr -d '\n\r')
+  else
+    TASK_SUBJECT=$(printf '%s' "$TASK_SUBJECT" | head -c 256 | tr -d '\n\r')
+    TASK_DESC=$(printf '%s' "$TASK_DESC" | head -c 500 | tr -d '\n\r')
+  fi
+else
+  TASK_SUBJECT=$(printf '%s' "$TASK_SUBJECT" | head -c 256 | tr -d '\n\r')
+  TASK_DESC=$(printf '%s' "$TASK_DESC" | head -c 500 | tr -d '\n\r')
+fi
+# SEC-006 FIX: Validate AGENT_NAME char-set to prevent markdown injection in Source line.
+[[ "$AGENT_NAME" =~ ^[a-zA-Z0-9_:-]+$ ]] || AGENT_NAME="unknown"
 [[ "$TEAM_NAME" =~ ^(rune-|arc-) ]] || exit 0
 
 # Guard: safe characters only (prevent path traversal)

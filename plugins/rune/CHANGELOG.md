@@ -16,6 +16,30 @@
 - **Config constants** (`config.py`): `ARTIFACT_DB_PATH`, `ARC_HISTORY_DIR`, `_check_and_clear_artifact_dirty()` following the existing dirty-signal helper pattern.
 - **Talisman `echoes.artifact_indexing` section**: New config subsection with `enabled` (bool), `max_runs` (int), and `artifact_types` (list) fields. Documented in `talisman-sections.md`.
 
+## [2.50.2] - 2026-04-14
+
+### Fixed
+
+- **Audit 20260414-194615 — 14 findings resolved, 1 deferred to follow-up plan, 2 question/nit.** Focused audit of shell scripts, hooks, arc skill, and team lifecycle produced 18 findings (3 P1, 6 P2, 7 P3, 1 Q, 1 N). Direct-orchestrator mend applied (scope narrow, mend-fixer truncation risk high):
+  - **VP-001** (`skills/team-sdk/references/engines.md:532-561`, `.claude/CLAUDE.md:288`): Corrected comments asserting `Bash("sleep 2", { run_in_background: true })` is a synchronization barrier. Per Core Rule #9, the sleep runs concurrently with the next step — the force-reply pattern is BEST-EFFORT / OPPORTUNISTIC, not guaranteed. Guaranteed shutdown comes from retry loop (Step 4) + filesystem fallback (Step 5), not from Step 2b sequencing.
+  - **VP-002** (`skills/team-sdk/references/engines.md:564-591`): Gated `pgrep -P $PPID` liveness check to `teammateMode === "tmux"` only. In `auto`/`in-process` modes teammates share the parent PID — the probe always returns empty, making `confirmedDead` (SendMessage throw count) the authoritative liveness signal.
+  - **VP-003** (`scripts/session-team-hygiene.sh:1-22, 141-158`): Clarified scope comment (auto-clean is SAME-SESSION PID-dead only) and improved report logic to surface cross-session orphans where `owner_pid` is verifiably dead. Previously the `session_id != HOOK_SESSION_ID` skip hid crash-recovery orphans from the report entirely.
+  - **VP-004** (`skills/team-sdk/references/engines.md:503-522`): Added TODO block acknowledging the force-reply pattern's GitHub #31389 citation lacks a version pin — before next MINOR bump, add regression test that spawns a teammate and issues shutdown without force-reply to determine if the underlying bug is still present.
+  - **VP-005**: DEFERRED_TO_PLAN — extraction of 80-line pattern into `lib/team-shutdown.sh` is a larger refactor. Follow-up plan written (gitignored `plans/`) with Grounding Gate verification (0.978 evidence score, BLOCK-addressed via `hooks.json` PreToolUse automation).
+  - **VP-006** (`skills/team-sdk/references/engines.md:658-696`): Reordered MCP-PROTECT-003 Step 5a so deterministic `_rune_kill_tree "teammates"` (bash implementation with positive PID whitelist + 3-layer binary detection) is the MANDATORY primary path. Inline LLM-classification steps demoted to REFERENCE ONLY comment block — LLM classification of `ps` output in a degraded state is the weakest possible safety mechanism.
+  - **VP-007** (`skills/team-sdk/references/engines.md:375-395`): Added caveat to `shutdownWave()` documenting that "recently sent SendMessage" is a CONTRACT (not enforced invariant) and flagging the intentional grace-period asymmetry with `shutdown()` (flat 20s vs adaptive scaling).
+  - **VP-008** (`scripts/verify-team-cleanup.sh:64-92`): TLC-002 now filters team dirs by session ownership using `.session` marker + `kill -0` liveness check. Previously `HOOK_SESSION_ID` was extracted but never used — one session's TeamDelete reported zombie warnings about another session's live teams.
+  - **SEC-001** (`scripts/on-task-observation.sh:34-43`): Added `case` guard restricting `RUNE_TRACE_LOG` to `${TMPDIR:-/tmp}/` (canonical mitigation from `on-session-stop.sh:38-41`). Prevents env-controlled redirect of trace output to arbitrary writable paths (cron spool, authorized_keys) with attacker-influenced content.
+  - **SEC-002** (`scripts/on-task-observation.sh:66-85`): Route `TASK_SUBJECT`/`TASK_DESC` through `sanitize_untrusted_text()` from `lib/sanitize-text.sh` before they reach `.rune/echoes/*/MEMORY.md`. Blocks persistent cross-session prompt injection via YAML frontmatter, code fences, or directive prefixes in LLM-generated task data that would otherwise be re-injected at next session start.
+  - **SEC-003** (`scripts/on-task-completed.sh:131-138`): Added SEC-4 char-set validation for `TEAMMATE_NAME` before interpolation into dup-check path. Matches existing guard in `on-teammate-idle.sh:64`.
+  - **SEC-004** (`scripts/on-task-observation.sh:38`): Default `RUNE_TRACE_LOG` now includes `${PPID}` suffix for session isolation (matches 40+ other scripts). Previously was the sole exception.
+  - **SEC-005** (`scripts/elicitation-result-validator.sh:110-118`): Added Unicode direction override guard (U+202A-202E, U+2066-2069) to block homoglyph/spoofing attacks in elicitation responses flowing into MCP tool calls.
+  - **SEC-006** (`scripts/on-task-observation.sh:86`): Validate `AGENT_NAME` char-set before MEMORY.md injection to prevent markdown injection in the `**Source**:` line.
+  - **SEC-007** (`scripts/on-task-observation.sh:26`): Fixed `_rune_fail_forward` fallback path to include `${PPID}` suffix, eliminating session-isolation bypass when crash occurs before line 34's guard.
+  - **AGT-SPAWN-001** (`skills/roundtable-circle/references/task-templates.md:136`): Added inline `// WARNING: NOT FOR RUNE WORKFLOWS` comment inside the "Platform Reference" code block so the no-`team_name` pattern isn't accidentally copied into Rune workflows.
+
+  Audit confirmed: zero deprecated `Task()` spawn calls across ~80+ sites (2.1.63 rename fully adopted). Ward Sentinel security sweep found 0 P1 issues and confirmed hardened state of `process-tree.sh` (MCP-PROTECT-003), `workflow-lock.sh`, `elicitation-result-validator.sh`. Unit tests improved: `test-session-team-hygiene.sh` 8/11 → 9/11 (one pre-existing failure fixed as side-effect of VP-003 clarification).
+
 ## [2.50.1] - 2026-04-14
 
 ### Fixed

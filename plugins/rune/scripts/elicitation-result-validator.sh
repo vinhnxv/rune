@@ -107,6 +107,15 @@ while IFS= read -r value; do
     exit 2
   fi
 
+  # SEC-005 FIX (audit 20260414-194615): Block Unicode direction overrides (U+202A-202E, U+2066-2069).
+  # These render text differently than it appears in source, enabling spoofed file paths and
+  # homoglyph attacks in elicitation responses that flow into MCP tool calls.
+  # Byte sequences: U+202A-202E = 0xE2 0x80 0xAA-AE; U+2066-2069 = 0xE2 0x81 0xA6-A9.
+  if printf '%s' "$value" | LC_ALL=C grep -qE $'\xe2\x80[\xaa-\xae]|\xe2\x81[\xa6-\xa9]'; then
+    echo "SEC-ELICIT-001: Blocked elicitation response containing Unicode direction override. Value rejected for security." >&2
+    exit 2
+  fi
+
 done <<< "$RESPONSE_VALUES"
 
 # ── All checks passed — allow response ──

@@ -65,6 +65,24 @@ if [[ -d "$CHOME/teams/" ]]; then
   while IFS= read -r dir; do
     dirname=$(basename "$dir")
     if [[ "$dirname" =~ ^[a-zA-Z0-9_-]+$ ]] && [[ ! -L "$dir" ]]; then
+      # VP-008 FIX (audit 20260414-194615): Filter by session ownership. Without this,
+      # one session's TeamDelete reports zombie warnings about another session's live
+      # teams (multi-session concurrency is supported per CLAUDE.md rule #11). Developers
+      # learned to ignore TLC-002 output — real zombies buried in noise.
+      #
+      # If this dir has a .session marker, skip it when marker belongs to a different
+      # live session. Dirs with no marker, or owned by current session / dead session,
+      # fall through to the "remaining" list unchanged.
+      if [[ -n "$HOOK_SESSION_ID" && -r "$dir/.session" ]]; then
+        marker_session=$(jq -r '.session_id // empty' "$dir/.session" 2>/dev/null || echo "")
+        marker_pid=$(jq -r '.owner_pid // empty' "$dir/.session" 2>/dev/null || echo "")
+        if [[ -n "$marker_session" && "$marker_session" != "$HOOK_SESSION_ID" ]]; then
+          # Check if other session is still alive — if so, skip (not our zombie)
+          if [[ -n "$marker_pid" ]] && kill -0 "$marker_pid" 2>/dev/null; then
+            continue
+          fi
+        fi
+      fi
       remaining+=("$dirname")
     fi
   # QUAL-003 NOTE: No -mmin filter — after TeamDelete, report ALL remaining dirs (informational).

@@ -4,6 +4,16 @@
 # Runs once at session start. Scans for orphaned rune-*/arc-* team dirs
 # and stale state files. Reports findings to user.
 #
+# SCOPE (VP-003 clarification, audit 20260414-194615):
+#   Auto-clean is STRICTLY scoped to SAME-SESSION PID-dead orphans. Cross-session
+#   orphans (e.g., crash + resume with a new session_id) are NOT auto-cleaned —
+#   .session markers from the previous session carry the old session_id, which
+#   fails the positive ownership check at line ~144. Users must run
+#   /rune:rest --heal (or the arc preflight stale scan) for crash-recovery
+#   orphans older than 30 minutes.
+#   Reporting (below) does include cross-session orphans where owner_pid is
+#   verifiably dead, so the user at least sees them in session-start context.
+#
 # SessionStart hooks CANNOT block the session.
 # Output on stdout is shown to Claude as context.
 #
@@ -138,11 +148,19 @@ if [[ -d "$CHOME/teams/" ]]; then
     [[ -L "$dir" ]] && continue
     dirname=$(basename "$dir")
     if [[ "$dirname" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-      # Session ownership filter: skip teams owned by other live sessions
+      # Session ownership filter: skip teams owned by other LIVE sessions.
+      # VP-003 FIX (audit 20260414-194615): previously this filter skipped ALL other-session
+      # teams, hiding crash-orphan teams from the report on resume (where session_id is new
+      # but previous owner_pid is dead). Now we skip only if the owner is verifiably alive.
       if [[ -f "$dir/.session" ]] && [[ ! -L "$dir/.session" ]]; then
         marker_session=$(jq -r '.session_id // empty' "$dir/.session" 2>/dev/null || true)
+        marker_pid=$(jq -r '.owner_pid // empty' "$dir/.session" 2>/dev/null || true)
         if [[ -n "$marker_session" ]] && [[ -n "$HOOK_SESSION_ID" ]] && [[ "$marker_session" != "$HOOK_SESSION_ID" ]]; then
-          continue  # Different session owns this team — not an orphan for us
+          # Different session's team — if its owner is still alive, skip (not our zombie).
+          # If its owner is dead (crash), fall through so user sees the orphan in the report.
+          if [[ -n "$marker_pid" ]] && kill -0 "$marker_pid" 2>/dev/null; then
+            continue
+          fi
         fi
       fi
       orphan_names+=("$dirname")

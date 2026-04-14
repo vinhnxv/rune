@@ -378,8 +378,18 @@ function shutdownWave(handle) {
   // (they just finished their tasks and sent completion signals via SendMessage).
   // The force-reply pattern is only needed in final shutdown() where teammates may
   // have spent their entire lifecycle doing Read/Write/Bash without SendMessage.
-  // If shutdownWave() reliability becomes an issue, apply the same force-reply
-  // pattern here. See shutdown() step 2 and GitHub #31389.
+  //
+  // VP-007 CAVEAT (audit 20260414-194615): The "recently sent SendMessage" assumption
+  // is a CONTRACT, not an enforced invariant. Wave teammates whose last tool call was
+  // NOT SendMessage (e.g., a long Bash or a TaskUpdate-only completion) may still
+  // drop the shutdown_request silently — the same failure mode force-reply was
+  // introduced to prevent in shutdown(). Additionally, this function uses a flat 20s
+  // grace versus shutdown()'s adaptive scaling — an intentional asymmetry for simpler
+  // wave transitions, not a drift.
+  //
+  // If wave teammates begin missing shutdowns in observed sessions, enforce the
+  // contract (require SendMessage in every wave-task completion prompt) OR apply the
+  // force-reply pattern here. See shutdown() step 2 and GitHub #31389.
   for (const member of waveMembers) {
     SendMessage({
       type: "shutdown_request",
@@ -506,10 +516,17 @@ function shutdown(handle) {
   // then Step 2b pauses once, then Step 2c sends shutdown_request to all.
   // Batched approach: ~2s total vs ~Ns sequential (one sleep per member).
   //
+  // VP-004 TODO (audit 20260414-194615): The GitHub #31389 bug has no SDK version pin
+  // and no regression test. Claude Code v2.1.69/v2.1.78/v2.1.83 all touched teammate
+  // messaging — whether this pattern is still load-bearing is unverified. Before the
+  // next MINOR bump, add a test that spawns a teammate, issues shutdown_request, and
+  // verifies graceful exit — WITH force-reply removed, to detect if the underlying bug
+  // is fixed. If fixed, simplify to a direct shutdown_request loop.
+  //
   // SendMessage throwing = teammate already exited (confirmed dead).
   // SendMessage succeeding = teammate received request (confirmed alive).
-  // This is the ONLY reliable liveness signal — pgrep -P cannot detect
-  // in-process or tmux teammates (they are not child processes of $PPID).
+  // SendMessage is the authoritative liveness signal for in-process teammates —
+  // pgrep -P $PPID does NOT detect them (see VP-002 note at step 3).
   let confirmedAlive = 0
   let confirmedDead = 0
   const aliveMembers = []
@@ -530,11 +547,24 @@ function shutdown(handle) {
   }
 
   // Step 2b: Single shared pause — teammates process the force-reply message
-  // 2 seconds covers even slow tool-call completion. One pause for ALL members.
-  // NOTE (VEIL-004): Force-reply is best-effort. Teammates in long-running tool calls
-  // (e.g., Bash with timeout=600s) may not process the shutdown_request until the tool
-  // completes. The 2s pause covers most tool completions but not all. For guaranteed
-  // shutdown of hung teammates, the filesystem fallback (Step 5) provides the safety net.
+  //
+  // VP-001 CORRECTION (audit 20260414-194615): This sleep is NOT a synchronization
+  // barrier. Per CLAUDE.md Core Rule #9, `Bash("sleep N", { run_in_background: true })`
+  // returns immediately — the sleep runs concurrently with Step 2c, not before it. The
+  // orchestrator turn continues to Step 2c without waiting. Therefore Step 2a
+  // (force-reply) and Step 2c (shutdown_request) can race: a teammate that has not yet
+  // processed the force-reply when the shutdown_request arrives may still drop the
+  // shutdown silently.
+  //
+  // The force-reply pattern is therefore BEST-EFFORT / OPPORTUNISTIC, not guaranteed.
+  // Guaranteed shutdown of hung or slow teammates comes from the retry loop (Step 4) +
+  // process kill + filesystem fallback (Step 5). The 2s sleep mostly serves as a small
+  // rate-limiter between the force-reply batch and the shutdown_request batch; do NOT
+  // rely on it to sequence message delivery.
+  //
+  // NOTE (VEIL-004): Teammates in long-running tool calls (e.g., Bash with
+  // timeout=600s) may not process either message until the tool completes. Steps 4/5
+  // are the safety net for that case.
   if (aliveMembers.length > 0) {
     Bash("sleep 2", { run_in_background: true })
   }
@@ -563,13 +593,29 @@ function shutdown(handle) {
   // (infinite loop, blocked I/O). Check OS-level process tree as secondary signal.
   let processesStillRunning = 0
   if (confirmedAlive === 0) {
-    // All SendMessage calls failed — but processes may still be running (hung state)
-    try {
-      const childPids = Bash(`pgrep -P $PPID 2>/dev/null | head -20 || true`).trim()
-      if (childPids) {
-        processesStillRunning = childPids.split('\n').filter(p => p.trim()).length
-      }
-    } catch (e) { /* pgrep unavailable — fall through to original 2s */ }
+    // All SendMessage calls failed — but processes MAY still be running (hung state).
+    //
+    // VP-002 CORRECTION (audit 20260414-194615): `pgrep -P $PPID` only sees child
+    // processes of the orchestrator. In-process teammates (default `auto` and
+    // `in-process` modes) share the parent process, so pgrep returns EMPTY even when
+    // teammates are alive. This check therefore only contributes useful data in
+    // `tmux` mode where teammates are separate processes. In every other mode it
+    // adds nothing — the `confirmedDead` count (derived from SendMessage throws
+    // above) is already the authoritative signal.
+    //
+    // We keep the probe for tmux mode but treat its result as advisory only.
+    const teammateMode = (typeof talisman !== "undefined" && talisman?.teams?.mode) || "auto"
+    if (teammateMode === "tmux") {
+      try {
+        const childPids = Bash(`pgrep -P $PPID 2>/dev/null | head -20 || true`).trim()
+        if (childPids) {
+          processesStillRunning = childPids.split('\n').filter(p => p.trim()).length
+        }
+      } catch (e) { /* pgrep unavailable — fall through to original 2s */ }
+    }
+    // For auto/in-process modes: processesStillRunning stays 0, and the
+    // "all confirmed dead" branch below uses the minimal 2s pause. The retry
+    // loop (Step 4) still handles any SDK deregistration lag.
   }
 
   let gracePeriodUsed = 0
@@ -619,31 +665,39 @@ function shutdown(handle) {
   // --- 5. Filesystem fallback — only if TeamDelete never succeeded (QUAL-012) ---
   if (!cleanupTeamDeleteSucceeded) {
     // 5a. Process-level kill — READ-FIRST, KILL-SECOND (MCP-PROTECT-003)
-    // MANDATORY: Claude Code MUST read and understand the process list before killing ANY process.
-    // When TeamDelete fails, teammates are likely still running. But we must verify what each
-    // process IS before sending any signal. This is the LLM-in-the-loop safety layer.
+    //
+    // VP-006 HARDENING (audit 20260414-194615): The MANDATORY path is the deterministic
+    // bash implementation `_rune_kill_tree "teammates"` in lib/process-tree.sh. It applies
+    // a positive-PID-whitelist with 3-layer binary detection (comm check + args check +
+    // connector/MCP exclusion) without any LLM-in-the-loop classification. Under
+    // time pressure in a degraded state (after 4 failed TeamDelete retries), LLM
+    // classification of `ps` output is the weakest possible safety mechanism — a
+    // misclassification kills an MCP server mid-cleanup with no recovery path.
+    //
+    // The inline LLM-classification steps (kept below as commented reference only) are
+    // NOT production pseudocode — they document the invariants that _rune_kill_tree
+    // already enforces in pure bash.
     const ownerPid = handle.ownerPid || Bash(`echo $PPID`).trim()
     if (ownerPid && /^\d+$/.test(ownerPid)) {
-      // Step 1: READ — list all child processes with full details
-      const processListOutput = Bash(`ps -o pid,ppid,comm,args -p $(pgrep -P ${ownerPid} 2>/dev/null | head -30 | tr '\\n' ',') 2>/dev/null || echo "NO_CHILDREN"`)
+      // PRIMARY (mandatory) path — deterministic bash kill with positive whitelist:
+      Bash(`source "\${RUNE_PLUGIN_ROOT}/scripts/lib/process-tree.sh" && _RUNE_PT_CWD="$(pwd)" && _rune_kill_tree "${ownerPid}" "2stage" "5" "teammates" "${handle.teamName}"`)
 
-      // Step 2: UNDERSTAND — Claude Code classifies each process:
+      // REFERENCE ONLY — invariants enforced by _rune_kill_tree above.
+      // Do NOT run these steps inline in production code paths; listed here solely to
+      // document the classification rules for auditability.
+      //
+      // Step 1 (READ) would list child processes via
+      //   ps -o pid,ppid,comm,args -p $(pgrep -P ${ownerPid} | head -30 | tr '\n' ',')
+      //
+      // Step 2 (CLASSIFY) — rules applied by _collect_teammate_pids():
       //   TEAMMATE (kill):   comm=node|claude|claude-*, args has NO --stdio/--lsp/mcp-server/connector
       //   MCP_SERVER (keep): args contains --stdio, --lsp, mcp-server, mcp*server, figma-developer-mcp, context7-mcp
       //   CONNECTOR (keep):  args contains @anthropic*connector or claude-connector
       //   OTHER (keep):      comm is NOT node|claude|claude-*
-      // Log classification for audit trail before proceeding.
-
-      // Step 3: KILL — only PIDs classified as TEAMMATE from Step 2
-      // Use explicit PID list — NEVER a blind for-loop over pgrep output.
-      // Example: teammateKillList = [1234, 5678]
-      //   Bash(`kill -TERM 1234 5678 2>/dev/null || true`)
-      //   Bash(`sleep 5`)
-      //   Bash(`kill -KILL 1234 5678 2>/dev/null || true`)  // survivors only
-
-      // Alternative: delegate to _rune_kill_tree with "teammates" filter (pre-verified whitelist)
-      // This uses _collect_teammate_pids() which applies the same 3-check verification.
-      Bash(`source "\${RUNE_PLUGIN_ROOT}/scripts/lib/process-tree.sh" && _RUNE_PT_CWD="$(pwd)" && _rune_kill_tree "${ownerPid}" "2stage" "5" "teammates" "${handle.teamName}"`)
+      //
+      // Step 3 (KILL) — only PIDs classified as TEAMMATE, via explicit PID list:
+      //   kill -TERM <teammate-pids>; sleep 5; kill -KILL <survivors>
+      // NEVER use a blind for-loop over pgrep output.
     }
 
     // 5b. Filesystem cleanup
