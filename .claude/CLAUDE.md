@@ -285,7 +285,11 @@ for (const member of allMembers) {
   try { SendMessage({ type: "message", recipient: member, content: "Acknowledge: workflow completing" }); aliveMembers.push(member) } catch (e) { confirmedDead++ /* member already exited */ }
 }
 
-// Step 2b: Single shared pause (2s covers tool-call completion)
+// Step 2b: Shared pause — OPPORTUNISTIC, not a synchronization barrier.
+// VP-001 correction (audit 20260414-194615): Per Core Rule #9, `Bash("sleep N", { run_in_background: true })`
+// returns immediately and the sleep runs concurrently with Step 2c — it does NOT sequence Step 2c after
+// Step 2a. The force-reply pattern is best-effort; guaranteed shutdown comes from Step 4 (retry) + Step 5
+// (fallback). See engines.md shutdown() Step 2b for the full rationale.
 if (aliveMembers.length > 0) { Bash("sleep 2", { run_in_background: true }) }
 
 // Step 2c: Send shutdown_request to alive members
