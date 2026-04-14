@@ -67,6 +67,9 @@ _proc_name() {
   fi
 }
 
+# FLAW-007 FIX: Add _trace() — was undefined, causing silent ERR trap on line 280
+_trace() { [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "$RUNE_TRACE_LOG" ]] && printf '[%s] on-session-stop: %s\n' "$(date +%H:%M:%S)" "$*" >> "$RUNE_TRACE_LOG" 2>/dev/null; return 0; }
+
 # ── GUARD 0.5: Auto-cleanup toggle (MCP-PROTECT-003) ──
 # Auto-cleanup is ENABLED by default. Uses positive teammate PID whitelist (MCP-PROTECT-003).
 # Set RUNE_DISABLE_AUTO_CLEANUP=1 to disable, or talisman process_management.auto_cleanup: false.

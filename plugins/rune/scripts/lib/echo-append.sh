@@ -95,8 +95,11 @@ rune_echo_append() {
         ;;
       *)
         # Skip unknown args
+        shift
+        continue
         ;;
     esac
+    # Only shift if arguments remain (inner case branches already shifted the value)
     [[ $# -gt 0 ]] && shift
   done
 

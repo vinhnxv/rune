@@ -507,7 +507,7 @@ See [post-arc.md](references/post-arc.md). 30-second budget. After sweep, **fini
 - [Architecture & Pipeline Overview](references/arc-architecture.md) — Pipeline diagram, orchestrator design, transition contracts
 - [Phase Constants](references/arc-phase-constants.md) — PHASE_ORDER, PHASE_TIMEOUTS, CYCLE_BUDGET, shared utilities
 - [Failure Policy](references/arc-failure-policy.md) — Per-phase failure handling matrix
-- [Checkpoint Init](references/arc-checkpoint-init.md) — Schema v20, 3-layer config resolution
+- [Checkpoint Init](references/arc-checkpoint-init.md) — Schema v28, 3-layer config resolution
 - [Resume](references/arc-resume.md) — Checkpoint restoration, schema migration
 - [Pre-flight](references/arc-preflight.md) — Git state, branch creation, stale team scan, prePhaseCleanup
 - [Phase Cleanup](references/arc-phase-cleanup.md) — postPhaseCleanup, PHASE_PREFIX_MAP

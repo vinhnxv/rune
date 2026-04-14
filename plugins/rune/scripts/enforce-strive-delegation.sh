@@ -103,7 +103,10 @@ fi
 # ── Check if arc work phase is in_progress ──
 
 CHECKPOINT_PATH=$(grep -o 'checkpoint_path: .*' "$STATE_FILE" 2>/dev/null | head -1 | sed 's/checkpoint_path: //')
+# FLAW-008 FIX: Strip whitespace and canonicalize relative paths
+CHECKPOINT_PATH="${CHECKPOINT_PATH%"${CHECKPOINT_PATH##*[![:space:]]}"}"
 [[ -z "$CHECKPOINT_PATH" ]] && exit 0
+[[ "$CHECKPOINT_PATH" != /* ]] && CHECKPOINT_PATH="${CWD}/${CHECKPOINT_PATH}"
 
 # Symlink rejection on checkpoint (FLAW-005 fix)
 [[ -L "$CHECKPOINT_PATH" ]] && exit 0
