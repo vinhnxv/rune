@@ -65,6 +65,18 @@
         ]
       },
       {
+        "_rationale": "INNER-FLAME-0: Pre-execution assumption gate for strive workers. Gates first Write/Edit/NotebookEdit per task on assumption declaration. Checks that worker task file has min_assumptions [ASSUMPTION-N] entries before allowing first write. Pass marker written on allow — subsequent writes bypass re-check. Talisman-gated via inner_flame.assumption_gate.enabled. OPERATIONAL — fail-forward.",
+        "matcher": "Write|Edit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/validate-assumption-gate.sh",
+            "timeout": 5,
+            "statusMessage": "Checking assumption gate..."
+          }
+        ]
+      },
+      {
         "matcher": "Bash",
         "hooks": [
           {

@@ -1348,6 +1348,11 @@ testing:
 #     research_threshold: 0.5      # Minimum score for research/analysis tasks (default: 0.5, range: 0.0-1.0)
 #                                  # Score is computed by haiku model from task output structure.
 #                                  # Tasks below threshold are blocked with request for more complete output.
+#   assumption_gate:
+#     enabled: true                # Layer 0: gate first write per task on assumption declaration (default: true)
+#     min_assumptions: 3           # Minimum [ASSUMPTION-N] entries required in task file (default: 3)
+#     block_on_missing: true       # PreToolUse hook exits 2 (blocking) when assumptions missing (default: true)
+#     persist_to_echoes: true      # Save assumption outcomes to .rune/echoes/assumptions/ (default: true)
 
 # ──────────────────────────────────────────────
 # Teammate Lifecycle — Safety nets (v1.112.0+)

@@ -381,6 +381,10 @@ See [docs/guides/mcp-integration-spec.en.md](../../../docs/guides/mcp-integratio
 | `inner_flame.block_on_fail` | boolean | `false` | Block on missing self-review |
 | `inner_flame.confidence_floor` | number | `60` | Minimum confidence |
 | `inner_flame.completeness_scoring.enabled` | boolean | `true` | Enable completeness scoring |
+| `inner_flame.assumption_gate.enabled` | boolean | `true` | Layer 0: gate first write per task on assumption declaration |
+| `inner_flame.assumption_gate.min_assumptions` | number | `3` | Minimum `[ASSUMPTION-N]` entries required in task file |
+| `inner_flame.assumption_gate.block_on_missing` | boolean | `true` | Block write when assumptions are missing (false = warn only) |
+| `inner_flame.assumption_gate.persist_to_echoes` | boolean | `true` | Save assumption outcomes to `.rune/echoes/assumptions/` |
 
 ### `doubt_seer` — Evidence Challenger
 

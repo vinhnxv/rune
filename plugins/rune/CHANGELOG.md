@@ -16,6 +16,13 @@
 - **Config constants** (`config.py`): `ARTIFACT_DB_PATH`, `ARC_HISTORY_DIR`, `_check_and_clear_artifact_dirty()` following the existing dirty-signal helper pattern.
 - **Talisman `echoes.artifact_indexing` section**: New config subsection with `enabled` (bool), `max_runs` (int), and `artifact_types` (list) fields. Documented in `talisman-sections.md`.
 
+## [2.50.0] — 2026-04-14
+### Added
+- Inner Flame Layer 0: pre-execution assumption gate (`validate-assumption-gate.sh`) — PreToolUse:Write|Edit|NotebookEdit hook that gates first write per strive task on `[ASSUMPTION-N]` declaration in the worker's task file. Pass marker written on allow; subsequent writes bypass re-check. Talisman-gated via `inner_flame.assumption_gate.*`.
+- Worker Report template: `### Assumptions` and `### Assumption Outcome` sections for strive worker tasks.
+- Talisman config: `inner_flame.assumption_gate.*` keys (`enabled`, `min_assumptions`, `block_on_missing`, `persist_to_echoes`) with defaults in `talisman-defaults.json` and documentation in `configuration-guide.md` and `talisman.example.yml`.
+- Echo role: `.rune/echoes/assumptions/` for assumption lifecycle tracking (via `persist_to_echoes`).
+
 ## [2.49.1] - 2026-04-14
 
 ### Fixed

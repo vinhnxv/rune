@@ -29,6 +29,78 @@ Use your own words to describe findings.**
 > or pragmatism arguments. If you find yourself rationalizing an exception,
 > you are about to violate this law.
 
+## Layer 0: Illumination (Assumption Gate)
+
+Before writing the first line of code or the first edit, surface what you are assuming.
+
+### When Layer 0 Fires
+
+Layer 0 fires on `PreToolUse:Write|Edit` — specifically before the **first** write or edit in the
+current task. It does NOT re-fire on subsequent writes in the same task (first-write-only semantics).
+
+Signal marker pattern: a worker sets `tmp/.rune-signals/{team}/{task_id}.assumption-gate-done`
+immediately after completing Layer 0. If that file already exists when a Write|Edit is attempted,
+Layer 0 is skipped for all subsequent writes in this task.
+
+### What Workers Must Declare
+
+Before the first write, workers must state **at least 3 load-bearing assumptions** — facts taken for
+granted that, if wrong, would cause the implementation to fail, diverge from spec, or require
+significant rework. For each assumption:
+
+```yaml
+- assumption: "The talisman.yml key inner_flame.assumption_gate.enabled exists and defaults to false"
+  basis: "Read talisman defaults at plugins/rune/skills/talisman/SKILL.md:42"
+  risk_if_wrong: "Gate never fires; feature ships silently disabled with no config surface"
+
+- assumption: "validate-inner-flame.sh reads block_on_fail from the same yq loop as other flags"
+  basis: "Reviewed scripts/validate-inner-flame.sh lines 77-91"
+  risk_if_wrong: "Block mode ignored; assumption violations always allowed through"
+
+- assumption: "proof-schema.md Worker Report template uses ### heading level for sections"
+  basis: "Read plugins/rune/skills/discipline/references/proof-schema.md lines 337-363"
+  risk_if_wrong: "Added sections use wrong heading depth, breaking template structure"
+```
+
+Each assumption must include:
+- `assumption` — the factual claim being made
+- `basis` — why you believe it (file:line or observed evidence)
+- `risk_if_wrong` — what breaks if this turns out to be false
+
+Vague assumptions without `risk_if_wrong` are rejected by the gate.
+
+### Echo Persistence
+
+After the task completes, declared assumptions are persisted to `.rune/echoes/assumptions/MEMORY.md`
+with the following schema (written by `on-task-observation.sh`):
+
+```yaml
+role: assumptions
+tier: inscribed        # VIOLATED assumptions
+     observations     # HELD or UNVERIFIED assumptions
+dedup_key: "${TEAM_NAME}_${TASK_ID}_assumption"
+```
+
+Outcome values:
+- `HELD` — assumption proved correct during implementation
+- `VIOLATED` — assumption was wrong; actual behavior differed
+- `UNVERIFIED` — assumption was not checked during this session
+
+Violated assumptions are promoted to `inscribed` tier so future workers can avoid the same mistake.
+
+### Existing Workflows: What Changes
+
+> **Migration notice for existing Rune workflows**
+
+Workers who previously skipped pre-write assumption declaration are now expected to pause before
+their first Write/Edit and complete Layer 0 explicitly. This is additive — it does NOT change how
+Layers 1–3 work. Existing SEAL messages and Inner Flame logs remain valid; assumption declaration
+is a new prefix step, not a replacement.
+
+Orchestrators do NOT need to be updated. Layer 0 fires via the `validate-assumption-gate.sh`
+`PreToolUse:Write|Edit` hook automatically when `inner_flame.assumption_gate.enabled: true` in
+talisman. The default is `false` — existing projects are unaffected until they opt in.
+
 ## Layer 1: Grounding Check (Anti-Hallucination)
 
 Verify that every claim, reference, and output is grounded in actual evidence.
