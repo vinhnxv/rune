@@ -284,6 +284,7 @@ Every change to this plugin MUST include updates to all four files:
 - [ ] New agents have >=1 spawn site in skills/ (SDMT-001)
 - [ ] New user-invocable skills are in using-rune AND tarnished routing tables (SDMT-005)
 - [ ] New talisman config sections have >=1 consumer in skills/ or scripts/ (SDMT-002)
+- [ ] SHUTDOWN-DRIFT: `validate-shutdown-pattern.sh` runs via PreToolUse hook automatically; manual run via `bash scripts/validate-shutdown-pattern.sh` for offline check
 
 ## CLI-Backed Ashes (v1.57.0+)
 

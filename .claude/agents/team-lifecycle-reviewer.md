@@ -5,8 +5,9 @@ description: |
   Validates that workflows properly use TeamCreate/TeamDelete pairing, send
   shutdown_request to all teammates, use dynamic member discovery, include
   filesystem fallback gated by !cleanupTeamDeleteSucceeded (QUAL-012), use
-  CHOME pattern instead of hardcoded ~/.claude/, and filter member names
-  with SEC-4 regex validation.
+  CHOME pattern instead of hardcoded ~/.claude/, filter member names
+  with SEC-4 regex validation, and source lib/team-shutdown.sh for Step 5
+  fallback logic (preferred over inline patterns).
 category: review
 tools:
   - Read
@@ -119,8 +120,13 @@ for (let attempt = 0; attempt < 4; attempt++) {
 
 #### 2e. Filesystem Fallback Gated by QUAL-012 (P2 if ungated)
 
-rm -rf ONLY when TeamDelete failed:
+rm -rf ONLY when TeamDelete failed. Preferred: source `lib/team-shutdown.sh` and call `rune_team_shutdown_fallback()` instead of inline patterns:
 ```
+// Preferred (v2.51.0+):
+source lib/team-shutdown.sh
+rune_team_shutdown_fallback(teamName, ownerPid, context, fallbackMembers)
+
+// Legacy (still valid but discouraged):
 if (!cleanupTeamDeleteSucceeded) {
   Bash('CHOME="..." && rm -rf "$CHOME/teams/..." "$CHOME/tasks/..."')
 }
@@ -129,6 +135,7 @@ if (!cleanupTeamDeleteSucceeded) {
 **Violation signals:**
 - Unconditional rm -rf of team/task dirs
 - Missing boolean tracking TeamDelete success
+- Inline Step 5 pattern instead of sourcing lib/team-shutdown.sh (TLC-006)
 
 ### Step 3: CHOME Pattern Check (P2)
 
@@ -166,6 +173,7 @@ For workflows that reuse a team across phases, cleanup must be at the FINAL phas
 | Single TeamDelete (no retry) | P3 | Transient failures leave stale teams |
 | Missing grace period | P3 | TeamDelete may fail due to active members |
 | Cleanup at intermediate phase | P2 | Kills teammates still needed in later phases |
+| Inline Step 5 instead of lib/team-shutdown.sh | P3 | Pattern drift risk — shared lib prevents divergence |
 
 ## Output Format
 
