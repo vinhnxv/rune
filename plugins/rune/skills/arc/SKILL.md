@@ -56,6 +56,18 @@ Chains forty-five phases into a single automated pipeline. Each phase runs as it
 
 **Load skills**: `roundtable-circle`, `context-weaving`, `rune-echoes`, `rune-orchestration`, `elicitation`, `codex-cli`, `team-sdk`, `testing`, `agent-browser`, `polling-guard`, `zsh-compat`, `design-sync`
 
+## CRITICAL — No Pipeline Second-Guessing (ARC-NSG-001)
+
+When the user invokes `/rune:arc`, **execute the full arc pipeline immediately**. Do NOT:
+- Present options like "arc-quick might be better for this"
+- Ask "are you sure?" or "before I commit N hours..."
+- Recommend a different pipeline based on plan size, effort estimates, or PR strategy
+- Second-guess the user's choice by analyzing plan complexity first
+
+The user chose `/rune:arc` deliberately. Respect that choice. If the plan is small, arc still works — it just finishes faster. If the user wanted `arc-quick`, they would have invoked `/rune:arc-quick`.
+
+**Exception**: The `--confirm` flag explicitly opts into a pause on all-CONCERN escalation. That is the ONLY confirmation point in the pipeline.
+
 ## CRITICAL — Agent Teams Enforcement (ATE-1)
 
 **EVERY phase that summons agents MUST follow this exact pattern. No exceptions.**
