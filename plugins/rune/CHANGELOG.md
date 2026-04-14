@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+### Added
+- **Echo-to-Skill Promotion** (`/rune:learn --detector skill-promotion`): New detector in `/rune:learn` that scans Etched and Notes tier echoes for procedural patterns (action-keyword density, code references, access-count validation) and suggests promoting qualifying candidates to project-level Agent Skills (`.claude/skills/<slug>/SKILL.md`). Never auto-creates — always gated by `AskUserQuestion` with first-run banner and session-wide "Skip all" support. Includes `user-invocable` heuristic that routes workflow-shaped echoes to `true` (slash command) and constraint-shaped echoes to `false` (autoload background knowledge). Dedup guard compares new drafts against existing `.claude/skills/*/SKILL.md` via dual-gate Jaccard (title_ratio > 0.6 OR content_ratio > 0.7), offering "Update existing" when a match is found.
+- **`echoes.skill_promotion` talisman section**: Config gate with `enabled` (bool, default `true`), `min_access_count` (int, default `5`), `min_score` (float, default `0.6`), and `target` (string: `project` | `user`). Documented in `talisman-sections.md` with tier-eligibility table and interaction notes vs. existing Observations→Inscribed auto-promotion flow (which retains its `_PROMOTION_THRESHOLD=3` auto-bar).
+- **`plugins/rune/skills/learn/references/skill-promotion.md`**: Detector algorithm, scoring formula (clamped to [0, 1]), `user-invocable` heuristic, draft generator, dedup guard, write protocol. Canonical reference for promotion logic.
+- **`plugins/rune/scripts/echo-search/test_skill_promotion_scoring.py`**: 9 unit tests locking the scoring formula — positive fixtures (procedural echo crossing threshold), negative fixtures (neutral prose below threshold), clamping checks (raw score overflow → 1.0), and boundary behavior (exactly-at-threshold, length-only spam).
+- **Idempotent talisman init** (`init-protocol.md`): `echoes.skill_promotion` defaults only emitted when the subkey is absent, preserving user customizations across `/rune:talisman init` and `/rune:talisman update` invocations. Documented as a general rule for all `echoes:` subkeys.
+- **`artifact_search` MCP tool**: New tool on the echo-search MCP server that searches past arc run artifacts (TOME findings, resolution reports, work summaries, gap analyses, inspect verdicts). Enables cross-session queries like "what did the last review find about auth?" powered by a separate FTS5 SQLite index (`artifacts.db`).
+- **Pre-rest artifact extraction** (`commands/rest.md` Step 4.5): Before `/rune:rest` deletes `tmp/`, key artifacts are extracted to `.rune/arc-history/{arc-id}/`. Includes configurable retention policy (`max_runs`, default 10) and talisman-gated enable flag.
+- **Artifact DB V5 schema migration** (`database.py`): Additive `artifact_entries` + `artifact_entries_fts` tables with BM25 FTS5 index. Separate `ensure_artifact_schema()` prevents echo tables from leaking into `artifacts.db`.
+- **`artifact_indexer.py`**: Parser module for TOME findings (severity/prefix/description extraction), resolution reports, work summaries, gap analyses, and inspect verdicts. Deterministic SHA-256 entry IDs for idempotent indexing.
+- **Dirty-signal integration** (`annotate-hook.sh`): PostToolUse hook now detects writes to `.rune/arc-history/` and writes `.artifact-dirty` signal for lazy reindex on next `artifact_search` call.
+- **Config constants** (`config.py`): `ARTIFACT_DB_PATH`, `ARC_HISTORY_DIR`, `_check_and_clear_artifact_dirty()` following the existing dirty-signal helper pattern.
+- **Talisman `echoes.artifact_indexing` section**: New config subsection with `enabled` (bool), `max_runs` (int), and `artifact_types` (list) fields. Documented in `talisman-sections.md`.
+
+## [2.50.2] - 2026-04-14
+
 ### Fixed
 
 - **Audit 20260414-194615 — 14 findings resolved, 1 deferred to follow-up plan, 2 question/nit.** Focused audit of shell scripts, hooks, arc skill, and team lifecycle produced 18 findings (3 P1, 6 P2, 7 P3, 1 Q, 1 N). Direct-orchestrator mend applied (scope narrow, mend-fixer truncation risk high):
@@ -23,20 +39,6 @@
   - **AGT-SPAWN-001** (`skills/roundtable-circle/references/task-templates.md:136`): Added inline `// WARNING: NOT FOR RUNE WORKFLOWS` comment inside the "Platform Reference" code block so the no-`team_name` pattern isn't accidentally copied into Rune workflows.
 
   Audit confirmed: zero deprecated `Task()` spawn calls across ~80+ sites (2.1.63 rename fully adopted). Ward Sentinel security sweep found 0 P1 issues and confirmed hardened state of `process-tree.sh` (MCP-PROTECT-003), `workflow-lock.sh`, `elicitation-result-validator.sh`. Unit tests improved: `test-session-team-hygiene.sh` 8/11 → 9/11 (one pre-existing failure fixed as side-effect of VP-003 clarification).
-
-### Added
-- **Echo-to-Skill Promotion** (`/rune:learn --detector skill-promotion`): New detector in `/rune:learn` that scans Etched and Notes tier echoes for procedural patterns (action-keyword density, code references, access-count validation) and suggests promoting qualifying candidates to project-level Agent Skills (`.claude/skills/<slug>/SKILL.md`). Never auto-creates — always gated by `AskUserQuestion` with first-run banner and session-wide "Skip all" support. Includes `user-invocable` heuristic that routes workflow-shaped echoes to `true` (slash command) and constraint-shaped echoes to `false` (autoload background knowledge). Dedup guard compares new drafts against existing `.claude/skills/*/SKILL.md` via dual-gate Jaccard (title_ratio > 0.6 OR content_ratio > 0.7), offering "Update existing" when a match is found.
-- **`echoes.skill_promotion` talisman section**: Config gate with `enabled` (bool, default `true`), `min_access_count` (int, default `5`), `min_score` (float, default `0.6`), and `target` (string: `project` | `user`). Documented in `talisman-sections.md` with tier-eligibility table and interaction notes vs. existing Observations→Inscribed auto-promotion flow (which retains its `_PROMOTION_THRESHOLD=3` auto-bar).
-- **`plugins/rune/skills/learn/references/skill-promotion.md`**: Detector algorithm, scoring formula (clamped to [0, 1]), `user-invocable` heuristic, draft generator, dedup guard, write protocol. Canonical reference for promotion logic.
-- **`plugins/rune/scripts/echo-search/test_skill_promotion_scoring.py`**: 9 unit tests locking the scoring formula — positive fixtures (procedural echo crossing threshold), negative fixtures (neutral prose below threshold), clamping checks (raw score overflow → 1.0), and boundary behavior (exactly-at-threshold, length-only spam).
-- **Idempotent talisman init** (`init-protocol.md`): `echoes.skill_promotion` defaults only emitted when the subkey is absent, preserving user customizations across `/rune:talisman init` and `/rune:talisman update` invocations. Documented as a general rule for all `echoes:` subkeys.
-- **`artifact_search` MCP tool**: New tool on the echo-search MCP server that searches past arc run artifacts (TOME findings, resolution reports, work summaries, gap analyses, inspect verdicts). Enables cross-session queries like "what did the last review find about auth?" powered by a separate FTS5 SQLite index (`artifacts.db`).
-- **Pre-rest artifact extraction** (`commands/rest.md` Step 4.5): Before `/rune:rest` deletes `tmp/`, key artifacts are extracted to `.rune/arc-history/{arc-id}/`. Includes configurable retention policy (`max_runs`, default 10) and talisman-gated enable flag.
-- **Artifact DB V5 schema migration** (`database.py`): Additive `artifact_entries` + `artifact_entries_fts` tables with BM25 FTS5 index. Separate `ensure_artifact_schema()` prevents echo tables from leaking into `artifacts.db`.
-- **`artifact_indexer.py`**: Parser module for TOME findings (severity/prefix/description extraction), resolution reports, work summaries, gap analyses, and inspect verdicts. Deterministic SHA-256 entry IDs for idempotent indexing.
-- **Dirty-signal integration** (`annotate-hook.sh`): PostToolUse hook now detects writes to `.rune/arc-history/` and writes `.artifact-dirty` signal for lazy reindex on next `artifact_search` call.
-- **Config constants** (`config.py`): `ARTIFACT_DB_PATH`, `ARC_HISTORY_DIR`, `_check_and_clear_artifact_dirty()` following the existing dirty-signal helper pattern.
-- **Talisman `echoes.artifact_indexing` section**: New config subsection with `enabled` (bool), `max_runs` (int), and `artifact_types` (list) fields. Documented in `talisman-sections.md`.
 
 ## [2.50.1] - 2026-04-14
 
