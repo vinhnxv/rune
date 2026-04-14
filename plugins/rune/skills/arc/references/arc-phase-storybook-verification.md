@@ -216,10 +216,27 @@ prePhaseCleanup(checkpoint)
 // SEC-SBK-006: Validate id before shell interpolation
 if (!/^[a-zA-Z0-9_-]+$/.test(id)) { error("Invalid arc id"); return }
 const teamName = `arc-storybook-${id}`
+
+// ARC-FORGE-001 FIX: Mark phase in_progress BEFORE TeamCreate (mark-before-work contract).
+// Previously used direct checkpoint object mutation AFTER TeamCreate, which left
+// a crash window between TeamCreate and checkpoint write. Now uses updateCheckpoint()
+// (consistent with all other phases) and is ordered BEFORE TeamCreate so crash
+// recovery and /rune:cancel-arc can see the phase is active.
+// team_name is null here — updated after TeamCreate succeeds.
+// Pattern mirrors arc-phase-mend.md:87 and arc-phase-forge.md STEP 1.5.
+updateCheckpoint({
+  phase: "storybook_verification",
+  status: "in_progress",
+  team_name: null
+})
+
 TeamCreate({ team_name: teamName })
-checkpoint.phases.storybook_verification.status = "in_progress"
-checkpoint.phases.storybook_verification.team_name = teamName
-Write(checkpointPath, checkpoint)
+// Backfill team_name in checkpoint now that team exists.
+updateCheckpoint({
+  phase: "storybook_verification",
+  status: "in_progress",
+  team_name: teamName
+})
 
 Bash(`mkdir -p "tmp/arc/${id}/storybook-verification"`)
 

@@ -49,7 +49,27 @@ if (codexAvailable && !codexDisabled && taskDecompEnabled && workflowIncluded) {
   // ── Delegate to codex-phase-handler teammate ──
   // Token optimization: plan content (~10k chars) stays in teammate's context, not Tarnished's
   const teamName = `arc-codex-td-${id}`
+
+  // ARC-FORGE-001 FIX: Mark phase in_progress BEFORE TeamCreate (mark-before-work contract).
+  // team_name is null here — updated after TeamCreate succeeds. Without this, a crash
+  // between TeamCreate and the final updateCheckpoint("completed") leaves the phase
+  // stuck at "pending", invisible to /rune:cancel-arc and /rune:arc --resume.
+  // Pattern mirrors arc-phase-mend.md:87 and arc-phase-forge.md STEP 1.5.
+  updateCheckpoint({
+    phase: "task_decomposition",
+    status: "in_progress",
+    phase_sequence: 4.5,
+    team_name: null
+  })
+
   TeamCreate({ team_name: teamName })
+  // Backfill team_name in checkpoint now that team exists.
+  updateCheckpoint({
+    phase: "task_decomposition",
+    status: "in_progress",
+    team_name: teamName
+  })
+
   TaskCreate({
     subject: "Codex task decomposition validation",
     description: "Execute single-aspect task decomposition check via codex-exec.sh"

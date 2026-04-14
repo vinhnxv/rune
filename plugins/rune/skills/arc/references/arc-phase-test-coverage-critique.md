@@ -37,7 +37,27 @@ const { timeout, reasoning, model: codexModel } = resolveCodexConfig(talisman, "
 })
 
 const teamName = `arc-codex-tc-${id}`
+
+// ARC-FORGE-001 FIX: Mark phase in_progress BEFORE TeamCreate (mark-before-work contract).
+// team_name is null here — updated after TeamCreate succeeds. Without this, a crash
+// between TeamCreate and the final updateCheckpoint("completed") leaves the phase
+// stuck at "pending", invisible to /rune:cancel-arc and /rune:arc --resume.
+// Pattern mirrors arc-phase-mend.md:87 and arc-phase-forge.md STEP 1.5.
+updateCheckpoint({
+  phase: "test_coverage_critique",
+  status: "in_progress",
+  phase_sequence: 7.8,
+  team_name: null
+})
+
 TeamCreate({ team_name: teamName })
+// Backfill team_name in checkpoint now that team exists.
+updateCheckpoint({
+  phase: "test_coverage_critique",
+  status: "in_progress",
+  team_name: teamName
+})
+
 TaskCreate({
   subject: "Codex test coverage critique",
   description: "Execute single-aspect test coverage critique via codex-exec.sh"
