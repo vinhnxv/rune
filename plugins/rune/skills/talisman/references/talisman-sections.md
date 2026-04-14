@@ -354,6 +354,59 @@ Companion file boundaries (authoring concern) do NOT align 1:1 with shard bounda
 
 This is architecturally correct because merge happens BEFORE sharding — the shard layer sees a single unified JSON regardless of how many source files contributed.
 
+## Echoes — Skill Promotion (`echoes.skill_promotion`)
+
+Controls echo-to-skill promotion in `/rune:learn --detector skill-promotion|all`. When enabled, the detector scans Etched and Notes tier echoes for procedural patterns (action keywords, code references, high access count) and suggests promoting qualifying candidates to `.claude/skills/<slug>/SKILL.md` via a user confirmation gate. Never auto-creates skills without explicit user approval.
+
+### Configuration Schema
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `enabled` | bool | `true` | Master switch for the `skill-promotion` detector |
+| `min_access_count` | int | `5` | Minimum `echo_access_log` references before eligible (sits above the existing `_PROMOTION_THRESHOLD=3` for Observations→Inscribed auto-promotion, ensuring skill-promotion has a stricter bar) |
+| `min_score` | float | `0.6` | Minimum `promotion_score` threshold (0.0-1.0); see scoring formula in `plugins/rune/skills/learn/references/skill-promotion.md` |
+| `target` | string | `project` | `project` → `.claude/skills/<slug>/SKILL.md`; `user` → `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/<slug>/SKILL.md` (multi-account safe) |
+
+### Example
+
+```yaml
+echoes:
+  skill_promotion:
+    enabled: true           # Suggest promotions during /rune:learn
+    min_access_count: 5     # Minimum echo_access_log references before eligible
+    min_score: 0.6          # Promotion score threshold (0.0-1.0)
+    target: project         # Where to write promoted skills
+```
+
+### Tier Eligibility
+
+| Echo Tier | Weight | Eligible for Promotion | Rationale |
+|-----------|--------|------------------------|-----------|
+| Etched | 1.0 | Yes | Permanent, high confidence, user-confirmed |
+| Notes | 1.0 | Yes | User-explicit (`/rune:echoes remember`), never auto-pruned |
+| Inscribed | 0.7 | No | Agent-written; may be too transient |
+| Observations | 0.5 | No | Low confidence; auto-prunes at 60 days |
+| Traced | 0.3 | No | Low confidence; auto-archives at 30 days |
+
+### Interaction with Existing Auto-Promotion
+
+Rune has two separate promotion flows that must not be conflated:
+
+| Flow | Trigger | Threshold | User Gate | Target |
+|------|---------|-----------|-----------|--------|
+| **Observations → Inscribed** | Access count | `_PROMOTION_THRESHOLD=3` (in `promotion.py`) | Automatic (no prompt) | Echo tier upgrade (MEMORY.md rewrite) |
+| **Etched/Notes → Skill** (this section) | `/rune:learn` + score | `min_access_count=5` + `min_score=0.6` | **User confirmation required** (AskUserQuestion) | New `.claude/skills/<slug>/SKILL.md` file |
+
+The 5-reference floor for skill-promotion sits above the 3-reference auto-promotion threshold to ensure only well-validated patterns become permanent behavioral rules.
+
+### First-Run Banner
+
+On the first skill-promotion candidate in a session, `/rune:learn` prints a one-line banner explaining the feature and the disable path. Banner is suppressed after one print per session via `tmp/.rune-signals/skill-promotion-banner-shown-${session_id}`.
+
+### Session-Wide Skip
+
+If the user selects "Skip all" in the confirmation gate for any candidate, a session-scoped skip marker is created at `tmp/.rune-signals/skill-promotion-skip-${session_id}`, suppressing all remaining skill-promotion prompts until the session ends.
+
 ## Echoes — Artifact Indexing (`echoes.artifact_indexing`)
 
 Controls cross-session recall of arc run artifacts. Before `/rune:rest` deletes `tmp/`, key artifacts

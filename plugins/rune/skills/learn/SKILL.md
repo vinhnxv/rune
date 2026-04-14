@@ -29,7 +29,7 @@ description: |
   assistant: "Dry run: 5 patterns found. No entries written."
   </example>
 user-invocable: true
-argument-hint: "[--since DAYS] [--detector cli|review|arc|hook|meta-qa|all] [--dry-run]"
+argument-hint: "[--since DAYS] [--detector cli|review|arc|hook|meta-qa|skill-promotion|all] [--dry-run]"
 allowed-tools:
   - Read
   - Write
@@ -46,7 +46,7 @@ Extract CLI correction patterns and review recurrence findings from session hist
 ## Overview
 
 ```
-/rune:learn [--since DAYS] [--detector cli|review|arc|hook|meta-qa|all] [--dry-run]
+/rune:learn [--since DAYS] [--detector cli|review|arc|hook|meta-qa|skill-promotion|all] [--dry-run]
 /rune:learn --watch    # Enable real-time correction detection for this session
 /rune:learn --unwatch  # Disable real-time detection
 ```
@@ -54,7 +54,7 @@ Extract CLI correction patterns and review recurrence findings from session hist
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--since DAYS` | 7 | Scan session files from last N days |
-| `--detector TYPE` | all | Which detectors to run (cli, review, arc, hook, all) |
+| `--detector TYPE` | all | Which detectors to run (cli, review, arc, hook, meta-qa, skill-promotion, all) |
 | `--dry-run` | false | Report findings without writing to echoes |
 | `--project PATH` | CWD | Project directory to scan (implicit) |
 | `--watch` | false | Enable real-time correction detection (two-hook pipeline) |
@@ -177,6 +177,47 @@ Each pattern:
 
 See [detectors.md](references/detectors.md) for algorithm details and pattern categories.
 
+#### 2f. Skill Promotion Detector (`--detector skill-promotion|all`)
+
+Scans Etched and Notes tier echoes for procedural patterns that would benefit from being promoted to project-level Agent Skills (`.claude/skills/`). Gated by `echoes.skill_promotion.enabled` in talisman (default: true).
+
+**Algorithm** — see [references/skill-promotion.md](references/skill-promotion.md) for full pseudocode.
+
+Detection heuristics for promotion candidates:
+- **Layer filter**: Etched OR Notes (weight=1.0, user-explicit, never auto-pruned). Observations and Traced excluded.
+- **Action keywords**: `always|never|must|should|before.*do` — constraint or procedural language
+- **Code patterns**: backtick blocks, file paths, function names
+- **Access count** (from `echo_access_log` via existing `_get_access_counts()` at `scripts/echo-search/server.py:78`): `>= min_access_count` (default 5; configurable via talisman `echoes.skill_promotion.min_access_count`)
+- **Content length**: `> 100 chars AND < 1500 chars` (substantial but not context-bomb)
+
+**Scoring formula** (clamped to [0, 1]):
+```
+promotion_score = min(1.0, (action_keywords * 0.3)
+                         + (code_patterns * 0.3)
+                         + (access_count / 10 * 0.2)
+                         + (content_length / 500 * 0.2))
+```
+
+Threshold: `promotion_score >= min_score` (default 0.6; configurable via talisman `echoes.skill_promotion.min_score`) → candidate.
+
+Each candidate emits a pattern:
+```json
+{
+  "type": "skill-promotion",
+  "pattern_key": "promote:<echo-id>",
+  "description": "<echo title>",
+  "echo_id": "<MEM-...>",
+  "echo_layer": "etched|notes",
+  "access_count": N,
+  "promotion_score": 0.87,
+  "suggested_invocable": true|false,
+  "confidence": 0.9,
+  "source_file": ".rune/echoes/<role>/MEMORY.md"
+}
+```
+
+Skill-promotion patterns use a dedicated confirmation flow (Phase 4.1) separate from the general echo-writer path — a promotion produces a new `.claude/skills/<slug>/SKILL.md` file, not an echo entry.
+
 #### 2d. Arc + Hook Detectors (inline, `--detector arc|hook|all`)
 
 These run as inline grep-based scans — no separate detector script:
@@ -257,6 +298,56 @@ Map confidence to layer:
 | < 0.6 | observations |
 
 On success, report: "N patterns written to .rune/echoes/."
+
+### Phase 4.1: Skill Promotion Confirmation Gate (Task 3)
+
+Runs when `skill-promotion` patterns are present in the findings list. Each candidate triggers a dedicated `AskUserQuestion` flow — promotion creates a `.claude/skills/<slug>/SKILL.md` file, NOT an echo entry.
+
+**First-run banner** (once per session, tracked via `tmp/.rune-signals/skill-promotion-banner-shown-${CLAUDE_SESSION_ID}`):
+```
+→ New feature: Rune can promote this echo to a .claude/skills/ skill.
+  Disable with `echoes.skill_promotion.enabled: false` in talisman.yml.
+```
+
+**Session-wide skip flag**: If the user selects "Skip all" for any candidate, set `tmp/.rune-signals/skill-promotion-skip-${CLAUDE_SESSION_ID}` and suppress all remaining skill-promotion prompts this session.
+
+**Per-candidate flow** (see [references/skill-promotion.md](references/skill-promotion.md) for full pseudocode):
+
+```javascript
+for (const candidate of skillPromotionCandidates) {
+  if (existsSignal("skill-promotion-skip-")) break
+  // Dedup: check .claude/skills/*/SKILL.md for similar existing skills
+  const dup = findExistingSimilarSkill(candidate)
+  const primaryLabel = dup ? "Update existing skill" : "Create skill (Recommended)"
+  const primaryDescription = dup
+    ? `Merge new content into .claude/skills/${dup.slug}/SKILL.md`
+    : `Saves to .claude/skills/${candidate.slug}/SKILL.md — loaded every session`
+
+  AskUserQuestion({
+    questions: [{
+      question: `Promote echo "${candidate.description}" to a skill?`,
+      header: "Skill Promotion",
+      options: [
+        { label: primaryLabel, description: primaryDescription },
+        { label: "Preview first", description: "Show the generated SKILL.md content, then re-ask" },
+        { label: "Skip", description: "Keep as echo only — don't promote this one" },
+        { label: "Skip all", description: "Suppress future promotion suggestions this session" }
+      ],
+      multiSelect: false
+    }]
+  })
+}
+```
+
+On "Create skill" / "Update existing": write to `.claude/skills/<slug>/SKILL.md` (project target) or `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/<slug>/SKILL.md` (user target, controlled by `echoes.skill_promotion.target`).
+
+**Post-create activation reminder**: Always print after a successful create/update:
+```
+✓ Skill written to .claude/skills/<slug>/SKILL.md
+  Run `/reload-plugins` or restart Claude Code to activate this skill in the current session.
+```
+
+On "Preview first": render the generated SKILL.md content, then re-render the same 4-option prompt (omitting "Preview first" to avoid loops).
 
 ## Entry Format
 

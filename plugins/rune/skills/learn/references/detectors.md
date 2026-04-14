@@ -322,6 +322,48 @@ All errors exit 0 (fail-forward). Crash location logged to `$RUNE_TRACE_LOG` whe
 
 ---
 
+## skill-promotion detector
+
+**Source**: Python detector in `plugins/rune/skills/learn/references/skill-promotion.md` (algorithm, draft generator, dedup). Imported by `/rune:learn` when `--detector skill-promotion|all` is requested.
+
+**Input**: echo-search sqlite database (`echo_entries`, `echo_access_log`).
+
+**Output pattern schema** (emitted into the `/rune:learn` Phase 3 findings list):
+
+```json
+{
+  "type": "skill-promotion",
+  "pattern_key": "promote:<echo-id>",
+  "description": "<echo title>",
+  "echo_id": "<MEM-...>",
+  "echo_layer": "etched|notes",
+  "access_count": 7,
+  "promotion_score": 0.87,
+  "suggested_invocable": false,
+  "signals": {
+    "action_keywords": 3,
+    "code_patterns": 2,
+    "access_count": 7,
+    "content_length": 312
+  },
+  "confidence": 0.87,
+  "source_file": ".rune/echoes/reviewer/MEMORY.md"
+}
+```
+
+**Routing**: Skill-promotion patterns are NOT routed through `echo-writer.sh`. They enter the Phase 4.1 Skill Promotion Confirmation Gate (in SKILL.md), which uses the draft generator and dedup helpers from `references/skill-promotion.md` to produce `.claude/skills/<slug>/SKILL.md` files.
+
+**Talisman config** (defaults):
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `echoes.skill_promotion.enabled` | `true` | Master switch |
+| `echoes.skill_promotion.min_access_count` | `5` | Minimum `echo_access_log` references |
+| `echoes.skill_promotion.min_score` | `0.6` | Minimum `promotion_score` threshold |
+| `echoes.skill_promotion.target` | `project` | `project` (.claude/skills/) or `user` (${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/) |
+
+See [skill-promotion.md](skill-promotion.md) for the full algorithm, scoring formula, user-invocable heuristic, draft generator, and dedup guard.
+
 ## echo-writer.sh Input Schema
 
 ```json
