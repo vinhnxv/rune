@@ -342,6 +342,16 @@ The Worker Report is filled by the assigned teammate during execution:
 ### Echo-Back
 [Restate the task in your own words to prove comprehension before touching any code]
 
+### Assumptions
+[List the load-bearing assumptions you declared before your first write (Layer 0: Illumination).
+Minimum 3. Each entry must include basis and risk_if_wrong.]
+
+| # | Assumption | Basis | Risk If Wrong | Outcome |
+|---|-----------|-------|---------------|---------|
+| 1 | [assumption text] | [file:line or evidence] | [what breaks] | HELD / VIOLATED / UNVERIFIED |
+| 2 | [assumption text] | [file:line or evidence] | [what breaks] | HELD / VIOLATED / UNVERIFIED |
+| 3 | [assumption text] | [file:line or evidence] | [what breaks] | HELD / VIOLATED / UNVERIFIED |
+
 ### Implementation Notes
 [Key decisions made, patterns followed, deviations from spec and why]
 
@@ -352,6 +362,13 @@ The Worker Report is filled by the assigned teammate during execution:
 |-----------|-----------|--------|----------|
 | AC-1 | test_passes | PASS | Exit 0: npm test auth.test.ts (7 tests) |
 | AC-2 | pattern_matches | PASS | Found pattern at src/auth.ts:45 |
+
+### Assumption Outcome
+[Record how each declared assumption resolved during implementation. Update the Outcome column
+in the Assumptions section above, and note any VIOLATED assumptions with corrective action taken.]
+
+**Violated assumptions** (if any): [describe what was wrong and how it changed your approach]
+**Unverified assumptions** (if any): [note which assumptions you could not verify in this session]
 
 ### Code Changes
 [Diff summary — which files changed and why]

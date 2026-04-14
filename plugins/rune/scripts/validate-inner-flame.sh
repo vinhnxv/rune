@@ -74,15 +74,18 @@ CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 # with inner_flame section, blocking is ON unless explicitly set to false.
 BLOCK_ON_FAIL=false
 INNER_FLAME_ENABLED=true
+ASSUMPTION_GATE_ENABLED=false
 for TALISMAN_PATH in "${CWD}/${RUNE_STATE}/talisman.yml" "${CHOME}/talisman.yml"; do
   if [[ -f "$TALISMAN_PATH" ]]; then
     if command -v yq &>/dev/null; then
       # NOTE: Checks YAML boolean false only. String "false" is not treated as disabled (standard YAML convention).
       INNER_FLAME_ENABLED=$(yq -r 'if .inner_flame.enabled == false then "false" else "true" end' "$TALISMAN_PATH" 2>/dev/null) || INNER_FLAME_ENABLED="true"
       BLOCK_ON_FAIL=$(yq -r 'if .inner_flame.block_on_fail == false then "false" else "true" end' "$TALISMAN_PATH" 2>/dev/null) || BLOCK_ON_FAIL="true"
+      ASSUMPTION_GATE_ENABLED=$(yq -r 'if .inner_flame.assumption_gate.enabled == true then "true" else "false" end' "$TALISMAN_PATH" 2>/dev/null) || ASSUMPTION_GATE_ENABLED="false"
       # VEIL-004: If yq returned empty (v3/v4 mismatch), default to safe values
       [[ -z "$INNER_FLAME_ENABLED" ]] && INNER_FLAME_ENABLED="true"
       [[ -z "$BLOCK_ON_FAIL" ]] && BLOCK_ON_FAIL="true"
+      [[ -z "$ASSUMPTION_GATE_ENABLED" ]] && ASSUMPTION_GATE_ENABLED="false"
     else
       echo "Inner Flame: yq not found — cannot read talisman config, defaulting to soft enforcement" >&2
     fi
@@ -121,6 +124,20 @@ elif [[ "$TEAM_NAME" == rune-work-* || "$TEAM_NAME" == arc-work-* ]]; then
   if [[ -n "$EVIDENCE_FILE" && -f "$EVIDENCE_FILE" ]]; then
     # Validate summary.json has result field (basic schema check)
     if jq -e '.result' "$EVIDENCE_FILE" &>/dev/null; then
+      # Check assumption violations if assumption gate is enabled
+      if [[ "$ASSUMPTION_GATE_ENABLED" == "true" ]]; then
+        VIOLATED=$(jq -r '.assumptions_violated // [] | length' "$EVIDENCE_FILE" 2>/dev/null) || VIOLATED="0"
+        [[ "$VIOLATED" =~ ^[0-9]+$ ]] || VIOLATED="0"
+        if [[ "$VIOLATED" -gt 0 ]]; then
+          VIOLATED_LIST=$(jq -r '.assumptions_violated // [] | join(", ")' "$EVIDENCE_FILE" 2>/dev/null || true)
+          if [[ "$BLOCK_ON_FAIL" == "true" ]]; then
+            echo "Inner Flame: ${VIOLATED} assumption(s) violated in task ${TASK_ID}: ${VIOLATED_LIST}. Review violated assumptions before completing." >&2
+            exit 2  # BLOCK — assumption violations present
+          else
+            echo "Inner Flame: ${VIOLATED} assumption(s) violated in task ${TASK_ID}: ${VIOLATED_LIST} (soft enforcement — not blocking)." >&2
+          fi
+        fi
+      fi
       exit 0  # Evidence found and valid — allow
     fi
     # Evidence file exists but missing result field — warn

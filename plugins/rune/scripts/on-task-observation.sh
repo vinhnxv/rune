@@ -160,6 +160,66 @@ fi
 printf '%s\n' "$ENTRY" >> "$TMPFILE" 2>/dev/null || { rm -f "$TMPFILE"; exit 0; }
 mv -f "$TMPFILE" "$MEMORY_FILE" 2>/dev/null || { rm -f "$TMPFILE"; exit 0; }
 
+# --- Step 9.5: Assumption echo persistence ---
+# If the task's summary.json has assumptions_violated or assumptions_declared,
+# write them to .rune/echoes/assumptions/MEMORY.md.
+# VIOLATED → inscribed tier. HELD/UNVERIFIED → observations tier.
+WORK_SUMMARY=$(find "${CWD}/tmp/work" -maxdepth 4 -path "*/evidence/${TASK_ID}/summary.json" -print -quit 2>/dev/null || true)
+if [[ -n "$WORK_SUMMARY" && -f "$WORK_SUMMARY" ]]; then
+  # Check if assumptions fields exist
+  HAS_ASSUMPTIONS=$(jq -r '(has("assumptions_violated") or has("assumptions_declared")) | tostring' "$WORK_SUMMARY" 2>/dev/null || echo "false")
+  if [[ "$HAS_ASSUMPTIONS" == "true" ]]; then
+    ASSUMPTION_ECHO_DIR="$ECHO_DIR/assumptions"
+    ASSUMPTION_MEMORY="$ASSUMPTION_ECHO_DIR/MEMORY.md"
+    ASSUMPTION_DEDUP_KEY="${TEAM_NAME}_${TASK_ID}_assumption"
+    ASSUMPTION_DEDUP_FILE="$SIGNAL_DIR/.obs-${ASSUMPTION_DEDUP_KEY}"
+    if [[ ! -f "$ASSUMPTION_DEDUP_FILE" ]] && [[ ! -L "$ASSUMPTION_ECHO_DIR" ]]; then
+      mkdir -p "$ASSUMPTION_ECHO_DIR" 2>/dev/null || true
+      touch "$ASSUMPTION_DEDUP_FILE" 2>/dev/null || true
+      # Determine tier from violation count
+      VIOLATED_COUNT=$(jq -r '.assumptions_violated // [] | length' "$WORK_SUMMARY" 2>/dev/null || echo "0")
+      [[ "$VIOLATED_COUNT" =~ ^[0-9]+$ ]] || VIOLATED_COUNT="0"
+      if [[ "$VIOLATED_COUNT" -gt 0 ]]; then
+        ASSUMPTION_TIER="inscribed"
+        VIOLATED_LIST=$(jq -r '.assumptions_violated // [] | join("; ")' "$WORK_SUMMARY" 2>/dev/null || true)
+        # SEC-002: strip markdown header chars from assumption text
+        VIOLATED_LIST="${VIOLATED_LIST//#/}"
+        ASSUMPTION_DETAIL="Violated (${VIOLATED_COUNT}): ${VIOLATED_LIST}"
+      else
+        ASSUMPTION_TIER="observations"
+        DECLARED_COUNT=$(jq -r '.assumptions_declared // [] | length' "$WORK_SUMMARY" 2>/dev/null || echo "0")
+        ASSUMPTION_DETAIL="Declared: ${DECLARED_COUNT} — all HELD or UNVERIFIED"
+      fi
+      ASSUMPTION_ENTRY=$(cat <<'AEOF'
+
+## Assumption Echo — Task: __TASK_SUBJECT__ (__DATE__)
+- **layer**: __TIER__
+- **Source**: `__TEAM_NAME__/__AGENT_NAME__`
+- **Confidence**: LOW (auto-generated from summary.json)
+- __ASSUMPTION_DETAIL__
+AEOF
+      )
+      ASSUMPTION_ENTRY="${ASSUMPTION_ENTRY//__TASK_SUBJECT__/$TASK_SUBJECT}"
+      ASSUMPTION_ENTRY="${ASSUMPTION_ENTRY//__DATE__/$DATE}"
+      ASSUMPTION_ENTRY="${ASSUMPTION_ENTRY//__TIER__/$ASSUMPTION_TIER}"
+      ASSUMPTION_ENTRY="${ASSUMPTION_ENTRY//__TEAM_NAME__/$TEAM_NAME}"
+      ASSUMPTION_ENTRY="${ASSUMPTION_ENTRY//__AGENT_NAME__/$AGENT_NAME}"
+      ASSUMPTION_ENTRY="${ASSUMPTION_ENTRY//__ASSUMPTION_DETAIL__/$ASSUMPTION_DETAIL}"
+      # Atomic write using mktemp+cat+printf+mv pattern
+      ATMPFILE=$(mktemp "${ASSUMPTION_ECHO_DIR}/.MEMORY.md.XXXXXX" 2>/dev/null) || true
+      if [[ -n "$ATMPFILE" ]]; then
+        if [[ -f "$ASSUMPTION_MEMORY" ]]; then
+          cat "$ASSUMPTION_MEMORY" > "$ATMPFILE" 2>/dev/null || { rm -f "$ATMPFILE"; ATMPFILE=""; }
+        fi
+        if [[ -n "$ATMPFILE" ]]; then
+          printf '%s\n' "$ASSUMPTION_ENTRY" >> "$ATMPFILE" 2>/dev/null || { rm -f "$ATMPFILE"; ATMPFILE=""; }
+          [[ -n "$ATMPFILE" ]] && mv -f "$ATMPFILE" "$ASSUMPTION_MEMORY" 2>/dev/null || { rm -f "$ATMPFILE" 2>/dev/null; true; }
+        fi
+      fi
+    fi
+  fi
+fi
+
 # --- Step 10: Signal echo-search dirty for auto-reindex ---
 touch "$SIGNAL_DIR/.echo-dirty" 2>/dev/null || true
 

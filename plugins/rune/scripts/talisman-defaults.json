@@ -609,6 +609,12 @@
     "intent_default": "long-term"
   },
   "inner_flame": {
+    "assumption_gate": {
+      "enabled": true,
+      "min_assumptions": 3,
+      "block_on_missing": true,
+      "persist_to_echoes": true
+    },
     "block_on_fail": false,
     "completeness_scoring": {
       "enabled": true,
