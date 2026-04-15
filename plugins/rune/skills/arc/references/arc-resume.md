@@ -1,6 +1,6 @@
 # Resume (`--resume`) — Full Algorithm
 
-Full `--resume` logic: checkpoint discovery, validation, schema migration (v1→v27),
+Full `--resume` logic: checkpoint discovery, validation, schema migration (v1→v29),
 hash integrity verification, orphan cleanup, and phase demotion.
 
 > Requires familiarity with checkpoint schema from [arc-checkpoint-init.md](arc-checkpoint-init.md).
@@ -53,6 +53,21 @@ On resume, validate checkpoint integrity before proceeding:
    // Re-export ownership vars so the state file (written later by SKILL.md) uses the new session's values
    ownerPid = checkpoint.owner_pid
    configDir = checkpoint.config_dir
+   ```
+2c.5. Detect group pause (--step-groups mode):
+   ```javascript
+   // IMPORTANT: Read existing state file BEFORE step 9 overwrites it (SR-1 fix).
+   // The state file (not checkpoint) holds the group_paused marker set by the stop hook.
+   let existingGroupPaused = null
+   try {
+     const existingState = Read('.rune/arc-phase-loop.local.md')
+     existingGroupPaused = existingState.match(/^group_paused:\s*(\S+)/m)?.[1]
+   } catch (e) { /* no existing state file — fresh start */ }
+
+   if (existingGroupPaused && existingGroupPaused !== 'null') {
+     log(`Resuming from group pause. Completed group: ${existingGroupPaused}.`)
+     // group_paused will be cleared when state file is rewritten at step 9
+   }
    ```
 2d. Branch validation (prevents resuming on wrong branch):
    > **Note**: Pre-v22 checkpoints do not contain a `branch` field. The field is added
@@ -367,7 +382,19 @@ On resume, validate checkpoint integrity before proceeding:
      checkpoint.flags.no_browser_test = false
    }
    ```
-// NOTE: Step 3r runs after all schema migrations complete (steps 3a–3ab). Step 3p was skipped in the original numbering.
+3ac. Phase group support migration (v28 → v29):
+   ```javascript
+   // Step 3ac: v28 → v29 (Phase group support)
+   // Backfill flags.step_groups for checkpoints created before --step-groups existed.
+   // Groups are state-file-only — no checkpoint phase fields needed.
+   if (checkpoint.schema_version < 29) {
+     if (checkpoint.flags) {
+       checkpoint.flags.step_groups = checkpoint.flags.step_groups ?? false
+     }
+     checkpoint.schema_version = 29
+   }
+   ```
+// NOTE: Step 3r runs after all schema migrations complete (steps 3a–3ac). Step 3p was skipped in the original numbering.
 3r. Resume freshness re-check:
    a. Read plan file from checkpoint.plan_file
    b. Extract git_sha from plan frontmatter (use optional chaining: `extractYamlFrontmatter(planContent)?.git_sha` — returns null on parse error if plan was manually edited between sessions)
@@ -605,6 +632,7 @@ Continue from: ${contextMeta.last_action ?? 'last known state'}.
      checkpoint.flags?.no_test ? '--no-test' : '',
      checkpoint.flags?.no_browser_test ? '--no-browser-test' : '',
      checkpoint.flags?.bot_review ? '--bot-review' : '',
+     checkpoint.flags?.step_groups ? '--step-groups' : '',
    ].filter(Boolean).join(' ')
    const stateContent = `---
 active: true
@@ -622,6 +650,8 @@ user_cancelled: false
 cancel_reason: null
 cancelled_at: null
 stop_reason: null
+group_mode: ${checkpoint.flags?.step_groups ? 'active' : 'null'}
+group_paused: null
 ---
 `
    Write('.rune/arc-phase-loop.local.md', stateContent)

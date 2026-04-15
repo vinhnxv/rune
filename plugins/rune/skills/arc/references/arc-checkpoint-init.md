@@ -82,6 +82,7 @@ function resolveArcConfig(arc, work, inlineFlags) {
     // GRACE-002 FIX: Include bot_review in Layer 1 defaults for 3-layer consistency
     bot_review: false,
     no_bot_review: false,
+    step_groups: false,
   }
 
   // Layer 2: Talisman overrides (null-safe)
@@ -134,6 +135,7 @@ function resolveArcConfig(arc, work, inlineFlags) {
     },
     // v2.31.0: User-defined phase skip list (merged into skip_map at init time)
     skip_phases: Array.isArray(arc?.skip_phases) ? arc.skip_phases : [],
+    step_groups: typeof talismanDefaults.step_groups === 'boolean' ? talismanDefaults.step_groups : defaults.step_groups,
   }
 
   // Layer 3: Inline CLI flags override (only if explicitly passed)
@@ -154,6 +156,7 @@ function resolveArcConfig(arc, work, inlineFlags) {
   if (inlineFlags.no_bot_review !== undefined) config.no_bot_review = inlineFlags.no_bot_review
   // BACK-001 FIX: Wire --no-verify CLI flag to verify_enabled (was missing — skip map dead code)
   if (inlineFlags.no_verify !== undefined) config.verify_enabled = !inlineFlags.no_verify
+  if (inlineFlags.step_groups !== undefined) config.step_groups = inlineFlags.step_groups
 
   return config
 }
@@ -176,8 +179,11 @@ const inlineFlags = {
   no_bot_review: args.includes('--no-bot-review') ? true : undefined,
   // BACK-001 FIX: Wire --no-verify CLI flag into inlineFlags (was missing)
   no_verify: args.includes('--no-verify') ? true : undefined,
+  step_groups: args.includes('--step-groups') ? true : undefined,
 }
 const arcConfig = resolveArcConfig(arc, work, inlineFlags)
+// Validate PHASE_GROUPS coverage — catches orphaned phases when new phases are added
+assertPhaseGroupsCoverage()
 // Use arcConfig.no_forge, arcConfig.approve, arcConfig.ship.auto_pr, etc. throughout
 ```
 
@@ -447,10 +453,10 @@ const parentPlanMeta = {
 const checkpointPath = `.rune/arc/${id}/checkpoint.json`
 Bash(`mkdir -p ".rune/arc/${id}"`)
 Write(checkpointPath, {
-  id, schema_version: 28, plan_file: planFile,
+  id, schema_version: 29, plan_file: planFile,
   config_dir: configDir, owner_pid: ownerPid, session_id: "${CLAUDE_SESSION_ID}" || Bash(`echo "\${RUNE_SESSION_ID:-}"`).trim(),
   // RUIN-003 FIX: Remove redundant ?? guards — Layer 2 resolveArcConfig() already guarantees all values are defined
-  flags: { approve: arcConfig.approve, no_forge: arcConfig.no_forge, skip_freshness: arcConfig.skip_freshness, confirm: arcConfig.confirm, no_test: arcConfig.no_test, no_browser_test: arcConfig.no_browser_test, accept_external_changes: arcConfig.accept_external_changes, bot_review: arcConfig.bot_review, no_bot_review: arcConfig.no_bot_review },
+  flags: { approve: arcConfig.approve, no_forge: arcConfig.no_forge, skip_freshness: arcConfig.skip_freshness, confirm: arcConfig.confirm, no_test: arcConfig.no_test, no_browser_test: arcConfig.no_browser_test, accept_external_changes: arcConfig.accept_external_changes, bot_review: arcConfig.bot_review, no_bot_review: arcConfig.no_bot_review, step_groups: arcConfig.step_groups },
   arc_config: arcConfig,
   pr_url: null,
   freshness: freshnessResult || null,
@@ -711,6 +717,8 @@ user_cancelled: false
 cancel_reason: null
 cancelled_at: null
 stop_reason: null
+group_mode: ${arcConfig.step_groups ? 'active' : 'null'}
+group_paused: null
 ---
 `
 Write('.rune/arc-phase-loop.local.md', stateContent)

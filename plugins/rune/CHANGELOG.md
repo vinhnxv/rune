@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.52.0] - 2026-04-15
+
+### Added
+- `--step-groups` flag for `/rune:arc` — pauses at phase group boundaries for context-optimized execution
+- `PHASE_GROUPS` constant in `arc-phase-constants.md` with preflight coverage assertion
+- `_lookup_phase_group()` Bash mirror in `arc-phase-stop-hook.sh` (extracted to `lib/phase-groups.sh`)
+- Group boundary detection with convergence guard (AC-4) and skipped-group signal (AC-7)
+- Group pause/resume support via `group_mode`/`group_paused` state file fields
+- Schema v28→v29 migration for `flags.step_groups`
+- `[group N/M]` progress prefix in phase dispatch prompt
+
 ## [Unreleased]
 
 ### Added
