@@ -1906,7 +1906,26 @@ if [[ "$ACCEPT_EXTERNAL" == "true" ]]; then
 - Code review: review all changes but do not halt for unrelated code outside the plan scope."
 fi
 
-PHASE_PROMPT="ANCHOR — Arc Pipeline Phase: ${NEXT_PHASE} (iteration ${NEW_ITERATION})
+# ── Group progress prefix (--step-groups mode) ──
+_GROUP_PREFIX=""
+if [[ "${_GROUP_MODE:-}" == "active" ]]; then
+  _current_group=$(_lookup_phase_group "$NEXT_PHASE")
+  if [[ -n "$_current_group" ]]; then
+    _group_done=0
+    _group_total=0
+    for _gp in "${PHASE_ORDER[@]}"; do
+      if [[ "$(_lookup_phase_group "$_gp")" == "$_current_group" ]]; then
+        (( _group_total++ ))
+        _gp_st=$(echo "$CKPT_CONTENT" | _jq_with_budget -r --arg p "$_gp" '.phases[$p].status // "pending"' 2>/dev/null || echo "pending")
+        [[ "$_gp_st" == "completed" || "$_gp_st" == "skipped" ]] && (( _group_done++ ))
+      fi
+    done
+    (( _group_done++ ))  # count current phase as in-progress
+    _GROUP_PREFIX="[${_current_group} ${_group_done}/${_group_total}] "
+  fi
+fi
+
+PHASE_PROMPT="ANCHOR — ${_GROUP_PREFIX:-}Arc Pipeline Phase: ${NEXT_PHASE} (iteration ${NEW_ITERATION})
 
 You are executing a single phase of the arc pipeline. Each phase runs with fresh context.
 
