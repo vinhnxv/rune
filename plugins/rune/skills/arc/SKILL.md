@@ -52,7 +52,7 @@ allowed-tools:
 
 Chains forty-five phases into a single automated pipeline. Each phase runs as its own Claude Code turn with fresh context — the `arc-phase-stop-hook.sh` drives phase iteration via the Stop hook pattern. Artifact-based handoff connects phases. Checkpoint state enables resume after failure.
 
-**Context budget advisory**: Full arc run: 45 phases x ~3.5min avg = ~154 minutes (lower bound). Context compaction is almost guaranteed in a single session. For constrained sessions, use `--no-forge` to skip Phase 1 enrichment, or split into multiple `/rune:arc --resume` sessions. The `PreCompact` hook saves checkpoint state automatically.
+**Context budget advisory**: Full arc run: 45 phases x ~3.5min avg = ~154 minutes (lower bound). Context compaction is almost guaranteed in a single session. For constrained sessions, use `--no-forge` to skip Phase 1 enrichment, or split into multiple `/rune:arc --resume` sessions. For context optimization, use `--step-groups` to pause at group boundaries — each group gets a fresh context window on resume. The `PreCompact` hook saves checkpoint state automatically.
 
 **Load skills**: `roundtable-circle`, `context-weaving`, `rune-echoes`, `rune-orchestration`, `elicitation`, `codex-cli`, `team-sdk`, `testing`, `agent-browser`, `polling-guard`, `zsh-compat`, `design-sync`
 
@@ -156,6 +156,7 @@ The pipeline uses **named phases** (not numeric IDs) in `PHASE_ORDER`. The numer
 /rune:arc <plan_file.md> --bot-review     # Enable bot review wait + comment resolution
 /rune:arc <plan_file.md> --no-bot-review  # Force-disable bot review
 /rune:arc <plan_file.md> --no-accept-external  # Prompt when unrelated changes detected (default: accept)
+/rune:arc <plan_file.md> --step-groups   # Pause at each phase group boundary
 ```
 
 ## Flags
@@ -176,6 +177,7 @@ The pipeline uses **named phases** (not numeric IDs) in `PHASE_ORDER`. The numer
 | `--no-accept-external` | Prompt user when unrelated changes are detected on branch | Off |
 | `--bot-review` | Enable bot review wait + PR comment resolution (Phase 9.1/9.2) | Off |
 | `--no-bot-review` | Force-disable bot review (overrides both `--bot-review` and talisman) | Off |
+| `--step-groups` | Pause at each phase group boundary for context optimization | Off |
 | `--status` | Show current arc phase, progress, and elapsed time (delegates to rune-status.sh) | Off |
 
 > **Note**: Worktree mode for `/rune:strive` (Phase 5) is activated via `work.worktree.enabled: true` in talisman.yml, not via a `--worktree` flag on arc.
