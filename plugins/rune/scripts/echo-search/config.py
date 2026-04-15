@@ -420,6 +420,14 @@ def _try_load_talisman_file(
             _talisman_cache["path"] = talisman_path
             _talisman_cache["config"] = config
             return config
+    except yaml.YAMLError as exc:
+        # FINDING-006 FIX: explicitly catch malformed YAML (was propagating
+        # as unhandled exception and crashing the MCP server). Log at warning
+        # level so operators see the parse failure, then fall through to
+        # return None (caller treats as "no talisman").
+        logger.warning(
+            "talisman YAML parse error for %s: %s — using defaults",
+            talisman_path, exc)
     except (OSError, ValueError) as exc:
         logger.debug("talisman load error for %s: %s", talisman_path, exc)
     return None

@@ -1,5 +1,23 @@
 # Changelog
 
+## [2.52.1] - 2026-04-15
+
+### Fixed
+- **Talisman silent parse failure (P1)** — `scripts/talisman-resolve.sh` now detects and reports YAML parse failures instead of silently falling back to defaults. Root cause of intermittent arc checkpoint bugs where user config values (e.g., `arc.ship.auto_merge: true`) were silently overridden by hardcoded defaults (`false`).
+  - `yaml_to_json()`: Python fallback now uses `sys.exit(1)` on exception instead of `print('{}')`, so bash can distinguish parse failure from empty file. Zero-byte guard added.
+  - `yq` fallback: distinguishes parse error from null-document output.
+  - Parse failures tracked via tempfile (subshell-safe — function runs inside `$()` where parent-shell globals don't propagate).
+  - `MERGE_STATUS="parse_failed"` set when any source file failed to parse.
+  - `_meta.json.sources.project/global` set to `null` for files that failed to parse (was misleadingly showing the file path).
+  - When project/global YAML fails to parse, shards write to project dir (not system cache) so the degraded state is visible to downstream consumers.
+  - System-cache fast-path refuses to re-serve stale shards when cached `merge_status` indicates a prior failure.
+  - User-facing warning emitted via stderr and `hookSpecificOutput` JSON for Claude Code SessionStart.
+- **MCP `echo-search` YAMLError handling (P1)** — `scripts/echo-search/config.py::_try_load_talisman_file` now catches `yaml.YAMLError` explicitly at warning level. Previously, malformed talisman.yml could crash the echo-search MCP server's talisman load path.
+- **MCP `agent-search` merge_status awareness (P1)** — `scripts/agent-search/server.py::_load_talisman_user_agents` now reads `_meta.json.merge_status` and emits a warning when shards are in `parse_failed` state, so operators can diagnose why custom user_agents aren't registering.
+
+### Audit reference
+Driven by talisman subsystem audit run 2026-04-15 (16 findings, 7 P1). This release addresses 6 of the 7 P1 findings (001, 002, 003, 004, 005, 006, 007 from audit report). Remaining findings (MCP `merge_status` refusal in more consumers, concurrent write lock, schema doc clarification) deferred to future patches.
+
 ## [2.52.0] - 2026-04-15
 
 ### Added

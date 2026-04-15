@@ -135,6 +135,24 @@ def _load_talisman_user_agents(project_dir: str) -> list:
 
     agents: list = []
 
+    # FINDING-007 FIX: Warn when shards are from a degraded parse.
+    # If talisman-resolve.sh failed to parse the user's talisman.yml, the
+    # shards contain only hardcoded defaults — user_agents will be empty
+    # silently. Emit a visible warning so operators can diagnose why their
+    # custom agents aren't registering.
+    meta_path = os.path.join(project_dir, "tmp", ".talisman-resolved", "_meta.json")
+    try:
+        with open(meta_path) as f:
+            meta = json.load(f)
+        ms = meta.get("merge_status")
+        if ms == "parse_failed":
+            logger.warning(
+                "talisman shards at %s are in parse_failed state — "
+                "custom user_agents will not load until the YAML is fixed",
+                os.path.dirname(meta_path))
+    except (OSError, ValueError):
+        pass  # _meta.json missing — shards not resolved yet, non-fatal
+
     # Path 1: settings.json → user_agents (dedicated key, preferred)
     settings_path = os.path.join(project_dir, "tmp", ".talisman-resolved", "settings.json")
     try:

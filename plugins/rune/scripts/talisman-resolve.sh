@@ -145,34 +145,62 @@ if [[ "$HAS_PYYAML" != "true" ]] && ! command -v yq &>/dev/null; then
 fi
 
 # ── YAML→JSON conversion ──
+# Parse failure tracking — yaml_to_json runs inside $() command substitution,
+# so globals set in the function do NOT propagate to the parent shell. Track
+# failures via a tempfile instead. Parent reads the file after all conversions.
+PARSE_FAIL_FILE=$(mktemp "${TMPDIR:-/tmp}/rune-talisman-parsefail-XXXXXX" 2>/dev/null || echo "")
+_cleanup_parsefail() { [[ -n "$PARSE_FAIL_FILE" && -f "$PARSE_FAIL_FILE" ]] && rm -f "$PARSE_FAIL_FILE" 2>/dev/null || true; }
+trap '_cleanup_parsefail' EXIT
+
 yaml_to_json() {
   local file="$1"
 
-  # Guard: file must exist, not be a symlink, and have content
+  # Guard: file must exist and not be a symlink.
+  # Missing file → benign '{}' (caller treats as "user has no talisman").
   if [[ ! -f "$file" ]] || [[ -L "$file" ]]; then
     echo '{}'
     return 0
   fi
 
-  # Attempt 1: python3 with PyYAML (via shared venv)
+  # Zero-byte file → benign '{}' (nothing to parse, not a failure).
+  if [[ ! -s "$file" ]]; then
+    echo '{}'
+    return 0
+  fi
+
+  # Attempt 1: python3 with PyYAML (via shared venv).
+  # Exit code 1 on parse failure (was 'print("{}")' which hid the error).
+  # Exit code 0 with valid JSON on success.
   if [[ "$HAS_PYYAML" == "true" ]]; then
-    "$RUNE_PYTHON" -c "
+    local py_out
+    py_out=$("$RUNE_PYTHON" -c "
 import yaml, json, sys
 try:
     with open(sys.argv[1], encoding='utf-8-sig') as f:
         data = yaml.safe_load(f)
     print(json.dumps(data if isinstance(data, dict) else {}))
 except Exception:
-    print('{}')
-" "$file" 2>/dev/null && return 0
+    sys.exit(1)
+" "$file" 2>/dev/null) && { echo "$py_out"; return 0; }
+    # Fall through to yq on PyYAML failure
   fi
 
-  # Attempt 2: yq if available
+  # Attempt 2: yq if available. Non-zero exit on parse error.
   if command -v yq &>/dev/null; then
-    yq -o=json '.' "$file" 2>/dev/null && return 0
+    local yq_out
+    yq_out=$(yq -o=json '.' "$file" 2>/dev/null) && [[ -n "$yq_out" && "$yq_out" != "null" ]] && { echo "$yq_out"; return 0; }
+    # Fall through on yq failure or null-document output
   fi
 
-  # Attempt 3: graceful failure
+  # Attempt 3: all parsers failed on a file that exists with content.
+  # Track the failure via tempfile (subshell-safe — globals don't propagate
+  # back from $() command substitution). Parent reads the file after all
+  # conversions to set MERGE_STATUS and _meta.json sources.
+  if [[ -n "$PARSE_FAIL_FILE" ]]; then
+    printf '%s\n' "$file" >> "$PARSE_FAIL_FILE" 2>/dev/null || true
+  fi
+  _trace "ERROR: yaml_to_json parse failed for $file (HAS_PYYAML=$HAS_PYYAML, yq=$(command -v yq &>/dev/null && echo present || echo absent))"
+  printf 'WARNING: talisman-resolve: YAML parse failed for %s — using defaults for this layer. Install PyYAML (preferred) or yq.\n' "$file" >&2 2>/dev/null || true
   echo '{}'
   return 0
 }
@@ -289,6 +317,30 @@ if [[ "$merged" == '{}' || -z "$merged" ]]; then
   MERGE_STATUS="defaults_only"
 fi
 
+# ── Parse-failure propagation (FINDING-005 FIX) ──
+# yaml_to_json() appends failed file paths to PARSE_FAIL_FILE (tempfile — needed
+# because yaml_to_json runs in a $() subshell and cannot set parent-shell vars).
+# If any source file failed to parse, the merge above silently produced
+# defaults-only output without tripping the size/empty guards. Record the
+# degraded state so _meta.json reflects reality and consumers can refuse to
+# trust the shards.
+PARSE_FAILURES=""
+if [[ -n "$PARSE_FAIL_FILE" && -f "$PARSE_FAIL_FILE" && -s "$PARSE_FAIL_FILE" ]]; then
+  PARSE_FAILURES=$(cat "$PARSE_FAIL_FILE" 2>/dev/null || true)
+fi
+if [[ -n "$PARSE_FAILURES" ]]; then
+  MERGE_STATUS="parse_failed"
+  if printf '%s' "$PARSE_FAILURES" | grep -qxF "$PROJECT_TALISMAN"; then
+    PROJECT_SOURCE="null"
+  fi
+  if printf '%s' "$PARSE_FAILURES" | grep -qxF "$GLOBAL_TALISMAN"; then
+    GLOBAL_SOURCE="null"
+  fi
+  _trace "ERROR: talisman parse failures: $(printf '%s' "$PARSE_FAILURES" | tr '\n' ',')"
+  PF="$PARSE_FAILURES" jq -n \
+    '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":("[Talisman ERROR] YAML parse failed — shards degraded to defaults-only for: " + (env.PF | gsub("\n"; " ")) + " Install PyYAML (preferred) or yq to restore correct config resolution.")}}' >&2 2>/dev/null || true
+fi
+
 # ── SEC-003: Content validation — reject injection patterns in resolved config ──
 # Talisman values are user-authored YAML. Validate merged JSON before writing shards.
 # Check 1: Size cap (512KB) — prevents memory exhaustion in downstream consumers
@@ -310,8 +362,13 @@ if printf '%s' "$merged" | jq 'del(.work.ward_commands)' 2>/dev/null | grep -qE 
 fi
 
 # ── Determine shard output directory based on source availability ──
+# FINDING-004/009 FIX: When a project/global talisman.yml exists but failed to
+# parse, PARSE_FAILURES is non-empty even though project_json/global_json are
+# '{}'. Treat this as "user has talisman" — write to project dir so the
+# degraded shards are visible at the expected path and _meta.json carries
+# the parse_failed status. Otherwise the signal is lost to the system cache.
 CACHE_TYPE="project"
-if [[ "$project_json" == '{}' && "$global_json" == '{}' ]]; then
+if [[ "$project_json" == '{}' && "$global_json" == '{}' && -z "$PARSE_FAILURES" ]]; then
   # Defaults-only: use system-level cache with hash guard
   SHARD_DIR="$SYSTEM_SHARD_DIR"
   CACHE_TYPE="system"
@@ -336,6 +393,16 @@ if [[ "$project_json" == '{}' && "$global_json" == '{}' ]]; then
           break
         fi
       done
+
+      # FINDING-010 FIX: refuse fast-path when cached meta shows degraded state.
+      # A prior session may have written shards under parse_failed conditions;
+      # serving them indefinitely would hide recovery once the user fixes the YAML.
+      existing_meta_probe=$(cat "${SYSTEM_SHARD_DIR}/_meta.json" 2>/dev/null || echo '{}')
+      cached_merge_status=$(printf '%s' "$existing_meta_probe" | jq -r '.merge_status // "unknown"' 2>/dev/null || echo "unknown")
+      if [[ "$cached_merge_status" != "full" && "$cached_merge_status" != "defaults_only" ]]; then
+        _trace "Fast path bypassed: cached merge_status=$cached_merge_status (need full or defaults_only)"
+        all_shards_exist=false
+      fi
 
       if [[ "$all_shards_exist" == "true" ]]; then
         _trace "Fast path: defaults hash match, skipping resolve"
@@ -549,12 +616,24 @@ if [[ "$CACHE_TYPE" == "system" ]]; then
       companions: { project: $project_companions, global: $global_companions }
     }')
 else
+  # FINDING-004 FIX: Respect parse success, not just file existence.
+  # A source is "used" only if the file exists AND yaml_to_json did not fail.
+  # PARSE_FAILURES holds newline-separated failed paths (see yaml_to_json).
+  _project_parsed="false"
+  _global_parsed="false"
+  if [[ -f "$PROJECT_TALISMAN" ]] && ! printf '%s' "$PARSE_FAILURES" | grep -qxF "$PROJECT_TALISMAN"; then
+    _project_parsed="true"
+  fi
+  if [[ -f "$GLOBAL_TALISMAN" ]] && ! printf '%s' "$PARSE_FAILURES" | grep -qxF "$GLOBAL_TALISMAN"; then
+    _global_parsed="true"
+  fi
+
   meta_json=$(jq -n \
     --arg resolved_at "$RESOLVED_AT" \
     --arg project_src "${PROJECT_TALISMAN}" \
-    --argjson project_exists "$([ -f "$PROJECT_TALISMAN" ] && echo true || echo false)" \
+    --argjson project_used "$_project_parsed" \
     --arg global_src "${GLOBAL_TALISMAN}" \
-    --argjson global_exists "$([ -f "$GLOBAL_TALISMAN" ] && echo true || echo false)" \
+    --argjson global_used "$_global_parsed" \
     --arg defaults_src "talisman-defaults.json" \
     --argjson shard_count "$shard_count" \
     --argjson schema_version 2 \
@@ -570,11 +649,11 @@ else
       cache_type: $cache_type,
       resolved_at: $resolved_at,
       sources: {
-        project: (if $project_exists then $project_src else null end),
-        global: (if $global_exists then $global_src else null end),
+        project: (if $project_used then $project_src else null end),
+        global: (if $global_used then $global_src else null end),
         defaults: $defaults_src
       },
-      merge_order: ["defaults", (if $global_exists then "global" else null end), (if $project_exists then "project" else null end)] | map(select(. != null)),
+      merge_order: ["defaults", (if $global_used then "global" else null end), (if $project_used then "project" else null end)] | map(select(. != null)),
       merge_status: $merge_status,
       shard_count: $shard_count,
       schema_version: $schema_version,
