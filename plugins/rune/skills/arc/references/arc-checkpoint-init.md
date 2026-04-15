@@ -453,7 +453,7 @@ const parentPlanMeta = {
 const checkpointPath = `.rune/arc/${id}/checkpoint.json`
 Bash(`mkdir -p ".rune/arc/${id}"`)
 Write(checkpointPath, {
-  id, schema_version: 28, plan_file: planFile,
+  id, schema_version: 29, plan_file: planFile,
   config_dir: configDir, owner_pid: ownerPid, session_id: "${CLAUDE_SESSION_ID}" || Bash(`echo "\${RUNE_SESSION_ID:-}"`).trim(),
   // RUIN-003 FIX: Remove redundant ?? guards — Layer 2 resolveArcConfig() already guarantees all values are defined
   flags: { approve: arcConfig.approve, no_forge: arcConfig.no_forge, skip_freshness: arcConfig.skip_freshness, confirm: arcConfig.confirm, no_test: arcConfig.no_test, no_browser_test: arcConfig.no_browser_test, accept_external_changes: arcConfig.accept_external_changes, bot_review: arcConfig.bot_review, no_bot_review: arcConfig.no_bot_review, step_groups: arcConfig.step_groups },
