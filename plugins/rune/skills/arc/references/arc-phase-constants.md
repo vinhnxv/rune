@@ -16,6 +16,33 @@ per-phase reference files (timeout values), arc-resume.md (schema migration)
 // TODO: Add preflight assertion comparing both arrays.
 const PHASE_ORDER = ['forge', 'forge_qa', 'plan_review', 'plan_refine', 'verification', 'semantic_verification', 'design_extraction', 'design_prototype', 'task_decomposition', 'work', 'work_qa', 'drift_review', 'storybook_verification', 'design_verification', 'design_verification_qa', 'ux_verification', 'gap_analysis', 'gap_analysis_qa', 'codex_gap_analysis', 'gap_remediation', 'inspect', 'inspect_fix', 'verify_inspect', 'goldmask_verification', 'code_review', 'code_review_qa', 'goldmask_correlation', 'verify', 'mend', 'mend_qa', 'verify_mend', 'design_iteration', 'test', 'test_qa', 'browser_test', 'browser_test_fix', 'verify_browser_test', 'test_coverage_critique', 'deploy_verify', 'pre_ship_validation', 'release_quality_check', 'ship', 'bot_review_wait', 'pr_comment_resolution', 'merge']
 
+// SYNC-CRITICAL: PHASE_GROUPS is duplicated in:
+//   1. This file (JavaScript reference for group definitions)
+//   2. arc-phase-stop-hook.sh (Bash lookup for boundary detection)
+// These MUST stay in sync. When adding a new phase to PHASE_ORDER,
+// also add it to the appropriate group in PHASE_GROUPS.
+const PHASE_GROUPS = [
+  { id: 'planning',     phases: ['forge', 'forge_qa', 'plan_review', 'plan_refine', 'verification', 'semantic_verification'] },
+  { id: 'design',       phases: ['design_extraction', 'design_prototype', 'task_decomposition'] },
+  { id: 'work',         phases: ['work', 'work_qa', 'drift_review', 'storybook_verification'] },
+  { id: 'verification', phases: ['design_verification', 'design_verification_qa', 'ux_verification', 'gap_analysis', 'gap_analysis_qa', 'codex_gap_analysis', 'gap_remediation'] },
+  { id: 'inspect',      phases: ['inspect', 'inspect_fix', 'verify_inspect', 'goldmask_verification'] },
+  { id: 'review',       phases: ['code_review', 'code_review_qa', 'goldmask_correlation', 'verify', 'mend', 'mend_qa', 'verify_mend', 'design_iteration'] },
+  { id: 'testing',      phases: ['test', 'test_qa', 'browser_test', 'browser_test_fix', 'verify_browser_test', 'test_coverage_critique'] },
+  { id: 'ship',         phases: ['deploy_verify', 'pre_ship_validation', 'release_quality_check', 'ship', 'bot_review_wait', 'pr_comment_resolution', 'merge'] },
+]
+
+// Preflight assertion: validates all PHASE_ORDER entries appear in exactly one group
+function assertPhaseGroupsCoverage() {
+  const allGroupPhases = PHASE_GROUPS.flatMap(g => g.phases)
+  const orphaned = PHASE_ORDER.filter(p => !allGroupPhases.includes(p))
+  const duplicated = allGroupPhases.filter((p, i) => allGroupPhases.indexOf(p) !== i)
+  const unknown = allGroupPhases.filter(p => !PHASE_ORDER.includes(p))
+  if (orphaned.length > 0) throw new Error(`PHASE_GROUPS: orphaned phases not in any group: ${orphaned.join(', ')}`)
+  if (duplicated.length > 0) throw new Error(`PHASE_GROUPS: phases in multiple groups: ${duplicated.join(', ')}`)
+  if (unknown.length > 0) throw new Error(`PHASE_GROUPS: unknown phases not in PHASE_ORDER: ${unknown.join(', ')}`)
+}
+
 // Heavy phases that MUST be delegated to sub-skills — never implemented inline.
 // These phases consume significant tokens and require fresh teammate context windows.
 // Context Advisory: Emitted by the dispatcher before each heavy phase is invoked.
