@@ -919,6 +919,71 @@ _trace "TIMING: phase_find done at +$(( $(date +%s) - _HOOK_START_EPOCH ))s"
 
 _trace "Next pending phase: ${NEXT_PHASE:-NONE} (prev=${_IMMEDIATE_PREV:-NONE}, iteration ${ITERATION}, auto_skipped=${_auto_skipped})"
 
+# ── Phase Group Boundary Check (--step-groups mode) ──
+# Gated behind group_mode — zero impact when --step-groups is not used.
+_GROUP_MODE=$(get_field "group_mode")
+if [[ "$_GROUP_MODE" == "active" && -n "$_IMMEDIATE_PREV" && -n "$NEXT_PHASE" ]]; then
+  _prev_group=$(_lookup_phase_group "$_IMMEDIATE_PREV")
+  _next_group=$(_lookup_phase_group "$NEXT_PHASE")
+  _trace "Group check: prev=${_IMMEDIATE_PREV} (${_prev_group}) -> next=${NEXT_PHASE} (${_next_group})"
+
+  if [[ -n "$_prev_group" && -n "$_next_group" && "$_prev_group" != "$_next_group" ]]; then
+    # Convergence guard: never pause mid-convergence loop (AC-4)
+    _conv_round=$(echo "$CKPT_CONTENT" | _jq_with_budget -r '.convergence.round // 0' 2>/dev/null || echo "0")
+    _inspect_round=$(echo "$CKPT_CONTENT" | _jq_with_budget -r '.inspect_convergence.round // 0' 2>/dev/null || echo "0")
+    _browser_round=$(echo "$CKPT_CONTENT" | _jq_with_budget -r '.browser_test_convergence.round // 0' 2>/dev/null || echo "0")
+
+    if [[ "${_conv_round:-0}" -eq 0 && "${_inspect_round:-0}" -eq 0 && "${_browser_round:-0}" -eq 0 ]]; then
+      # Check if prev group was entirely skipped — emit signal but don't pause (AC-7)
+      _prev_group_all_skipped=true
+      for _gp in "${PHASE_ORDER[@]}"; do
+        if [[ "$(_lookup_phase_group "$_gp")" == "$_prev_group" ]]; then
+          _gp_status=$(echo "$CKPT_CONTENT" | _jq_with_budget -r --arg p "$_gp" '.phases[$p].status // "pending"' 2>/dev/null || echo "pending")
+          if [[ "$_gp_status" != "skipped" ]]; then
+            _prev_group_all_skipped=false
+            break
+          fi
+        fi
+      done
+
+      if [[ "$_prev_group_all_skipped" == "true" ]]; then
+        # Skipped group: emit signal for automation but don't pause
+        _trace "Group '${_prev_group}' entirely skipped — advancing to '${_next_group}' without pause"
+        echo "ARC_STATE: {\"group\":\"${_prev_group}\",\"next\":\"${_next_group}\",\"status\":\"skipped\"}" >&2
+      else
+        # Normal boundary: pause
+        _trace "Group boundary reached: ${_prev_group} -> ${_next_group}. Pausing."
+
+        # Write group_paused marker (stores completed group name)
+        _tmp=$(mktemp "${STATE_FILE}.XXXXXX" 2>/dev/null) || _tmp=""
+        if [[ -n "$_tmp" ]]; then
+          sed "s/^group_paused:.*/group_paused: ${_prev_group}/" "$STATE_FILE" > "$_tmp" 2>/dev/null
+          mv -f "$_tmp" "$STATE_FILE" 2>/dev/null || rm -f "$_tmp" 2>/dev/null
+        fi
+
+        # Log phase event
+        _log_phase "group_boundary_paused" "$NEXT_PHASE" "completed_group=${_prev_group}"
+
+        # Emit boundary output for user and automation
+        cat >&2 <<GROUPEOF
+
+══════════════════════════════════════════
+ ARC GROUP COMPLETE: ${_prev_group}
+══════════════════════════════════════════
+ Next  : ${_next_group}
+ Resume: /rune:arc --resume
+══════════════════════════════════════════
+ARC_STATE: {"group":"${_prev_group}","next":"${_next_group}","status":"paused"}
+GROUPEOF
+
+        exit 0  # pause — session stops, user resumes with --resume
+      fi
+    else
+      _trace "Group boundary detected but mid-convergence (review=${_conv_round}, inspect=${_inspect_round}, browser=${_browser_round}) — skipping pause"
+    fi
+  fi
+fi
+
 # ── Reset api_error_retries and server_error_retries on successful phase completion ──
 # Safety net: the agent prompt instructs the LLM to reset retry counters to 0
 # when completing a phase, but under context pressure it may forget. The hook
