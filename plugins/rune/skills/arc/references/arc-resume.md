@@ -54,6 +54,21 @@ On resume, validate checkpoint integrity before proceeding:
    ownerPid = checkpoint.owner_pid
    configDir = checkpoint.config_dir
    ```
+2c.5. Detect group pause (--step-groups mode):
+   ```javascript
+   // IMPORTANT: Read existing state file BEFORE step 9 overwrites it (SR-1 fix).
+   // The state file (not checkpoint) holds the group_paused marker set by the stop hook.
+   let existingGroupPaused = null
+   try {
+     const existingState = Read('.rune/arc-phase-loop.local.md')
+     existingGroupPaused = existingState.match(/^group_paused:\s*(\S+)/m)?.[1]
+   } catch (e) { /* no existing state file — fresh start */ }
+
+   if (existingGroupPaused && existingGroupPaused !== 'null') {
+     log(`Resuming from group pause. Completed group: ${existingGroupPaused}.`)
+     // group_paused will be cleared when state file is rewritten at step 9
+   }
+   ```
 2d. Branch validation (prevents resuming on wrong branch):
    > **Note**: Pre-v22 checkpoints do not contain a `branch` field. The field is added
    > during v21→v22 migration (step 3w) but defaults to `null` since the original session's
@@ -605,6 +620,7 @@ Continue from: ${contextMeta.last_action ?? 'last known state'}.
      checkpoint.flags?.no_test ? '--no-test' : '',
      checkpoint.flags?.no_browser_test ? '--no-browser-test' : '',
      checkpoint.flags?.bot_review ? '--bot-review' : '',
+     checkpoint.flags?.step_groups ? '--step-groups' : '',
    ].filter(Boolean).join(' ')
    const stateContent = `---
 active: true
@@ -622,6 +638,8 @@ user_cancelled: false
 cancel_reason: null
 cancelled_at: null
 stop_reason: null
+group_mode: ${checkpoint.flags?.step_groups ? 'active' : 'null'}
+group_paused: null
 ---
 `
    Write('.rune/arc-phase-loop.local.md', stateContent)
