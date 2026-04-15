@@ -397,6 +397,8 @@ HEAVY_PHASES="work work_qa code_review code_review_qa verify mend mend_qa inspec
 # compact every COMPACT_INTERVAL completed phases as a safety net.
 COMPACT_INTERVAL=6
 
+source "${SCRIPT_DIR}/lib/phase-groups.sh"
+
 # ── Phase-to-reference-file mapping ──
 # Maps each phase name to its reference file path (relative to plugin root).
 _phase_ref() {
