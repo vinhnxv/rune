@@ -18,6 +18,12 @@ _get_fm_field() {
   # Extract only frontmatter block (between first two --- lines)
   local fm_block
   fm_block=$(printf '%s\n' "$fm" | sed -n '/^---$/,/^---$/{ /^---$/d; p; }' | head -50)
-  [[ -z "$fm_block" ]] && fm_block="$fm"  # Fallback if no --- delimiters found
+  # SEC-INFO-001 FIX: When `---` delimiters are absent, return empty instead
+  # of falling back to the entire file. The fallback defeated the frontmatter
+  # restriction — an attacker with write access to a state file could inject
+  # `field: value` outside any frontmatter block (or in a file missing
+  # delimiters entirely) and have it honored. Callers MUST treat a missing
+  # delimiter pair as "malformed state file" and reject — never lenient-parse.
+  [[ -z "$fm_block" ]] && return 0
   printf '%s\n' "$fm_block" | grep "^${field}:" | sed "s/^${field}:[[:space:]]*//" | sed 's/^"//' | sed 's/"$//' | head -1 || true
 }

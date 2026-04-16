@@ -228,10 +228,11 @@ if [[ -z "$match_found" ]]; then
             break
           fi
         else
-          if grep -qE "$pat" <<< "$NORMALIZED" 2>/dev/null; then
-            match_found="custom"
-            break
-          fi
+          # SEC-003-PARTIAL FIX (CWE-1333): Skip user-supplied patterns entirely
+          # when no timeout binary is available — ReDoS DoS vector otherwise.
+          # Mirrors the misc.json shard block below (parity fix: both code paths
+          # now refuse to run user regex without a time bound on stock macOS).
+          break
         fi
       done <<< "$EXTRA_PATTERNS"
     fi
@@ -260,10 +261,9 @@ if [[ -z "$match_found" ]]; then
               break
             fi
           else
-            if grep -qE "$pat" <<< "$NORMALIZED" 2>/dev/null; then
-              match_found="custom"
-              break
-            fi
+            # SEC-003 FIX (CWE-1333): Skip user-supplied patterns entirely
+            # when no timeout binary is available — ReDoS DoS vector otherwise.
+            break
           fi
         done <<< "$EXTRA_PATTERNS"
       fi
@@ -352,9 +352,12 @@ else
 fi
 
 if [[ -n "$NEEDS_BASH_C" ]]; then
-  # Escape single quotes in command for bash -c wrapping
-  ESCAPED_CMD=$(printf '%s' "$MATCH_CMD" | sed "s/'/'\\\\''/g")
-  WRAPPED="${TIMEOUT_PREFIX} bash -c '${ESCAPED_CMD}'"
+  # SEC-001 FIX (CWE-78): Use printf '%q' for full shell-escaped quoting.
+  # Prior sed-based single-quote escape only handled `'`; metacharacters like
+  # `;`, `&&`, `|` remained live inside bash -c. printf '%q' produces output
+  # already safe for shell re-evaluation — no wrapping quotes needed.
+  ESCAPED_CMD=$(printf '%q' "$MATCH_CMD")
+  WRAPPED="${TIMEOUT_PREFIX} bash -c ${ESCAPED_CMD}"
 else
   WRAPPED="${TIMEOUT_PREFIX} ${MATCH_CMD}"
 fi

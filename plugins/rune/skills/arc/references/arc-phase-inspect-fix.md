@@ -108,6 +108,11 @@ const deferredCount = fixableGaps.length - capsFixable.length + (gapMarkers.leng
 
 ## STEP 2: Group by File and Spawn Fixers
 
+> **CLEAN-002 FIX**: STEP 2 is conceptually wrapped in `try { ... } finally { ... }`.
+> If the phase crashes mid-spawn or during `waitForCompletion`, the `finally` block
+> (STEP 2.5 below) shuts down any live gap-fixers and deletes the team. `postPhaseCleanup`
+> is skipped on mid-phase crashes — see `arc-phase-cleanup.md:14`.
+
 ```javascript
 // Group gaps by file for efficient fixing
 const gapsByFile = {}
@@ -139,6 +144,73 @@ for (const [file, gaps] of Object.entries(gapsByFile)) {
 }
 
 waitForCompletion(teamName, fixerNames.length, { timeoutMs: 600_000, pollIntervalMs: 30_000 })
+```
+
+## STEP 2.5: Cleanup (CLEAN-002 FIX)
+
+Runs in the `finally` branch of the try/finally wrapping STEP 2. Shuts down gap-fixers and deletes the team. Required because `postPhaseCleanup` is skipped when a phase crashes mid-execution — without this block, dynamically-named `gap-fixer-N` agents would persist as orphans.
+
+```javascript
+// Standard 5-component cleanup (CLAUDE.md canonical pattern)
+// 1. Dynamic member discovery
+let allMembers = []
+try {
+  const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
+  const teamConfig = JSON.parse(Read(`${CHOME}/teams/${teamName}/config.json`))
+  const members = Array.isArray(teamConfig.members) ? teamConfig.members : []
+  allMembers = members.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
+} catch (e) {
+  // Fallback: use spawned fixer names if discovery fails. If spawn loop itself
+  // failed before populating fixerNames, derive from the maxFixes cap so that
+  // no plausibly-spawned agent is missed.
+  allMembers = (fixerNames.length > 0)
+    ? fixerNames
+    : Array.from({ length: Math.max(1, maxFixes) }, (_, i) => `gap-fixer-${i}`)
+}
+
+// 2a. Force-reply — GitHub #31389
+let confirmedAlive = 0
+let confirmedDead = 0
+const aliveMembers = []
+for (const member of allMembers) {
+  try { SendMessage({ type: "message", recipient: member, content: "Acknowledge: workflow completing" }); aliveMembers.push(member) } catch (e) { confirmedDead++ }
+}
+
+// 2b. Shared pause
+if (aliveMembers.length > 0) { Bash("sleep 2", { run_in_background: true }) }
+
+// 2c. shutdown_request
+for (const member of aliveMembers) {
+  try { SendMessage({ type: "shutdown_request", recipient: member, content: "Inspect-fix complete" }); confirmedAlive++ } catch (e) { confirmedDead++ }
+}
+
+// 3. Adaptive grace
+if (confirmedAlive > 0) {
+  Bash(`sleep ${Math.min(20, Math.max(5, confirmedAlive * 5))}`, { run_in_background: true })
+} else {
+  Bash("sleep 2", { run_in_background: true })
+}
+
+// 4. TeamDelete retry-with-backoff
+let cleanupTeamDeleteSucceeded = false
+const CLEANUP_DELAYS = [0, 3000, 6000, 10000]
+for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
+  if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`, { run_in_background: true })
+  try { TeamDelete(); cleanupTeamDeleteSucceeded = true; break } catch (e) {
+    if (attempt === CLEANUP_DELAYS.length - 1) warn(`inspect-fix cleanup: TeamDelete failed after ${CLEANUP_DELAYS.length} attempts`)
+  }
+}
+
+// 5. Filesystem fallback — QUAL-012 gated
+if (!cleanupTeamDeleteSucceeded) {
+  // 5a. Process-level kill (MCP-PROTECT-003: --stdio guard filters MCP servers)
+  Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio && continue; kill -TERM "$pid" 2>/dev/null ;; esac; done`)
+  Bash(`sleep 5`, { run_in_background: true })
+  Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio && continue; kill -KILL "$pid" 2>/dev/null ;; esac; done`)
+  // 5b. Filesystem cleanup
+  Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/" 2>/dev/null`)
+  try { TeamDelete() } catch (e) { /* best effort */ }
+}
 ```
 
 ## STEP 3: Count Results and Update Checkpoint

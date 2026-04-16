@@ -135,25 +135,39 @@ for (const component of componentsToIterate) {
 }
 
 // 7. MCP-First Design Iterator Discovery (v1.171.0+)
-let iteratorAgentType = "design-iterator"
+// DEAD-P3-001 FIX: The `iteratorAgentType` variable was unused because
+// `subagent_type` is hardcoded to "general-purpose" (see DEAD-002 FIX below —
+// the SDK does not route named types to plugin agents). The agent_search
+// call is retained for its side effect of writing the `.agent-search-called`
+// signal file, which satisfies the AGENT-SEARCH-001 advisory hook.
+// Reserved for future MCP-discovery integration when the SDK supports
+// dynamic subagent_type resolution.
 try {
-  const candidates = agent_search({
+  agent_search({
     query: "design iteration refinement screenshot fidelity improvement",
     phase: "arc",
     category: "work",
     limit: 5
   })
   Bash("mkdir -p tmp/.rune-signals && touch tmp/.rune-signals/.agent-search-called")
-  const userAgent = candidates?.results?.find(c => c.source === "user" || c.source === "project")
-  if (userAgent) iteratorAgentType = userAgent.name
-} catch (e) { /* MCP unavailable — use default */ }
+} catch (e) { /* MCP unavailable — proceed with DEAD-002 default below */ }
+
+// DEAD-002 FIX (ATE-1): `subagent_type` must be "general-purpose" — SDK does
+// not route named types to plugin agents, so `"design-iterator"` silently
+// falls back to general-purpose, discarding the agent's tool allowlist.
+// Read the design-iterator agent body once and inject it into each worker.
+const designIteratorBody = (() => {
+  try { return Read("plugins/rune/agents/work/design-iterator.md") } catch { return "" }
+})()
 
 // Spawn design-iterator workers with agent-browser
 for (let i = 0; i < Math.min(maxWorkers, componentsToIterate.length); i++) {
   Agent({
-    subagent_type: "design-iterator", model: "sonnet",
+    subagent_type: "general-purpose", model: "sonnet",
     name: `design-iter-${i + 1}`, team_name: `arc-design-iter-${id}`,
-    prompt: `You are design-iter-${i + 1}. Run screenshot→analyze→fix loop to improve design fidelity.
+    prompt: `${designIteratorBody}
+
+You are design-iter-${i + 1}. Run screenshot→analyze→fix loop to improve design fidelity.
       Base URL: ${baseUrl}
       Browser session: --session arc-design-${id}
       Max iterations per component: ${maxIterations}
@@ -201,6 +215,9 @@ const aliveMembers = []
 for (const member of allMembers) {
   try { SendMessage({ type: "message", recipient: member, content: "Acknowledge: workflow completing" }); aliveMembers.push(member) } catch (e) { confirmedDead++ }
 }
+
+// 2b. Shared pause — gated on alive member presence. Opportunistic only —
+// Step 4 retry + Step 5 fallback provide the actual guaranteed shutdown.
 if (aliveMembers.length > 0) { Bash("sleep 2", { run_in_background: true }) }
 
 // 2c. Send shutdown_request

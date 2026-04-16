@@ -248,6 +248,16 @@ if [[ "$_CKPT_PATH_IS_CANONICAL" != "true" ]]; then
   fi
 
   if [[ -n "$_recovered" ]]; then
+    # FLAW-002 FIX: Re-validate recovered path character-set before assigning
+    # it to CHECKPOINT_PATH. The sed below uses `|` as a delimiter; a path
+    # containing `|` (possible on exotic/NFS filesystems) would corrupt the
+    # state file without this guard. The original char-set check runs only on
+    # the pre-recovery value at lines 165-169.
+    if [[ ! "$_recovered" =~ ^[a-zA-Z0-9._/-]+$ ]]; then
+      _trace "EXIT CKPT-001: Recovered checkpoint path contains unsafe characters: '${_recovered}'"
+      rm -f "$STATE_FILE" 2>/dev/null
+      exit 0
+    fi
     CHECKPOINT_PATH="$_recovered"
     # Auto-fix state file so future invocations use the correct path
     # XVER-SEC-001 FIX: plain assignment (no `local` outside function)
@@ -475,7 +485,10 @@ _phase_section_hint() {
 _check_test_batches() {
   local checkpoint_path="$1"
   local arc_id
-  arc_id=$(jq -r '.id // empty' "$checkpoint_path" 2>/dev/null)
+  # FLAW-004 FIX: Append `|| true` to prevent ERR trap firing under `set -o pipefail`
+  # when jq fails (corrupt checkpoint, malformed JSON). Without it, a bare assignment
+  # propagates the failure and silently aborts the batch loop via _rune_fail_forward.
+  arc_id=$(jq -r '.id // empty' "$checkpoint_path" 2>/dev/null || true)
   [[ -z "$arc_id" ]] && return 1
   # SEC: validate arc_id format before use in path construction
   [[ "$arc_id" =~ ^[a-zA-Z0-9_-]+$ ]] || return 1
@@ -516,7 +529,10 @@ _check_test_batches() {
 
   # Find next pending batch (by .id, 0-based index)
   local next_batch
-  next_batch=$(jq -r '.batches[] | select(.status == "pending") | .id' "$plan_path" 2>/dev/null | head -1)
+  # FLAW-003 FIX: Append `|| true` to prevent ERR trap firing under `set -o pipefail`
+  # when the pipeline fails (corrupt plan, jq parse error). Sibling to FLAW-001 —
+  # same root cause, different call site. Without it, test batches silently abandoned.
+  next_batch=$(jq -r '.batches[] | select(.status == "pending") | .id' "$plan_path" 2>/dev/null | head -1 || true)
   [[ -z "$next_batch" ]] && return 1  # No pending batches → normal phase advance
 
   # Safety cap check
@@ -524,14 +540,23 @@ _check_test_batches() {
   # QUAL-007 FIX: Add fallback for missing jq fields
   max_iterations=$(jq -r '.max_batch_iterations // 50' "$plan_path" 2>/dev/null || echo 50)
   # BACK-003 FIX: Count only executed batches (passed|failed|fixing), not skipped
-  executed=$(jq '[.batches[] | select(.status == "passed" or .status == "failed" or .status == "fixing")] | length' "$plan_path" 2>/dev/null)
+  # FLAW-001 FIX: Add `|| echo 0` so an empty/corrupt testing-plan.json does
+  # not trip the ERR trap (`set -euo pipefail` + `_rune_fail_forward`) and
+  # silently abandon remaining test batches. Mirrors the max_iterations fallback above.
+  executed=$(jq '[.batches[] | select(.status == "passed" or .status == "failed" or .status == "fixing")] | length' "$plan_path" 2>/dev/null || echo 0)
   [[ "$executed" -ge "$max_iterations" ]] && return 1  # Safety cap hit
 
   # Read batch details (single jq call for all fields — avoids 4 separate forks)
   local batch_type batch_files batch_component batch_label total_batches completed_batches
   local _batch_info
-  _batch_info=$(jq -r --argjson bid "$next_batch" '
-    (.batches[] | select(.id == $bid)) as $b |
+  # FLAW-005 FIX: Switch `--argjson` to `--arg` + `(.id | tostring) == $bid`
+  # comparison. `--argjson` requires valid JSON; string batch IDs like
+  # `"batch-0"` (unquoted by `jq -r` at the producer side) fail JSON parsing
+  # and cause the inner select to silently skip the batch, substituting empty
+  # defaults into the runner prompt. `--arg` treats the value as a bare
+  # string and `tostring` normalizes both numeric and string .id forms.
+  _batch_info=$(jq -r --arg bid "$next_batch" '
+    (.batches[] | select((.id | tostring) == $bid)) as $b |
     [$b.type // "unit", ($b.files | join(", ")), $b.component // "root", $b.label // "", $b.fix_attempts // 0] |
     join("\u001f")
   ' "$plan_path" 2>/dev/null) || _batch_info=""
@@ -542,7 +567,10 @@ _check_test_batches() {
     batch_type="unit"; batch_files=""; batch_component="root"; batch_label=""; batch_fix_attempts=0
   fi
 
-  total_batches=$(jq '.batches | length' "$plan_path" 2>/dev/null || echo "?")
+  # FLAW-006 FIX: Use "0" instead of "?" for consistency with the other
+  # fallback values in this function (max_iterations: 50, executed: 0,
+  # completed_batches: "0"). The "?" sentinel leaks into runner prompts.
+  total_batches=$(jq '.batches | length' "$plan_path" 2>/dev/null || echo "0")
   completed_batches=$(jq '[.batches[] | select(.status == "passed" or .status == "failed" or .status == "skipped")] | length' "$plan_path" 2>/dev/null || echo "0")
 
   # Component context for the runner agent

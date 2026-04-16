@@ -168,14 +168,51 @@ if (!exists(`tmp/arc/${id}/deploy-checklist.md`)) {
 }
 
 // ═══════════════════════════════════════════════════════
-// STEP 4: CLEANUP
+// STEP 4: CLEANUP — canonical 5-component pattern (CLAUDE.md compliance)
 // ═══════════════════════════════════════════════════════
+//
+// VP-001 FIX: Even though this is a single-member team (deployment-verifier),
+// the canonical pattern is applied for consistency and to protect against
+// GitHub #31389 (teammates silently dropping shutdown_request after a long
+// Bash() turn). Prior flat 12s sleep was replaced with adaptive grace.
 
-// Single-member team: 12s grace period (matches Phase 8.55 pattern)
-try { SendMessage({ type: "shutdown_request", recipient: "deployment-verifier", content: "Phase complete" }) } catch (e) { /* member may have already exited */ }
-Bash("sleep 12", { run_in_background: true })
+// 1. Dynamic member discovery
+let allMembers = []
+try {
+  const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
+  const teamConfig = JSON.parse(Read(`${CHOME}/teams/${teamName}/config.json`))
+  const members = Array.isArray(teamConfig.members) ? teamConfig.members : []
+  // SEC-4: filter names before SendMessage
+  allMembers = members.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
+} catch (e) {
+  // FALLBACK: single known member for this phase
+  allMembers = ["deployment-verifier"]
+}
 
-// Retry-with-backoff pattern per CLAUDE.md cleanup standard (4 attempts: 0s, 3s, 6s, 10s = 19s total)
+// 2a. Force-reply — put teammates in message-processing state before shutdown_request
+let confirmedAlive = 0
+let confirmedDead = 0
+const aliveMembers = []
+for (const member of allMembers) {
+  try { SendMessage({ type: "message", recipient: member, content: "Acknowledge: workflow completing" }); aliveMembers.push(member) } catch (e) { confirmedDead++ }
+}
+
+// 2b. Shared pause — gated on alive member presence
+if (aliveMembers.length > 0) { Bash("sleep 2", { run_in_background: true }) }
+
+// 2c. Send shutdown_request
+for (const member of aliveMembers) {
+  try { SendMessage({ type: "shutdown_request", recipient: member, content: "Phase complete" }); confirmedAlive++ } catch (e) { confirmedDead++ }
+}
+
+// 3. Adaptive grace period
+if (confirmedAlive > 0) {
+  Bash(`sleep ${Math.min(20, Math.max(5, confirmedAlive * 5))}`, { run_in_background: true })
+} else {
+  Bash("sleep 2", { run_in_background: true })
+}
+
+// 4. Retry-with-backoff TeamDelete (4 attempts: 0s, 3s, 6s, 10s = 19s total)
 let deployCleanupSucceeded = false
 const DEPLOY_CLEANUP_DELAYS = [0, 3000, 6000, 10000]
 for (let attempt = 0; attempt < DEPLOY_CLEANUP_DELAYS.length; attempt++) {
@@ -185,7 +222,7 @@ for (let attempt = 0; attempt < DEPLOY_CLEANUP_DELAYS.length; attempt++) {
   }
 }
 
-// Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
+// 5. Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
 if (!deployCleanupSucceeded) {
   Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio && continue; kill -TERM "$pid" 2>/dev/null ;; esac; done`)
   Bash("sleep 5", { run_in_background: true })

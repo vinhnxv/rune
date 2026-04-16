@@ -1,5 +1,79 @@
 # Changelog
 
+## [2.52.3] - 2026-04-17
+
+### Fixed
+
+Driven by appraise review against commit `d9a89f2a` (`tmp/reviews/d9a89f2a-appraise/TOME.md`) — 18 actionable findings (3 P1 / 9 P2 / 7 P3, including a meta-finding "fix the line, not the pattern"). This release resolves all 3 P1, 6 of 7 code P2, and 6 of 7 code P3 findings from the v2.52.2 remediation. Three process/policy items are deferred; one P2 (CLEAN-TEST-001) was verified as a false positive.
+
+#### Security (shell scripts)
+- **SEC-NEW-001 (CWE-22) — Path traversal via unfixed `checkpoint_path` parser** in `scripts/enforce-strive-delegation.sh:112`. Sibling to the v2.52.2 SEC-002 migration: the raw `grep -o 'checkpoint_path: .*'` scan now routes through `_get_fm_field()`, with `..` rejection + absolute-path rejection + `^[a-zA-Z0-9._/-]+$` allowlist mirroring `arc-phase-stop-hook.sh:160-169`. Closes the last frontmatter-parser escape vector in the hook.
+- **SEC-003-PARTIAL (CWE-1333) — ReDoS skip missed settings.json block** in `scripts/enforce-bash-timeout.sh:230-236`. The v2.52.2 fix landed only on the misc.json shard; the settings.json else branch still ran unguarded `grep -qE` on user-supplied regex. Both paths now `break` when neither `timeout` nor `gtimeout` is available (stock macOS).
+- **SEC-INFO-001 — `_get_fm_field` fallback bypassed frontmatter restriction** in `scripts/lib/frontmatter-utils.sh:20-27`. Removed the `[[ -z "$fm_block" ]] && fm_block="$fm"` fallback — malformed state files missing `---` delimiters now return empty instead of lenient-parsing the entire file. Defense in depth against future callers that forget the char-allowlist.
+
+#### Correctness (logic bugs)
+- **FLAW-003 — `next_batch` pipeline has no ERR-safe fallback** in `scripts/arc-phase-stop-hook.sh:529`. Sibling to FLAW-001. Appended `|| true` to prevent `set -o pipefail` from silently abandoning test batches on corrupt `testing-plan.json`.
+- **FLAW-004 — `arc_id` jq assignment has no ERR fallback** in `scripts/arc-phase-stop-hook.sh:488`. Same root cause, different call site. `|| true` added.
+- **FLAW-005 — `--argjson bid` fails silently on string batch IDs** in `scripts/arc-phase-stop-hook.sh:546`. Switched to `--arg bid "$next_batch"` + `(.id | tostring) == $bid` comparison. Now handles both numeric (`0`, `1`) and string (`"batch-0"`) batch IDs without silent selection failure.
+- **FLAW-006 — `total_batches` fallback "?"** in `scripts/arc-phase-stop-hook.sh:558`. Changed `echo "?"` to `echo "0"` for consistency with sibling fallback values; runner prompts no longer receive `?` sentinel.
+
+#### Cleanup infrastructure (canonical 5-component pattern)
+- **QUAL-001 — arc-phase-test.md STEP 10 missing canonical components 1, 2, 3**. Replaced minimal `shutdown_request` loop with dynamic `config.json` member discovery (falls back to `spawnedAgentNames`), force-reply 2a/2b/2c pattern (GitHub #31389), and adaptive grace `Math.min(20, Math.max(5, confirmedAlive * 5))`. Resolves cross-turn Stop-hook re-entry teammate orphaning.
+- **VP-001 — arc-phase-deploy-verify.md cleanup non-compliant**. Replaced flat `sleep 12` + single `shutdown_request` with the full canonical 5-component pattern. Consistency-enforcing even for single-member teams (deployment-verifier) to protect against GitHub #31389 silent-drop. Re-opens the CLEAN-004 per-file verification gap from v2.52.2.
+- **TLC-001 — Layer 2 cleanup without retry-with-backoff** in `arc-phase-plan-review.md:527-589`. Added dynamic member discovery, force-reply 2a/2b/2c, adaptive grace, retry-with-backoff `TeamDelete` loop, and QUAL-012 gated filesystem fallback. Unconditional rm-rf removed.
+- **TLC-003 — Plan-review Layer 1 missing force-reply pattern** in `arc-phase-plan-review.md:594-624`. Hardcoded `sleep 20` replaced with adaptive grace; force-reply 2a/2b/2c added.
+- **PLAN-REVIEW-002 — Layer 2 agent names missing from Layer 1 fallback**. Added `grace-warden-plan-review`, `ruin-prophet-plan-review`, `sight-oracle-plan-review`, `vigil-keeper-plan-review` to the L1 fallback array (safe no-op if absent).
+- **QUAL-003 — `ownerPid` capture diverged from canonical `$PPID` inline** in `arc-phase-plan-review.md`. Option B applied (lower churn): removed `Bash('echo $PPID').trim()` + regex validation; replaced with inline `$PPID` matching the 4 other arc phase files.
+- **QUAL-004 — Missing `// 2b. Shared pause` comment label** in `arc-phase-design-iteration.md:214`. Restores 2a/2b/2c numbering.
+- **QUAL-005 — Inconsistent trailing `TeamDelete` comment** in `arc-phase-test.md:1043`. Standardized to `/* best effort — clear SDK leadership state */`.
+
+#### Dead code
+- **DEAD-P3-001 — Dead local variable `iteratorAgentType`** in `arc-phase-design-iteration.md:137-154`. Removed unused declaration and assignment — `subagent_type` is hardcoded to `"general-purpose"` per DEAD-002 FIX, so `iteratorAgentType` was never consumed. `agent_search()` call retained for its signal-file side effect (AGENT-SEARCH-001).
+
+### Reclassified as FALSE_POSITIVE
+- **CLEAN-TEST-001** (P2 — "spawnedAgentNames.push() executes AFTER Agent() — crash window"): Verification shows `push()` is already on the line BEFORE `Agent({})` at both cited sites (arc-phase-test.md:618/619 and 685/686). Both sites carry the `// CLEAN-003 FIX` annotation from v2.52.1. The canonical arc-phase-inspect-fix.md:131-138 pattern matches. Finding appears generated against a stale/misread view.
+
+### Deferred (WONTFIX — out of scope for code mend)
+- **VP-002** (P2): Process-level reclassification standard — documentation work, needs policy doc in `skills/roundtable-circle/`.
+- **VP-003** (P3): Auditor self-review rule — needs agent definition update (e.g., `veil-piercer.md`).
+- **TLC-004** (P3): Opportunistic "on next edit" — replace inline Step 5 with `source lib/team-shutdown.sh; rune_team_shutdown_fallback(...)` when each of the 6 files is next modified.
+
+### Meta-Pattern Closure
+
+The v2.52.2 TOME's "fix the line, not the pattern" meta-finding is structurally addressed: every sibling occurrence of the 4 cited anti-patterns (SEC-002, SEC-003, FLAW-001, CLEAN-004) now has matching coverage across the codebase. Cleanup blocks now share a single canonical shape across `arc-phase-test.md`, `arc-phase-deploy-verify.md`, `arc-phase-plan-review.md`, and `arc-phase-design-iteration.md`, making future drift visually detectable.
+
+## [2.52.2] - 2026-04-17
+
+### Fixed
+
+Driven by audit run 2026-04-17 (`tmp/audit/20260417-010632/`) — 52 findings (12 P1 / 23 P2 / 17 P3). This release resolves all 12 P1 findings. P2 and P3 remain tracked in the audit artifacts for subsequent patches.
+
+#### Security (shell scripts)
+- **SEC-001 (CWE-78) — Command injection via incomplete `bash -c` escape** in `scripts/enforce-bash-timeout.sh`. Replaced single-quote-only `sed` escape with `printf '%q'` full shell-quoting. Closes shell metacharacter pass-through (`;`, `&&`, `|`) inside the OPERATIONAL timeout wrapper.
+- **SEC-002 (CWE-284) — Grep-based frontmatter parsing bypass** in `scripts/enforce-strive-delegation.sh`. Switched from `grep -o 'config_dir: .*' | sed` to `_get_fm_field()` from `lib/frontmatter-utils.sh`. Closes Layer 1 config-dir isolation bypass via crafted multi-line YAML.
+- **SEC-003 (CWE-1333) — ReDoS via user-supplied talisman regex** in `scripts/enforce-bash-timeout.sh`. When neither `timeout` nor `gtimeout` is available (stock macOS without coreutils), the fallback now skips user patterns entirely instead of running unguarded `grep -qE`. Closes DoS vector on the 3-second PreToolUse hook.
+
+#### Correctness (logic bugs)
+- **FLAW-001 — Missing jq fallback silently abandons test batches** in `scripts/arc-phase-stop-hook.sh:527`. Added `|| echo 0` fallback to `executed=$(jq ...)` to prevent ERR-trap-masked silent exit when `testing-plan.json` is empty or corrupt.
+- **FLAW-002 — Checkpoint recovery path skips char-set re-validation** in `scripts/arc-phase-stop-hook.sh`. Added regex validation after Strategy 2 (scan) reassigns `CHECKPOINT_PATH` to prevent sed delimiter corruption on paths containing `|`.
+
+#### Spec compliance (ATE-1)
+- **DEAD-001 / DEAD-002 — Named `subagent_type` violations** in `arc-phase-design-prototype.md` (proto-worker) and `arc-phase-design-iteration.md` (design-iterator). Replaced with `subagent_type: "general-purpose"` and inject agent body via `Read()` + prompt-stuffing. Pattern mirrors `arc-phase-storybook-verification.md:274`.
+
+#### Cleanup infrastructure
+- **CLEAN-001 — arc-phase-inspect.md had no cleanup section**. Added STEP 3.5 with full 5-component canonical cleanup (dynamic discovery → force-reply → shutdown → retry-with-backoff → QUAL-012 fallback). Fallback array covers all 5 inspector agents + verdict-binder.
+- **CLEAN-002 — arc-phase-inspect-fix.md had no cleanup section**. Same pattern; fallback derives from `spawnedAgentNames` (with a spawn-crash-path secondary fallback).
+- **CLEAN-003 — arc-phase-test.md no inline fallback array**. Added `spawnedAgentNames` tracking for dynamic `batch-runner-N` / `batch-fixer-N-fix-M` names. STEP 10 cleanup now issues best-effort `shutdown_request` to tracked names and gained a 2-stage SIGTERM→SIGKILL process kill (MCP-PROTECT-003 `--stdio` guard) in the filesystem fallback.
+
+#### Team lifecycle
+- **TEAMLIFE-001 — Layer 2 plan-inspect team cleaned via unconditional rm-rf** in `arc-phase-plan-review.md:533-534`. Added best-effort `try { TeamDelete() } catch {}` after the rm-rf with an inline QUAL-012 exemption comment explaining why the filesystem-first pattern is correct here (SDK tracks Layer 1 as current team).
+
+### Reclassified as FALSE_POSITIVE
+- **CLEAN-004** (audit finding about 4 phase files missing config.json read pattern): all 4 flagged files (`arc-phase-design-verification.md`, `arc-phase-ux-verification.md`, `arc-phase-design-iteration.md`, `arc-phase-deploy-verify.md`) already implement the canonical 5-component cleanup. The audit misread the `if (!cleanupTeamDeleteSucceeded)` branch as "skipping shutdown_request" — shutdown_request runs BEFORE the retry loop per `engines.md shutdown()`. Documented in the mend resolution report for auditor review.
+
+### Resolution report
+Full per-finding evidence: `tmp/mend/20260417-010632/resolution-report.md`.
+
 ## [2.52.1] - 2026-04-15
 
 ### Fixed

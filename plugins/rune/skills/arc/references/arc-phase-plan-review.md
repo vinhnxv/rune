@@ -524,14 +524,64 @@ if (layer2Active) {
   // Write Layer 2 verdict to dedicated file
   Write(`tmp/arc/${id}/plan-inspect-verdict.md`, verdictContent)
 
-  // Cleanup Layer 2 team
-  for (const inspector of inspectors) {
-    try { SendMessage({ type: "shutdown_request", recipient: inspector, content: "Plan review complete" }) } catch(e) {}
+  // Cleanup Layer 2 team — canonical pattern adapted for SDK-non-current team.
+  // TLC-001 FIX: Align to the canonical 5-component cleanup with retry-with-backoff
+  // and gated filesystem fallback. SDK tracks Layer 1 as "current team" so
+  // TeamDelete() cannot directly delete Layer 2 by name, but the retry loop
+  // still provides best-effort leadership-state cleanup before the filesystem
+  // removal runs — and gating rm-rf matches the QUAL-012 pattern used elsewhere.
+
+  // 1. Dynamic member discovery (falls back to `inspectors` on config read failure)
+  let layer2Members = []
+  try {
+    const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
+    const teamConfig = JSON.parse(Read(`${CHOME}/teams/${layer2TeamName}/config.json`))
+    const members = Array.isArray(teamConfig.members) ? teamConfig.members : []
+    layer2Members = members.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
+  } catch (e) {
+    layer2Members = inspectors.filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
   }
-  Bash("sleep 20", { run_in_background: true })  // Grace period — let teammates deregister
-  // Layer 2 cleanup: always use filesystem fallback
-  // (SDK tracks Layer 1 as "current team" — TeamDelete() would delete Layer 1, not Layer 2)
-  Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${layer2TeamName}/" "$CHOME/tasks/${layer2TeamName}/" 2>/dev/null`)
+
+  // 2a. Force-reply — put teammates in message-processing state (GitHub #31389)
+  let layer2ConfirmedAlive = 0
+  const layer2Alive = []
+  for (const member of layer2Members) {
+    try { SendMessage({ type: "message", recipient: member, content: "Acknowledge: workflow completing" }); layer2Alive.push(member) } catch(e) {}
+  }
+
+  // 2b. Shared pause — gated on alive member presence
+  if (layer2Alive.length > 0) { Bash("sleep 2", { run_in_background: true }) }
+
+  // 2c. Send shutdown_request
+  for (const member of layer2Alive) {
+    try { SendMessage({ type: "shutdown_request", recipient: member, content: "Plan review complete" }); layer2ConfirmedAlive++ } catch(e) {}
+  }
+
+  // 3. Adaptive grace period
+  if (layer2ConfirmedAlive > 0) {
+    Bash(`sleep ${Math.min(20, Math.max(5, layer2ConfirmedAlive * 5))}`, { run_in_background: true })
+  } else {
+    Bash("sleep 2", { run_in_background: true })
+  }
+
+  // 4. Retry-with-backoff TeamDelete (SDK targets Layer 1 as current team —
+  //    each attempt is a best-effort leadership-state reset for Layer 2).
+  let layer2TeamDeleteSucceeded = false
+  const LAYER2_CLEANUP_DELAYS = [0, 3000, 6000, 10000]
+  for (let attempt = 0; attempt < LAYER2_CLEANUP_DELAYS.length; attempt++) {
+    if (attempt > 0) Bash(`sleep ${LAYER2_CLEANUP_DELAYS[attempt] / 1000}`, { run_in_background: true })
+    try { TeamDelete(); layer2TeamDeleteSucceeded = true; break } catch (e) {
+      if (attempt === LAYER2_CLEANUP_DELAYS.length - 1) warn(`plan-review Layer 2: TeamDelete failed after ${LAYER2_CLEANUP_DELAYS.length} attempts`)
+    }
+  }
+
+  // 5. Filesystem fallback — gated on TeamDelete failure (QUAL-012).
+  if (!layer2TeamDeleteSucceeded) {
+    Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${layer2TeamName}/" "$CHOME/tasks/${layer2TeamName}/" 2>/dev/null`)
+    // TEAMLIFE-001 FIX: Post-rm-rf TeamDelete to clear any SDK leadership
+    // state still held for Layer 2.
+    try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
+  }
 }
 ```
 
@@ -550,20 +600,46 @@ try {
   // SEC-4 FIX: Validate member names against safe pattern before use in SendMessage
   allMembers = members.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
 } catch (e) {
-  // FALLBACK: Phase 2 plan review — core reviewers summoned in this phase (horizon-sage, evidence-verifier, codex-plan-reviewer are conditional)
+  // FALLBACK: Phase 2 plan review — core reviewers summoned in this phase.
+  // PLAN-REVIEW-002 FIX: Include Layer 2 inspector names so a Layer 2 crash
+  // followed by Layer 1 cleanup can still shut them down. Sending
+  // shutdown_request to absent members is a documented safe no-op.
   allMembers = ["scroll-reviewer", "decree-arbiter", "knowledge-keeper", "veil-piercer-plan",
-    "horizon-sage", "evidence-verifier", "state-weaver", "codex-plan-reviewer"]
+    "horizon-sage", "evidence-verifier", "state-weaver", "codex-plan-reviewer",
+    // Layer 2 inspectors (safe no-op if absent):
+    "grace-warden-plan-review", "ruin-prophet-plan-review",
+    "sight-oracle-plan-review", "vigil-keeper-plan-review"]
 }
 
 // Clean up signal directory
 Bash(`rm -rf "${planReviewSignalDir}" 2>/dev/null || true`)
 
-// Shutdown all discovered members
-for (const member of allMembers) { SendMessage({ type: "shutdown_request", recipient: member, content: "Plan review complete" }) }
+// TLC-003 FIX: Force-reply pattern (2a/2b/2c) + adaptive grace.
+// GitHub #31389: teammates whose last turn was a long Bash() may silently
+// drop a direct shutdown_request. A plain message first puts them in
+// message-processing state; the shutdown_request that follows is reliably
+// delivered.
 
-// Grace period — let teammates deregister before TeamDelete
-if (allMembers.length > 0) {
-  Bash(`sleep 20`, { run_in_background: true })
+// 2a. Force-reply
+let l1ConfirmedAlive = 0
+const l1Alive = []
+for (const member of allMembers) {
+  try { SendMessage({ type: "message", recipient: member, content: "Acknowledge: workflow completing" }); l1Alive.push(member) } catch(e) {}
+}
+
+// 2b. Shared pause — gated on alive member presence
+if (l1Alive.length > 0) { Bash("sleep 2", { run_in_background: true }) }
+
+// 2c. Send shutdown_request
+for (const member of l1Alive) {
+  try { SendMessage({ type: "shutdown_request", recipient: member, content: "Plan review complete" }); l1ConfirmedAlive++ } catch(e) {}
+}
+
+// 3. Adaptive grace period — scale with confirmed-alive count
+if (l1ConfirmedAlive > 0) {
+  Bash(`sleep ${Math.min(20, Math.max(5, l1ConfirmedAlive * 5))}`, { run_in_background: true })
+} else {
+  Bash("sleep 2", { run_in_background: true })
 }
 
 // SEC-003: id validated at arc init (/^arc-[a-zA-Z0-9_-]+$/) — see Initialize Checkpoint section
@@ -579,13 +655,16 @@ for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
 // QUAL-012 FIX: Gate filesystem fallback behind !cleanupTeamDeleteSucceeded (CDX-003 pattern).
 // When TeamDelete succeeds cleanly, rm-rf is unnecessary and adds blast radius risk.
 if (!cleanupTeamDeleteSucceeded) {
-  // 5a. Process-level kill — terminate lingering teammates before filesystem cleanup
-  const ownerPid = Bash(`echo $PPID`).trim()
-  if (ownerPid && /^\d+$/.test(ownerPid)) {
-    Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio \&\& continue; kill -TERM "$pid" 2>/dev/null ;; esac; done`)
-    Bash(`sleep 5`, { run_in_background: true })
-    Bash(`for pid in $(pgrep -P ${ownerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio \&\& continue; kill -KILL "$pid" 2>/dev/null ;; esac; done`)
-  }
+  // 5a. Process-level kill — terminate lingering teammates before filesystem cleanup.
+  // QUAL-003 FIX: Align to canonical inline `$PPID` pattern used in the 4 other
+  // arc phase files (arc-phase-design-iteration.md, arc-phase-test.md,
+  // arc-phase-deploy-verify.md, arc-phase-inspect-fix.md). `$PPID` is a
+  // read-only shell-set positive integer — the prior regex validation was
+  // redundant and created the false impression that only plan-review guards
+  // it. Option B (lower churn) from the audit.
+  Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio && continue; kill -TERM "$pid" 2>/dev/null ;; esac; done`)
+  Bash(`sleep 5`, { run_in_background: true })
+  Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio && continue; kill -KILL "$pid" 2>/dev/null ;; esac; done`)
   // 5b. Filesystem fallback with CHOME
   // SEC-005: id validated at line 37 — contains only [a-zA-Z0-9_-]
   Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/arc-plan-review-${id}/" "$CHOME/tasks/arc-plan-review-${id}/" 2>/dev/null`)

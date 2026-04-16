@@ -466,6 +466,11 @@ if (integrationEnabled || e2eEnabled) {
 prePhaseCleanup(checkpoint)  // Evict stale arc-test-{id} teams (EC-4.2)
 const testTeamName = `arc-test-${id}`
 TeamCreate({ team_name: testTeamName })
+// CLEAN-003 FIX: Track every spawned teammate name so the STEP 10 cleanup
+// fallback can shut them down even if the config.json read fails. Batch
+// runner and fixer names are computed dynamically from nextBatch.id /
+// nextBatch.fix_attempts, so a hardcoded fallback array is impossible.
+const spawnedAgentNames = []
 const phaseStart = Date.now()
 const innerBudget = has_frontend ? 2_100_000 : 600_000  // 35m with E2E, 10m without
 function remainingBudget() { return innerBudget - (Date.now() - phaseStart) }
@@ -610,6 +615,7 @@ for (const batch of testingPlan.batches) {
 
   // Foreground agent — runs in teammate's own context window, NOT the lead's
   const resultPath = `tmp/arc/${id}/test-results-${nextBatch.type}-batch-${nextBatch.id}.md`
+  spawnedAgentNames.push(`batch-runner-${nextBatch.id}`)  // CLEAN-003 FIX
   Agent({
     team_name: testTeamName,
     name: `batch-runner-${nextBatch.id}`,
@@ -676,6 +682,7 @@ for (const batch of testingPlan.batches) {
         subject: `Fix batch ${nextBatch.id} attempt ${nextBatch.fix_attempts}: ${nextBatch.type}`,
         description: `Read failure details from ${resultPath} and apply code fixes`
       })
+      spawnedAgentNames.push(`batch-fixer-${nextBatch.id}-fix-${nextBatch.fix_attempts}`)  // CLEAN-003 FIX
       Agent({
         team_name: testTeamName,
         name: `batch-fixer-${nextBatch.id}-fix-${nextBatch.fix_attempts}`,
@@ -950,9 +957,53 @@ if (historyEnabled) {
 // STEP 10: CLEANUP (correct ordering — prevents deadlocks)
 // ═══════════════════════════════════════════════════════
 
-// 1. All batch runners are foreground (blocking) — completed before reaching cleanup.
-// No shutdown_request needed. Brief SDK propagation pause only.
-Bash("sleep 2", { run_in_background: true })
+// QUAL-001 FIX: Canonical 5-component cleanup pattern (CLAUDE.md compliance).
+// The foreground-only assumption holds for the standard path, but batch-mode
+// early exits at the iteration cap (stop hook reinjection) can leave live
+// teammates before we reach cleanup, and cross-turn re-entry resets
+// `spawnedAgentNames` so prior-turn teammates would otherwise be invisible
+// to a static-list shutdown.
+//
+// 1. Dynamic member discovery — read team config for ALL teammates, including
+//    those spawned in prior Stop-hook turns. `spawnedAgentNames` is used as
+//    a fallback ONLY when config.json read fails.
+let allMembers = []
+try {
+  const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
+  const teamConfig = JSON.parse(Read(`${CHOME}/teams/${testTeamName}/config.json`))
+  const members = Array.isArray(teamConfig.members) ? teamConfig.members : []
+  // SEC-4: filter names to a safe character set before SendMessage
+  allMembers = members.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
+} catch (e) {
+  // FALLBACK: current-turn spawnedAgentNames. Safe no-op for any absent members.
+  allMembers = spawnedAgentNames.filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
+}
+
+// 2a. Force-reply — plain-text message puts teammates in message-processing
+//     state, ensuring they process the shutdown_request that follows
+//     (GitHub #31389: teammates whose last turn was a long Bash() may
+//     silently drop a direct shutdown_request).
+let confirmedAlive = 0
+let confirmedDead = 0
+const aliveMembers = []
+for (const member of allMembers) {
+  try { SendMessage({ type: "message", recipient: member, content: "Acknowledge: workflow completing" }); aliveMembers.push(member) } catch (e) { confirmedDead++ }
+}
+
+// 2b. Shared pause — only when we have at least one alive member to pause for.
+if (aliveMembers.length > 0) { Bash("sleep 2", { run_in_background: true }) }
+
+// 2c. Send shutdown_request to alive members
+for (const member of aliveMembers) {
+  try { SendMessage({ type: "shutdown_request", recipient: member, content: "Test phase complete" }); confirmedAlive++ } catch (e) { confirmedDead++ }
+}
+
+// 3. Adaptive grace period — scale with confirmed-alive count.
+if (confirmedAlive > 0) {
+  Bash(`sleep ${Math.min(20, Math.max(5, confirmedAlive * 5))}`, { run_in_background: true })
+} else {
+  Bash("sleep 2", { run_in_background: true })
+}
 
 // 2. Close browser sessions (teammates already completed — foreground)
 // SEC-001 FIX: Use grep -F for literal matching and quote --session argument
@@ -981,8 +1032,16 @@ for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
   }
 }
 if (!cleanupTeamDeleteSucceeded) {
+  // CLEAN-003 FIX: Process-level kill before filesystem rm-rf, so that
+  // live batch-runner/fixer agents with dynamically-computed names are
+  // terminated even when config.json is gone. MCP-PROTECT-003 guard via
+  // --stdio filter. Pair of SIGTERM then SIGKILL matches other phase files.
+  Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio && continue; kill -TERM "$pid" 2>/dev/null ;; esac; done`)
+  Bash(`sleep 5`, { run_in_background: true })
+  Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio && continue; kill -KILL "$pid" 2>/dev/null ;; esac; done`)
   Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${testTeamName}/" "$CHOME/tasks/${testTeamName}/" 2>/dev/null`)
-  try { TeamDelete() } catch (e) { /* best effort */ }
+  // QUAL-005 FIX: standardize trailing TeamDelete comment
+  try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
 }
 
 // 5. Update checkpoint
