@@ -529,9 +529,14 @@ if (layer2Active) {
     try { SendMessage({ type: "shutdown_request", recipient: inspector, content: "Plan review complete" }) } catch(e) {}
   }
   Bash("sleep 20", { run_in_background: true })  // Grace period — let teammates deregister
-  // Layer 2 cleanup: always use filesystem fallback
-  // (SDK tracks Layer 1 as "current team" — TeamDelete() would delete Layer 1, not Layer 2)
+  // Layer 2 cleanup: filesystem-first fallback (QUAL-012 exempt).
+  // (SDK tracks Layer 1 as "current team" — TeamDelete() would delete Layer 1, not Layer 2,
+  // so rm-rf runs unconditionally here.)
   Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${layer2TeamName}/" "$CHOME/tasks/${layer2TeamName}/" 2>/dev/null`)
+  // TEAMLIFE-001 FIX: Best-effort TeamDelete after rm-rf to clear any SDK
+  // leadership state the runtime may still hold for Layer 2. Safe if it
+  // targets Layer 1 instead — that deletion is exactly what we want next.
+  try { TeamDelete() } catch (e) { /* best effort — not current team */ }
 }
 ```
 

@@ -86,6 +86,12 @@ Write(`tmp/arc/${id}/inspect-context.json`, JSON.stringify(inspectorContext))
 
 ## STEP 2: Spawn Inspector Team
 
+> **CLEAN-001 FIX**: STEPs 2–3 are conceptually wrapped in `try { ... } finally { ... }`.
+> If the phase crashes between `TeamCreate` and `waitForCompletion`, the `finally` block
+> (STEP 5 below) shuts down inspectors and deletes the team. `postPhaseCleanup` also runs
+> on normal completion, but an inline finally is required because `postPhaseCleanup` is
+> skipped on mid-phase crashes — see `arc-phase-cleanup.md:14`.
+
 ```javascript
 const teamName = `arc-inspect-full-${id}`
 TeamCreate({ team_name: teamName })
@@ -133,6 +139,73 @@ Agent({
 })
 
 waitForCompletion(teamName, 1, { timeoutMs: 180_000, pollIntervalMs: 15_000 })
+```
+
+## STEP 3.5: Cleanup (CLEAN-001 FIX)
+
+Runs in the `finally` branch of the try/finally wrapping STEPs 2–3. Shuts down inspectors and deletes the team. Required because `postPhaseCleanup` is skipped when a phase crashes mid-execution — without this block, the 5 Inspector Ashes would persist as orphans in the current session.
+
+```javascript
+// Standard 5-component cleanup (CLAUDE.md canonical pattern)
+// 1. Dynamic member discovery
+let allMembers = []
+try {
+  const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
+  const teamConfig = JSON.parse(Read(`${CHOME}/teams/${teamName}/config.json`))
+  const members = Array.isArray(teamConfig.members) ? teamConfig.members : []
+  allMembers = members.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
+} catch (e) {
+  // Fallback: hardcoded list of every inspector + verdict-binder
+  allMembers = [
+    "grace-warden-inspect", "ruin-prophet-inspect",
+    "sight-oracle-inspect", "vigil-keeper-inspect",
+    "verdict-binder",
+  ]
+}
+
+// 2a. Force-reply — put all teammates in message-processing state (GitHub #31389)
+let confirmedAlive = 0
+let confirmedDead = 0
+const aliveMembers = []
+for (const member of allMembers) {
+  try { SendMessage({ type: "message", recipient: member, content: "Acknowledge: workflow completing" }); aliveMembers.push(member) } catch (e) { confirmedDead++ }
+}
+
+// 2b. Single shared pause
+if (aliveMembers.length > 0) { Bash("sleep 2", { run_in_background: true }) }
+
+// 2c. Send shutdown_request to alive members
+for (const member of aliveMembers) {
+  try { SendMessage({ type: "shutdown_request", recipient: member, content: "Inspect complete" }); confirmedAlive++ } catch (e) { confirmedDead++ }
+}
+
+// 3. Adaptive grace period
+if (confirmedAlive > 0) {
+  Bash(`sleep ${Math.min(20, Math.max(5, confirmedAlive * 5))}`, { run_in_background: true })
+} else {
+  Bash("sleep 2", { run_in_background: true })
+}
+
+// 4. TeamDelete with retry-with-backoff
+let cleanupTeamDeleteSucceeded = false
+const CLEANUP_DELAYS = [0, 3000, 6000, 10000]
+for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
+  if (attempt > 0) Bash(`sleep ${CLEANUP_DELAYS[attempt] / 1000}`, { run_in_background: true })
+  try { TeamDelete(); cleanupTeamDeleteSucceeded = true; break } catch (e) {
+    if (attempt === CLEANUP_DELAYS.length - 1) warn(`inspect cleanup: TeamDelete failed after ${CLEANUP_DELAYS.length} attempts`)
+  }
+}
+
+// 5. Filesystem fallback — only if TeamDelete never succeeded (QUAL-012)
+if (!cleanupTeamDeleteSucceeded) {
+  // 5a. Process-level kill — READ-FIRST, KILL-SECOND (MCP-PROTECT-003)
+  Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio && continue; kill -TERM "$pid" 2>/dev/null ;; esac; done`)
+  Bash(`sleep 5`, { run_in_background: true })
+  Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio && continue; kill -KILL "$pid" 2>/dev/null ;; esac; done`)
+  // 5b. Filesystem cleanup
+  Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${teamName}/" "$CHOME/tasks/${teamName}/" 2>/dev/null`)
+  try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
+}
 ```
 
 ## STEP 4: Parse VERDICT and Update Checkpoint

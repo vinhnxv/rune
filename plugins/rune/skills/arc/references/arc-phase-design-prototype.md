@@ -298,6 +298,15 @@ try {
   if (userAgent) protoAgentType = userAgent.name
 } catch (e) { /* MCP unavailable — use default */ }
 
+// DEAD-001 FIX (ATE-1): `subagent_type` must be "general-purpose" — SDK does
+// not route named types to plugin agents; a `subagent_type: "proto-worker"`
+// value silently falls back to general-purpose, discarding the agent's
+// tool allowlist and specialization. Read the proto-worker agent body once
+// and inject it into every worker prompt.
+const protoWorkerBody = (() => {
+  try { return Read("plugins/rune/agents/work/proto-worker.md") } catch { return "" }
+})()
+
 // Spawn synthesis workers
 const workerCount = Math.min(maxWorkers, components.length)
 const spawnedWorkers = []
@@ -305,9 +314,11 @@ for (let i = 0; i < workerCount; i++) {
   const workerName = `proto-synth-${i + 1}`
   spawnedWorkers.push(workerName)
   Agent({
-    subagent_type: "proto-worker", model: "sonnet",
+    subagent_type: "general-purpose", model: "sonnet",
     name: workerName, team_name: `arc-prototype-${id}`,
-    prompt: `You are ${workerName}. Synthesize React prototype components from Figma references and library matches.
+    prompt: `${protoWorkerBody}
+
+You are ${workerName}. Synthesize React prototype components from Figma references and library matches.
 
 Output directory: tmp/arc/${id}/prototypes/
 Each component gets: prototype.tsx + prototype.stories.tsx (CSF3 format)

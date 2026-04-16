@@ -148,12 +148,22 @@ try {
   if (userAgent) iteratorAgentType = userAgent.name
 } catch (e) { /* MCP unavailable — use default */ }
 
+// DEAD-002 FIX (ATE-1): `subagent_type` must be "general-purpose" — SDK does
+// not route named types to plugin agents, so `"design-iterator"` silently
+// falls back to general-purpose, discarding the agent's tool allowlist.
+// Read the design-iterator agent body once and inject it into each worker.
+const designIteratorBody = (() => {
+  try { return Read("plugins/rune/agents/work/design-iterator.md") } catch { return "" }
+})()
+
 // Spawn design-iterator workers with agent-browser
 for (let i = 0; i < Math.min(maxWorkers, componentsToIterate.length); i++) {
   Agent({
-    subagent_type: "design-iterator", model: "sonnet",
+    subagent_type: "general-purpose", model: "sonnet",
     name: `design-iter-${i + 1}`, team_name: `arc-design-iter-${id}`,
-    prompt: `You are design-iter-${i + 1}. Run screenshot→analyze→fix loop to improve design fidelity.
+    prompt: `${designIteratorBody}
+
+You are design-iter-${i + 1}. Run screenshot→analyze→fix loop to improve design fidelity.
       Base URL: ${baseUrl}
       Browser session: --session arc-design-${id}
       Max iterations per component: ${maxIterations}

@@ -248,6 +248,16 @@ if [[ "$_CKPT_PATH_IS_CANONICAL" != "true" ]]; then
   fi
 
   if [[ -n "$_recovered" ]]; then
+    # FLAW-002 FIX: Re-validate recovered path character-set before assigning
+    # it to CHECKPOINT_PATH. The sed below uses `|` as a delimiter; a path
+    # containing `|` (possible on exotic/NFS filesystems) would corrupt the
+    # state file without this guard. The original char-set check runs only on
+    # the pre-recovery value at lines 165-169.
+    if [[ ! "$_recovered" =~ ^[a-zA-Z0-9._/-]+$ ]]; then
+      _trace "EXIT CKPT-001: Recovered checkpoint path contains unsafe characters: '${_recovered}'"
+      rm -f "$STATE_FILE" 2>/dev/null
+      exit 0
+    fi
     CHECKPOINT_PATH="$_recovered"
     # Auto-fix state file so future invocations use the correct path
     # XVER-SEC-001 FIX: plain assignment (no `local` outside function)
@@ -524,7 +534,10 @@ _check_test_batches() {
   # QUAL-007 FIX: Add fallback for missing jq fields
   max_iterations=$(jq -r '.max_batch_iterations // 50' "$plan_path" 2>/dev/null || echo 50)
   # BACK-003 FIX: Count only executed batches (passed|failed|fixing), not skipped
-  executed=$(jq '[.batches[] | select(.status == "passed" or .status == "failed" or .status == "fixing")] | length' "$plan_path" 2>/dev/null)
+  # FLAW-001 FIX: Add `|| echo 0` so an empty/corrupt testing-plan.json does
+  # not trip the ERR trap (`set -euo pipefail` + `_rune_fail_forward`) and
+  # silently abandon remaining test batches. Mirrors the max_iterations fallback above.
+  executed=$(jq '[.batches[] | select(.status == "passed" or .status == "failed" or .status == "fixing")] | length' "$plan_path" 2>/dev/null || echo 0)
   [[ "$executed" -ge "$max_iterations" ]] && return 1  # Safety cap hit
 
   # Read batch details (single jq call for all fields — avoids 4 separate forks)

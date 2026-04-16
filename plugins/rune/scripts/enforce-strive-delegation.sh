@@ -84,9 +84,16 @@ STATE_FILE="${CWD}/.rune/arc-phase-loop.local.md"
 [[ -f "$STATE_FILE" ]] || exit 0
 
 # Session isolation: verify state file belongs to this session (FLAW-004 fix)
-# Extract config_dir and owner_pid from the state file
-_state_config_dir=$(grep -o 'config_dir: .*' "$STATE_FILE" 2>/dev/null | head -1 | sed 's/config_dir: //' || true)
-_state_owner_pid=$(grep -o 'owner_pid: .*' "$STATE_FILE" 2>/dev/null | head -1 | sed 's/owner_pid: //' || true)
+# SEC-002 FIX (CWE-284): Use validated _get_fm_field() instead of grep+sed.
+# Prior grep -o parsing allowed crafted multi-line YAML to bypass Layer 1
+# config-dir isolation (e.g., a payload like `config_dir: /attacker` at an
+# arbitrary position would be extracted verbatim regardless of position
+# inside the frontmatter block).
+# shellcheck source=lib/frontmatter-utils.sh
+source "${SCRIPT_DIR}/lib/frontmatter-utils.sh"
+_state_fm=$(head -c 8192 "$STATE_FILE" 2>/dev/null || true)
+_state_config_dir=$(_get_fm_field "$_state_fm" "config_dir")
+_state_owner_pid=$(_get_fm_field "$_state_fm" "owner_pid")
 
 # Layer 1: Config-dir isolation
 if [[ -n "$_state_config_dir" ]] && [[ -n "${RUNE_CURRENT_CFG:-}" ]] && [[ "$_state_config_dir" != "$RUNE_CURRENT_CFG" ]]; then

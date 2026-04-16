@@ -1,5 +1,37 @@
 # Changelog
 
+## [2.52.2] - 2026-04-17
+
+### Fixed
+
+Driven by audit run 2026-04-17 (`tmp/audit/20260417-010632/`) — 52 findings (12 P1 / 23 P2 / 17 P3). This release resolves all 12 P1 findings. P2 and P3 remain tracked in the audit artifacts for subsequent patches.
+
+#### Security (shell scripts)
+- **SEC-001 (CWE-78) — Command injection via incomplete `bash -c` escape** in `scripts/enforce-bash-timeout.sh`. Replaced single-quote-only `sed` escape with `printf '%q'` full shell-quoting. Closes shell metacharacter pass-through (`;`, `&&`, `|`) inside the OPERATIONAL timeout wrapper.
+- **SEC-002 (CWE-284) — Grep-based frontmatter parsing bypass** in `scripts/enforce-strive-delegation.sh`. Switched from `grep -o 'config_dir: .*' | sed` to `_get_fm_field()` from `lib/frontmatter-utils.sh`. Closes Layer 1 config-dir isolation bypass via crafted multi-line YAML.
+- **SEC-003 (CWE-1333) — ReDoS via user-supplied talisman regex** in `scripts/enforce-bash-timeout.sh`. When neither `timeout` nor `gtimeout` is available (stock macOS without coreutils), the fallback now skips user patterns entirely instead of running unguarded `grep -qE`. Closes DoS vector on the 3-second PreToolUse hook.
+
+#### Correctness (logic bugs)
+- **FLAW-001 — Missing jq fallback silently abandons test batches** in `scripts/arc-phase-stop-hook.sh:527`. Added `|| echo 0` fallback to `executed=$(jq ...)` to prevent ERR-trap-masked silent exit when `testing-plan.json` is empty or corrupt.
+- **FLAW-002 — Checkpoint recovery path skips char-set re-validation** in `scripts/arc-phase-stop-hook.sh`. Added regex validation after Strategy 2 (scan) reassigns `CHECKPOINT_PATH` to prevent sed delimiter corruption on paths containing `|`.
+
+#### Spec compliance (ATE-1)
+- **DEAD-001 / DEAD-002 — Named `subagent_type` violations** in `arc-phase-design-prototype.md` (proto-worker) and `arc-phase-design-iteration.md` (design-iterator). Replaced with `subagent_type: "general-purpose"` and inject agent body via `Read()` + prompt-stuffing. Pattern mirrors `arc-phase-storybook-verification.md:274`.
+
+#### Cleanup infrastructure
+- **CLEAN-001 — arc-phase-inspect.md had no cleanup section**. Added STEP 3.5 with full 5-component canonical cleanup (dynamic discovery → force-reply → shutdown → retry-with-backoff → QUAL-012 fallback). Fallback array covers all 5 inspector agents + verdict-binder.
+- **CLEAN-002 — arc-phase-inspect-fix.md had no cleanup section**. Same pattern; fallback derives from `spawnedAgentNames` (with a spawn-crash-path secondary fallback).
+- **CLEAN-003 — arc-phase-test.md no inline fallback array**. Added `spawnedAgentNames` tracking for dynamic `batch-runner-N` / `batch-fixer-N-fix-M` names. STEP 10 cleanup now issues best-effort `shutdown_request` to tracked names and gained a 2-stage SIGTERM→SIGKILL process kill (MCP-PROTECT-003 `--stdio` guard) in the filesystem fallback.
+
+#### Team lifecycle
+- **TEAMLIFE-001 — Layer 2 plan-inspect team cleaned via unconditional rm-rf** in `arc-phase-plan-review.md:533-534`. Added best-effort `try { TeamDelete() } catch {}` after the rm-rf with an inline QUAL-012 exemption comment explaining why the filesystem-first pattern is correct here (SDK tracks Layer 1 as current team).
+
+### Reclassified as FALSE_POSITIVE
+- **CLEAN-004** (audit finding about 4 phase files missing config.json read pattern): all 4 flagged files (`arc-phase-design-verification.md`, `arc-phase-ux-verification.md`, `arc-phase-design-iteration.md`, `arc-phase-deploy-verify.md`) already implement the canonical 5-component cleanup. The audit misread the `if (!cleanupTeamDeleteSucceeded)` branch as "skipping shutdown_request" — shutdown_request runs BEFORE the retry loop per `engines.md shutdown()`. Documented in the mend resolution report for auditor review.
+
+### Resolution report
+Full per-finding evidence: `tmp/mend/20260417-010632/resolution-report.md`.
+
 ## [2.52.1] - 2026-04-15
 
 ### Fixed
