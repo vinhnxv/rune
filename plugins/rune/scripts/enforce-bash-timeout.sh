@@ -228,10 +228,11 @@ if [[ -z "$match_found" ]]; then
             break
           fi
         else
-          if grep -qE "$pat" <<< "$NORMALIZED" 2>/dev/null; then
-            match_found="custom"
-            break
-          fi
+          # SEC-003-PARTIAL FIX (CWE-1333): Skip user-supplied patterns entirely
+          # when no timeout binary is available — ReDoS DoS vector otherwise.
+          # Mirrors the misc.json shard block below (parity fix: both code paths
+          # now refuse to run user regex without a time bound on stock macOS).
+          break
         fi
       done <<< "$EXTRA_PATTERNS"
     fi

@@ -108,12 +108,30 @@ if [[ -n "$_state_owner_pid" ]] && [[ "$_state_owner_pid" =~ ^[0-9]+$ ]] && [[ "
 fi
 
 # ── Check if arc work phase is in_progress ──
-
-CHECKPOINT_PATH=$(grep -o 'checkpoint_path: .*' "$STATE_FILE" 2>/dev/null | head -1 | sed 's/checkpoint_path: //')
-# FLAW-008 FIX: Strip whitespace and canonicalize relative paths
+#
+# SEC-NEW-001 FIX (CWE-22): Migrate checkpoint_path from raw `grep -o` (which
+# scans the entire file, including markdown body) to `_get_fm_field()` which
+# restricts extraction to the `---` frontmatter block. Apply the same
+# character allowlist + `..` rejection used by arc-phase-stop-hook.sh:160-169
+# before treating the value as a path. Without this, an attacker with write
+# access to `.rune/arc-phase-loop.local.md` could inject a `checkpoint_path:`
+# line outside the frontmatter (e.g., in markdown body) and redirect the hook
+# to read arbitrary files via the `jq ... "$CHECKPOINT_PATH"` call below.
+CHECKPOINT_PATH=$(_get_fm_field "$_state_fm" "checkpoint_path")
+# Strip whitespace (belt-and-suspenders — _get_fm_field strips, but keep for parity)
 CHECKPOINT_PATH="${CHECKPOINT_PATH%"${CHECKPOINT_PATH##*[![:space:]]}"}"
 [[ -z "$CHECKPOINT_PATH" ]] && exit 0
-[[ "$CHECKPOINT_PATH" != /* ]] && CHECKPOINT_PATH="${CWD}/${CHECKPOINT_PATH}"
+
+# Reject path traversal and invalid characters BEFORE any path construction.
+# Mirrors arc-phase-stop-hook.sh:160-169 validation.
+if [[ "$CHECKPOINT_PATH" == *".."* ]] || [[ "$CHECKPOINT_PATH" == /* ]]; then
+  exit 0
+fi
+if [[ "$CHECKPOINT_PATH" =~ [^a-zA-Z0-9._/-] ]]; then
+  exit 0
+fi
+
+CHECKPOINT_PATH="${CWD}/${CHECKPOINT_PATH}"
 
 # Symlink rejection on checkpoint (FLAW-005 fix)
 [[ -L "$CHECKPOINT_PATH" ]] && exit 0
