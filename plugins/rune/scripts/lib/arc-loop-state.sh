@@ -94,8 +94,19 @@ arc_state_file_path() {
   esac
   # RUNE_STATE is set by lib/rune-state.sh; default to .rune if unset
   local _base="${RUNE_STATE:-.rune}"
-  printf '%s/arc-%s-loop.local.md' "${CWD:-$PWD}/${_base}" "$_kind" \
-    | sed 's|//|/|g'
+  # SEC-002: reject `..` traversal in RUNE_STATE. Previously the sed-based
+  # normalizer only collapsed `//` → `/` and did NOT strip `..` — a caller
+  # setting RUNE_STATE=".rune/../../etc" would generate a state-file path
+  # outside the project root. Strict rejection is safer than path canonicalization.
+  case "$_base" in *..*) return 1 ;; esac
+  # FLAW-004: use parameter expansion to strip only the trailing slash from
+  # CWD instead of a global `sed 's|//|/|g'`. The global collapse corrupted
+  # UNC-style `//server/share` paths into `/server/share`; this form only
+  # normalizes the join-point `/`.
+  local _cwd="${CWD:-$PWD}"
+  _cwd="${_cwd%/}"
+  local _b="${_base#/}"  # strip leading slash on _base so we don't re-introduce //
+  printf '%s/%s/arc-%s-loop.local.md' "$_cwd" "$_b" "$_kind"
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -104,6 +115,15 @@ arc_state_file_path() {
 # Reads arc.state_file.code_enforced_writes from talisman. Prefers resolved
 # shard (tmp/.talisman-resolved/arc.json); falls back to literal false.
 # Issue 8: flag is OPERATIONAL, not security — never gate security checks on it.
+#
+# VEIL-008: The `_RUNE_ARC_FLAG_LOG_GUARD` recursion guard below protects against
+# `arc_state_flag_enabled → arc_state_integrity_log → arc_state_flag_enabled`
+# re-entry within a single process. It relies on the env var being visible to
+# both calls in the same shell frame. If a FUTURE caller wraps either function
+# in a command substitution (e.g. `$(arc_state_integrity_log …)`), the subshell
+# gets a copy of the guard and cannot protect the parent's call stack — a
+# pathological race could re-emit the `flag_lookup_failed` entry. Do NOT wrap
+# these in $(...) without adding a new guard layer.
 arc_state_flag_enabled() {
   _arc_lib_trace "ENTER arc_state_flag_enabled"
   local _shard="${CWD:-$PWD}/tmp/.talisman-resolved/arc.json"
@@ -164,6 +184,10 @@ arc_state_integrity_log() {
     [ -L "$_log_path" ] && return 0
   fi
   local _log_dir; _log_dir=$(dirname "$_log_path")
+  # SEC-003: also reject the log DIRECTORY as a symlink before mkdir -p. Previously
+  # only the file was checked; a TOCTOU race could replace `_log_dir` with a symlink
+  # between the file check and `mkdir -p`, and the `>>` append would follow it.
+  [ -L "$_log_dir" ] && return 0
   mkdir -p "$_log_dir" 2>/dev/null || return 0
 
   # Rotation under mkdir lock (XM-4)
@@ -179,18 +203,47 @@ arc_state_integrity_log() {
       else
         [ -L "$_log_path" ] && return 0
       fi
+      # FLAW-002: stale-lock eviction. SIGKILL can't be trapped, so a lock dir
+      # left behind by a kill-9'd rotator would disable rotation forever. If the
+      # lock is older than 60s, evict it before retrying mkdir. (60s comfortably
+      # exceeds rotation wall time — mv + awk over a 5MB file completes in <1s.)
+      if [ -d "$_lock" ]; then
+        local _lk_mtime _lk_age _now
+        _now=$(date +%s)
+        _lk_mtime=$(_stat_mtime "$_lock" 2>/dev/null || echo 0)
+        _lk_mtime="${_lk_mtime:-0}"
+        _lk_age=$((_now - _lk_mtime))
+        if [ "$_lk_age" -gt 60 ] 2>/dev/null; then
+          rmdir "$_lock" 2>/dev/null || true
+        fi
+      fi
       if mkdir "$_lock" 2>/dev/null; then
-        # QUAL-FH-005 + PAT-011 fix: preserve caller's EXIT trap. Save now, restore after.
-        # `trap -p EXIT` prints either `trap -- 'CMD' EXIT` or nothing when no trap is set.
-        local _prev_exit_trap
-        _prev_exit_trap=$(trap -p EXIT)
-        trap 'rmdir "$_lock" 2>/dev/null' EXIT
+        # SEC-001: previously this block captured `trap -p EXIT` and restored it
+        # via `eval "$_prev_exit_trap"`. That pattern matched codex-exec.sh's own
+        # pre-fix bug — `eval` on captured trap output is a shell-injection surface
+        # when an upstream caller sets a trap containing attacker-controlled text.
+        # The rotation block sets NO other state that an EXIT trap would need to
+        # clean, so we just do direct rmdir here and skip the trap dance entirely.
+        # If the process is killed mid-rotation, FLAW-002's stale-lock eviction
+        # (above) will clear the lock on the next call.
         mv -f "$_log_path" "${_log_path%.jsonl}-$(date +%Y%m%d-%H%M%S).jsonl" 2>/dev/null || true
-        # VEIL-006: retention — keep N newest archives, drop older ones.
-        local _max_arch="${RUNE_ARC_INTEGRITY_LOG_MAX_ARCHIVES:-5}"
-        ls -t "${_log_path%.jsonl}-"*.jsonl 2>/dev/null | awk -v n="$_max_arch" 'NR>n' | xargs rm -f 2>/dev/null || true
-        # Restore caller's trap (or clear if none was set).
-        eval "${_prev_exit_trap:-trap - EXIT}"
+        # FLAW-001 + FLAW-006 + SEC-006: archive retention — keep N newest archives,
+        # drop older ones. Previous `ls -t … | xargs rm -f` broke on filenames with
+        # spaces (xargs whitespace split), crashed in zsh when no archives existed
+        # (NOMATCH), and fed ls output to a command without null-termination. Use
+        # `find` + `while IFS= read -r` to get NUL-safe enumeration and avoid
+        # glob expansion in the caller's shell. Sort by filename descending (the
+        # timestamp suffix `YYYYMMDD-HHMMSS` is monotonic and sorts by mtime).
+        local _max_arch _arch_base _arch_dir
+        _max_arch="${RUNE_ARC_INTEGRITY_LOG_MAX_ARCHIVES:-5}"
+        _arch_base=$(basename "${_log_path%.jsonl}")
+        _arch_dir=$(dirname "$_log_path")
+        find "$_arch_dir" -maxdepth 1 -type f -name "${_arch_base}-*.jsonl" 2>/dev/null \
+          | sort -r \
+          | awk -v n="$_max_arch" 'NR>n' \
+          | while IFS= read -r _arch; do
+              [ -n "$_arch" ] && rm -f -- "$_arch" 2>/dev/null
+            done
         rmdir "$_lock" 2>/dev/null || true
       fi
     fi
@@ -241,8 +294,13 @@ arc_state_integrity_log() {
   esac
 
   # Severity + event_class lookup
+  # VEIL-005: `verified` (hook happy path) and `created` (init bootstrap) are the
+  # two highest-frequency actions and were previously missing from this table,
+  # falling through to the `info/lifecycle` default. Making them explicit makes
+  # the table a reliable reference for log consumers and schema documentation.
   local _sev="info" _class="lifecycle"
   case "$_action" in
+    verified|created) _sev="info"; _class="lifecycle" ;;
     recovered_mid_arc|recovered_post_checkpoint_write) _sev="warn"; _class="recovery" ;;
     flag_lookup_failed) _sev="warn"; _class="lifecycle" ;;
     symlink_rejected) _sev="warn"; _class="failure" ;;
@@ -257,6 +315,12 @@ arc_state_integrity_log() {
   # Flag state (dry_run=true when flag=false but hook fired anyway)
   local _flag_enabled="false" _dry_run="true"
   if arc_state_flag_enabled; then _flag_enabled="true"; _dry_run="false"; fi
+
+  # SEC-003: final symlink guard immediately before the `>>` append. Closes
+  # the TOCTOU window between mkdir -p (above) and the redirection below — if
+  # an adversary replaced `_log_path` with a symlink in that window, we refuse
+  # to follow it. Cheap re-check: single lstat call.
+  [ -L "$_log_path" ] && return 0
 
   # Construct the entry atomically via jq --arg (newline-safe)
   # Write append-only via >> (atomic for <PIPE_BUF=4096 bytes on POSIX)
@@ -367,12 +431,22 @@ arc_state_pending_phases() {
 # ─────────────────────────────────────────────────────────────────────────────
 # arc_state_should_delete state_file → exit 0 (delete) | 1 (defer)
 # ─────────────────────────────────────────────────────────────────────────────
-# 3-criterion rubric (plan §4.3 + §6.2):
-#   1. jq unavailable OR checkpoint missing  → defer (deletion_deferred_jq_unavailable)
-#   2. pending_phases == -1                  → defer (deletion_deferred_jq_parse_error)
-#   3. pending_phases > 0                    → defer (deletion_deferred_pending_phases)
-#   4. stop_reason ∈ {completed, cancelled, context_limit} → delete
-#   5. else                                  → defer (deletion_deferred_ambiguous)
+# 5-branch rubric (plan §4.3 + §6.2) collapsed into 3 high-level criteria:
+#   (a) Tooling availability     — branches 1+2 (jq unavailable, checkpoint
+#                                   missing, or jq parse error → defer)
+#   (b) Pending-phase count      — branch 3 (pending > 0 → defer)
+#   (c) Stop-reason allowlist    — branch 4 deletes on
+#                                   {completed, cancelled, context_limit,
+#                                    context_exhaustion_graceful};
+#                                   branch 5 defers anything else
+#
+# Numbered branches as implemented below:
+#   1. jq unavailable                         → defer (deletion_deferred_jq_unavailable)
+#   2. checkpoint missing                     → defer (deletion_deferred_jq_unavailable, cause=checkpoint_missing)
+#   3. pending_phases == -1                   → defer (deletion_deferred_jq_parse_error)
+#   4. pending_phases > 0                     → defer (deletion_deferred_pending_phases)
+#   5. stop_reason in allowlist               → delete
+#   6. else                                   → defer (deletion_deferred_ambiguous)
 # Safe default is ALWAYS defer — deletion never proceeds on error (AC-14).
 arc_state_should_delete() {
   _arc_lib_trace "ENTER arc_state_should_delete"
@@ -439,10 +513,16 @@ arc_state_should_delete() {
 
   # Criterion 4: stop_reason allowlist — read from checkpoint via jq.
   # (Defer-safe: unknown/null → ambiguous branch below.)
+  # VEIL-004: arc-batch-stop-hook.sh and arc-issues-stop-hook.sh both write
+  # `stop_reason: "context_exhaustion_graceful"` on graceful context exit — that
+  # value belongs in the deletion allowlist (it's a completion signal, not an
+  # error). Without it, every healthy arc-batch/arc-issues context-exhaust run
+  # leaked the state file and poisoned the `deletion_deferred_ambiguous` rate
+  # with false positives. Allowlist and writers must agree.
   local _stop_reason
   _stop_reason=$(jq -r '.stop_reason // ""' "$_ckpt" 2>/dev/null || echo "")
   case "$_stop_reason" in
-    completed|cancelled|context_limit)
+    completed|cancelled|context_limit|context_exhaustion_graceful)
       arc_state_integrity_log "legitimate_completion_delete" "stop_reason_${_stop_reason}" "$_sf" "{}" "" "" "$_ckpt" "0"
       _arc_lib_trace "EXIT arc_state_should_delete (delete: stop_reason=$_stop_reason)"
       return 0

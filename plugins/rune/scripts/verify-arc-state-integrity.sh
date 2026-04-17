@@ -63,8 +63,11 @@ _input=$(cat 2>/dev/null || echo "")
 }
 
 # ─── Extract tool name + file_path (fast-path grep BEFORE jq) ───
-# Fast-path: skip everything if input doesn't even mention arc or checkpoint
-if ! printf '%s' "$_input" | grep -q '\.rune/arc/.*checkpoint\.json'; then
+# SEC-008 narrowed scope: match only the "file_path" JSON field, not the entire
+# tool_input blob. Prevents Write calls whose `content`/`new_string` fields
+# mention checkpoint.json from dropping into the heavier jq/lib path unnecessarily.
+# The strict regex gate at line ~99 still provides the final authority on file_path.
+if ! printf '%s' "$_input" | grep -Eq '"file_path"[[:space:]]*:[[:space:]]*"[^"]*\.rune/arc/[^"]*checkpoint\.json"'; then
   printf '{"hookSpecificOutput":{"hookEventName":"PostToolUse"}}'
   exit 0
 fi

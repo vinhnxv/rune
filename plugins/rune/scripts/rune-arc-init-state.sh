@@ -150,6 +150,14 @@ _resolve_newest_checkpoint() {
 # ─────────────────────────────────────────────────────────────────────────────
 _ck_field() {
   local _cp="$1" _field="$2"
+  # SEC-004: allowlist field names to letters/digits/dot/underscore only — $_field is
+  # interpolated directly into the jq filter (jq paths cannot use --arg), so any
+  # future caller passing checkpoint-derived or user-controlled input would be a
+  # CWE-93 injection vector. All current callers pass literals, but defense in depth.
+  case "$_field" in
+    *[!a-zA-Z0-9._]*) echo ""; return 1 ;;
+    '') echo ""; return 1 ;;
+  esac
   command -v jq >/dev/null 2>&1 || { echo ""; return 1; }
   jq -r ".$_field // empty" "$_cp" 2>/dev/null | tr -d '\n\r'
 }
@@ -234,12 +242,31 @@ cmd_create() {
   fi
 
   # Identity resolution
-  local _cdir _pid _sid
+  local _cdir _pid _sid _tmpdir_canonical
   _cdir=$(cd "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" 2>/dev/null && pwd -P)
+  # FLAW-005: INTEG-INIT-001 originally rejected relative `tmp/*` and `./tmp/*`
+  # but missed absolute `/tmp/*` (the most common temp-dir form) — a misconfigured
+  # CLAUDE_CONFIG_DIR=/tmp/rune would pass the guard. Add `/tmp/*` and the
+  # canonical system-temp-dir prefix so shared-temp cross-user state collisions
+  # are blocked.
+  _tmpdir_canonical="${TMPDIR:-/tmp}"
+  _tmpdir_canonical="${_tmpdir_canonical%/}"
   case "$_cdir" in
-    ''|tmp/*|./tmp/*|*/tmp/arc/*)
+    ''|tmp/*|./tmp/*|*/tmp/arc/*|/tmp/*|/private/tmp/*)
       echo "FATAL (INTEG-INIT-001): configDir invalid: $_cdir" >&2
       return 2
+      ;;
+  esac
+  # Also reject the (canonical) $TMPDIR prefix when it differs from /tmp (e.g. macOS `/var/folders/…`).
+  case "$_tmpdir_canonical" in
+    ''|/tmp|/private/tmp) ;;  # already covered above
+    *)
+      case "$_cdir" in
+        "${_tmpdir_canonical}"/*)
+          echo "FATAL (INTEG-INIT-001): configDir under \$TMPDIR: $_cdir" >&2
+          return 2
+          ;;
+      esac
       ;;
   esac
 
@@ -344,10 +371,24 @@ cmd_create() {
     echo "FATAL: mktemp failed in $(dirname "$_state_file")" >&2
     return 1
   }
-  # Cleanup trap — ensure tmp file never leaks. Function-based trap defers
-  # $_tmp expansion to invocation time, immune to CWD/single-quote injection.
-  _cleanup_tmp() { rm -f -- "$_tmp" 2>/dev/null; }
+  # FLAW-003: Cleanup trap MUST survive cmd_create's return frame. The previous
+  # pattern captured function-local `$_tmp` — under `set -u`, if a signal (SIGTERM/
+  # SIGHUP) arrived after cmd_create returned but before `trap - EXIT` cleared the
+  # trap, the EXIT handler saw `_tmp` as unbound and aborted before `rm` ran, leaking
+  # the temp file. Using a module-level `_RUNE_INIT_TMP` var keeps the path
+  # accessible across frames. Cleared on all normal exit paths.
+  _RUNE_INIT_TMP="$_tmp"
+  _cleanup_tmp() { [ -n "${_RUNE_INIT_TMP:-}" ] && rm -f -- "$_RUNE_INIT_TMP" 2>/dev/null; _RUNE_INIT_TMP=""; }
   trap _cleanup_tmp EXIT
+
+  # SEC-005: Quote identity fields that are fed into YAML frontmatter. `_branch`
+  # comes from `git branch --show-current` and can contain YAML-significant chars
+  # (`:` `#` `|` `>`). `_plan` is already neutralized of newlines by _ck_field's
+  # `tr -d '\n\r'` but may still contain spaces. Quoting them is the minimal fix.
+  # Strip embedded double quotes to prevent escaping the quoted form.
+  local _plan_yaml _branch_yaml
+  _plan_yaml="$(printf '%s' "$_plan" | tr -d '"')"
+  _branch_yaml="$(printf '%s' "$_branch" | tr -d '"')"
 
   {
     printf -- '---\n'
@@ -355,8 +396,8 @@ cmd_create() {
     printf 'iteration: %d\n' "$_iteration"
     printf 'max_iterations: 66\n'
     printf 'checkpoint_path: %s\n' "$_ckpt_rel"
-    printf 'plan_file: %s\n' "$_plan"
-    printf 'branch: %s\n' "$_branch"
+    printf 'plan_file: "%s"\n' "$_plan_yaml"
+    printf 'branch: "%s"\n' "$_branch_yaml"
     printf 'arc_flags: %s\n' "$_flags_line"
     printf 'config_dir: %s\n' "$_cdir"
     printf 'owner_pid: %s\n' "$_pid"
@@ -375,21 +416,25 @@ cmd_create() {
 
   if ! mv -f "$_tmp" "$_state_file" 2>/dev/null; then
     rm -f "$_tmp" 2>/dev/null
+    _RUNE_INIT_TMP=""
     trap - EXIT
     arc_state_integrity_log "failed_write" "mv_f_failed" "$_state_file"
     echo "FATAL: mv -f failed — tmp file removed" >&2
     return 1
   fi
+  _RUNE_INIT_TMP=""
   trap - EXIT
 
-  # Layer 2 post-write verification — re-read fields
+  # Layer 2 post-write verification — re-read fields. `plan_file` is now
+  # quoted (SEC-005), so strip surrounding double quotes before comparison.
   local _v_cdir _v_pid _v_sid _v_plan
   _v_cdir=$(sed -n 's/^config_dir:[[:space:]]*//p' "$_state_file" | head -1)
   _v_pid=$(sed -n 's/^owner_pid:[[:space:]]*//p' "$_state_file" | head -1)
   _v_sid=$(sed -n 's/^session_id:[[:space:]]*//p' "$_state_file" | head -1)
   _v_plan=$(sed -n 's/^plan_file:[[:space:]]*//p' "$_state_file" | head -1)
+  _v_plan="${_v_plan#\"}"; _v_plan="${_v_plan%\"}"
   if [ "$_v_cdir" != "$_cdir" ] || [ "$_v_pid" != "$_pid" ] \
-     || [ "$_v_sid" != "$_sid" ] || [ "$_v_plan" != "$_plan" ]; then
+     || [ "$_v_sid" != "$_sid" ] || [ "$_v_plan" != "$_plan_yaml" ]; then
     arc_state_integrity_log "corrupted_write" "layer2_mismatch" "$_state_file"
     echo "FATAL (INTEG-POST): Layer 2 cross-field verification failed" >&2
     # QUAL-FH-003: remove the corrupted file so subsequent cmd_verify sees it as missing

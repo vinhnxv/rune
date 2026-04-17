@@ -12,6 +12,8 @@ Source plan: [/Users/vinhnx/Desktop/repos/rune/plans/2026-04-17-fix-arc-state-fi
 
 **Canary state (this patch).** Shipped as observation-only. The `arc.state_file.code_enforced_writes` talisman flag defaults to `false` — the PostToolUse verify hook emits `dry_run: true` log entries but does NOT write or mutate state files. Enforced writes activate on explicit flag flip after the log evidence is reviewed.
 
+> ⚠ **Scope of the canary.** Dry-run exercises only the `verify` read path (a `test -f` check) and emits `dry_run: true` log entries. It does **not** fork `rune-arc-init-state.sh create`, so the atomic mktemp+mv write, Layer 1 pre-write assertions, Layer 2 post-write verification, and XM-2 owner_pid resolution get **zero** observation coverage. Meeting the rollout criteria below validates the observation path; the create path requires a separate shadow-write test before production rollout.
+
 ## Components
 
 | File | Role | Lines |
@@ -34,12 +36,12 @@ Every function is safe to call outside an arc context — missing inputs return 
 | `arc_state_integrity_log` | `arc_state_integrity_log action cause state_file [extra_json] [arc_id] [loop_kind] [checkpoint_path] [pending_str] [mtime_age_str]` → exit 0 | Append-only JSONL entry with atomic `>>` append under `PIPE_BUF`. Rotates the log under a `mkdir` lock (XM-4). Refuses symlinks (SEC-002). |
 | `arc_state_touch` | `arc_state_touch state_file` → exit 0 | Mtime-only refresh, throttled by `RUNE_ARC_STATE_TOUCH_THROTTLE_SEC`. R27 invariant — NEVER rewrites content. |
 | `arc_state_pending_phases` | `arc_state_pending_phases checkpoint_path` → stdout int count, -1 on error | Counts `.phases[] | select(.status=="pending" or .status=="in_progress")`. Returns -1 on any jq failure so callers defer deletion safely (XM-3 / AC-14). |
-| `arc_state_should_delete` | `arc_state_should_delete state_file` → exit 0 delete \| 1 defer | 3-criterion rubric (plan §4.3): tooling availability, pending-phase count, stop_reason allowlist. Defer is the safe default — jq missing, checkpoint missing, jq parse error, pending phases > 0, or ambiguous stop_reason all return 1. Delete only on `stop_reason ∈ {completed, cancelled, context_limit}` with zero pending phases. |
+| `arc_state_should_delete` | `arc_state_should_delete state_file` → exit 0 delete \| 1 defer | 5-branch rubric (plan §4.3) collapsed into 3 high-level criteria — (a) **tooling availability** (jq + checkpoint present, branches 1+2); (b) **pending-phase count** (branch 3 — >0 defers); (c) **stop_reason allowlist** (branch 4 deletes on `completed \| cancelled \| context_limit`, branch 5 defers anything else). Defer is the safe default: jq missing, checkpoint missing, jq parse error, pending>0, or ambiguous stop_reason all return 1. |
 | `arc_state_recover` | `arc_state_recover [kind]` → exit 0 on recreate \| 1 on no-checkpoint | Delegates to `rune-arc-init-state.sh create` in recovery mode. Library does not perform atomic write itself (AC-5). |
 
 ## Integrity Log Schema
 
-Schema derived from plan §14.1 (base identity) + §14.4 (extended diagnostic). `.rune/arc-integrity-log.jsonl` — one JSON object per line. Rotated when file exceeds `RUNE_ARC_INTEG_LOG_MAX_BYTES` (10 MB default).
+Schema derived from plan §14.1 (base identity) + §14.4 (extended diagnostic). `.rune/arc-integrity-log.jsonl` — one JSON object per line. Rotated when file exceeds `RUNE_ARC_INTEG_LOG_MAX_BYTES` (5 MB default — override via environment variable; NOT read from talisman shard).
 
 Status legend:
 - **Shipped** — emitted by `arc_state_integrity_log` in v2.53.0.
@@ -51,7 +53,7 @@ Status legend:
 | 2 | `session_id` | string | §14.1 | Shipped | `RUNE_SESSION_ID` → `CLAUDE_SESSION_ID` → `"unknown"`. SEC-4 sanitized. |
 | 3 | `owner_pid` | string | §14.1 | Shipped | `$PPID`; coerced to `"0"` if non-numeric. |
 | 4 | `config_dir` | string | §14.1 | Shipped | Resolved via `cd … && pwd -P` — physical, not symlink. |
-| 5 | `action` | string | §14.1 | Shipped | One of: `recovered_mid_arc`, `recovered_post_checkpoint_write`, `symlink_rejected`, `flag_lookup_failed`, `deletion_deferred_*`, `legitimate_stale_delete`, `legitimate_completion_delete`, `recovery_failed_no_checkpoint`, `corrupted_write`, `failed_write`, `failed_verify`. |
+| 5 | `action` | string | §14.1 | Shipped | One of: `recovered_mid_arc`, `recovered_post_checkpoint_write`, `symlink_rejected`, `flag_lookup_failed`, `deletion_deferred_*`, `legitimate_stale_delete`, `legitimate_completion_delete`, `recovery_failed_no_checkpoint`, `corrupted_write`, `failed_write`, `failed_verify`, `verified` (hook), `created` (init — skill bootstrap). Unknown actions fall through to `severity=info / event_class=lifecycle`. |
 | 6 | `cause` | string | §14.1 | Shipped | Freeform — caller supplies. |
 | 7 | `source_script` | string | §14.1 | Shipped | `BASH_SOURCE[1]##*/`. |
 | 8 | `state_file_path` | string | §14.1 | Shipped | Caller-supplied; may be empty. |
@@ -95,6 +97,35 @@ The `arc.state_file.code_enforced_writes` flag is intentionally opaque to securi
 - Every `recovered_*` entry reconciled to a real checkpoint-write race.
 
 **Rollback.** Set `arc.state_file.code_enforced_writes: false` in `talisman.yml`. Flag is read per-call via `arc_state_flag_enabled`, so rollback takes effect at the next state operation — no process restart required.
+
+## How to Evaluate Rollout Readiness
+
+No dashboard or aggregator ships with the canary. Operators run these `jq` queries directly against `.rune/arc-integrity-log.jsonl` (and rotated archives `.rune/arc-integrity-log-*.jsonl`). Each query maps one-to-one to a CHANGELOG rollout criterion.
+
+```bash
+# Criterion 1: ≥500 verified integrity-log events across ≥10 arc sessions
+jq -s '[.[] | select(.action == "verified")] | {events: length, sessions: ([.[].session_id] | unique | length)}' \
+  .rune/arc-integrity-log*.jsonl
+
+# Criterion 2: 0 failed_verify events in the prior 30 days
+jq --arg cutoff "$(date -u -v-30d +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -d '30 days ago' +%Y-%m-%dT%H:%M:%SZ)" \
+  'select(.action == "failed_verify" and .ts >= $cutoff)' \
+  .rune/arc-integrity-log*.jsonl
+
+# Criterion 3: 0 recovery_failed_no_checkpoint events with dry_run: true
+jq 'select(.action == "recovery_failed_no_checkpoint" and .dry_run == true)' \
+  .rune/arc-integrity-log*.jsonl
+
+# Criterion 4: stable deletion_deferred_* rate — baseline ratio by cause
+jq -s '[.[] | select(.action | startswith("deletion_deferred_"))] | group_by(.action) | map({action: .[0].action, count: length})' \
+  .rune/arc-integrity-log*.jsonl
+
+# Criterion 5: no logic errors — entries where flag_enabled=true AND dry_run=true
+jq 'select(.flag_enabled == true and .dry_run == true)' \
+  .rune/arc-integrity-log*.jsonl
+```
+
+Flip `arc.state_file.code_enforced_writes: true` only when: (1) returns ≥500/≥10; (2) and (3) emit no lines; (4) shows `deletion_deferred_pending_phases` dominating (real work > tooling noise); (5) emits no lines.
 
 ## Security Invariants
 
