@@ -554,8 +554,15 @@ cmd_resolve_owned_checkpoint() {
     skill|hook) ;;
     *) echo "FATAL: invalid --source: $_src" >&2; return 2 ;;
   esac
+  # _resolve_newest_checkpoint only enforces ownership validation when invoked
+  # with "skill". The "hook" branch skips the validation entirely — which is
+  # correct for cmd_create (hook has separate checkpoint-derived identity) but
+  # WRONG for cmd_resolve_owned_checkpoint where the CALLER (Stop hook GUARD 4)
+  # depends on the ownership gate to prevent hydrating foreign-owned state.
+  # Hardcode "skill" regardless of caller's --source flag — the --source flag
+  # stays in the CLI contract for future use, but ownership check is mandatory.
   local _cp
-  _cp=$(_resolve_newest_checkpoint "$_src" || true)
+  _cp=$(_resolve_newest_checkpoint "skill" || true)
   if [ -z "$_cp" ]; then
     return 1
   fi
