@@ -317,6 +317,48 @@ if [[ ! "$WORKFLOW_STATUS" =~ ^[a-zA-Z0-9_:\ -]+$ ]] || [[ ${#WORKFLOW_STATUS} -
   WORKFLOW_STATUS="unknown"
 fi
 
+# ── Task 5 (child-1, plan AC-7): Arc state-file restore via re-derivation ──
+# If the compact checkpoint snapshotted any `.rune/arc-{kind}-loop.local.md`
+# content AND the filesystem lacks the file post-compact, re-derive via
+# `rune-arc-init-state.sh create --source hook --force`. Re-derivation
+# validates current (post-compact) session identity against the arc
+# checkpoint — a blind copy-back would restore stale owner_pid and kill
+# subsequent phase dispatches with cross-session mismatch.
+#
+# Design: snapshot serves as a TRIGGER (a state file existed pre-compact)
+# rather than the restoration source. The `create` subcommand reads the arc
+# checkpoint and builds a fresh state file with the current session's
+# owner_pid, session_id, and config_dir.
+_arc_state_file_keys=$(printf '%s\n' "$CHECKPOINT_DATA" | jq -r '.arc_state_files // {} | keys[]' 2>/dev/null || true)
+if [[ -n "$_arc_state_file_keys" ]]; then
+  _STATE_SCRIPT_DIR="${SCRIPT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+  _init_state_cmd="${_STATE_SCRIPT_DIR}/rune-arc-init-state.sh"
+  if [[ -x "$_init_state_cmd" ]]; then
+    while IFS= read -r _kind; do
+      [[ -z "$_kind" ]] && continue
+      # Validate kind against allowlist (SEC defense-in-depth)
+      case "$_kind" in
+        phase|batch|hierarchy|issues) ;;
+        *) continue ;;
+      esac
+      _sf="${CWD}/${RUNE_STATE:-.rune}/arc-${_kind}-loop.local.md"
+      # Skip if state file still exists post-compact (no recovery needed)
+      [[ -f "$_sf" ]] && [[ ! -L "$_sf" ]] && continue
+      # Re-derive from checkpoint — force overrides staleness and writes fresh
+      # identity (current owner_pid/session_id/config_dir).
+      if bash "$_init_state_cmd" create --source hook --kind "$_kind" --force 2>/dev/null; then
+        [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${_RUNE_TRACE_PATH:-}" ]] \
+          && echo "[$(date '+%H:%M:%S')] COMPACT-RECOVERY: restored ${_sf} via re-derivation" \
+             >> "${_RUNE_TRACE_PATH:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
+      else
+        [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${_RUNE_TRACE_PATH:-}" ]] \
+          && echo "[$(date '+%H:%M:%S')] COMPACT-RECOVERY: re-derivation failed for ${_sf} (cross-session or missing checkpoint — orphan safe)" \
+             >> "${_RUNE_TRACE_PATH:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
+      fi
+    done <<< "$_arc_state_file_keys"
+  fi
+fi
+
 # Arc phase if present
 ARC_PHASE=$(printf '%s\n' "$CHECKPOINT_DATA" | jq -r '.arc_checkpoint.current_phase // empty' 2>/dev/null || true)
 # WS-002 FIX: Validate ARC_PHASE against character allowlist (closes prompt injection surface)
