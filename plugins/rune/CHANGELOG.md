@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.52.4] - 2026-04-17
+
+### Fixed
+
+#### Portability (Bash 3.2 compatibility)
+- **PORT-001 — `SessionStart:startup hook error: PROJECT_COMPANIONS[@]: unbound variable`** in `scripts/talisman-resolve.sh:713,717`. Two `for suffix in "${PROJECT_COMPANIONS[@]}"` loops crashed under macOS `/bin/bash` (Bash 3.2.57) + `set -euo pipefail` whenever no companion talisman files existed (the common case — `talisman.{audit,review,arc,...}.yml` are all optional). Bash 3.2 treats `"${arr[@]}"` of an empty array as "unbound" under `set -u`; Bash 4.4+ fixed this. Replaced with the `${arr[@]+"${arr[@]}"}` parameter-expansion idiom — safe on both Bash 3.2 and 4.4+. The same file already used the safe `if [[ ${#ARR[@]} -gt 0 ]]; then` length-check pattern at lines 572 and 576; only the source-hash write block (lines 706-730) had the unguarded sites. Aligns with the "Cross-Platform Shell Compatibility" rule in CLAUDE.md (array semantics is one of three things that "cannot be patched at the source").
+
 ## [2.52.3] - 2026-04-17
 
 ### Fixed

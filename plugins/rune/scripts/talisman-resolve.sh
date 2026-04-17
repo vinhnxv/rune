@@ -710,11 +710,13 @@ if [[ "$CACHE_TYPE" == "project" ]]; then
   [[ -f "$PROJECT_TALISMAN" && ! -L "$PROJECT_TALISMAN" ]] && hash_sources+=("$PROJECT_TALISMAN")
   [[ -f "$GLOBAL_TALISMAN" && ! -L "$GLOBAL_TALISMAN" ]] && hash_sources+=("$GLOBAL_TALISMAN")
   # Include companion files in hash (resolve suffixes back to paths)
-  for suffix in "${PROJECT_COMPANIONS[@]}"; do
+  # Bash 3.2 (macOS /bin/bash) treats "${arr[@]}" of empty array as unbound under `set -u`.
+  # Use ${arr[@]+"${arr[@]}"} idiom to expand safely on both Bash 3.2 and 4.4+.
+  for suffix in ${PROJECT_COMPANIONS[@]+"${PROJECT_COMPANIONS[@]}"}; do
     comp="${PROJECT_BASE}.${suffix}.yml"
     [[ -f "$comp" && ! -L "$comp" ]] && hash_sources+=("$comp")
   done
-  for suffix in "${GLOBAL_COMPANIONS[@]}"; do
+  for suffix in ${GLOBAL_COMPANIONS[@]+"${GLOBAL_COMPANIONS[@]}"}; do
     comp="${GLOBAL_BASE}.${suffix}.yml"
     [[ -f "$comp" && ! -L "$comp" ]] && hash_sources+=("$comp")
   done
