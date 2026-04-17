@@ -354,6 +354,18 @@
       },
       {
         "matcher": "Write|Edit",
+        "_rationale": "ARC-STATE-INTEGRITY-001: After any Write/Edit to .rune/arc/*/checkpoint.json, verify phase-loop state file exists and auto-create if missing. Dry-run mode when arc.state_file.code_enforced_writes=false (logs observations without touching filesystem). Fast-path grep exit (<1ms) for non-checkpoint writes. Re-entrancy guard via RUNE_ARC_STATE_INIT_IN_PROGRESS. Closes plan AC-1/AC-2/AC-7.",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/verify-arc-state-integrity.sh",
+            "timeout": 10,
+            "statusMessage": "Verifying arc state integrity..."
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
         "_rationale": "LEARN-001: Lightweight signal writer for file-revert detection. Only activates when tmp/.rune-learn-watch marker exists. Fast-path exit (<1ms) when marker absent.",
         "hooks": [
           {

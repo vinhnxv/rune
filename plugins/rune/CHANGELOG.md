@@ -1,5 +1,39 @@
 # Changelog
 
+## [2.53.0] - 2026-04-17
+
+### Added
+
+#### Arc phase-loop state file integrity subsystem (canary, flag OFF by default)
+
+Lands the foundation of `plans/2026-04-17-fix-arc-state-file-reliability-plan.md` —
+implementation order steps 1-4 (library, init script, flag infrastructure, PostToolUse hook).
+All new code is gated by `arc.state_file.code_enforced_writes` (default `false` during canary).
+Hook fires in dry-run mode when flag is OFF, collecting telemetry without behavior change.
+Closes AC-1 (creation reliability), AC-5 (single source of truth), AC-7 (observability),
+and AC-11 (pre-commit). AC-2 (mid-arc watchdog), AC-3 (heartbeat), AC-4 (deletion gate),
+AC-6 (full end-to-end flag), AC-8 (backwards compat), AC-9 (cross-platform CI),
+AC-10 (regression), AC-12 through AC-15 are follow-ups in subsequent patches.
+
+- **NEW — `scripts/lib/arc-loop-state.sh`** (shared library, 7 public functions): `arc_state_file_path(kind)`, `arc_state_flag_enabled`, `arc_state_pending_phases` (XM-3: returns `-1` on jq parse failure so callers defer deletion), `arc_state_integrity_log` (CWE-93 immune via `jq -nc --arg`, pre-append rotation under `mkdir` lock at 5 MB), `arc_state_touch` (throttled to 60s, content-rewrite-free per R27), `arc_state_should_delete` (3-criterion rubric: pending phases > 0 → defer; stop_reason ∈ {completed,cancelled,context_limit} → OK; else → defer safe default), `arc_state_recover(kind)` (delegates to init script in hook mode). Bash 3.2 compatible. Umask 077. Loop kinds validated against allowlist (prototype-pollution guard).
+- **NEW — `scripts/rune-arc-init-state.sh`** (deterministic CLI, 3 subcommands): `create [--kind phase|batch|hierarchy|issues] [--checkpoint PATH] [--force] [--source skill|hook]`, `verify`, `touch`. Atomic write via same-directory `mktemp "${STATE_FILE}.XXXXXX"` + `mv -f` (XM-1, closes R17 cross-filesystem race). INTEG Layer 1 pre-write assertions for configDir, ownerPid, sessionId, planFile, arc_id (the `^arc-[0-9]+$` validation closes plan §16.9 Issue 2). INTEG Layer 2 post-write cross-field verification reads back each field via `sed` and compares against the variable used to write it (plan §6.1). In `--source hook` mode, owner_pid is sourced from checkpoint.json (XM-2, closes R19 — `$PPID` is the hook runner, not the session). Cleanup trap on EXIT removes tmp file on any failure path.
+- **NEW — `scripts/verify-arc-state-integrity.sh`** (PostToolUse hook, dry-run aware): Fires on every `Write|Edit`, exits <1 ms via grep fast-path when modified file is not `.rune/arc/*/checkpoint.json`. Strict regex gate `\.rune/arc/arc-[0-9]+/checkpoint\.json$` (§16 Issue 2). R16 re-entrancy guard via `RUNE_ARC_STATE_INIT_IN_PROGRESS` export + state-file path allowlist refusal. Dry-run mode when flag OFF: logs the observation (`recovery_failed_no_checkpoint` / `verified`) with `dry_run: true` stamped into every entry; active mode creates state file via init script in hook source mode. Emits valid PostToolUse JSON with `hookEventName` on every exit path (avoids "hook error" noise per CLAUDE.md hook-output contract).
+- **NEW — `arc.state_file.*` talisman section** (defaults in `plugins/rune/scripts/talisman-defaults.json`): `code_enforced_writes: false` (canary default), `stale_multiplier: 3`, `heartbeat_interval_sec: 60`, `integrity_log_max_bytes: 5242880`, `flag_lifetime: "arc"` (mitigates R24 mid-arc flag-flip inconsistency), `siblings.{phase,batch,hierarchy,issues}` gradual-rollout toggles. Resolved via existing shard pipeline at `tmp/.talisman-resolved/arc.json`.
+- **NEW — PostToolUse hook entry in `hooks/hooks.json`**: matcher `Write|Edit`, `ARC-STATE-INTEGRITY-001` rationale documenting R16 re-entrancy, fast-path grep exit, and AC mapping. `timeout: 10` (vs 5 for other entries) matches plan §6.6 — init script is heavier than the heartbeat writer and may hit slow-filesystem budgets.
+
+#### Integrity log (`.rune/arc-integrity-log.jsonl`, 5 MB rotation)
+
+Append-only JSONL with structured schema: `ts` (ISO-8601 UTC), `session_id`, `owner_pid`, `config_dir`, `action`, `cause`, `source_script`, `state_file_path`, `severity` (info|warn|error), `event_class` (lifecycle|recovery|deletion|failure), `flag_enabled`, `dry_run`. Every entry constructed via `jq -nc --arg` — `printf`/`echo` JSON construction prohibited (§16 Issue 3, closes CWE-93 newline injection). `chmod 600` + `umask 077` (§16 Issue 6/9). Pre-append rotation at 5 MB cap serialized via `mkdir`-based lock (§14.4, closes R22). Entries dry-run tagged so canary telemetry can be mixed-in without polluting post-rollout metrics.
+
+### Deferred (follow-up patches per plan §13 topological order)
+
+Steps 5-9 (heartbeat extension, stop-hook watchdog wiring, deletion gate in
+`on-session-stop.sh`, SKILL.md `Bash(init-state.sh)` switch, sibling loops) land
+in subsequent patches. The foundation here is independently committable and revertable
+(plan §13) — hook is dry-run, flag defaults OFF, nothing calls the library yet.
+Integration and adversarial tests (plan §9.1-9.4, ~660 LOC across 3 test files) are
+also deferred; existing regression suite must stay green.
+
 ## [2.52.4] - 2026-04-17
 
 ### Fixed
