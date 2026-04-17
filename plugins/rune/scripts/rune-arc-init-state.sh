@@ -233,7 +233,7 @@ cmd_create() {
 
   # Validate source
   case "$_src" in
-    skill|hook) ;;
+    skill|hook|session-start|worktree) ;;
     *) echo "FATAL: invalid --source: $_src" >&2; return 2 ;;
   esac
 
@@ -482,7 +482,11 @@ cmd_create() {
   fi
 
   local _action="created"
-  [ "$_src" = "hook" ] && _action="recovered_post_checkpoint_write"
+  case "$_src" in
+    hook) _action="recovered_post_checkpoint_write" ;;
+    session-start) _action="hydrated_at_session_start" ;;
+    worktree) _action="hydrated_at_worktree_create" ;;
+  esac
   arc_state_integrity_log "$_action" "src=$_src,kind=$_kind" "$_state_file"
   _trace "create ok: $_state_file (src=$_src kind=$_kind)"
   return 0

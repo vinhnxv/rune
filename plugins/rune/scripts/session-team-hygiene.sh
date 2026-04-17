@@ -586,6 +586,80 @@ done
 # hook's validate_session_ownership() orphan handler.
 # Replacement: SKILL.md pre-flight conflict detection (Decision Matrix 1, F4)
 
+# ── Task 3 (child-1, plan AC-3): SessionStart state-file hydration ──
+# Hydrate `.rune/arc-phase-loop.local.md` on session start when the current
+# session owns an active checkpoint but the state file is missing. Defense-
+# in-depth complement to Stop hook self-heal (Task 2) and skill resume
+# bootstrap (Task 1). No user interaction — silent hydration, logged to
+# integrity log as `action: hydrated_at_session_start`.
+#
+# Guard: only hydrates for checkpoints owned by the current session
+# (config_dir + session_id match, or owner_pid ancestry via
+# _resolve_newest_checkpoint). Foreign checkpoints are left untouched.
+#
+# Safety: single-shot per session invocation; no loop, no retry budget
+# needed (create subcommand is idempotent).
+hydrated_count=0
+if [[ -x "${SCRIPT_DIR}/rune-arc-init-state.sh" ]]; then
+  for ckpt_dir in "${CWD}/${RUNE_STATE}/arc" "${CWD}/.claude/arc"; do
+    [[ -d "$ckpt_dir" ]] || continue
+    shopt -s nullglob 2>/dev/null || true
+    for ckpt in "$ckpt_dir"/*/checkpoint.json; do
+      [[ -f "$ckpt" ]] && [[ ! -L "$ckpt" ]] || continue
+      # Skip archived
+      [[ "$ckpt" == */archived/* ]] && continue
+      # Skip completed
+      if command -v jq >/dev/null 2>&1; then
+        _hyd_completed=$(jq -r '.completed_at // empty' "$ckpt" 2>/dev/null || true)
+        [[ -n "$_hyd_completed" ]] && continue
+        # Check checkpoint is owned by current session before hydrating
+        _hyd_cfg=$(jq -r '.config_dir // empty' "$ckpt" 2>/dev/null || true)
+        _hyd_sid=$(jq -r '.session_id // empty' "$ckpt" 2>/dev/null || true)
+        _hyd_owner_pid=$(jq -r '.owner_pid // empty' "$ckpt" 2>/dev/null || true)
+        # Config-dir match (installation isolation)
+        if [[ -n "$_hyd_cfg" ]] && [[ -n "${RUNE_CURRENT_CFG:-}" ]] \
+             && [[ "$_hyd_cfg" != "$RUNE_CURRENT_CFG" ]]; then
+          continue
+        fi
+        # Session-id match (primary ownership check) OR alive owner_pid fallback
+        _hyd_own=0
+        if [[ -n "$_hyd_sid" ]] && [[ -n "${HOOK_SESSION_ID:-}" ]] \
+             && [[ "$_hyd_sid" == "${HOOK_SESSION_ID}" ]]; then
+          _hyd_own=1
+        elif [[ -n "$_hyd_owner_pid" ]] && [[ "$_hyd_owner_pid" =~ ^[0-9]+$ ]] \
+               && kill -0 "$_hyd_owner_pid" 2>/dev/null; then
+          _hyd_own=1
+        fi
+        [[ "$_hyd_own" = "1" ]] || continue
+      else
+        # No jq — conservative skip (cannot verify ownership)
+        continue
+      fi
+      # Map checkpoint arc_id → expected state file
+      _hyd_state_file="${CWD}/${RUNE_STATE}/arc-phase-loop.local.md"
+      # Already present — no hydration needed
+      [[ -f "$_hyd_state_file" ]] && [[ ! -L "$_hyd_state_file" ]] && break
+      # Hydrate via rune-arc-init-state.sh create --source session-start --force
+      if bash "${SCRIPT_DIR}/rune-arc-init-state.sh" create \
+           --source session-start \
+           --kind phase \
+           --checkpoint "$ckpt" \
+           --force 2>/dev/null; then
+        hydrated_count=$((hydrated_count + 1))
+        [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${_RUNE_TRACE_PATH}" ]] \
+          && echo "[$(date '+%H:%M:%S')] TLC-003: hydrated_at_session_start: ${_hyd_state_file} (from $(basename "$(dirname "$ckpt")"))" \
+             >> "${_RUNE_TRACE_PATH}"
+      fi
+      # Only one active state file per session — break after first hydration
+      break
+    done
+    [[ "$hydrated_count" -gt 0 ]] && break
+  done
+fi
+[[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "${_RUNE_TRACE_PATH}" ]] \
+  && echo "[$(date '+%H:%M:%S')] TLC-003: state files hydrated at session start: ${hydrated_count}" \
+     >> "${_RUNE_TRACE_PATH}"
+
 # ── Orphaned worktree detection ──
 # WORKTREE-GC: Remove when SDK provides native worktree lifecycle management
 # Detect rune-work-* worktrees left by crashed sessions (informational only — no auto-cleanup at startup)
