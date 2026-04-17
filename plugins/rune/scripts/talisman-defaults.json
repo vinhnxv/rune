@@ -55,6 +55,15 @@
       "prerequisite_check": true,
       "shared_branch": true
     },
+    "state_file": {
+      "_comment": "Phase-loop state file integrity subsystem. YAML path: arc.state_file.code_enforced_writes. Default false during canary. When true: bash-driven creation (mktemp + mv -f), PostToolUse auto-recovery, Stop-hook watchdog, heartbeat mtime refresh, pending-phase-gated deletion, integrity log. Rollout: see CHANGELOG 'Rollout Criterion' section.",
+      "code_enforced_writes": false,
+      "stale_multiplier": 3,
+      "heartbeat_interval_sec": 60,
+      "_note_retention_env_only": "Integrity-log retention is env-var-only: RUNE_ARC_INTEG_LOG_MAX_BYTES (default 5242880) and RUNE_ARC_INTEGRITY_LOG_MAX_ARCHIVES (default 5). Keys intentionally absent from this shard — no code consumer reads them.",
+      "_note_flag_lifetime_deferred": "`flag_lifetime` key intentionally absent — per-call flag reads mean mid-arc flips take effect immediately. R24 (mid-arc consistency) remains an open risk until arc-start snapshot semantics ship in a follow-up.",
+      "_note_siblings_removed": "VEIL-002: siblings.* block removed — no code consumer. Restore when arc_state_recover gates on siblings.$kind"
+    },
     "ship": {
       "auto_merge": false,
       "auto_pr": true,

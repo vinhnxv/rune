@@ -159,3 +159,50 @@ _resolve_path() {
   readlink -f "$_p" 2>/dev/null ||
   echo "$_p"
 }
+
+# reject_symlink_deep <path>
+# Returns 0 when NO path component (including the target itself) is a symlink
+# up to the repo root, $HOME, or filesystem root. Returns 1 if ANY component
+# is a symlink (SEC CWE-61 — symlink traversal defense-in-depth).
+#
+# Walks upward via dirname, testing each component with `[ -L ]`. Stops at:
+#   - filesystem root (/)
+#   - $HOME
+#   - a directory containing .git (repo root)
+#
+# Bash 3.2 compatible — no readlink -f chain, pure dirname loop.
+# Accepts non-existent targets (dirname walk still works on unresolved paths).
+reject_symlink_deep() {
+  local _path="$1"
+  [ -z "$_path" ] && return 1
+  local _cur="$_path"
+  local _guard=0
+  local _home="${HOME:-}"
+  while :; do
+    _guard=$((_guard + 1))
+    # Safety bound: absurdly deep paths mean something's wrong — reject.
+    if [ "$_guard" -gt 64 ]; then
+      return 1
+    fi
+    if [ -L "$_cur" ]; then
+      return 1
+    fi
+    # Stop conditions
+    case "$_cur" in
+      /|.) return 0 ;;
+    esac
+    if [ -n "$_home" ] && [ "$_cur" = "$_home" ]; then
+      return 0
+    fi
+    if [ -d "$_cur/.git" ] || [ -f "$_cur/.git" ]; then
+      return 0
+    fi
+    local _next
+    _next=$(dirname "$_cur" 2>/dev/null)
+    # If dirname didn't advance, stop (avoid infinite loop)
+    if [ -z "$_next" ] || [ "$_next" = "$_cur" ]; then
+      return 0
+    fi
+    _cur="$_next"
+  done
+}
