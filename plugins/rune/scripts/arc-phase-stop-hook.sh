@@ -159,17 +159,17 @@ _trace "PARSED active=${ACTIVE} iteration=${ITERATION} checkpoint_path=${CHECKPO
 # ── GUARD 5.5: Validate CHECKPOINT_PATH (SEC-001: path traversal prevention) ──
 if [[ -z "$CHECKPOINT_PATH" ]] || [[ "$CHECKPOINT_PATH" == *".."* ]] || [[ "$CHECKPOINT_PATH" == /* ]]; then
   _trace "EXIT: CHECKPOINT_PATH validation failed (empty/traversal/absolute): '${CHECKPOINT_PATH}'"
-  rm -f "$STATE_FILE" 2>/dev/null
+  arc_delete_state_file "$STATE_FILE" 2>/dev/null || true
   exit 0
 fi
 if [[ "$CHECKPOINT_PATH" =~ [^a-zA-Z0-9._/-] ]]; then
   _trace "EXIT: CHECKPOINT_PATH contains invalid chars: '${CHECKPOINT_PATH}'"
-  rm -f "$STATE_FILE" 2>/dev/null
+  arc_delete_state_file "$STATE_FILE" 2>/dev/null || true
   exit 0
 fi
 if [[ -L "${CWD}/${CHECKPOINT_PATH}" ]]; then
   _trace "EXIT: CHECKPOINT_PATH is symlink"
-  rm -f "$STATE_FILE" 2>/dev/null
+  arc_delete_state_file "$STATE_FILE" 2>/dev/null || true
   exit 0
 fi
 
@@ -255,7 +255,7 @@ if [[ "$_CKPT_PATH_IS_CANONICAL" != "true" ]]; then
     # the pre-recovery value at lines 165-169.
     if [[ ! "$_recovered" =~ ^[a-zA-Z0-9._/-]+$ ]]; then
       _trace "EXIT CKPT-001: Recovered checkpoint path contains unsafe characters: '${_recovered}'"
-      rm -f "$STATE_FILE" 2>/dev/null
+      arc_delete_state_file "$STATE_FILE" 2>/dev/null || true
       exit 0
     fi
     CHECKPOINT_PATH="$_recovered"
@@ -270,7 +270,7 @@ if [[ "$_CKPT_PATH_IS_CANONICAL" != "true" ]]; then
     fi
   else
     _trace "EXIT CKPT-001: Non-canonical checkpoint_path AND no checkpoint found anywhere — cannot proceed"
-    rm -f "$STATE_FILE" 2>/dev/null
+    arc_delete_state_file "$STATE_FILE" 2>/dev/null || true
     exit 0
   fi
 fi
@@ -329,34 +329,34 @@ _trace "GUARD 5.8 PASSED: State file integrity OK"
 # ── GUARD 6: Validate active flag ──
 if [[ "$ACTIVE" != "true" ]]; then
   _trace "EXIT: active=${ACTIVE} (not 'true')"
-  rm -f "$STATE_FILE" 2>/dev/null
+  arc_delete_state_file "$STATE_FILE" 2>/dev/null || true
   exit 0
 fi
 
 # ── GUARD 7: Validate numeric fields ──
 if ! [[ "$ITERATION" =~ ^[0-9]+$ ]]; then
   _trace "EXIT: iteration '${ITERATION}' is not numeric"
-  rm -f "$STATE_FILE" 2>/dev/null
+  arc_delete_state_file "$STATE_FILE" 2>/dev/null || true
   exit 0
 fi
 
 # ── GUARD 8: Max iterations check (safety cap at 65 — 40 phases + 25 convergence rounds) ──
 if [[ "$MAX_ITERATIONS" =~ ^[0-9]+$ ]] && [[ "$MAX_ITERATIONS" -gt 0 ]] && [[ "$ITERATION" -ge "$MAX_ITERATIONS" ]]; then
   _trace "EXIT: max iterations reached (${ITERATION} >= ${MAX_ITERATIONS})"
-  rm -f "$STATE_FILE" 2>/dev/null
+  arc_delete_state_file "$STATE_FILE" 2>/dev/null || true
   exit 0
 fi
 
 # ── Read checkpoint ──
 if [[ ! -f "${CWD}/${CHECKPOINT_PATH}" ]]; then
   _trace "EXIT: checkpoint file not found at ${CWD}/${CHECKPOINT_PATH}"
-  rm -f "$STATE_FILE" 2>/dev/null
+  arc_delete_state_file "$STATE_FILE" 2>/dev/null || true
   exit 0
 fi
 
 CKPT_CONTENT=$(cat "${CWD}/${CHECKPOINT_PATH}" 2>/dev/null || true)
 if [[ -z "$CKPT_CONTENT" ]]; then
-  rm -f "$STATE_FILE" 2>/dev/null
+  arc_delete_state_file "$STATE_FILE" 2>/dev/null || true
   exit 0
 fi
 
@@ -1176,7 +1176,7 @@ if [[ -n "$NEXT_PHASE" && -n "$_ARC_ID_FOR_LOG" && "$_ARC_ID_FOR_LOG" =~ ^[a-zA-
         fi
       fi
     fi
-    rm -f "$STATE_FILE" 2>/dev/null
+    arc_delete_state_file "$STATE_FILE" 2>/dev/null || true
     printf 'Arc pipeline STOPPED — stuck loop detected. Phase "%s" has been dispatched %d times (max %d). This indicates an infinite convergence loop. Check the checkpoint at %s for phase status and investigate why "%s" is not completing or being skipped.\n' \
       "$NEXT_PHASE" "$_new_count" "$MAX_PHASE_DISPATCHES" "$CHECKPOINT_PATH" "$NEXT_PHASE" >&2
     exit 2
@@ -1279,9 +1279,9 @@ if [[ -z "$NEXT_PHASE" ]]; then
   fi
   # Remove state file — arc-batch-stop-hook.sh (if active) handles batch-level completion.
   # If no batch loop, on-session-stop.sh handles session cleanup.
-  rm -f "$STATE_FILE" 2>/dev/null
+  arc_delete_state_file "$STATE_FILE" 2>/dev/null || true
   if [[ -f "$STATE_FILE" ]]; then
-    rm -f "$STATE_FILE" 2>/dev/null
+    arc_delete_state_file "$STATE_FILE" 2>/dev/null || true
     if [[ -f "$STATE_FILE" ]]; then
       : > "$STATE_FILE" 2>/dev/null
     fi
@@ -1437,7 +1437,7 @@ if [[ "$_needs_compact" == "true" ]] && [[ "$COMPACT_PENDING" != "true" ]] && [[
     _trace "State file empty before compact Phase A — aborting"
     exit 0
   fi
-  _STATE_TMP=$(mktemp "${STATE_FILE}.XXXXXX" 2>/dev/null) || { rm -f "$STATE_FILE" 2>/dev/null; exit 0; }
+  _STATE_TMP=$(mktemp "${STATE_FILE}.XXXXXX" 2>/dev/null) || { arc_delete_state_file "$STATE_FILE" 2>/dev/null || true; exit 0; }
   if grep -q '^compact_pending:' "$STATE_FILE" 2>/dev/null; then
     # AC-8: Use awk for safer YAML field replacement (handles trailing whitespace, missing newline)
     awk '/^compact_pending:/ { print "compact_pending: true"; next } { print }' "$STATE_FILE" > "$_STATE_TMP" 2>/dev/null
@@ -1511,7 +1511,7 @@ if [[ "$_skip_context_check" == "false" ]] && _check_context_critical 2>/dev/nul
     # Compact interlude just completed AND bridge file has FRESH data showing critical.
     # This means compaction genuinely didn't free enough space — hopeless state.
     _trace "Context critical after compact interlude (fresh bridge data) — injecting exhaustion notice"
-    rm -f "$STATE_FILE" 2>/dev/null
+    arc_delete_state_file "$STATE_FILE" 2>/dev/null || true
     printf '%s\n' "Arc Pipeline — Context Exhaustion
 
 The arc pipeline cannot continue. Context compaction was attempted but the context window is still critically low (≤25% remaining).
@@ -1532,7 +1532,7 @@ Present a brief summary of what was accomplished and STOP responding." >&2
   # BUG FIX (AC-4): Was exit 0 (silent arc death). Now exits 2 with notification
   # so the user knows WHY the arc stopped and HOW to resume.
   _trace "Context critical — removing state file, injecting resume notice"
-  rm -f "$STATE_FILE" 2>/dev/null
+  arc_delete_state_file "$STATE_FILE" 2>/dev/null || true
   printf '%s\n' "Arc Pipeline — Context Critical (Pre-Compaction)
 
 The arc pipeline is pausing due to low context (≤25% remaining).
@@ -1905,7 +1905,7 @@ SECTION_HINT=$(_phase_section_hint "$NEXT_PHASE")
 # Validate REF_FILE
 if [[ -z "$REF_FILE" ]] || [[ "$REF_FILE" =~ [^a-zA-Z0-9._/-] ]]; then
   _trace "Invalid reference file for phase ${NEXT_PHASE} — aborting"
-  rm -f "$STATE_FILE" 2>/dev/null
+  arc_delete_state_file "$STATE_FILE" 2>/dev/null || true
   exit 0
 fi
 
