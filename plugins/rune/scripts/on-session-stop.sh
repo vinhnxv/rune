@@ -263,6 +263,18 @@ if _check_loop_ownership "${CWD}/${RUNE_STATE}/arc-phase-loop.local.md"; then
     if [[ "$_phase_mtime" -le 0 ]]; then exit 0; fi
     _phase_age_min=$(( (NOW - _phase_mtime) / 60 ))
     if [[ $_phase_age_min -gt $_PHASE_STALE_MIN ]]; then
+      # BACK-IDN-003 FIX (v2.53.2): Don't delete state when OUR live session still
+      # owns the loop — arc-idle is NOT the same as arc-crashed. _check_loop_ownership
+      # already filtered out other-live-session cases, so at this point owner_pid
+      # is either (a) us (alive) or (b) a dead orphan. Only orphans get cleaned.
+      # Previously: all stale-active state got deleted, breaking /rune:arc --resume
+      # for users who walked away >150 min and came back expecting resumable state.
+      _phase_owner_pid=$(_get_fm_field "$_LOOP_FM" "owner_pid")
+      if [[ -n "$_phase_owner_pid" && "$_phase_owner_pid" =~ ^[0-9]+$ ]] && rune_pid_alive "$_phase_owner_pid"; then
+        _trace "GUARD 5d: stale (${_phase_age_min}m) but live-owner pid=$_phase_owner_pid — DEFER"
+        exit 0
+      fi
+      # Owner PID dead → true orphan, safe to reclaim
       arc_delete_state_file "${CWD}/${RUNE_STATE}/arc-phase-loop.local.md"
     else
       exit 0
@@ -305,6 +317,12 @@ if _check_loop_ownership "${CWD}/${RUNE_STATE}/arc-batch-loop.local.md"; then
     if [[ "$_batch_mtime" -le 0 ]]; then exit 0; fi
     _batch_age_min=$(( (NOW - _batch_mtime) / 60 ))
     if [[ $_batch_age_min -gt $_BATCH_STALE_MIN ]]; then
+      # BACK-IDN-003 FIX (v2.53.2): Defer when live owner still holds the loop.
+      _batch_owner_pid=$(_get_fm_field "$_LOOP_FM" "owner_pid")
+      if [[ -n "$_batch_owner_pid" && "$_batch_owner_pid" =~ ^[0-9]+$ ]] && rune_pid_alive "$_batch_owner_pid"; then
+        _trace "GUARD 5: batch stale (${_batch_age_min}m) but live-owner pid=$_batch_owner_pid — DEFER"
+        exit 0
+      fi
       # Stale loop file — force cleanup instead of deferring
       arc_delete_state_file "${CWD}/${RUNE_STATE}/arc-batch-loop.local.md"
     else
@@ -330,6 +348,12 @@ if _check_loop_ownership "${CWD}/${RUNE_STATE}/arc-hierarchy-loop.local.md"; the
     if [[ "$_hier_mtime" -le 0 ]]; then exit 0; fi
     _hier_age_min=$(( (NOW - _hier_mtime) / 60 ))
     if [[ $_hier_age_min -gt $_HIERARCHY_STALE_MIN ]]; then
+      # BACK-IDN-003 FIX (v2.53.2): Defer when live owner still holds the loop.
+      _hier_owner_pid=$(_get_fm_field "$_LOOP_FM" "owner_pid")
+      if [[ -n "$_hier_owner_pid" && "$_hier_owner_pid" =~ ^[0-9]+$ ]] && rune_pid_alive "$_hier_owner_pid"; then
+        _trace "hierarchy stale (${_hier_age_min}m) but live-owner pid=$_hier_owner_pid — DEFER"
+        exit 0
+      fi
       arc_delete_state_file "${CWD}/${RUNE_STATE}/arc-hierarchy-loop.local.md"
     else
       exit 0
@@ -351,6 +375,12 @@ if _check_loop_ownership "${CWD}/${RUNE_STATE}/arc-issues-loop.local.md"; then
     if [[ "$_issues_mtime" -le 0 ]]; then exit 0; fi
     _issues_age_min=$(( (NOW - _issues_mtime) / 60 ))
     if [[ $_issues_age_min -gt $_ISSUES_STALE_MIN ]]; then
+      # BACK-IDN-003 FIX (v2.53.2): Defer when live owner still holds the loop.
+      _issues_owner_pid=$(_get_fm_field "$_LOOP_FM" "owner_pid")
+      if [[ -n "$_issues_owner_pid" && "$_issues_owner_pid" =~ ^[0-9]+$ ]] && rune_pid_alive "$_issues_owner_pid"; then
+        _trace "issues stale (${_issues_age_min}m) but live-owner pid=$_issues_owner_pid — DEFER"
+        exit 0
+      fi
       arc_delete_state_file "${CWD}/${RUNE_STATE}/arc-issues-loop.local.md"
     else
       exit 0

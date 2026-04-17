@@ -158,13 +158,38 @@ if [[ "${RUNE_TRACE:-}" == "1" ]]; then
     >> "$_rune_trace_log" 2>/dev/null
 fi
 
-# ── Write cache atomically (if not already cached) ──
-if [[ -n "${RUNE_CURRENT_CFG:-}" && ! -f "$_RUNE_IDENTITY_CACHE" ]]; then
+# ── Write cache atomically (create OR refresh) ──
+# BACK-IDN-001 FIX (v2.53.2): Refresh cache when env now has a SID but cache had empty.
+# Previously: cache was written once and never updated. If the FIRST hook to source
+# this file ran before RUNE_SESSION_ID was bridged (early PreToolUse before SessionStart
+# finishes), the cache pinned RUNE_CURRENT_SID='' for the session lifetime. Downstream
+# ownership checks (rune-arc-init-state.sh skill mode) then mis-judged same-session
+# checkpoints as "foreign PID", refusing state-file recovery.
+#
+# Fix: write cache if missing OR if cached SID is empty/stale while env has a fresh one.
+_RUNE_CACHE_NEEDS_WRITE=0
+if [[ -n "${RUNE_CURRENT_CFG:-}" ]]; then
+  if [[ ! -f "$_RUNE_IDENTITY_CACHE" ]]; then
+    _RUNE_CACHE_NEEDS_WRITE=1
+  elif [[ -n "${RUNE_CURRENT_SID:-}" ]]; then
+    # Re-parse cached SID to compare (cheap — single read of the small cache file)
+    _cached_sid_line=$(grep '^RUNE_CURRENT_SID=' "$_RUNE_IDENTITY_CACHE" 2>/dev/null | head -1)
+    _cached_sid="${_cached_sid_line#RUNE_CURRENT_SID=}"
+    # Strip printf %q quoting
+    _cached_sid="${_cached_sid#\$\'}" ; _cached_sid="${_cached_sid%\'}"
+    _cached_sid="${_cached_sid#\'}"   ; _cached_sid="${_cached_sid%\'}"
+    if [[ -z "$_cached_sid" || "$_cached_sid" != "$RUNE_CURRENT_SID" ]]; then
+      _RUNE_CACHE_NEEDS_WRITE=1
+    fi
+  fi
+fi
+if [[ "$_RUNE_CACHE_NEEDS_WRITE" == "1" ]]; then
   _tmp_cache="${_RUNE_IDENTITY_CACHE}.$$"
   (umask 077 && printf 'RUNE_CURRENT_CFG=%q\nRUNE_CURRENT_SID=%q\n' \
     "$RUNE_CURRENT_CFG" "$RUNE_CURRENT_SID" > "$_tmp_cache") 2>/dev/null
   mv "$_tmp_cache" "$_RUNE_IDENTITY_CACHE" 2>/dev/null || rm -f "$_tmp_cache" 2>/dev/null
 fi
+unset _RUNE_CACHE_NEEDS_WRITE _cached_sid_line _cached_sid
 
 # ── PID liveness check (EPERM-safe) ──
 # kill -0 returns non-zero for BOTH "no such process" (ESRCH) AND "permission denied" (EPERM).

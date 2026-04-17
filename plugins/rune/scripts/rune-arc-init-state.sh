@@ -106,16 +106,49 @@ _resolve_newest_checkpoint() {
   # session_id means the current process is a hook/subprocess of the owner
   # (XM-2: plain PPID mismatch in that case is not foreign ownership).
   if [ "$_src" = "skill" ]; then
-    local _ckpt_pid _ckpt_sid _cur_sid _ckpt_comm
+    local _ckpt_pid _ckpt_sid _cur_sid _ckpt_comm _ownership_ok
     _ckpt_pid=$(jq -r '.owner_pid // empty' "$_newest" 2>/dev/null | tr -d '\r')
     _ckpt_sid=$(jq -r '.session_id // empty' "$_newest" 2>/dev/null | tr -d '\r')
     _cur_sid="${RUNE_SESSION_ID:-${CLAUDE_SESSION_ID:-}}"
+    _ownership_ok=0
 
-    # Session_id match (non-empty, equal) → trusted regardless of PID
+    # Priority 1: session_id exact match → definitive (non-empty, equal)
     if [ -n "$_ckpt_sid" ] && [ -n "$_cur_sid" ] && [ "$_ckpt_sid" = "$_cur_sid" ]; then
-      :  # same session — proceed
-    elif [ -n "$_ckpt_pid" ] && [ "$_ckpt_pid" != "$PPID" ]; then
-      # Different session_id (or unavailable) AND different PID — check liveness
+      _ownership_ok=1
+    fi
+
+    # Priority 2 (BACK-IDN-002 FIX, v2.53.2): When SID not resolvable in this
+    # subprocess env (early-hook timing before RUNE_SESSION_ID bridges, or
+    # nested shell where CLAUDE_SESSION_ID was dropped), walk up the process
+    # tree and check whether _ckpt_pid is one of our ancestors. If yes, we
+    # are the owning session via process ancestry.
+    #
+    # Before this fix: the old code compared only `$_ckpt_pid != $PPID`.
+    # When called through a nested shell (e.g., `bash -c` or an Agent
+    # subprocess), $PPID was the intermediate shell, not Claude Code.
+    # Checkpoint.owner_pid (Claude Code PID) mismatched $PPID, and the
+    # "foreign PID" branch wrongly rejected the same session.
+    if [ "$_ownership_ok" = "0" ] && [ -z "$_cur_sid" ] && [ -n "$_ckpt_pid" ]; then
+      if [ "$_ckpt_pid" = "$PPID" ]; then
+        _ownership_ok=1
+      else
+        local _walk_pid _i
+        _walk_pid="$PPID"
+        for _i in 1 2 3 4 5; do
+          _walk_pid=$(ps -o ppid= -p "$_walk_pid" 2>/dev/null | tr -d ' ')
+          [ -z "$_walk_pid" ] && break
+          [ "$_walk_pid" = "1" ] && break
+          if [ "$_walk_pid" = "$_ckpt_pid" ]; then
+            _trace "SID unresolved but _ckpt_pid $_ckpt_pid is process ancestor (depth=$_i) — trusting"
+            _ownership_ok=1
+            break
+          fi
+        done
+      fi
+    fi
+
+    # Priority 3: PID-based foreign-session rejection (existing logic)
+    if [ "$_ownership_ok" = "0" ] && [ -n "$_ckpt_pid" ] && [ "$_ckpt_pid" != "$PPID" ]; then
       if kill -0 "$_ckpt_pid" 2>/dev/null; then
         # Cross-check comm — if PID is alive but not Claude Code, treat as dead
         # (orphan recovery, protects against PID reuse by unrelated processes).

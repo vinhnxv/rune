@@ -1,5 +1,90 @@
 # Changelog
 
+## [2.53.2] - 2026-04-18
+
+### Fixed
+
+#### Arc phase-loop state file lifecycle — 5 cascading bugs resolved
+
+Root-cause investigation of user report "rune arc and rune arc resume neither
+generates the phase loop local md file". The state file
+`.rune/arc-phase-loop.local.md` was either never created or deleted soon after,
+causing the Stop hook to silent-exit at GUARD 4 (line 123-127) and the phase
+loop to stall after phase 1. Each of the five bugs below was confirmed via
+`/tmp/rune-hook-trace.log` evidence; the combined fix restores the full
+create → survive-across-sessions → resume contract.
+
+- **FIXED — `scripts/resolve-session-identity.sh` (BACK-IDN-001)**:
+  Identity cache wrote `RUNE_CURRENT_SID=''` once and never refreshed. If the
+  FIRST hook to source this file ran before `RUNE_SESSION_ID` was bridged via
+  `CLAUDE_ENV_FILE` (early PreToolUse before SessionStart:startup completed),
+  the cache pinned an empty SID for the session lifetime. Now: cache is
+  refreshed whenever env has a SID but the cached value is empty or differs.
+  Evidence: `/var/folders/.../rune-identity-${PPID}` content showed
+  `RUNE_CURRENT_SID=''` despite `$CLAUDE_SESSION_ID` being set in parent env.
+
+- **FIXED — `scripts/rune-arc-init-state.sh` lines 108-142 (BACK-IDN-002)**:
+  Skill-mode ownership check compared `_ckpt_pid != $PPID` when SID was
+  unresolvable, but `$PPID` inside the script is the direct parent shell,
+  which may be an intermediate wrapper (e.g., nested `bash -c`) rather than
+  the Claude Code session. Same-session checkpoints were wrongly rejected as
+  "foreign PID" — trace confirmed `checkpoint owned by live foreign PID 31173
+  — refusing` where 31173 was in fact our own session. Now: when SID is
+  empty, walk up to 5 process ancestors and accept ownership if `_ckpt_pid`
+  is any ancestor in the chain.
+
+- **FIXED — `scripts/on-session-stop.sh` lines 255-362 (BACK-IDN-003)**:
+  GUARD 5/5d deleted active state files when mtime exceeded
+  `_PHASE_STALE_MIN=150` minutes, even when the owning session was still
+  alive. Semantics treated "user idle" identically to "hook crashed",
+  violating the resume contract — walking away from an arc for >2.5 hours
+  and returning would find the state file destroyed. Now: if
+  `_check_loop_ownership` passes AND `owner_pid` is still alive
+  (`rune_pid_alive`), DEFER instead of delete. Only truly orphaned states
+  (dead owner PID) get cleaned via the staleness path. Applied to all four
+  loop kinds (phase, batch, hierarchy, issues).
+
+- **FIXED — `scripts/lib/stop-hook-common.sh` `resolve_cwd()` (BACK-IDN-004)**:
+  Trusted `input.cwd` blindly. When Claude Code reported `.cwd = $HOME`
+  (user `cd ~`'d mid-session, or session was launched from home), stop hooks
+  looked for `$HOME/.rune/arc-phase-loop.local.md` and silent-exited at
+  GUARD 4. Evidence: trace `[17:24:22] arc-phase-stop: CWD=/Users/vinhnx` →
+  `EXIT: no state file at /Users/vinhnx/.rune/arc-phase-loop.local.md`. Now:
+  after canonicalizing CWD, if CWD has no arc-loop state file but
+  `$CLAUDE_PROJECT_DIR/.rune/` does, prefer the project dir. Strict file
+  check (no symlinks) avoids false matches.
+
+- **FIXED — `scripts/talisman-resolve.sh` `compute_source_hash()` +
+  system-cache hash (BACK-IDN-005)**: Cache key was derived solely from
+  INPUT file content (talisman.yml + defaults + companions). Changes to the
+  resolver SCRIPT (projection logic) did not invalidate cached shards.
+  This was how the v2.53.1 regression went undetected for users — after
+  pulling the v2.53.1 fix that added `state_file: .arc.state_file` to the
+  arc shard projection, shards produced under v2.53.0 projection logic were
+  still served because input hashes matched. Now: mix the resolver script's
+  own SHA-256 hash into both `.source-hash` (project cache) and
+  `.defaults-hash` (system cache). Any change to `talisman-resolve.sh`
+  forces cache invalidation on the next resolve.
+
+**Evidence and verification**:
+- Identity resolver test suite: 21/21 pass (no regression)
+- `stop-hook-common` test suite: 69/69 pass (no regression)
+- `on-session-stop` test suite: 26/44 pass (identical to pre-fix baseline)
+- After fix: `RUNE_CURRENT_SID` correctly resolves to full session ID in
+  the `rune-identity-${PPID}` bridge cache
+- After fix: `jq '.state_file.code_enforced_writes' tmp/.talisman-resolved/arc.json`
+  returns `true` (was `null` before talisman-resolve cache bust)
+- No hardcoded `$HOME/.rune` or `$CHOME/.rune` found in any script (audit
+  clean); state file path is always `${CWD}/${RUNE_STATE}/...` where
+  `RUNE_STATE=".rune"` is a literal constant from `lib/rune-state.sh`
+
+### Notes
+
+These fixes are backward-compatible — no schema changes, no new config keys.
+The canary flag `arc.state_file.code_enforced_writes` default remains `false`.
+Users with the flag enabled will see markedly fewer "foreign PID" refusals in
+skill-mode hook logs and no more state-file deletions during long-idle arcs.
+
 ## [2.53.1] - 2026-04-18
 
 ### Fixed

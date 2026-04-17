@@ -374,13 +374,28 @@ if [[ "$project_json" == '{}' && "$global_json" == '{}' && -z "$PARSE_FAILURES" 
   CACHE_TYPE="system"
 
   # Hash guard: fast-path skip if defaults unchanged
+  # BACK-IDN-005 FIX (v2.53.2): Mix in resolver script hash so projection-logic
+  # changes (like v2.53.1 adding arc.state_file) invalidate the system-cache
+  # fast-path even when talisman-defaults.json content is unchanged.
   DEFAULTS_HASH_FILE="${SYSTEM_SHARD_DIR}/.defaults-hash"
   if type _rune_venv_hash &>/dev/null; then
-    CURRENT_DEFAULTS_HASH=$(_rune_venv_hash "$DEFAULTS_FILE")
+    _RAW_DEFAULTS_HASH=$(_rune_venv_hash "$DEFAULTS_FILE")
   else
     # Inline fallback if rune-venv.sh not sourced
-    CURRENT_DEFAULTS_HASH=$(shasum -a 256 "$DEFAULTS_FILE" 2>/dev/null | cut -d' ' -f1 || sha256sum "$DEFAULTS_FILE" 2>/dev/null | cut -d' ' -f1 || echo "no-hash")
+    _RAW_DEFAULTS_HASH=$(shasum -a 256 "$DEFAULTS_FILE" 2>/dev/null | cut -d' ' -f1 || sha256sum "$DEFAULTS_FILE" 2>/dev/null | cut -d' ' -f1 || echo "no-hash")
   fi
+  _RESOLVER_SCRIPT_PATH="${BASH_SOURCE[0]:-}"
+  if [[ -n "$_RESOLVER_SCRIPT_PATH" && -f "$_RESOLVER_SCRIPT_PATH" && ! -L "$_RESOLVER_SCRIPT_PATH" ]]; then
+    _RESOLVER_SCRIPT_HASH=$(shasum -a 256 "$_RESOLVER_SCRIPT_PATH" 2>/dev/null | cut -d' ' -f1 || sha256sum "$_RESOLVER_SCRIPT_PATH" 2>/dev/null | cut -d' ' -f1 || echo "")
+    if [[ -n "$_RESOLVER_SCRIPT_HASH" && "$_RAW_DEFAULTS_HASH" != "no-hash" ]]; then
+      CURRENT_DEFAULTS_HASH=$(printf '%s|resolver:%s' "$_RAW_DEFAULTS_HASH" "$_RESOLVER_SCRIPT_HASH" | shasum -a 256 2>/dev/null | cut -d' ' -f1 || printf '%s|resolver:%s' "$_RAW_DEFAULTS_HASH" "$_RESOLVER_SCRIPT_HASH" | sha256sum 2>/dev/null | cut -d' ' -f1 || echo "$_RAW_DEFAULTS_HASH")
+    else
+      CURRENT_DEFAULTS_HASH="$_RAW_DEFAULTS_HASH"
+    fi
+  else
+    CURRENT_DEFAULTS_HASH="$_RAW_DEFAULTS_HASH"
+  fi
+  unset _RAW_DEFAULTS_HASH _RESOLVER_SCRIPT_PATH _RESOLVER_SCRIPT_HASH
 
   if [[ -f "$DEFAULTS_HASH_FILE" && -f "${SYSTEM_SHARD_DIR}/_meta.json" ]]; then
     stored_hash=$(cat "$DEFAULTS_HASH_FILE" 2>/dev/null || true)
@@ -697,6 +712,23 @@ compute_source_hash() {
       hash_input="${hash_input}${file_hash}"
     fi
   done
+  # BACK-IDN-005 FIX (v2.53.2): Mix in the resolver script's own hash so any
+  # change to projection logic invalidates the cache, even when input talisman/
+  # defaults files are unchanged. This defends against the v2.53.1 regression
+  # where shards were written without the `arc.state_file` block using old
+  # projection code, then served indefinitely because talisman.yml content was
+  # unchanged. The fix in v2.53.1 was resolver-code-only — users would never
+  # have seen it without manual cache bust. Adding the script hash closes the
+  # gap: changing talisman-resolve.sh => different hash => cache invalidated
+  # by downstream consumers that check .source-hash / .defaults-hash.
+  local resolver_script="${BASH_SOURCE[0]:-}"
+  if [[ -n "$resolver_script" && -f "$resolver_script" && ! -L "$resolver_script" ]]; then
+    local resolver_hash
+    resolver_hash=$(shasum -a 256 "$resolver_script" 2>/dev/null | cut -d' ' -f1 || sha256sum "$resolver_script" 2>/dev/null | cut -d' ' -f1 || echo "")
+    if [[ -n "$resolver_hash" ]]; then
+      hash_input="${hash_input}resolver:${resolver_hash}"
+    fi
+  fi
   if [[ -n "$hash_input" ]]; then
     printf '%s' "$hash_input" | shasum -a 256 2>/dev/null | cut -d' ' -f1 || printf '%s' "$hash_input" | sha256sum 2>/dev/null | cut -d' ' -f1 || echo "no-hash"
   else

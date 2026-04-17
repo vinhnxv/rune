@@ -80,6 +80,30 @@ resolve_cwd() {
       fi
     fi
   fi
+  # BACK-IDN-004 FIX (v2.53.2): If resolved CWD has no active arc/rune state
+  # but CLAUDE_PROJECT_DIR does, prefer the project dir. Guards against Claude
+  # Code reporting `.cwd = $HOME` when user `cd ~`'d mid-session — previous
+  # behavior made stop hooks silently exit at GUARD 4 looking for state at
+  # $HOME/.rune/, stalling the arc phase loop.
+  #
+  # Only override when CLAUDE_PROJECT_DIR differs from CWD and has real arc
+  # state. Never override when CWD itself has state (that's the correct working
+  # dir). Strict file check avoids false matches via symlinks.
+  if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
+    local _proj _cwd_has_state _proj_has_state _loop
+    _proj=$(cd "$CLAUDE_PROJECT_DIR" 2>/dev/null && pwd -P) || _proj=""
+    if [[ -n "$_proj" && "$_proj" != "$CWD" ]]; then
+      _cwd_has_state=0
+      _proj_has_state=0
+      for _loop in arc-phase-loop.local.md arc-batch-loop.local.md arc-hierarchy-loop.local.md arc-issues-loop.local.md; do
+        [[ -f "$CWD/.rune/$_loop" && ! -L "$CWD/.rune/$_loop" ]] && _cwd_has_state=1
+        [[ -f "$_proj/.rune/$_loop" && ! -L "$_proj/.rune/$_loop" ]] && _proj_has_state=1
+      done
+      if [[ "$_cwd_has_state" = "0" && "$_proj_has_state" = "1" ]]; then
+        CWD="$_proj"
+      fi
+    fi
+  fi
 }
 
 # ── check_state_file(): Guard 4 — state file existence ──
