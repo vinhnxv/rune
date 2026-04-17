@@ -1,5 +1,56 @@
 # Changelog
 
+## [2.54.0] - 2026-04-18
+
+### Added
+
+#### Arc state file hardening — foundation + scenario coverage (child-1 of state-file long-term plan)
+
+Makes state-file existence a universal precondition: every entry point
+(skill resume, Stop hook, SessionStart, worktree creation, compaction)
+either preserves, repairs, or observes the invariant. Five independent
+tasks ship together; each is independently revertable.
+
+**Task 1 — skill resume bootstrap** (AC-1): `/rune:arc --resume` now
+invokes `rune-arc-init-state.sh create --source skill` idempotently
+before any phase dispatch. Hydrates missing state file from the
+most-recent owned checkpoint. Logs `action: hydrated_at_skill_resume`.
+
+**Task 2 — Stop hook self-heal** (AC-2): `arc-phase-stop-hook.sh`
+GUARD 4 replaced silent-exit with a 3-way decision: (a) state file
+present → proceed, (b) missing AND current session owns checkpoint →
+re-create + `exec "$0"`, (c) missing AND no owned checkpoint →
+silent-exit. Single-fire watchdog via `RUNE_STOP_HOOK_SELF_HEAL_ATTEMPTED=1`.
+Adds `resolve-owned-checkpoint` subcommand to `rune-arc-init-state.sh`.
+
+**Task 3 — SessionStart hydration** (AC-3): `session-team-hygiene.sh`
+scans for active, owned checkpoints at session start and hydrates
+missing state files via `create --source session-start`. Logs
+`action: hydrated_at_session_start`.
+
+**Task 4 — Worktree state file propagation** (AC-6): `setup-worktree.sh`
+copies `.rune/arc-{kind}-loop.local.md` state files (phase/batch/
+hierarchy/issues) when creating worktrees during active arcs. Post-copy
+verify regenerates on identity mismatch.
+
+**Task 5 — Compaction state file survival** (AC-7):
+`pre-compact-checkpoint.sh` snapshots state file content under
+`arc_state_files` (additive field, 8KB cap per kind, does NOT bump
+schema_version). `session-compact-recovery.sh` re-derives missing
+state files via `create --source hook --force` — re-derivation stamps
+current post-compact session identity rather than blind-copying stale
+`owner_pid`/`session_id` from the snapshot.
+
+Six new bash tests validate each AC; zero regression in the 8
+predecessor tests listed in AC-10. Cross-platform correctness via
+`lib/platform.sh` shims.
+
+### Related
+
+- Tripwire guard (commit 82136af): defense-in-depth delete guard in
+  `arc_delete_state_file()` refuses delete when owning session is alive
+  — complements Task 2 self-heal.
+
 ## [2.53.2] - 2026-04-18
 
 ### Fixed
