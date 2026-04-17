@@ -158,16 +158,25 @@ _ck_field() {
 # Subcommand: create
 # ─────────────────────────────────────────────────────────────────────────────
 cmd_create() {
-  local _kind="phase" _cp="" _force=0 _src="skill"
+  local _kind="phase" _cp="" _force=0 _src="skill" _iteration="" _iteration_explicit=0
   while [ $# -gt 0 ]; do
     case "$1" in
       --kind) _kind="$2"; shift 2 ;;
       --checkpoint) _cp="$2"; shift 2 ;;
       --force) _force=1; shift ;;
       --source) _src="$2"; shift 2 ;;
+      --iteration) _iteration="$2"; _iteration_explicit=1; shift 2 ;;
       *) echo "FATAL: unknown arg: $1" >&2; return 2 ;;
     esac
   done
+
+  # Validate --iteration if provided (must be non-negative integer); otherwise
+  # we compute it below (recovery path) or default to 0 (skill bootstrap).
+  if [ "$_iteration_explicit" = "1" ]; then
+    case "$_iteration" in
+      ''|*[!0-9]*) _iteration=0 ;;
+    esac
+  fi
 
   # Validate kind
   case " phase batch hierarchy issues " in
@@ -234,6 +243,33 @@ cmd_create() {
       ;;
   esac
 
+  # SEC — Issue 2: CHOME UID ownership check — reject configDir owned by another
+  # user to prevent cross-account state tampering. Graceful fallback when
+  # _stat_uid is unavailable (e.g. platform.sh failed to source) — do not block.
+  if command -v _stat_uid >/dev/null 2>&1; then
+    local _cdir_uid
+    _cdir_uid=$(_stat_uid "$_cdir" 2>/dev/null || echo "")
+    if [ -n "$_cdir_uid" ] && [ "$_cdir_uid" != "$(id -u)" ]; then
+      echo "FATAL: configDir $_cdir not owned by current user (uid=$_cdir_uid, expected=$(id -u))" >&2
+      return 2
+    fi
+  fi
+
+  # Iteration computation — recovery path: when --source hook AND --iteration
+  # not provided AND checkpoint is readable, derive from completed phase count.
+  # Preserves default 0 on any failure (bootstrap path).
+  if [ "$_iteration_explicit" = "0" ]; then
+    _iteration=0
+    if [ "$_src" = "hook" ] && command -v jq >/dev/null 2>&1 && [ -r "$_cp" ]; then
+      local _it
+      _it=$(jq -r '[.phases[]? | select(.status == "completed")] | length' "$_cp" 2>/dev/null | tr -d '\r')
+      case "$_it" in
+        ''|*[!0-9]*) _iteration=0 ;;
+        *) _iteration="$_it" ;;
+      esac
+    fi
+  fi
+
   if [ "$_src" = "hook" ]; then
     # XM-2: use checkpoint's owner_pid in hook context (PPID is hook runner)
     _pid=$(_ck_field "$_cp" 'owner_pid')
@@ -264,8 +300,14 @@ cmd_create() {
     return 2
   }
 
-  # Symlink reject (SEC CWE-61)
-  if [ -L "$_state_file" ]; then
+  # Symlink reject (SEC CWE-61) — deep walk from target up to repo root / $HOME.
+  # Falls back to shallow `-L` check if helper is unavailable (platform.sh missing).
+  if command -v reject_symlink_deep >/dev/null 2>&1; then
+    if ! reject_symlink_deep "$_state_file"; then
+      echo "FATAL (SEC): state file path contains a symlink component: $_state_file" >&2
+      return 2
+    fi
+  elif [ -L "$_state_file" ]; then
     echo "FATAL (SEC): state file is a symlink: $_state_file" >&2
     return 2
   fi
@@ -310,7 +352,7 @@ cmd_create() {
   {
     printf -- '---\n'
     printf 'active: true\n'
-    printf 'iteration: 0\n'
+    printf 'iteration: %d\n' "$_iteration"
     printf 'max_iterations: 66\n'
     printf 'checkpoint_path: %s\n' "$_ckpt_rel"
     printf 'plan_file: %s\n' "$_plan"

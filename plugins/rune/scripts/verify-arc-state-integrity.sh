@@ -37,6 +37,7 @@ _rune_fail_forward() {
 trap '_rune_fail_forward' ERR
 
 set -u
+umask 077
 
 # ─── Hook re-entrancy guard ───
 if [ -n "${RUNE_ARC_STATE_INIT_IN_PROGRESS:-}" ]; then
@@ -108,22 +109,17 @@ case "$_file_path" in
     ;;
 esac
 
-# ─── VEIL-004: Dry-run fast-path (pre-source) ───
-# When talisman flag arc.state_file.code_enforced_writes is false AND the
-# operator hasn't opted in via RUNE_ARC_CANARY_OBSERVE, emit the JSON and
-# exit WITHOUT sourcing the library stack. Preserves the hot path for
-# _mode=active (code_enforced_writes=true) where create/verify still fires.
-if [ -z "${RUNE_ARC_CANARY_OBSERVE:-}" ]; then
-  _arc_shard="${CWD}/tmp/.talisman-resolved/arc.json"
-  _enforced="false"
-  if [ -f "$_arc_shard" ]; then
-    _enforced=$(jq -r '.state_file.code_enforced_writes // false' "$_arc_shard" 2>/dev/null || echo "false")
-  fi
-  if [ "$_enforced" != "true" ]; then
-    printf '{"hookSpecificOutput":{"hookEventName":"PostToolUse"}}'
-    exit 0
-  fi
-fi
+# ─── VEIL-004 FIX: always source libs when checkpoint regex matches ───
+# Previously this hook had a pre-source fast-path that exited WITHOUT sourcing
+# the library when arc.state_file.code_enforced_writes=false. That bypassed
+# the canary observation log entirely, defeating the purpose of dry-run mode.
+#
+# Now: for matching checkpoint writes, we always source libs and reach the
+# mode decision below (dry_run vs active). Observation entries are logged in
+# BOTH modes via arc_state_integrity_log; only active mode creates state files.
+# The pre-source grep fast-path at line ~66 still handles non-matching writes
+# in <1ms (preserves hot-path perf on general Write|Edit).
+# Re-entrancy (RUNE_ARC_STATE_INIT_IN_PROGRESS) already handles skip at top.
 
 # ─── Source lib to read flag + log ───
 # shellcheck disable=SC1091
@@ -159,7 +155,15 @@ if "$_init" verify >/dev/null 2>&1; then
 else
   # State file missing — auto-recreate in active mode, log-only in dry-run
   if [ "$_mode" = "active" ]; then
-    if "$_init" create --source hook --checkpoint "${CWD}/${_file_path#"${CWD}/"}" >/dev/null 2>&1; then
+    # Normalize file path: absolute paths are passed through; relative paths
+    # are anchored to CWD. Prevents malformed "${CWD}/<absolute>" constructions
+    # that the previous `${_file_path#"${CWD}/"}` prefix-strip emitted when the
+    # hook delivered paths not prefixed by CWD.
+    case "$_file_path" in
+      /*) _cp_path="$_file_path" ;;
+      *)  _cp_path="${CWD}/${_file_path}" ;;
+    esac
+    if "$_init" create --source hook --checkpoint "$_cp_path" >/dev/null 2>&1; then
       : # success — init script logs recovery event itself
     else
       arc_state_integrity_log "recovery_failed_no_checkpoint" "posttooluse_auto_create_failed" ""
