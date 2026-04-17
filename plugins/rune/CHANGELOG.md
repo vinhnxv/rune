@@ -1,5 +1,32 @@
 # Changelog
 
+## [2.53.1] - 2026-04-18
+
+### Fixed
+
+#### Arc state file canary flag unreachable through user talisman (blocker)
+
+Root-cause fix for a latent v2.53.0 canary activation blocker. The talisman
+resolver in `scripts/talisman-resolve.sh` uses a hardcoded per-section
+allowlist when projecting `talisman.yml` into shard JSON at
+`tmp/.talisman-resolved/`. The `arc.*` projection was missing `state_file`,
+so any user-set value of `arc.state_file.code_enforced_writes` was silently
+stripped before reaching `arc_state_flag_enabled()` in
+`scripts/lib/arc-loop-state.sh:143`. Consequence: the canary flag could
+never be flipped to `true` from user talisman — the v2.53.0 subsystem was
+permanently pinned to dry-run mode regardless of configuration.
+
+Symptom reported by users: `/rune:arc --resume` stalls after the first
+phase because `arc-phase-loop.local.md` is never auto-created by the
+PostToolUse hook. The Stop hook silent-exits at GUARD 4 (line 123-127)
+with no signal to the user that the flag override was ignored.
+
+- **FIXED — `scripts/talisman-resolve.sh` line ~447**: added `state_file: .arc.state_file` to the arc shard projection block. `arc_state_flag_enabled` now correctly reads user overrides.
+- **VERIFIED**: After flipping `arc.state_file.code_enforced_writes: true` in `.rune/talisman.yml` and regenerating shards, `jq '.state_file.code_enforced_writes' tmp/.talisman-resolved/arc.json` returns `true` (was `null` before fix).
+- **Note**: No plugin behavior changes beyond unblocking the canary path. Defaults in `talisman-defaults.json` remain `code_enforced_writes: false` — users must opt in via explicit override until the rollout criterion is met (see v2.53.0 "Rollout Criterion" section).
+
+This is a **foundational** fix — without it, the entire v2.53.0 integrity subsystem was production-inert. Follow-up plan `plans/2026-04-18-fix-arc-state-file-long-term-hardening-plan.md` tracks the longer-term hardening (cross-machine resume hydration, Stop hook self-heal, canary sunset in v2.55.0 + flag removal in v2.56.0).
+
 ## [2.53.0] - 2026-04-17
 
 ### Added

@@ -444,7 +444,8 @@ all_shards=$(echo "$merged" | jq '{
     batch: .arc.batch,
     gap_analysis: .arc.gap_analysis,
     consistency: .arc.consistency,
-    quick: .arc.quick
+    quick: .arc.quick,
+    state_file: .arc.state_file
   },
   codex: (.codex // {}),
   review: (.review // {}),
