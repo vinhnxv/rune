@@ -6,17 +6,23 @@
 # plans/2026-04-17-fix-arc-state-file-reliability-plan.md.
 #
 # USAGE:
-#   rune-arc-init-state.sh create [--kind KIND] [--checkpoint PATH] [--force]
-#                                 [--source skill|hook]
-#   rune-arc-init-state.sh verify [--kind KIND] [--checkpoint PATH]
-#   rune-arc-init-state.sh touch  [--kind KIND]
+#   rune-arc-init-state.sh create                    [--kind KIND] [--checkpoint PATH] [--force]
+#                                                    [--source skill|hook]
+#   rune-arc-init-state.sh verify                    [--kind KIND] [--checkpoint PATH]
+#   rune-arc-init-state.sh touch                     [--kind KIND]
+#   rune-arc-init-state.sh resolve-owned-checkpoint  [--source skill|hook]
 #
 # SUBCOMMANDS:
-#   create  Write state file atomically. If --checkpoint omitted, resolve
-#           newest .rune/arc/*/checkpoint.json owned by current session.
-#           Without --force, exit 0 without overwrite when the file exists.
-#   verify  test -f on the state file; exit 0 if present, 1 if missing.
-#   touch   Refresh mtime via library helper (throttled to 60s).
+#   create                    Write state file atomically. If --checkpoint
+#                             omitted, resolve newest .rune/arc/*/checkpoint.json
+#                             owned by current session. Without --force, exit 0
+#                             without overwrite when the file exists.
+#   verify                    test -f on the state file; exit 0 if present,
+#                             1 if missing.
+#   touch                     Refresh mtime via library helper (throttled 60s).
+#   resolve-owned-checkpoint  Print path of the newest owned checkpoint on
+#                             stdout. Exit 1 when no owned checkpoint exists.
+#                             Used by arc-phase-stop-hook.sh self-heal path.
 #
 # EXIT CODES:
 #   0 success
@@ -520,15 +526,50 @@ cmd_touch() {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Subcommand: resolve-owned-checkpoint
+#
+# Thin wrapper around _resolve_newest_checkpoint(). Prints the checkpoint path
+# of the most-recent checkpoint owned by the current session to stdout.
+# Exit 0 on success, exit 1 when no owned checkpoint is found (covers both
+# "no checkpoints at all" and "only foreign checkpoints exist").
+#
+# Used by arc-phase-stop-hook.sh GUARD 4 self-heal path (Task 2, v2.54.0):
+# before re-creating a missing state file, the Stop hook must confirm that
+# the current session actually owns an active arc — otherwise a stale
+# foreign-session checkpoint could trigger unwanted recovery.
+# ─────────────────────────────────────────────────────────────────────────────
+cmd_resolve_owned_checkpoint() {
+  local _src="skill"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --source) _src="$2"; shift 2 ;;
+      *) echo "FATAL: unknown arg: $1" >&2; return 2 ;;
+    esac
+  done
+  case "$_src" in
+    skill|hook) ;;
+    *) echo "FATAL: invalid --source: $_src" >&2; return 2 ;;
+  esac
+  local _cp
+  _cp=$(_resolve_newest_checkpoint "$_src" || true)
+  if [ -z "$_cp" ]; then
+    return 1
+  fi
+  printf '%s\n' "$_cp"
+  return 0
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Main dispatcher
 # ─────────────────────────────────────────────────────────────────────────────
 if [ $# -lt 1 ]; then
   cat <<'USAGE' >&2
-Usage: rune-arc-init-state.sh <create|verify|touch> [flags]
-  create [--kind phase|batch|hierarchy|issues] [--checkpoint PATH]
-         [--force] [--source skill|hook]
-  verify [--kind KIND]
-  touch  [--kind KIND]
+Usage: rune-arc-init-state.sh <create|verify|touch|resolve-owned-checkpoint> [flags]
+  create                    [--kind phase|batch|hierarchy|issues] [--checkpoint PATH]
+                            [--force] [--source skill|hook]
+  verify                    [--kind KIND]
+  touch                     [--kind KIND]
+  resolve-owned-checkpoint  [--source skill|hook]
 USAGE
   exit 2
 fi
@@ -538,5 +579,6 @@ case "$_cmd" in
   create) cmd_create "$@"; exit $? ;;
   verify) cmd_verify "$@"; exit $? ;;
   touch)  cmd_touch  "$@"; exit $? ;;
+  resolve-owned-checkpoint) cmd_resolve_owned_checkpoint "$@"; exit $? ;;
   *) echo "FATAL: unknown subcommand: $_cmd" >&2; exit 2 ;;
 esac

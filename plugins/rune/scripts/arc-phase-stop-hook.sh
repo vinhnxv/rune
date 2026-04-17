@@ -119,11 +119,38 @@ parse_input
 resolve_cwd
 _trace "CWD=${CWD}"
 
-# ── GUARD 4: State file existence ──
+# ── GUARD 4: State file existence — with self-heal (v2.54.0, L1.2) ──
+# Three-way decision:
+#   1. State file exists → proceed (normal path, no change).
+#   2. Missing AND current session owns an active checkpoint →
+#      recreate via `rune-arc-init-state.sh create --source hook --force`,
+#      then exec "$0" "$@" to re-enter with state file present.
+#   3. Missing AND no owned checkpoint → silent-exit (preserves cross-session
+#      safety — foreign checkpoints MUST NOT trigger unwanted recovery).
+#
+# The exec() re-entry is bounded by RUNE_STOP_HOOK_SELF_HEAL_ATTEMPTED=1
+# (single-fire watchdog) so a pathological create-then-reenter loop can
+# never infinite-loop — if create succeeds but the state file is deleted
+# by a racing process, the second pass short-circuits to silent exit.
 STATE_FILE="${CWD}/${RUNE_STATE}/arc-phase-loop.local.md"
 if [[ ! -f "$STATE_FILE" ]]; then
-  _trace "EXIT: no state file at ${STATE_FILE}"
-  exit 0
+  if [[ -n "${RUNE_STOP_HOOK_SELF_HEAL_ATTEMPTED:-}" ]]; then
+    _trace "EXIT: self-heal already attempted — silent exit"
+    exit 0
+  fi
+  _OWNED_CP=$(bash "${SCRIPT_DIR}/rune-arc-init-state.sh" resolve-owned-checkpoint --source hook 2>/dev/null || true)
+  if [[ -z "$_OWNED_CP" ]]; then
+    _trace "EXIT: no owned checkpoint — silent exit (cross-session safety)"
+    exit 0
+  fi
+  export RUNE_STOP_HOOK_SELF_HEAL_ATTEMPTED=1
+  _trace "SELF-HEAL: missing state file + owned checkpoint ${_OWNED_CP} — recreating"
+  bash "${SCRIPT_DIR}/rune-arc-init-state.sh" create --source hook --force 2>/dev/null || {
+    _trace "SELF-HEAL: create failed — silent exit"
+    exit 0
+  }
+  _trace "SELF-HEAL: re-entering via exec"
+  exec "$0" "$@"
 fi
 
 # ── GUARD 5: Symlink rejection ──
