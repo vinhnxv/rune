@@ -354,7 +354,7 @@
       },
       {
         "matcher": "Write|Edit",
-        "_rationale": "ARC-STATE-INTEGRITY-001: After any Write/Edit to .rune/arc/*/checkpoint.json, verify phase-loop state file exists and auto-create if missing. Dry-run mode when arc.state_file.code_enforced_writes=false (logs observations without touching filesystem). Fast-path grep exit (<1ms) for non-checkpoint writes. Re-entrancy guard via RUNE_ARC_STATE_INIT_IN_PROGRESS. Closes plan AC-1/AC-2/AC-7.",
+        "_rationale": "ARC-STATE-INTEGRITY-001: After any Write/Edit to .rune/arc/*/checkpoint.json, verify phase-loop state file exists and auto-create if missing. Dry-run mode when arc.state_file.code_enforced_writes=false (does NOT create/modify arc state files; writes observation entries tagged dry_run: true to .rune/arc-integrity-log.jsonl). Fast-path grep exit (<1ms) for non-checkpoint writes. Re-entrancy guard via RUNE_ARC_STATE_INIT_IN_PROGRESS. Closes plan AC-1/AC-2/AC-7.",
         "hooks": [
           {
             "type": "command",

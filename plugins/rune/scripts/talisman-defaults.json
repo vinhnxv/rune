@@ -56,18 +56,14 @@
       "shared_branch": true
     },
     "state_file": {
-      "_comment": "Phase-loop state file integrity subsystem. Default OFF during canary. When true: bash-driven creation, PostToolUse auto-recovery, Stop-hook watchdog, heartbeat mtime refresh, pending-phase-gated deletion, integrity log. See plans/2026-04-17-fix-arc-state-file-reliability-plan.md.",
+      "_comment": "Phase-loop state file integrity subsystem. YAML path: arc.state_file.code_enforced_writes. Default false during canary. When true: bash-driven creation (mktemp + mv -f), PostToolUse auto-recovery, Stop-hook watchdog, heartbeat mtime refresh, pending-phase-gated deletion, integrity log. Rollout: see CHANGELOG 'Rollout Criterion' section.",
       "code_enforced_writes": false,
       "stale_multiplier": 3,
       "heartbeat_interval_sec": 60,
       "integrity_log_max_bytes": 5242880,
+      "integrity_log_max_archives": 5,
       "flag_lifetime": "arc",
-      "siblings": {
-        "phase": true,
-        "batch": false,
-        "hierarchy": false,
-        "issues": false
-      }
+      "_note_siblings_removed": "VEIL-002: siblings.* block removed — no code consumer. Restore when arc_state_recover gates on siblings.$kind"
     },
     "ship": {
       "auto_merge": false,

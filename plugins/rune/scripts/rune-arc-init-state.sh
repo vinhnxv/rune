@@ -22,7 +22,6 @@
 #   0 success
 #   1 state missing AND --force omitted (verify), OR recoverable failure (create)
 #   2 unrecoverable failure — checkpoint missing/corrupt, invalid identity
-#   3 flag disabled (create aborted by talisman setting)
 #
 # KEY PROPERTIES:
 #   - INTEG Layer 1 pre-write assertions (configDir, ownerPid, sessionId, planFile)
@@ -36,30 +35,33 @@
 # See plan §6.1 for full specification.
 
 set -u
+# Note: deliberately using set -u without -e / pipefail. This script uses explicit
+# || { echo FATAL; return N; } patterns and intentionally-empty jq fields (// empty).
+# Adding -e would require defensive `|| true` additions throughout.
 umask 077
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Locate script directory and source libraries
 # ─────────────────────────────────────────────────────────────────────────────
-_SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd -P)
+SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd -P)
 : "${CWD:=$PWD}"
 
 # platform.sh → _stat_mtime, _parse_iso_epoch
-if [ -f "${_SCRIPT_DIR}/lib/platform.sh" ]; then
+if [ -f "${SCRIPT_DIR}/lib/platform.sh" ]; then
   # shellcheck disable=SC1091
-  . "${_SCRIPT_DIR}/lib/platform.sh"
+  . "${SCRIPT_DIR}/lib/platform.sh"
 fi
 # rune-state.sh → RUNE_STATE variable
-if [ -f "${_SCRIPT_DIR}/lib/rune-state.sh" ]; then
+if [ -f "${SCRIPT_DIR}/lib/rune-state.sh" ]; then
   # shellcheck disable=SC1091
-  . "${_SCRIPT_DIR}/lib/rune-state.sh"
+  . "${SCRIPT_DIR}/lib/rune-state.sh"
 fi
 # arc-loop-state.sh → arc_state_* public functions
-if [ -f "${_SCRIPT_DIR}/lib/arc-loop-state.sh" ]; then
+if [ -f "${SCRIPT_DIR}/lib/arc-loop-state.sh" ]; then
   # shellcheck disable=SC1091
-  . "${_SCRIPT_DIR}/lib/arc-loop-state.sh"
+  . "${SCRIPT_DIR}/lib/arc-loop-state.sh"
 else
-  echo "FATAL: lib/arc-loop-state.sh missing (expected at ${_SCRIPT_DIR}/lib/arc-loop-state.sh)" >&2
+  echo "FATAL: lib/arc-loop-state.sh missing (expected at ${SCRIPT_DIR}/lib/arc-loop-state.sh)" >&2
   exit 2
 fi
 
@@ -70,6 +72,7 @@ _trace() {
   [ "${RUNE_TRACE:-0}" = "1" ] || return 0
   local _msg="$1"
   local _log="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-$PPID.log}"
+  [ ! -L "$_log" ] || return 0
   printf '[%s] rune-arc-init-state: %s\n' "$(date +%H:%M:%S)" "$_msg" >> "$_log" 2>/dev/null || true
 }
 
@@ -103,7 +106,7 @@ _resolve_newest_checkpoint() {
   # session_id means the current process is a hook/subprocess of the owner
   # (XM-2: plain PPID mismatch in that case is not foreign ownership).
   if [ "$_src" = "skill" ]; then
-    local _ckpt_pid _ckpt_sid _cur_sid
+    local _ckpt_pid _ckpt_sid _cur_sid _ckpt_comm
     _ckpt_pid=$(jq -r '.owner_pid // empty' "$_newest" 2>/dev/null | tr -d '\r')
     _ckpt_sid=$(jq -r '.session_id // empty' "$_newest" 2>/dev/null | tr -d '\r')
     _cur_sid="${RUNE_SESSION_ID:-${CLAUDE_SESSION_ID:-}}"
@@ -114,10 +117,28 @@ _resolve_newest_checkpoint() {
     elif [ -n "$_ckpt_pid" ] && [ "$_ckpt_pid" != "$PPID" ]; then
       # Different session_id (or unavailable) AND different PID — check liveness
       if kill -0 "$_ckpt_pid" 2>/dev/null; then
-        _trace "checkpoint owned by live foreign PID $_ckpt_pid (sid=${_ckpt_sid:-n/a}) — refusing"
-        return 1
+        # Cross-check comm — if PID is alive but not Claude Code, treat as dead
+        # (orphan recovery, protects against PID reuse by unrelated processes).
+        _ckpt_comm=$(ps -o comm= -p "$_ckpt_pid" 2>/dev/null | awk '{print $1}')
+        if [ -z "$_ckpt_comm" ]; then
+          _trace "ps lookup failed for pid=$_ckpt_pid — treating as dead"
+        else
+          case "$_ckpt_comm" in
+            claude|claude-code|node|cc)
+              _trace "checkpoint owned by live foreign PID $_ckpt_pid (sid=${_ckpt_sid:-n/a}, comm=$_ckpt_comm) — refusing"
+              return 1
+              ;;
+            *)
+              _trace "ckpt_pid $_ckpt_pid foreign comm=$_ckpt_comm — treating as dead"
+              ;;
+          esac
+        fi
       fi
       # Dead PID — safe to claim (orphan recovery)
+    fi
+    if [ -z "$_ckpt_sid" ] && [ -z "$_ckpt_pid" ]; then
+      _trace "checkpoint missing both session_id and owner_pid — refusing (fail-closed)"
+      return 1
     fi
   fi
   printf '%s\n' "$_newest"
@@ -130,7 +151,7 @@ _resolve_newest_checkpoint() {
 _ck_field() {
   local _cp="$1" _field="$2"
   command -v jq >/dev/null 2>&1 || { echo ""; return 1; }
-  jq -r ".$_field // empty" "$_cp" 2>/dev/null | tr -d '\r'
+  jq -r ".$_field // empty" "$_cp" 2>/dev/null | tr -d '\n\r'
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -281,8 +302,10 @@ cmd_create() {
     echo "FATAL: mktemp failed in $(dirname "$_state_file")" >&2
     return 1
   }
-  # Cleanup trap — ensure tmp file never leaks
-  trap "rm -f -- '$_tmp' 2>/dev/null" EXIT
+  # Cleanup trap — ensure tmp file never leaks. Function-based trap defers
+  # $_tmp expansion to invocation time, immune to CWD/single-quote injection.
+  _cleanup_tmp() { rm -f -- "$_tmp" 2>/dev/null; }
+  trap _cleanup_tmp EXIT
 
   {
     printf -- '---\n'
@@ -327,6 +350,8 @@ cmd_create() {
      || [ "$_v_sid" != "$_sid" ] || [ "$_v_plan" != "$_plan" ]; then
     arc_state_integrity_log "corrupted_write" "layer2_mismatch" "$_state_file"
     echo "FATAL (INTEG-POST): Layer 2 cross-field verification failed" >&2
+    # QUAL-FH-003: remove the corrupted file so subsequent cmd_verify sees it as missing
+    rm -f -- "$_state_file" 2>/dev/null
     return 1
   fi
 

@@ -16,8 +16,6 @@
 #   arc_state_file_path [kind]                        -> stdout: canonical state file path
 #   arc_state_flag_enabled                            -> exit 0 if enabled, 1 otherwise
 #   arc_state_integrity_log action cause state_file [extra_json]
-#   arc_state_pending_phases checkpoint_path          -> stdout: count | -1 on parse error
-#   arc_state_should_delete state_file                -> exit 0 (delete ok) | 1 (defer)
 #   arc_state_touch state_file                        -> exit 0
 #   arc_state_recover [kind]                          -> exit 0 on recreate | 1 on no-checkpoint
 #
@@ -41,7 +39,6 @@
 : "${RUNE_ARC_INTEG_LOG_MAX_BYTES:=5242880}"  # 5 MB (XM-4)
 : "${RUNE_ARC_STATE_TOUCH_THROTTLE_SEC:=60}"
 : "${RUNE_ARC_MAX_CREDIBLE_AGE_MIN:=480}"     # XM-5: clock-skew sanity cap
-: "${RUNE_ARC_STATE_STALE_MULTIPLIER:=3}"     # deletion threshold multiplier
 
 # Valid loop kinds (prevents prototype pollution and arbitrary filename injection)
 _ARC_LOOP_KINDS="phase batch hierarchy issues"
@@ -70,42 +67,22 @@ arc_state_file_path() {
 # Issue 8: flag is OPERATIONAL, not security — never gate security checks on it.
 arc_state_flag_enabled() {
   local _shard="${CWD:-$PWD}/tmp/.talisman-resolved/arc.json"
-  if [ -f "$_shard" ] && command -v jq >/dev/null 2>&1; then
+  if [ ! -f "$_shard" ]; then
+    # VEIL-005: emit diagnostic when shard is missing. Guard against recursion
+    # since arc_state_integrity_log itself calls arc_state_flag_enabled.
+    if [ -z "$_RUNE_ARC_FLAG_LOG_GUARD" ]; then
+      _RUNE_ARC_FLAG_LOG_GUARD=1
+      arc_state_integrity_log "flag_lookup_failed" "talisman_shard_missing" "" 2>/dev/null || true
+      unset _RUNE_ARC_FLAG_LOG_GUARD
+    fi
+    return 1
+  fi
+  if command -v jq >/dev/null 2>&1; then
     local _val
     _val=$(jq -r '.state_file.code_enforced_writes // false' "$_shard" 2>/dev/null)
     [ "$_val" = "true" ] && return 0
   fi
   return 1
-}
-
-# ─────────────────────────────────────────────────────────────────────────────
-# arc_state_pending_phases checkpoint_path → stdout: count | -1 on error
-# ─────────────────────────────────────────────────────────────────────────────
-# XM-3: return -1 (NOT 0) on jq parse failure so callers can treat as defer.
-# Counts both "pending" AND "in_progress" — the current phase is in_progress
-# (API fitness delta: plan §6.6 corrected this from the original draft).
-arc_state_pending_phases() {
-  local _cp="$1"
-  if [ -z "$_cp" ] || [ ! -f "$_cp" ]; then
-    echo "-1"
-    return 0
-  fi
-  if ! command -v jq >/dev/null 2>&1; then
-    echo "-1"
-    return 0
-  fi
-  local _count
-  _count=$(jq -r '
-    if (.phases // null) == null then -1
-    else [ .phases | to_entries[]
-           | select(.value.status == "pending" or .value.status == "in_progress") ]
-         | length
-    end
-  ' "$_cp" 2>/dev/null)
-  case "$_count" in
-    ''|*[!0-9-]*) echo "-1" ;;
-    *) echo "$_count" ;;
-  esac
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -119,6 +96,8 @@ arc_state_integrity_log() {
   command -v jq >/dev/null 2>&1 || return 0
 
   local _log_path="${CWD:-$PWD}/${RUNE_ARC_INTEG_LOG}"
+  # SEC-002: refuse to traverse symlinks (CWE-61). Applied before mkdir -p.
+  [ -L "$_log_path" ] && return 0
   local _log_dir; _log_dir=$(dirname "$_log_path")
   mkdir -p "$_log_dir" 2>/dev/null || return 0
 
@@ -129,8 +108,16 @@ arc_state_integrity_log() {
     _sz=$(wc -c < "$_log_path" 2>/dev/null | tr -d ' ')
     _sz="${_sz:-0}"
     if [ "$_sz" -ge "$RUNE_ARC_INTEG_LOG_MAX_BYTES" ] 2>/dev/null; then
+      # SEC-002: second symlink check (defense-in-depth vs TOCTOU between mkdir -p and mv).
+      [ -L "$_log_path" ] && return 0
       if mkdir "$_lock" 2>/dev/null; then
+        # QUAL-FH-005: guarantee lock cleanup even on unexpected exit.
+        trap 'rmdir "$_lock" 2>/dev/null' EXIT
         mv -f "$_log_path" "${_log_path%.jsonl}-$(date +%Y%m%d-%H%M%S).jsonl" 2>/dev/null || true
+        # VEIL-006: retention — keep N newest archives, drop older ones.
+        local _max_arch="${RUNE_ARC_INTEGRITY_LOG_MAX_ARCHIVES:-5}"
+        ls -t "${_log_path%.jsonl}-"*.jsonl 2>/dev/null | awk -v n="$_max_arch" 'NR>n' | xargs rm -f 2>/dev/null || true
+        trap - EXIT
         rmdir "$_lock" 2>/dev/null || true
       fi
     fi
@@ -150,9 +137,8 @@ arc_state_integrity_log() {
   local _sev="info" _class="lifecycle"
   case "$_action" in
     recovered_mid_arc|recovered_post_checkpoint_write) _sev="warn"; _class="recovery" ;;
-    deletion_deferred_pending_phases|deletion_deferred_jq_unavailable|deletion_deferred_ambiguous)
-      _sev="warn"; _class="deletion" ;;
-    legitimate_stale_delete|legitimate_completion_delete) _sev="info"; _class="deletion" ;;
+    flag_lookup_failed) _sev="warn"; _class="lifecycle" ;;
+    symlink_rejected) _sev="warn"; _class="failure" ;;
     recovery_failed_no_checkpoint|corrupted_write|failed_write|failed_verify)
       _sev="error"; _class="failure" ;;
   esac
@@ -163,7 +149,8 @@ arc_state_integrity_log() {
 
   # Construct the entry atomically via jq --arg (newline-safe)
   # Write append-only via >> (atomic for <PIPE_BUF=4096 bytes on POSIX)
-  {
+  # SEC-003: subshell so umask 077 cannot leak into caller scope.
+  (
     umask 077
     jq -nc \
       --arg ts "$_ts" \
@@ -182,7 +169,7 @@ arc_state_integrity_log() {
         action:$action, cause:$cause, source_script:$source_script,
         state_file_path:$state_file_path, severity:$severity, event_class:$event_class,
         flag_enabled:($flag_enabled=="true"), dry_run:($dry_run=="true")}' 2>/dev/null >> "$_log_path"
-  } || true
+  ) || true
 
   # Ensure file mode 600 (umask may already cover; chmod for inherited files)
   [ -f "$_log_path" ] && chmod 600 "$_log_path" 2>/dev/null || true
@@ -198,75 +185,20 @@ arc_state_integrity_log() {
 arc_state_touch() {
   local _sf="$1"
   [ -z "$_sf" ] || [ ! -f "$_sf" ] && return 0
-  # Symlink guard (SEC — CWE-61, shallow but matches existing convention)
-  [ -L "$_sf" ] && return 0
+  # QUAL-FH-007: symlink rejected and observable (CWE-61, with audit trail).
+  [ -L "$_sf" ] && { arc_state_integrity_log "symlink_rejected" "{\"func\":\"arc_state_touch\"}" "$_sf"; return 0; }
 
   local _now _mtime _age
   _now=$(date +%s)
   _mtime=$(_stat_mtime "$_sf" 2>/dev/null || echo 0)
   _mtime="${_mtime:-0}"
+  # QUAL-FH-006: stat failure (mtime=0) means we cannot compute age safely; skip.
+  [ "$_mtime" = "0" ] && return 0
   _age=$((_now - _mtime))
   if [ "$_age" -ge "$RUNE_ARC_STATE_TOUCH_THROTTLE_SEC" ] 2>/dev/null; then
     touch "$_sf" 2>/dev/null || true
   fi
   return 0
-}
-
-# ─────────────────────────────────────────────────────────────────────────────
-# arc_state_should_delete state_file → exit 0 (delete ok) | 1 (defer)
-# ─────────────────────────────────────────────────────────────────────────────
-# 3-criterion rubric (plan §4.3):
-#   1. pending_phases > 0 OR jq unavailable (-1) → DEFER (AC-4, AC-14)
-#   2. stop_reason ∈ {completed, cancelled, context_limit} → OK to delete
-#   3. active=true AND mtime > PHASE_TIMEOUT[current] * multiplier → OK (stale)
-#   else → DEFER (safe default)
-arc_state_should_delete() {
-  local _sf="$1"
-  [ -z "$_sf" ] || [ ! -f "$_sf" ] && return 0  # no file → nothing to defer
-  [ -L "$_sf" ] && return 1  # symlink → defer (SEC)
-
-  # Extract checkpoint_path from state file frontmatter
-  local _cp_rel _cp_abs
-  _cp_rel=$(sed -n 's/^checkpoint_path:[[:space:]]*\(.*\)$/\1/p' "$_sf" 2>/dev/null | head -1 | tr -d '\r')
-  if [ -z "$_cp_rel" ]; then
-    # No checkpoint pointer — ambiguous, defer (XM-3 safe default)
-    arc_state_integrity_log "deletion_deferred_ambiguous" "no_checkpoint_pointer" "$_sf"
-    return 1
-  fi
-  # Path validation: no .., absolute path disallowed
-  case "$_cp_rel" in
-    *..*|/*) arc_state_integrity_log "deletion_deferred_ambiguous" "invalid_checkpoint_path" "$_sf"; return 1 ;;
-  esac
-  _cp_abs="${CWD:-$PWD}/$_cp_rel"
-
-  # Criterion 1: pending phases count (XM-3 honors -1)
-  local _pending
-  _pending=$(arc_state_pending_phases "$_cp_abs")
-  if [ "$_pending" = "-1" ]; then
-    arc_state_integrity_log "deletion_deferred_jq_unavailable" "jq_or_parse_error" "$_sf"
-    return 1
-  fi
-  if [ "$_pending" -gt 0 ] 2>/dev/null; then
-    arc_state_integrity_log "deletion_deferred_pending_phases" "pending=$_pending" "$_sf"
-    return 1
-  fi
-
-  # Criterion 2: stop_reason set → legitimate completion delete
-  if command -v jq >/dev/null 2>&1; then
-    local _stop_reason
-    _stop_reason=$(jq -r '.stop_reason // .user_cancelled // ""' "$_cp_abs" 2>/dev/null)
-    case "$_stop_reason" in
-      completed|cancelled|context_limit|true)
-        arc_state_integrity_log "legitimate_completion_delete" "stop_reason=$_stop_reason" "$_sf"
-        return 0
-        ;;
-    esac
-  fi
-
-  # Criterion 3: no pending phases, no stop_reason — unusual but not stale
-  # Defer as safe default (AC-4)
-  arc_state_integrity_log "deletion_deferred_ambiguous" "no_pending_no_stop_reason" "$_sf"
-  return 1
 }
 
 # ─────────────────────────────────────────────────────────────────────────────

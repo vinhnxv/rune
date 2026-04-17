@@ -34,6 +34,19 @@ in subsequent patches. The foundation here is independently committable and reve
 Integration and adversarial tests (plan §9.1-9.4, ~660 LOC across 3 test files) are
 also deferred; existing regression suite must stay green.
 
+- Shadow-write mode for canary validation — dry-run currently exercises verify (read-only) + touch (active-only); it does NOT fork `$_init create`, so atomic mktemp+mv, Layer 1/2 verification, and XM-2 owner_pid resolution are unexercised by canary. Shadow mode (write `.shadow`, diff against subsequent real Write, log `shadow_write_diverged`) requires multi-session design work. Until shipped, flipping `code_enforced_writes: true` means untested paths go live on day 1. See VEIL-001 for detailed gap analysis.
+
+### Rollout Criterion
+
+Flip `arc.state_file.code_enforced_writes` default to true after:
+
+- ≥500 `verified` integrity log events across ≥10 arc sessions
+- 0 `failed_verify` events in the prior 30 days
+- 0 `recovery_failed_no_checkpoint` events with `dry_run: true` tag
+- Shadow-write mode (deferred — see follow-up plan) shows ≥50 consecutive `shadow_write_matched` events
+
+Measurement: `scripts/verify-canary-rollout-ready.sh` (deferred — ships with shadow-write follow-up).
+
 ## [2.52.4] - 2026-04-17
 
 ### Fixed

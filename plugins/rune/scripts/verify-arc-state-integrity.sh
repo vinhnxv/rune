@@ -18,6 +18,24 @@
 #
 # See plan §6.3, §6.4, and Issue 10 in §16.
 
+# ── Fail-forward guard (OPERATIONAL hook — ADR-002) ──
+# Inline pattern borrowed from arc-heartbeat-writer.sh: avoids the 24KB
+# arc-stop-hook-common.sh source cost on every PostToolUse tool call.
+trap 'exit 0' ERR  # immediate guard — upgraded below
+_rune_fail_forward() {
+  if [ "${RUNE_TRACE:-}" = "1" ]; then
+    _ffl="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
+    [ -n "$_ffl" ] && [ ! -L "$_ffl" ] && [ ! -L "${_ffl%/*}" ] && \
+      printf '[%s] %s: ERR trap — fail-forward activated (line %s)\n' \
+        "$(date +%H:%M:%S 2>/dev/null || true)" \
+        "${BASH_SOURCE[0]##*/}" \
+        "${BASH_LINENO[0]:-?}" \
+        >> "$_ffl" 2>/dev/null
+  fi
+  exit 0
+}
+trap '_rune_fail_forward' ERR
+
 set -u
 
 # ─── Hook re-entrancy guard ───
@@ -89,6 +107,23 @@ case "$_file_path" in
     exit 0
     ;;
 esac
+
+# ─── VEIL-004: Dry-run fast-path (pre-source) ───
+# When talisman flag arc.state_file.code_enforced_writes is false AND the
+# operator hasn't opted in via RUNE_ARC_CANARY_OBSERVE, emit the JSON and
+# exit WITHOUT sourcing the library stack. Preserves the hot path for
+# _mode=active (code_enforced_writes=true) where create/verify still fires.
+if [ -z "${RUNE_ARC_CANARY_OBSERVE:-}" ]; then
+  _arc_shard="${CWD}/tmp/.talisman-resolved/arc.json"
+  _enforced="false"
+  if [ -f "$_arc_shard" ]; then
+    _enforced=$(jq -r '.state_file.code_enforced_writes // false' "$_arc_shard" 2>/dev/null || echo "false")
+  fi
+  if [ "$_enforced" != "true" ]; then
+    printf '{"hookSpecificOutput":{"hookEventName":"PostToolUse"}}'
+    exit 0
+  fi
+fi
 
 # ─── Source lib to read flag + log ───
 # shellcheck disable=SC1091
