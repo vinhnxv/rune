@@ -2,6 +2,8 @@
 
 Detailed agent prompt templates, enrichment output format, inscription schema, plan merging algorithm, and Elicitation Sage spawning for the `/rune:forge` skill.
 
+> **IRON LAW (FORGE-SYNC-001, v2.56.1)**: After EVERY `Agent({..., run_in_background: true})` block below, the orchestrator MUST call `waitForCompletion(teamName, expectedCount, {...})` (see [phase-3-4-scope-and-summon.md:107](phase-3-4-scope-and-summon.md)) before proceeding to merge/cleanup. **Do NOT end the forge skill turn before teammates settle.** Background agents complete AFTER the skill returns; if the orchestrator skips `waitForCompletion`, teammate messages arrive in later arc phases, contaminate context, AND prevent the Stop hook's phase loop from firing (Claude Code treats arriving teammate messages as active dialogue). Symptom: arc pipeline stalls after forge with `first_pending=plan_review` but no hook dispatch. See `skills/arc/references/arc-phase-forge.md` STEP 2b for the defense-in-depth guard at the arc level.
+
 ## Codex Oracle Forge Agent (conditional)
 
 When `codex` CLI is available and `codex.workflows` includes `"forge"`, Codex Oracle participates in Forge Gaze topic matching. It provides cross-model enrichment — GPT-5.3-codex may surface different architectural patterns, performance insights, and security considerations than Claude-based agents.
@@ -240,6 +242,12 @@ ${agentRiskContext ? `
     run_in_background: true
   })
 }
+
+// ── FORGE-SYNC-001 (v2.56.1): After the spawn loop, the orchestrator MUST wait
+// synchronously for teammate completion before proceeding to merge. The pattern
+// is defined in phase-3-4-scope-and-summon.md § Monitor. Do NOT skip this step,
+// even under context pressure — late-arriving teammate messages break the arc
+// Stop hook phase loop (see file-header iron law for full symptom description).
 ```
 
 ## Elicitation Sage Spawning
@@ -317,6 +325,10 @@ if (elicitEnabled) {
     totalSagesSpawned++
   }
 } // end elicitEnabled guard
+
+// ── FORGE-SYNC-001 (v2.56.1): Sage spawns also participate in the single
+// waitForCompletion() call — expectedCount includes both forge agents AND sages.
+// phase-3-4-scope-and-summon.md § Monitor shows totalEnrichmentTasks = forge + sage.
 ```
 
 ## Enrichment Output Format

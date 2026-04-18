@@ -1,5 +1,52 @@
 # Changelog
 
+## [2.60.1] — 2026-04-19
+
+### Fixed — FORGE-SYNC-001 forge phase loop stall from late-arriving teammate messages
+
+Originally drafted as v2.56.1 (PR #499) but rebased forward across the v2.57.0
+Monitor integration, v2.58.x durable-first QA detection (#501), v2.59.0 Iron
+Law ARC-QA-002 self-heal (#503), and v2.60.0 PR #500 regression fix.
+
+Root cause: when `/rune:forge` delegated research agents with
+`run_in_background: true`, the forge skill could return from `Skill()` before
+teammates finished writing enrichment files. After forge marked itself
+complete, the agents' `SendMessage` calls arrived as new conversation turns,
+preventing the arc Stop hook from firing (Claude Code treats arriving
+teammate messages as active dialogue, never emitting the `Stop` event the
+phase loop relies on). Result: the arc pipeline stalled after forge with
+`first_pending=plan_review` but no hook dispatch.
+
+Symptom: user runs `/rune:arc <plan>`, forge phase completes, forge_qa
+passes, then pipeline freezes. Checkpoint state is valid
+(`forge=completed, forge_qa=completed, plan_review=pending`) but no
+subsequent phase advances.
+
+Fix (defense-in-depth, two layers — both still required after v2.60.0):
+
+- **arc-phase-forge.md STEP 2b.5 — FORGE-SYNC-001 guard.** After
+  `Skill("rune:forge", ...)` returns, the arc orchestrator polls the forge
+  state file for terminal status (`completed | cancelled | failed`) every
+  15s, with a hard deadline of `PHASE_TIMEOUTS.forge - 60_000` (phase budget
+  minus 60s setup reserve). On timeout, sends `shutdown_request` to every
+  known teammate before marking the phase complete so late messages cannot
+  leak into subsequent phases. Complementary to (not replaced by)
+  `monitor-stale-teammates.sh` (v2.57.0, async stale detection only) and
+  ARC-QA-002 self-heal (v2.59.0, QA phases only — does not cover forge).
+- **forge-enrichment-protocol.md — IRON LAW callout at file header + after
+  each `run_in_background: true` spawn block** reminds the executing LLM
+  that `waitForCompletion(teamName, expectedCount, ...)` (defined at
+  `phase-3-4-scope-and-summon.md:107`, 20-min timeout) MUST run before
+  merging enrichments, and that skipping it silently breaks the phase loop.
+
+Files touched:
+- `plugins/rune/skills/arc/references/arc-phase-forge.md` — added STEP 2b.5
+  poll loop + shutdown fallback
+- `plugins/rune/skills/forge/references/forge-enrichment-protocol.md` —
+  added iron-law header + 2 anchor comments at spawn sites
+
+No migration required. Existing arcs resume cleanly via `/rune:arc --resume`.
+
 ## [2.60.0] — 2026-04-19
 
 ### Fixed — Arc advances while teammate still running (PR #500 regression)
