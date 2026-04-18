@@ -31,9 +31,12 @@
 #                             when violated. --json toggles structured output.
 #
 # EXIT CODES:
-#   0 success
-#   1 state missing AND --force omitted (verify), OR recoverable failure (create)
-#   2 unrecoverable failure — checkpoint missing/corrupt, invalid identity
+#   0 success (or, for doctor: all invariants hold — 0 issues found)
+#   1 state missing AND --force omitted (verify), OR recoverable failure
+#     (create), OR doctor found 1+ issues (checkpoint without state file,
+#     orphan state file with dead owner_pid, etc. — see "Recommended fix")
+#   2 unrecoverable failure — checkpoint missing/corrupt, invalid identity,
+#     OR invalid argument (e.g., doctor --kind not in {phase,batch,hierarchy,issues})
 #
 # KEY PROPERTIES:
 #   - INTEG Layer 1 pre-write assertions (configDir, ownerPid, sessionId, planFile)

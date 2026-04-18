@@ -318,13 +318,19 @@ fi
 # Ratio check: numeric compare only when ratio is a real number.
 case "$ratio" in
   null|Infinity)
-    # Infinity = spurious is 0, which is a PASS signal for this criterion.
-    # null = no deletions at all; can't evaluate the ratio criterion — treat
-    # as FAIL per strict evidence gate (sample-size insufficiency).
-    if [ "$ratio" = "null" ]; then
-      status="FAIL"
-      reasons="${reasons}no deletion samples to evaluate ratio; "
-    fi
+    # Infinity = spurious is 0, deferred > 0 — deferral system is demonstrably
+    #            working. PASS for this criterion.
+    # null     = deletion_deferred == 0 AND deletion_spurious == 0. The ratio
+    #            criterion per AC-4 is "deferral system is working when
+    #            deletions occur" — absence of deletions is a degenerate-but-
+    #            safe state, NOT evidence of breakage. Treat as PASS.
+    #            (Previous behavior FAILed here, which made the canary gate
+    #            stuck-at-FAIL for any healthy system without deletion events
+    #            during the 7-day window — QUAL-002, child-2/4.)
+    #            Note: this means the ratio criterion no longer fails when no
+    #            deletion samples exist. The OTHER canary criteria still gate
+    #            the overall verdict (verified_count >= 500 etc.).
+    :  # null and Infinity both skip the ratio-criterion fail branch
     ;;
   *)
     # awk comparison — portable and honors decimals.

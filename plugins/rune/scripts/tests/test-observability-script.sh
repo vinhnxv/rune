@@ -158,6 +158,22 @@ echo "$out" | grep -q "corrupted_write_count=1 > 0" || _fail "Case E: expected c
 _pass "Case E: canary-gate FAIL when corrupted_write_count > 0"
 
 # ──────────────────────────────────────────────
+# Case E2 (QUAL-002 regression guard): zero-deletion healthy system →
+# ratio=null should NOT fail canary. Only other AC-4 criteria gate.
+# ──────────────────────────────────────────────
+LOG_E2="${SANDBOX}/log-e2.jsonl"
+# 520 verified + 10 recovered + 5 hydrated + 0 corrupted + 0 mismatch + 0 deferred + 0 spurious
+_make_log "$LOG_E2" 520 10 5 0 0 0 0 0
+out=$(bash "$ARC_HEALTH" --log "$LOG_E2" --canary-gate 2>&1)
+rc=$?
+[ "$rc" = "0" ] || _fail "Case E2: expected exit 0 (PASS) for healthy zero-deletion window, got $rc. Output: $out"
+echo "$out" | grep -q '"gate_status": "PASS"' || _fail "Case E2: expected gate_status=PASS when no deletions occurred"
+if echo "$out" | grep -q "no deletion samples"; then
+  _fail "Case E2: legacy 'no deletion samples' FAIL reason should no longer appear (QUAL-002 regression)"
+fi
+_pass "Case E2: zero-deletion healthy system PASSes canary-gate (QUAL-002 fix verified)"
+
+# ──────────────────────────────────────────────
 # Case F: missing log + --canary-gate → FAIL, exit 1
 # ──────────────────────────────────────────────
 out=$(bash "$ARC_HEALTH" --log "${SANDBOX}/missing.jsonl" --canary-gate 2>&1)
