@@ -81,3 +81,26 @@ stop_reason: null
 `
 Write('.rune/arc-phase-loop.local.md', stateContent)
 ```
+
+## Cross-Machine Migration
+
+The phase-loop state file is **intentionally not committed**. The checkpoint (`.rune/arc/{id}/checkpoint.json`) is the only durable artifact shared across machines; the state file is hydrated on demand from the checkpoint at session start or resume.
+
+This split exists because the state file includes three identity fields that are machine- or session-scoped:
+
+- `owner_pid` — `$PPID` of the Claude Code process; different on every machine and every session.
+- `config_dir` — resolved from `CLAUDE_CONFIG_DIR`; may vary between operator setups (e.g., `~/.claude-work` vs `~/.claude-personal`).
+- `session_id` — the Claude Code runtime session identifier; unique per session.
+
+If a state file was committed, the Stop hook on a second machine would read those foreign-owned fields, fail its ownership check, and silent-exit at GUARD 4 — leaving the arc pipeline frozen with no visible error.
+
+### Hand-off lifecycle
+
+1. **On the origin machine** — the orchestrator writes the state file atomically (via `rune-arc-init-state.sh create --source skill`) after writing the checkpoint. Fields: `owner_pid`, `config_dir`, `session_id` reflect the current machine. The state file never leaves `.rune/arc-phase-loop.local.md` (gitignored).
+2. **On the destination machine** — after `git pull`, the state file is absent. The `SessionStart:resume` hook (v2.54.0+) calls `rune-arc-init-state.sh create --source session-start` to rebuild the file with the *destination* machine's identity. The checkpoint's `session_id` is **not** copied into the new state file — the resume pipeline rewrites it to the current session so subsequent Stop hook cycles see an `OWNED` state.
+
+For the troubleshooting workflow (what `doctor` reports and which `create` flags to run), see [arc-resume.md](./arc-resume.md#cross-machine-migration).
+
+### Why this is not a `/rune:arc-doctor` slash command
+
+The child-2 plan (`2026-04-18-fix-arc-state-file-long-term-hardening-plan`, §"Open Questions") intentionally keeps diagnostics inside `rune-arc-init-state.sh doctor` rather than introducing a new top-level skill. Reasons: the command is a low-frequency operator tool (not a pipeline phase), it must run without a live team (hence no `/rune:*` wrapping), and it participates in the canary evidence gate (AC-4) via `arc-state-health.sh --canary-gate` — both tools are invoked from shell, not from the skill runtime.
