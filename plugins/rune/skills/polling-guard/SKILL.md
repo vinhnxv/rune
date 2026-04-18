@@ -39,6 +39,27 @@ During Rune multi-agent workflows, the LLM orchestrator frequently improvises `B
 3. **Wastes tokens and time** — sleeping without checking means missed completions
 4. **Persists despite text warnings** — instruction drift after 20+ turns makes text-only rules unreliable
 
+## Choose the Right Waiting Pattern (decide BEFORE writing any `sleep`)
+
+Not every "wait" is a polling loop. Pick the pattern that matches the scenario — three of the four options below do **NOT** require polling at all.
+
+| Scenario | Correct pattern | Do NOT |
+|----------|-----------------|--------|
+| Spawned a single `Agent({ ..., run_in_background: true })` that will `SendMessage` when done | **STOP the turn.** No polling. The worker's message auto-arrives as a fresh turn and resumes Claude. | Don't `sleep` at all. Don't `sleep N && echo`. Don't "check in" proactively. |
+| Running a multi-teammate Team (`TeamCreate` + `TaskCreate` + `Agent(team_name=...)`) | **TaskList polling loop** (see `Canonical Monitoring Loop` below). `TaskList` on every cycle — authoritative status source. | Don't skip `TaskList`. Don't invent intervals. Don't chain `sleep` with other commands. |
+| One-shot "wait until X happens" (file appears, port opens, process exits) | **`Bash(..., { run_in_background: true })` with an `until` loop** — e.g. `Bash("until [[ -f out.json ]]; do sleep 2; done", { run_in_background: true })`. The harness notifies on completion. | Don't put the `until` loop in a foreground `Bash`. Don't poll the file from the main turn. |
+| Streaming "tell me every time X happens" (log errors as they appear, PR/CI status changes, file changes over time) | **`Monitor` tool** — e.g. `Monitor({ description: "errors in deploy.log", command: "tail -f deploy.log \| grep --line-buffered -E 'ERROR\|FAIL\|Traceback'", timeout_ms: 300000, persistent: false })`. Each matched stdout line becomes a notification. | Don't use `Monitor` for one-shot waits (use background `Bash` instead). Don't forget `--line-buffered` in pipes — pipe buffering delays events by minutes. Don't grep only the happy path — silence ≠ success; include failure signatures. |
+| Waiting on a long-running `Bash` command you started | Pass `run_in_background: true` to the original `Bash` call. The harness notifies on completion. | Don't `sleep` to wait for your own background job. Don't poll its output file. |
+
+**Key rule:** if a mechanism already notifies you on completion (Agent message, background `Bash` exit, `Monitor` event), you MUST NOT poll from the foreground turn. Polling is only correct for multi-teammate Teams where `TaskList` is the authoritative status source. Everything else is push-based — stop the turn or delegate to background `Bash` / `Monitor`.
+
+**Monitor vs background Bash — the official distinction** ([docs](https://code.claude.com/docs/en/tools-reference#monitor-tool)):
+- `Monitor` is the **streaming** case ("tell me every time X happens"). Each stdout line is one event/notification.
+- Background `Bash` (`run_in_background: true`) is the **one-shot** case ("tell me when X is done"). One completion notification.
+- Restrictions: `Monitor` is unavailable on Amazon Bedrock, Google Vertex AI, Microsoft Foundry, or when `DISABLE_TELEMETRY` / `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` is set. Fall back to background `Bash` if `Monitor` is not present.
+
+**Common mistake this section prevents:** spawning `Agent({ run_in_background: true })`, writing "Monitor until completion" in narration text, then calling `Bash("sleep 45 && echo 'poll after 45s'")`. The harness blocks that command (POLL guard) and the correct answer is to **end the turn** — the background agent will send a message that resumes you.
+
 ## The Rule: Correct vs Incorrect Monitoring
 
 ### CORRECT — TaskList on every cycle

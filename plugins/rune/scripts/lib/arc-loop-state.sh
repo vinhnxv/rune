@@ -130,7 +130,7 @@ arc_state_flag_enabled() {
   if [ ! -f "$_shard" ]; then
     # VEIL-005: emit diagnostic when shard is missing. Guard against recursion
     # since arc_state_integrity_log itself calls arc_state_flag_enabled.
-    if [ -z "$_RUNE_ARC_FLAG_LOG_GUARD" ]; then
+    if [ -z "${_RUNE_ARC_FLAG_LOG_GUARD:-}" ]; then
       _RUNE_ARC_FLAG_LOG_GUARD=1
       arc_state_integrity_log "flag_lookup_failed" "talisman_shard_missing" "" 2>/dev/null || true
       unset _RUNE_ARC_FLAG_LOG_GUARD

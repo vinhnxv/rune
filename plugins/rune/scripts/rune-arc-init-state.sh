@@ -6,17 +6,23 @@
 # plans/2026-04-17-fix-arc-state-file-reliability-plan.md.
 #
 # USAGE:
-#   rune-arc-init-state.sh create [--kind KIND] [--checkpoint PATH] [--force]
-#                                 [--source skill|hook]
-#   rune-arc-init-state.sh verify [--kind KIND] [--checkpoint PATH]
-#   rune-arc-init-state.sh touch  [--kind KIND]
+#   rune-arc-init-state.sh create                    [--kind KIND] [--checkpoint PATH] [--force]
+#                                                    [--source skill|hook]
+#   rune-arc-init-state.sh verify                    [--kind KIND] [--checkpoint PATH]
+#   rune-arc-init-state.sh touch                     [--kind KIND]
+#   rune-arc-init-state.sh resolve-owned-checkpoint  [--source skill|hook]
 #
 # SUBCOMMANDS:
-#   create  Write state file atomically. If --checkpoint omitted, resolve
-#           newest .rune/arc/*/checkpoint.json owned by current session.
-#           Without --force, exit 0 without overwrite when the file exists.
-#   verify  test -f on the state file; exit 0 if present, 1 if missing.
-#   touch   Refresh mtime via library helper (throttled to 60s).
+#   create                    Write state file atomically. If --checkpoint
+#                             omitted, resolve newest .rune/arc/*/checkpoint.json
+#                             owned by current session. Without --force, exit 0
+#                             without overwrite when the file exists.
+#   verify                    test -f on the state file; exit 0 if present,
+#                             1 if missing.
+#   touch                     Refresh mtime via library helper (throttled 60s).
+#   resolve-owned-checkpoint  Print path of the newest owned checkpoint on
+#                             stdout. Exit 1 when no owned checkpoint exists.
+#                             Used by arc-phase-stop-hook.sh self-heal path.
 #
 # EXIT CODES:
 #   0 success
@@ -227,7 +233,7 @@ cmd_create() {
 
   # Validate source
   case "$_src" in
-    skill|hook) ;;
+    skill|hook|session-start|worktree) ;;
     *) echo "FATAL: invalid --source: $_src" >&2; return 2 ;;
   esac
 
@@ -476,7 +482,11 @@ cmd_create() {
   fi
 
   local _action="created"
-  [ "$_src" = "hook" ] && _action="recovered_post_checkpoint_write"
+  case "$_src" in
+    hook) _action="recovered_post_checkpoint_write" ;;
+    session-start) _action="hydrated_at_session_start" ;;
+    worktree) _action="hydrated_at_worktree_create" ;;
+  esac
   arc_state_integrity_log "$_action" "src=$_src,kind=$_kind" "$_state_file"
   _trace "create ok: $_state_file (src=$_src kind=$_kind)"
   return 0
@@ -520,15 +530,57 @@ cmd_touch() {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Subcommand: resolve-owned-checkpoint
+#
+# Thin wrapper around _resolve_newest_checkpoint(). Prints the checkpoint path
+# of the most-recent checkpoint owned by the current session to stdout.
+# Exit 0 on success, exit 1 when no owned checkpoint is found (covers both
+# "no checkpoints at all" and "only foreign checkpoints exist").
+#
+# Used by arc-phase-stop-hook.sh GUARD 4 self-heal path (Task 2, v2.54.0):
+# before re-creating a missing state file, the Stop hook must confirm that
+# the current session actually owns an active arc — otherwise a stale
+# foreign-session checkpoint could trigger unwanted recovery.
+# ─────────────────────────────────────────────────────────────────────────────
+cmd_resolve_owned_checkpoint() {
+  local _src="skill"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --source) _src="$2"; shift 2 ;;
+      *) echo "FATAL: unknown arg: $1" >&2; return 2 ;;
+    esac
+  done
+  case "$_src" in
+    skill|hook) ;;
+    *) echo "FATAL: invalid --source: $_src" >&2; return 2 ;;
+  esac
+  # _resolve_newest_checkpoint only enforces ownership validation when invoked
+  # with "skill". The "hook" branch skips the validation entirely — which is
+  # correct for cmd_create (hook has separate checkpoint-derived identity) but
+  # WRONG for cmd_resolve_owned_checkpoint where the CALLER (Stop hook GUARD 4)
+  # depends on the ownership gate to prevent hydrating foreign-owned state.
+  # Hardcode "skill" regardless of caller's --source flag — the --source flag
+  # stays in the CLI contract for future use, but ownership check is mandatory.
+  local _cp
+  _cp=$(_resolve_newest_checkpoint "skill" || true)
+  if [ -z "$_cp" ]; then
+    return 1
+  fi
+  printf '%s\n' "$_cp"
+  return 0
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Main dispatcher
 # ─────────────────────────────────────────────────────────────────────────────
 if [ $# -lt 1 ]; then
   cat <<'USAGE' >&2
-Usage: rune-arc-init-state.sh <create|verify|touch> [flags]
-  create [--kind phase|batch|hierarchy|issues] [--checkpoint PATH]
-         [--force] [--source skill|hook]
-  verify [--kind KIND]
-  touch  [--kind KIND]
+Usage: rune-arc-init-state.sh <create|verify|touch|resolve-owned-checkpoint> [flags]
+  create                    [--kind phase|batch|hierarchy|issues] [--checkpoint PATH]
+                            [--force] [--source skill|hook]
+  verify                    [--kind KIND]
+  touch                     [--kind KIND]
+  resolve-owned-checkpoint  [--source skill|hook]
 USAGE
   exit 2
 fi
@@ -538,5 +590,6 @@ case "$_cmd" in
   create) cmd_create "$@"; exit $? ;;
   verify) cmd_verify "$@"; exit $? ;;
   touch)  cmd_touch  "$@"; exit $? ;;
+  resolve-owned-checkpoint) cmd_resolve_owned_checkpoint "$@"; exit $? ;;
   *) echo "FATAL: unknown subcommand: $_cmd" >&2; exit 2 ;;
 esac

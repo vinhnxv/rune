@@ -158,6 +158,53 @@ if [[ -n "$COMPACT_FAILED_MSG" ]]; then
   rm -f "$SIGNAL_FILE" 2>/dev/null
 fi
 
+# ── Task 5 (child-1, plan AC-7): Arc state-file post-compact re-derivation ──
+# pre-compact-checkpoint.sh snapshots `.rune/arc-{kind}-loop.local.md` contents
+# into the checkpoint's `arc_state_files` field as a TRIGGER indicating a state
+# file existed at compaction time. Instead of blindly restoring the snapshot
+# (which would carry dead owner_pid / stale session_id), we invoke the canonical
+# creator with `--source session-start --force` so current session identity is
+# re-stamped. Missing state files surface as a single integrity log entry.
+#
+# Runs BEFORE team correlation because state-file presence is team-independent —
+# the Stop hook's self-heal (Task 2) re-validates ownership on every tick and
+# silent-exits if the hydrated file belongs to a dead session.
+STATE_FILES_RESTORED_INFO=""
+if [[ -x "${SCRIPT_DIR}/rune-arc-init-state.sh" ]] && command -v jq >/dev/null 2>&1; then
+  _raw_kinds=$(printf '%s\n' "$CHECKPOINT_DATA" | jq -r '.arc_state_files // {} | keys[]?' 2>/dev/null || true)
+  if [[ -n "$_raw_kinds" ]]; then
+    _restored_count=0
+    _restored_list=""
+    while IFS= read -r _kind; do
+      # Validate kind against canonical allowlist
+      case "$_kind" in
+        phase|batch|hierarchy|issues) ;;
+        *) continue ;;
+      esac
+      _sf="${CWD}/${RUNE_STATE}/arc-${_kind}-loop.local.md"
+      [[ -L "$_sf" ]] && continue  # reject symlinks
+      # Skip if already present — no re-derivation needed
+      [[ -f "$_sf" ]] && continue
+      # Re-derive via canonical creator. --source session-start logs as
+      # hydrated_at_session_start. --force ensures error surfacing; the create
+      # subcommand is already idempotent when the target file is absent.
+      if bash "${SCRIPT_DIR}/rune-arc-init-state.sh" create \
+           --source session-start \
+           --kind "$_kind" \
+           --force 2>/dev/null; then
+        _restored_count=$((_restored_count + 1))
+        _restored_list="${_restored_list}${_restored_list:+,}${_kind}"
+        _trace "Compact recovery: re-derived arc-${_kind}-loop.local.md"
+      else
+        _trace "Compact recovery: re-derivation failed for ${_kind}"
+      fi
+    done <<< "$_raw_kinds"
+    if [[ $_restored_count -gt 0 ]]; then
+      STATE_FILES_RESTORED_INFO=" Arc state files re-derived after compact: ${_restored_list}."
+    fi
+  fi
+fi
+
 # ── EXTRACT: team name from checkpoint ──
 TEAM_NAME=$(printf '%s\n' "$CHECKPOINT_DATA" | jq -r '.team_name // empty' 2>/dev/null || true)
 
@@ -239,7 +286,7 @@ if [[ -z "$TEAM_NAME" ]]; then
       fi
     fi
 
-    CONTEXT_MSG="${HANDOFF_PREAMBLE} RUNE COMPACT RECOVERY (saved at ${SAVED_AT}): No active team at compaction time.${LOOP_INFO}${COMPACT_FAILED_MSG}${COMPACT_SUMMARY_INFO}"
+    CONTEXT_MSG="${HANDOFF_PREAMBLE} RUNE COMPACT RECOVERY (saved at ${SAVED_AT}): No active team at compaction time.${LOOP_INFO}${STATE_FILES_RESTORED_INFO}${COMPACT_FAILED_MSG}${COMPACT_SUMMARY_INFO}"
     _HOOK_JSON_SENT=true
     jq -n --arg ctx "$CONTEXT_MSG" '{
       hookSpecificOutput: {
@@ -427,7 +474,7 @@ if [[ -n "$ISSUES_ITER" ]] && [[ "$ISSUES_ITER" =~ ^[0-9]+$ ]]; then
 fi
 
 # Build the context message — point to full file for detailed Read
-CONTEXT_MSG="${HANDOFF_PREAMBLE} RUNE COMPACT RECOVERY: Team '${TEAM_NAME}' state restored (saved at ${SAVED_AT}). Members: ${MEMBER_COUNT}. Tasks: ${TASK_SUMMARY}. Workflow: ${WORKFLOW_TYPE} (${WORKFLOW_STATUS}).${ARC_INFO}${PHASE_SUMMARY_INFO}${BATCH_INFO}${ISSUES_INFO}${COMPACT_FAILED_MSG}${COMPACT_SUMMARY_INFO} Re-read team config and task list to resume coordination."
+CONTEXT_MSG="${HANDOFF_PREAMBLE} RUNE COMPACT RECOVERY: Team '${TEAM_NAME}' state restored (saved at ${SAVED_AT}). Members: ${MEMBER_COUNT}. Tasks: ${TASK_SUMMARY}. Workflow: ${WORKFLOW_TYPE} (${WORKFLOW_STATUS}).${ARC_INFO}${PHASE_SUMMARY_INFO}${BATCH_INFO}${ISSUES_INFO}${STATE_FILES_RESTORED_INFO}${COMPACT_FAILED_MSG}${COMPACT_SUMMARY_INFO} Re-read team config and task list to resume coordination."
 
 # ── OUTPUT: hookSpecificOutput with hookEventName ──
 # PW-008 FIX: Output JSON first, THEN delete checkpoint. If jq fails, checkpoint is preserved.

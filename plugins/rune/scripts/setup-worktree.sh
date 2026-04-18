@@ -280,6 +280,41 @@ if [[ -d "$SRC_RUNE" ]]; then
       fi
     fi
   done
+
+  # ── Task 4 (child-1, plan AC-6): Arc phase-loop state file propagation ──
+  # Copy active `.rune/arc-{kind}-loop.local.md` state files alongside
+  # `.rune/arc/` checkpoints so the worktree has a complete arc context.
+  # Without this, a worktree created during an active arc loses its state
+  # file and the Stop hook silent-exits on the first phase transition.
+  # Symlink guard + reject unsafe paths; non-existent files are skipped.
+  for _kind in phase batch hierarchy issues; do
+    _wt_src="${SRC_RUNE}/arc-${_kind}-loop.local.md"
+    _wt_dst="${DST_RUNE}/arc-${_kind}-loop.local.md"
+    # Reject symlinks (SEC-007 defense-in-depth)
+    [[ -L "$_wt_src" ]] && continue
+    if [[ -f "$_wt_src" ]]; then
+      # cp -p preserves mtime so downstream staleness/age checks remain consistent
+      if cp -p "$_wt_src" "$_wt_dst" 2>/dev/null; then
+        _trace "WT-002: copied .rune/arc-${_kind}-loop.local.md to worktree"
+      else
+        _trace "WT-002: WARN: failed to copy arc-${_kind}-loop.local.md"
+      fi
+    fi
+  done
+
+  # Post-copy verification: re-run init-state verify in worktree context.
+  # Worktree may have different resolved CLAUDE_CONFIG_DIR (direnv/.envrc),
+  # in which case owner_pid or session_id will mismatch. Regenerate via
+  # create --force to stamp current session identity.
+  if [[ -x "${SCRIPT_DIR}/rune-arc-init-state.sh" ]] && [[ -f "${DST_RUNE}/arc-phase-loop.local.md" ]]; then
+    (
+      cd "$WT_PATH" 2>/dev/null || exit 0
+      if ! bash "${SCRIPT_DIR}/rune-arc-init-state.sh" verify --kind phase 2>/dev/null; then
+        _trace "WT-002: state file verify failed in worktree — regenerating via create --force"
+        bash "${SCRIPT_DIR}/rune-arc-init-state.sh" create --source worktree --kind phase --force 2>/dev/null || true
+      fi
+    )
+  fi
 fi
 
 # ── Create tmp/ directory in worktree ──

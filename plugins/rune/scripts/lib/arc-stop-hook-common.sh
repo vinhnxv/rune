@@ -375,6 +375,64 @@ arc_get_hook_session_id() {
 arc_delete_state_file() {
   local state_file="$1"
 
+  # ── TRIPWIRE PATCH (Option A, user-requested 2026-04-18) ──
+  # Verify ownership BEFORE delete. Log every attempt with caller stack.
+  # Refuse delete if checkpoint is owned by a live session matching hook input.
+  # Caller should treat return 1 as "delete refused — leave state file alone".
+  local _tw_caller_script="${BASH_SOURCE[1]##*/}"
+  local _tw_caller_line="${BASH_LINENO[0]:-?}"
+  local _tw_caller_func="${FUNCNAME[1]:-MAIN}"
+  local _tw_log="${TMPDIR:-/tmp}/rune-state-delete-tripwire.log"
+  local _tw_verdict="ALLOWED"
+  local _tw_reason=""
+
+  {
+    printf '[%s] DELETE_ATTEMPT: %s\n' "$(date '+%H:%M:%S' 2>/dev/null)" "$state_file"
+    printf '  caller: %s:%s (%s)\n' "$_tw_caller_script" "$_tw_caller_line" "$_tw_caller_func"
+    printf '  PPID=%s hook_sid=%s\n' "${PPID:-?}" "$(printf '%s\n' "${INPUT:-}" | jq -r '.session_id // empty' 2>/dev/null || echo '-')"
+  } >> "$_tw_log" 2>/dev/null
+
+  if [[ -f "$state_file" ]]; then
+    local _tw_owner_pid _tw_session_id _tw_active _tw_hook_sid
+    _tw_owner_pid=$(sed -n 's/^owner_pid: //p' "$state_file" 2>/dev/null | head -1)
+    _tw_session_id=$(sed -n 's/^session_id: //p' "$state_file" 2>/dev/null | head -1)
+    _tw_active=$(sed -n 's/^active: //p' "$state_file" 2>/dev/null | head -1)
+    _tw_hook_sid=$(printf '%s\n' "${INPUT:-}" | jq -r '.session_id // empty' 2>/dev/null || echo "")
+
+    {
+      printf '  state: owner_pid=%s session_id=%s active=%s\n' \
+        "$_tw_owner_pid" "$_tw_session_id" "$_tw_active"
+    } >> "$_tw_log" 2>/dev/null
+
+    # Refuse delete when: active=true AND owner PID alive AND session_id matches hook
+    if [[ "$_tw_active" == "true" ]] && [[ "$_tw_owner_pid" =~ ^[0-9]+$ ]] \
+         && kill -0 "$_tw_owner_pid" 2>/dev/null; then
+      if [[ -z "$_tw_hook_sid" ]] || [[ "$_tw_session_id" == "$_tw_hook_sid" ]]; then
+        _tw_verdict="REFUSED"
+        _tw_reason="owner PID $_tw_owner_pid alive AND session match (sid=$_tw_session_id)"
+      fi
+    fi
+
+    {
+      printf '  VERDICT: %s%s\n' "$_tw_verdict" "${_tw_reason:+ — $_tw_reason}"
+      printf '  ---\n'
+    } >> "$_tw_log" 2>/dev/null
+
+    if [[ "$_tw_verdict" == "REFUSED" ]]; then
+      if declare -f _trace &>/dev/null; then
+        _trace "TRIPWIRE REFUSED delete — ${_tw_reason} — caller=${_tw_caller_script}:${_tw_caller_line}"
+      fi
+      return 1
+    fi
+  else
+    {
+      printf '  state: FILE_NOT_FOUND (nothing to delete)\n'
+      printf '  VERDICT: %s\n' "$_tw_verdict"
+      printf '  ---\n'
+    } >> "$_tw_log" 2>/dev/null
+  fi
+  # ── END TRIPWIRE PATCH ──
+
   rm -f "$state_file" 2>/dev/null
   if [[ -f "$state_file" ]]; then
     if declare -f _trace &>/dev/null; then

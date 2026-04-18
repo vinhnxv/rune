@@ -116,6 +116,34 @@ _capture_arc_batch_state() {
   fi
 }
 
+# ── Task 5 (child-1, plan AC-7): Arc state-file content snapshot ──
+# Capture the content of `.rune/arc-{kind}-loop.local.md` state files into
+# the compact checkpoint so post-compact recovery can re-derive them.
+# The snapshot serves as a TRIGGER (we know a state file existed pre-compact)
+# rather than as restoration source — restoration uses create --force which
+# re-stamps session identity with current post-compact values.
+# Additive field (arc_state_files); does NOT bump schema_version.
+_capture_arc_state_files() {
+  arc_state_files="{}"
+  [[ -z "${CWD:-}" ]] && return 0
+  local _kinds_json="{}" _kind _sf _content
+  for _kind in phase batch hierarchy issues; do
+    _sf="${CWD}/${RUNE_STATE}/arc-${_kind}-loop.local.md"
+    [[ -L "$_sf" ]] && continue  # reject symlinks
+    [[ -f "$_sf" ]] || continue
+    # Cap snapshot size to 8 KB per file (defense against huge accidental files)
+    _content=$(head -c 8192 "$_sf" 2>/dev/null || true)
+    [[ -z "$_content" ]] && continue
+    _kinds_json=$(echo "$_kinds_json" | jq --arg k "$_kind" --arg v "$_content" \
+      '. + {($k): $v}' 2>/dev/null || echo "$_kinds_json")
+  done
+  arc_state_files="$_kinds_json"
+  # Trace only when we captured something — keeps noise down for teamless paths
+  if [[ "$arc_state_files" != "{}" ]]; then
+    _trace "Arc state files snapshotted: $(echo "$arc_state_files" | jq -r 'keys | join(",")' 2>/dev/null || true)"
+  fi
+}
+
 # ── Arc-issues state extractor (parallel to _capture_arc_batch_state) ──
 # Sets arc_issues_state global. Reads ISSUES_STATE_FILE path from caller (must be set before calling).
 _capture_arc_issues_state() {
@@ -213,8 +241,14 @@ if [[ -z "$active_team" ]]; then
   ISSUES_STATE_FILE="${CWD}/${RUNE_STATE}/arc-issues-loop.local.md"
   _capture_arc_issues_state
 
-  # If we captured batch or issues state, write a minimal checkpoint with it
-  if [[ "$arc_batch_state" != "{}" ]] || [[ "$arc_issues_state" != "{}" ]]; then
+  # ── Task 5: Arc state-file content snapshot (teamless path) ──
+  _capture_arc_state_files
+
+  # Normalize arc_state_files for safe jq --argjson consumption ({} when unset/empty)
+  _arc_state_files_arg="${arc_state_files:-}"
+  [[ -z "$_arc_state_files_arg" ]] && _arc_state_files_arg="{}"
+  # If we captured batch or issues state OR any arc state files, write checkpoint
+  if [[ "$arc_batch_state" != "{}" ]] || [[ "$arc_issues_state" != "{}" ]] || { [[ -n "${arc_state_files:-}" ]] && [[ "$arc_state_files" != "{}" ]]; }; then
     CHECKPOINT_FILE="${CWD}/tmp/.rune-compact-checkpoint.json"
     # SEC-102 FIX: use mktemp instead of PID-based temp file; add symlink guard
     CHECKPOINT_TMP=$(mktemp "${CHECKPOINT_FILE}.XXXXXX" 2>/dev/null) || { exit 0; }
@@ -228,6 +262,7 @@ if [[ -z "$active_team" ]]; then
       --argjson batch "$arc_batch_state" \
       --argjson issues "$arc_issues_state" \
       --argjson phase_summaries "$arc_phase_summaries" \
+      --argjson arc_state_files "$_arc_state_files_arg" \
       '{
         team_name: $team,
         saved_at: $ts,
@@ -239,7 +274,8 @@ if [[ -z "$active_team" ]]; then
         arc_checkpoint: {},
         arc_batch_state: $batch,
         arc_issues_state: $issues,
-        arc_phase_summaries: $phase_summaries
+        arc_phase_summaries: $phase_summaries,
+        arc_state_files: $arc_state_files
       }' > "$CHECKPOINT_TMP" 2>/dev/null; then
       mv -f "$CHECKPOINT_TMP" "$CHECKPOINT_FILE" 2>/dev/null || rm -f "$CHECKPOINT_TMP" 2>/dev/null
       CHECKPOINT_TMP=""
@@ -249,6 +285,7 @@ if [[ -z "$active_team" ]]; then
     _context_msg="No active Rune team but loop state captured in compact checkpoint."
     [[ "$arc_batch_state" != "{}" ]] && _context_msg="No active Rune team but arc-batch state captured in compact checkpoint."
     [[ "$arc_issues_state" != "{}" ]] && _context_msg="No active Rune team but arc-issues state captured in compact checkpoint."
+    { [[ -n "${arc_state_files:-}" ]] && [[ "$arc_state_files" != "{}" ]]; } && _context_msg="No active Rune team but arc state files snapshotted in compact checkpoint."
     jq -n --arg msg "$_context_msg" '{ systemMessage: $msg }'
     exit 0
   fi
@@ -374,6 +411,11 @@ _capture_arc_batch_state
 ISSUES_STATE_FILE="${CWD}/${RUNE_STATE}/arc-issues-loop.local.md"
 _capture_arc_issues_state
 
+# 7. Arc state-file content snapshot (Task 5, plan AC-7)
+_capture_arc_state_files
+_arc_state_files_arg="${arc_state_files:-}"
+[[ -z "$_arc_state_files_arg" ]] && _arc_state_files_arg="{}"
+
 # ── WRITE CHECKPOINT (atomic) ──
 CHECKPOINT_FILE="${CWD}/tmp/.rune-compact-checkpoint.json"
 # SEC-102 FIX: use mktemp instead of PID-based temp file; add symlink guard
@@ -393,6 +435,7 @@ if ! jq -n \
   --argjson batch "$arc_batch_state" \
   --argjson issues "$arc_issues_state" \
   --argjson phase_summaries "$arc_phase_summaries" \
+  --argjson arc_state_files "$_arc_state_files_arg" \
   '{
     team_name: $team,
     saved_at: $ts,
@@ -404,7 +447,8 @@ if ! jq -n \
     arc_checkpoint: $arc,
     arc_batch_state: $batch,
     arc_issues_state: $issues,
-    arc_phase_summaries: $phase_summaries
+    arc_phase_summaries: $phase_summaries,
+    arc_state_files: $arc_state_files
   }' > "$CHECKPOINT_TMP" 2>/dev/null; then
   echo "WARN: Failed to write compact checkpoint" >&2
   rm -f "$CHECKPOINT_TMP" 2>/dev/null
