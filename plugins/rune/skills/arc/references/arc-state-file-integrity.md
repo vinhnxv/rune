@@ -10,7 +10,7 @@ Source plan: [/Users/vinhnx/Desktop/repos/rune/plans/2026-04-17-fix-arc-state-fi
 
 **Why.** Pre-v2.53.0 the stop hook deleted the state file on ambiguous stop reasons, then the next phase turn found no state and halted. The same code path had no audit trail, no symlink defense, and no way to distinguish "work complete" from "jq crashed mid-decode." The subsystem introduces one deletion rubric (plan §4.3), one integrity log (plan §14), and unconditional active-write semantics (v2.56.0+) that create and repair state files during PostToolUse verification.
 
-**Status (v2.56.0+).** All state-file writes are unconditional. The PostToolUse verify hook actively creates, repairs, and logs state file operations for every `.rune/arc/*/checkpoint.json` write. The subsystem was incubated as an observation-only canary in v2.53.0, default-flipped to enforced in v2.55.0 (`canary_default_enabled`), and the gating flag was retired in v2.56.0 after ≥2 weeks of Phase B soak with no regressions. See `docs/canary-evidence/v2.55.0.md` for the historical Phase B audit artifact.
+**Status (v2.56.0+).** All state-file writes are unconditional. The PostToolUse verify hook actively creates, repairs, and logs state file operations for every `.rune/arc/*/checkpoint.json` write. The rollout history (v2.53.0 observation → v2.55.0 default-flip → v2.56.0 flag retirement) is preserved in `docs/canary-evidence/v2.55.0.md` as an audit artifact only — it has no runtime effect.
 
 ## Components
 
@@ -71,56 +71,46 @@ Status legend:
 
 Plan §14.4 also enumerates `tool_use_n` as a diagnostic field. It is **not** currently emitted and not counted above; track under the same AC-12 follow-up.
 
-## Lifecycle (historical)
+## Rollout History (historical reference)
 
-The subsystem shipped in three phases:
+The subsystem was rolled out in three phases — all retired as of v2.56.0:
 
-```
-   Phase A (v2.53.0)                Phase B (v2.55.0)           Phase C (v2.56.0)
-   ─────────────────                ─────────────────            ─────────────────
-   Observation-only.                Default flipped to           Gating flag retired.
-   PostToolUse verify               enforced after log           All writes
-   emitted dry_run entries;         evidence review;             unconditional.
-   NEVER wrote state.               writes became authoritative. Subsystem is permanent.
-```
+| Phase | Version | State |
+|-------|---------|-------|
+| Observation-only | v2.53.0 | PostToolUse verify logged diagnostic entries; never wrote state. |
+| Default-flipped | v2.55.0 | Writes became authoritative; flag still user-disableable. |
+| Flag retired | v2.56.0 | All writes unconditional; no opt-out; subsystem is permanent. |
 
-Each phase ran with ≥2 weeks of soak evidence. The Phase B → Phase C audit artifact
-lives at `docs/canary-evidence/v2.55.0.md` (historical; preserved for audit trail).
-No rollback path exists in Phase C — reintroducing the canary mechanism requires
-re-implementing the flag, dry-run branches, and log-schema conditional fields.
+The v2.55.0 rollout evidence lives at `docs/canary-evidence/v2.55.0.md`. There is no rollback path from v2.56.0 — the gating flag, dry-run branches, and conditional log fields were removed. Reintroducing opt-out would require re-implementation.
 
-## How to Evaluate Rollout Readiness (historical)
+## Health Monitoring Queries
 
-No dashboard or aggregator ships with the canary. Operators run these `jq` queries directly against `.rune/arc-integrity-log.jsonl` (and rotated archives `.rune/arc-integrity-log-*.jsonl`). Each query maps one-to-one to a CHANGELOG rollout criterion.
+Operators run these `jq` queries against `.rune/arc-integrity-log.jsonl` (and rotated archives `.rune/arc-integrity-log-*.jsonl`) to monitor the subsystem's health:
 
 ```bash
-# Criterion 1: ≥500 verified integrity-log events across ≥10 arc sessions
+# Volume + session coverage of successful verifications
 jq -s '[.[] | select(.action == "verified")] | {events: length, sessions: ([.[].session_id] | unique | length)}' \
   .rune/arc-integrity-log*.jsonl
 
-# Criterion 2: 0 failed_verify events in the prior 30 days
+# Any failed_verify events in the prior 30 days (expected: 0)
 jq --arg cutoff "$(date -u -v-30d +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -d '30 days ago' +%Y-%m-%dT%H:%M:%SZ)" \
   'select(.action == "failed_verify" and .ts >= $cutoff)' \
   .rune/arc-integrity-log*.jsonl
 
-# Criterion 3: 0 recovery_failed_no_checkpoint events with dry_run: true
-jq 'select(.action == "recovery_failed_no_checkpoint" and .dry_run == true)' \
+# Any recovery_failed_no_checkpoint events (expected: rare — only when state and checkpoint both missing)
+jq 'select(.action == "recovery_failed_no_checkpoint")' \
   .rune/arc-integrity-log*.jsonl
 
-# Criterion 4: stable deletion_deferred_* rate — baseline ratio by cause
+# deletion_deferred_* rate — baseline ratio by cause
 jq -s '[.[] | select(.action | startswith("deletion_deferred_"))] | group_by(.action) | map({action: .[0].action, count: length})' \
-  .rune/arc-integrity-log*.jsonl
-
-# Criterion 5: no logic errors — entries where flag_enabled=true AND dry_run=true
-jq 'select(.flag_enabled == true and .dry_run == true)' \
   .rune/arc-integrity-log*.jsonl
 ```
 
-The criteria above were met at the v2.55.0 rollout — see `docs/canary-evidence/v2.55.0.md`. The queries remain useful for ongoing health monitoring against the (now unconditional) active-write path.
+Historical `flag_enabled` / `dry_run` field queries against legacy v2.53.0–v2.55.0 logs remain valid — both fields are always `true`/`false` respectively in v2.56.0+ entries. See the schema table above for details.
 
 ## Security Invariants
 
-The subsystem must hold these invariants even when talisman, jq, or the checkpoint are unavailable. The flag does **not** gate any of them.
+The subsystem must hold these invariants even when talisman, jq, or the checkpoint are unavailable. No configuration flag gates any of them — they are structural.
 
 | ID | Concern | Location | Enforcement |
 |----|---------|----------|-------------|
@@ -165,9 +155,9 @@ The subsystem must hold these invariants even when talisman, jq, or the checkpoi
 
 ### Observability targets
 
-A healthy canary sees:
+A healthy subsystem exhibits:
 
 - `severity: error` entries = 0 per week.
 - `action: deletion_deferred_pending_phases` >> `action: deletion_deferred_jq_*` (real work dominates tooling fragility).
 - `action: legitimate_completion_delete` monotonically increases with arc completions.
-- No entries where `flag_enabled: true` and `dry_run: true` simultaneously — that is a logic error, not a data point.
+- `action: verified` is the dominant PostToolUse outcome; `recovered_post_checkpoint_write` fires only on genuine state loss.
