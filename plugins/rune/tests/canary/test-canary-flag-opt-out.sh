@@ -35,8 +35,18 @@ arc:
 YAML
 
 # Run resolver inside the synthetic project
+# RUNE_STATE is resolved from env by talisman-resolve.sh via
+# `PROJECT_TALISMAN="${CWD}/${RUNE_STATE}/talisman.yml"`.
+# The env var is normally set by the SessionStart hook but is absent in a
+# synthetic subshell, so the resolver would look for a bad path. Export it
+# here to match the convention used by real Rune sessions.
+export RUNE_STATE=".rune"
+
 cd "$WORKDIR"
-"$RESOLVER" >/dev/null 2>&1 || {
+# </dev/null is required: the resolver reads up to 1MB of optional hook-input
+# JSON from stdin. Without this redirect, `head -c 1048576` blocks or reads
+# inherited-terminal data, causing the resolver to never produce output shards.
+"$RESOLVER" </dev/null >/dev/null 2>&1 || {
   echo "FAIL: talisman-resolve.sh exited non-zero in synthetic project" >&2
   exit 1
 }
@@ -53,7 +63,10 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 2
 fi
 
-RESOLVED=$(jq -r '.state_file.code_enforced_writes // "missing"' "$ARC_SHARD")
+# jq's `//` operator treats boolean `false` as a "missing" alternative trigger,
+# which would turn a correctly-preserved opt-out into a false failure. Use an
+# explicit null-check instead so `false` is carried through unchanged.
+RESOLVED=$(jq -r 'if .state_file.code_enforced_writes == null then "missing" else (.state_file.code_enforced_writes | tostring) end' "$ARC_SHARD")
 if [[ "$RESOLVED" != "false" ]]; then
   echo "FAIL: opt-out not preserved — resolved value is \"$RESOLVED\", expected \"false\"" >&2
   exit 1
