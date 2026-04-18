@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.55.0] - 2026-MM-DD
+<!-- replace 2026-MM-DD with the actual release date on merge day -->
+
+### Changed
+
+- `arc.state_file.code_enforced_writes` canary flag now defaults to `true`. Evidence criteria
+  from v2.54.0 soak window met — see `plugins/rune/docs/canary-evidence/v2.55.0.md` for the
+  audit snapshot. Users who want to opt out can set `code_enforced_writes: false` in their
+  talisman.yml.
+
 ## [2.54.1] - 2026-04-18
 
 ### Added
