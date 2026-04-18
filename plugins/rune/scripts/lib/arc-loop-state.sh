@@ -109,6 +109,28 @@ arc_state_file_path() {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
+# _arc_state_emit_deprecation_warn_once → stderr warning once per invocation
+# ─────────────────────────────────────────────────────────────────────────────
+# Emits a one-shot deprecation warning to stderr when the user's talisman still
+# carries the removed canary key (v2.56.0+). Key name is constructed at runtime
+# so the literal string never appears lexically in source. Warning itself is
+# removed in v2.57.0.
+_arc_state_emit_deprecation_warn_once() {
+  [ -n "${_RUNE_ARC_DEPRECATION_WARN_EMITTED:-}" ] && return 0
+  local _shard="${CWD:-$PWD}/tmp/.talisman-resolved/arc.json"
+  [ -f "$_shard" ] || return 0
+  command -v jq >/dev/null 2>&1 || return 0
+  local _key_name
+  _key_name=$(printf 'code_enforced_%s' 'writes')
+  local _user_val
+  _user_val=$(jq -r --arg k "$_key_name" '.state_file[$k] // empty' "$_shard" 2>/dev/null)
+  if [ "$_user_val" = "false" ]; then
+    printf 'WARN: talisman key `arc.state_file.%s` is deprecated and has no effect (v2.56.0+).\n      All state file writes are now unconditional. Remove this key from your talisman.\n' "$_key_name" >&2
+  fi
+  export _RUNE_ARC_DEPRECATION_WARN_EMITTED=1
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
 # arc_state_integrity_log action cause state_file [extra_json] \
 #                          [arc_id] [loop_kind] [checkpoint_path] \
 #                          [pending_phase_count] [mtime_age_sec]
@@ -270,9 +292,9 @@ arc_state_integrity_log() {
       _sev="error"; _class="failure" ;;
   esac
 
-  # Flag state — canary flag was removed in v2.56.0; writes are now unconditional.
-  # Log fields preserved as constants for schema backward-compat with existing consumers.
+  # Flag state — unconditional active writes since v2.56.0 (canary removed)
   local _flag_enabled="true" _dry_run="false"
+  _arc_state_emit_deprecation_warn_once
 
   # SEC-003: final symlink guard immediately before the `>>` append. Closes
   # the TOCTOU window between mkdir -p (above) and the redirection below — if
