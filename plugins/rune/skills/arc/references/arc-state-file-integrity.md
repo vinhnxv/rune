@@ -1,6 +1,6 @@
 # Arc State File Integrity Subsystem
 
-Canary reference for the arc phase-loop state file reliability subsystem introduced in v2.53.0. Documents the library contract, the integrity log schema, the flag lifecycle, and the security invariants that gate every deletion and write.
+Reference for the arc phase-loop state file reliability subsystem introduced in v2.53.0 and promoted to unconditional enforcement in v2.56.0. Documents the library contract, the integrity log schema, and the security invariants that gate every deletion and write.
 
 Source plan: [/Users/vinhnx/Desktop/repos/rune/plans/2026-04-17-fix-arc-state-file-reliability-plan.md](/Users/vinhnx/Desktop/repos/rune/plans/2026-04-17-fix-arc-state-file-reliability-plan.md) (see §4.1–§4.3, §5.1, §6.2, §14, §16).
 
@@ -8,11 +8,9 @@ Source plan: [/Users/vinhnx/Desktop/repos/rune/plans/2026-04-17-fix-arc-state-fi
 
 **What.** The subsystem centralizes creation, refresh, and deletion decisions for `.rune/arc-${loop_kind}-loop.local.md` state files. Three collaborating components share one library — `scripts/lib/arc-loop-state.sh` — so the stop-hook loop, the init script, and the PostToolUse verifier never drift on deletion semantics, symlink handling, or atomic-write sequencing.
 
-**Why.** Pre-v2.53.0 the stop hook deleted the state file on ambiguous stop reasons, then the next phase turn found no state and halted. The same code path had no audit trail, no symlink defense, and no way to distinguish "work complete" from "jq crashed mid-decode." The canary introduces one deletion rubric (plan §4.3), one integrity log (plan §14), and one flag that gates enforced writes while observation-only dry-run entries accumulate evidence.
+**Why.** Pre-v2.53.0 the stop hook deleted the state file on ambiguous stop reasons, then the next phase turn found no state and halted. The same code path had no audit trail, no symlink defense, and no way to distinguish "work complete" from "jq crashed mid-decode." The subsystem introduces one deletion rubric (plan §4.3), one integrity log (plan §14), and unconditional active-write semantics (v2.56.0+) that create and repair state files during PostToolUse verification.
 
-**Canary state (this patch).** Shipped as observation-only. The `arc.state_file.code_enforced_writes` talisman flag defaults to `false` — the PostToolUse verify hook emits `dry_run: true` log entries but does NOT write or mutate state files. Enforced writes activate on explicit flag flip after the log evidence is reviewed.
-
-> ⚠ **Scope of the canary.** Dry-run exercises only the `verify` read path (a `test -f` check) and emits `dry_run: true` log entries. It does **not** fork `rune-arc-init-state.sh create`, so the atomic mktemp+mv write, Layer 1 pre-write assertions, Layer 2 post-write verification, and XM-2 owner_pid resolution get **zero** observation coverage. Meeting the rollout criteria below validates the observation path; the create path requires a separate shadow-write test before production rollout.
+**Status (v2.56.0+).** All state-file writes are unconditional. The PostToolUse verify hook actively creates, repairs, and logs state file operations for every `.rune/arc/*/checkpoint.json` write. The subsystem was incubated as an observation-only canary in v2.53.0, default-flipped to enforced in v2.55.0 (`canary_default_enabled`), and the gating flag was retired in v2.56.0 after ≥2 weeks of Phase B soak with no regressions. See `docs/canary-evidence/v2.55.0.md` for the historical Phase B audit artifact.
 
 ## Components
 
@@ -32,7 +30,6 @@ Every function is safe to call outside an arc context — missing inputs return 
 | Function | Signature | Purpose |
 |----------|-----------|---------|
 | `arc_state_file_path` | `arc_state_file_path [kind]` → stdout path, exit 1 on invalid kind | Canonical path resolver. Rejects kinds outside `{phase, batch, hierarchy, issues}`. |
-| `arc_state_flag_enabled` | `arc_state_flag_enabled` → exit 0 if `arc.state_file.code_enforced_writes=true` else 1 | Reads the resolved talisman shard (`tmp/.talisman-resolved/arc.json`). Never gates security checks — flag is OPERATIONAL only (plan §4.1). |
 | `arc_state_integrity_log` | `arc_state_integrity_log action cause state_file [extra_json] [arc_id] [loop_kind] [checkpoint_path] [pending_str] [mtime_age_str]` → exit 0 | Append-only JSONL entry with atomic `>>` append under `PIPE_BUF`. Rotates the log under a `mkdir` lock (XM-4). Refuses symlinks (SEC-002). |
 | `arc_state_touch` | `arc_state_touch state_file` → exit 0 | Mtime-only refresh, throttled by `RUNE_ARC_STATE_TOUCH_THROTTLE_SEC`. R27 invariant — NEVER rewrites content. |
 | `arc_state_pending_phases` | `arc_state_pending_phases checkpoint_path` → stdout int count, -1 on error | Counts `.phases[] | select(.status=="pending" or .status=="in_progress")`. Returns -1 on any jq failure so callers defer deletion safely (XM-3 / AC-14). |
@@ -65,8 +62,8 @@ Status legend:
 | 14 | `extra` | object | §14.1 (`details`) | Shipped | Free-form caller JSON. `try fromjson catch {}` — corrupt extra degrades to `{}`. |
 | 15 | `severity` | enum | §14.4 | Shipped | `info \| warn \| error`. Derived from `action` via case table. |
 | 16 | `event_class` | enum | §14.4 | Shipped | `lifecycle \| recovery \| deletion \| failure`. |
-| 17 | `flag_enabled` | bool | §14.4 | Shipped | Snapshot of `arc_state_flag_enabled` at log time. |
-| 18 | `dry_run` | bool | §14.4 | Shipped | `true` when flag is false but hook fired. |
+| 17 | `flag_enabled` | bool | §14.4 | Shipped (historical) | Always `true` since v2.56.0. Retained for JSONL schema backward-compat — consumers parsing legacy logs from v2.53.0–v2.55.0 may still observe `false`. |
+| 18 | `dry_run` | bool | §14.4 | Shipped (historical) | Always `false` since v2.56.0. Retained for schema backward-compat — consumers parsing legacy logs may still observe `true` for Phase A entries. |
 | 19 | `plugin_version` | string | §14.4 | Shipped (v2.53.0) | `_RUNE_ARC_PLUGIN_VERSION` read at lib source time. |
 | 20 | `current_phase` | string | §14.4 | Deferred | Requires checkpoint re-read at log time — deferred to AC-12. |
 | 21 | `git_head` | string (short SHA) | §14.4 | Deferred | Requires safe `git rev-parse` without spawning per-entry. Deferred to AC-13. |
@@ -74,31 +71,25 @@ Status legend:
 
 Plan §14.4 also enumerates `tool_use_n` as a diagnostic field. It is **not** currently emitted and not counted above; track under the same AC-12 follow-up.
 
-## Flag Lifecycle
+## Lifecycle (historical)
 
-The `arc.state_file.code_enforced_writes` flag is intentionally opaque to security code — it controls whether the PostToolUse verify hook mutates state, not whether integrity checks run. See plan §4.1 and §5.1.
+The subsystem shipped in three phases:
 
 ```
-   Phase A (shipped)                 Phase B                    Phase C
-   ───────────────────               ─────────                   ───────
-   code_enforced_writes:            Operator flips flag         Flag stays true.
-     false  (default)        ─▶     to true after log           PostToolUse verify
-                                    review shows 0               actively writes /
-                                    error-class entries.         repairs state files.
-   PostToolUse verify:              PostToolUse verify
-     DRY-RUN — log entries            writes + logs. Logs
-     tagged `dry_run: true`.          become audit trail, not
-     NEVER writes state.              observation-only.
+   Phase A (v2.53.0)                Phase B (v2.55.0)           Phase C (v2.56.0)
+   ─────────────────                ─────────────────            ─────────────────
+   Observation-only.                Default flipped to           Gating flag retired.
+   PostToolUse verify               enforced after log           All writes
+   emitted dry_run entries;         evidence review;             unconditional.
+   NEVER wrote state.               writes became authoritative. Subsystem is permanent.
 ```
 
-**Trigger for flip.** Operator scans `.rune/arc-integrity-log.jsonl` across a rolling 7-day window and confirms:
-- No `severity: error` entries.
-- `deletion_deferred_*` rate is stable and expected (no drift toward 100%).
-- Every `recovered_*` entry reconciled to a real checkpoint-write race.
+Each phase ran with ≥2 weeks of soak evidence. The Phase B → Phase C audit artifact
+lives at `docs/canary-evidence/v2.55.0.md` (historical; preserved for audit trail).
+No rollback path exists in Phase C — reintroducing the canary mechanism requires
+re-implementing the flag, dry-run branches, and log-schema conditional fields.
 
-**Rollback.** Set `arc.state_file.code_enforced_writes: false` in `talisman.yml`. Flag is read per-call via `arc_state_flag_enabled`, so rollback takes effect at the next state operation — no process restart required.
-
-## How to Evaluate Rollout Readiness
+## How to Evaluate Rollout Readiness (historical)
 
 No dashboard or aggregator ships with the canary. Operators run these `jq` queries directly against `.rune/arc-integrity-log.jsonl` (and rotated archives `.rune/arc-integrity-log-*.jsonl`). Each query maps one-to-one to a CHANGELOG rollout criterion.
 
@@ -125,7 +116,7 @@ jq 'select(.flag_enabled == true and .dry_run == true)' \
   .rune/arc-integrity-log*.jsonl
 ```
 
-Flip `arc.state_file.code_enforced_writes: true` only when: (1) returns ≥500/≥10; (2) and (3) emit no lines; (4) shows `deletion_deferred_pending_phases` dominating (real work > tooling noise); (5) emits no lines.
+The criteria above were met at the v2.55.0 rollout — see `docs/canary-evidence/v2.55.0.md`. The queries remain useful for ongoing health monitoring against the (now unconditional) active-write path.
 
 ## Security Invariants
 
