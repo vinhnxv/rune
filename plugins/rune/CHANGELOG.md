@@ -1,5 +1,72 @@
 # Changelog
 
+## [2.54.1] - 2026-04-18
+
+### Added
+
+#### Arc state operator ergonomics — doctor + observability + cross-machine docs (child 2/4)
+
+Purely additive Layer 4 of the arc state-file long-term hardening plan. Ships
+self-service diagnostics + observability + documentation in parallel with
+child-1 (v2.54.0). No existing code paths modified.
+
+**`doctor` subcommand** added to `plugins/rune/scripts/rune-arc-init-state.sh`.
+Reports per-loop-kind health (phase / batch / hierarchy / issues) covering
+checkpoint presence + pending-phase count, state file presence + size, ownership
+classification (OWNED / FOREIGN / ORPHAN / UNKNOWN / N/A), and integrity status.
+Exit 0 when all invariants hold; exit 1 with actionable `Recommended fix:` hint
+when a checkpoint exists without its state file or a state file's owner PID is
+dead; exit 2 on invalid `--kind`. Text output (default) matches the plan sample;
+`--json` emits structured output for automation. Accompanying test:
+`scripts/tests/test-doctor-subcommand.sh` (7 cases: clean-slate, MISSING,
+OWNED, ORPHAN, `--kind` filter, JSON shape, invalid kind). Closes AC-12.
+
+**`arc-state-health.sh` observability script** at
+`plugins/rune/scripts/observability/arc-state-health.sh`. Parses
+`.rune/arc-integrity-log.jsonl` into a 7-day rolling summary (verified,
+recovered, hydrated, corrupted, layer2 mismatch counts; deletion_deferred vs
+spurious ratio; dry_run fraction; p50/p95 latency). `--canary-gate` mode
+emits `{ gate_status, recommendation, evidence }` JSON against AC-4 evidence
+thresholds — the child-3 canary-flip gate consumes this output. Graceful
+fallbacks: jq preferred + awk fallback, BSD/GNU `date` via `platform.sh`
+helpers, missing log → zero-count summary (exit 0) or FAIL (exit 1 in
+canary-gate mode). Added row to `CLAUDE.md` Hook Infrastructure table
+(marked as operator tool, not a hook). Accompanying test:
+`scripts/tests/test-observability-script.sh` (8 cases including Case E2
+regression guard for the mend fix below). Closes AC-11.
+
+**Cross-Machine Migration documentation** appended to two reference files:
+- `plugins/rune/skills/arc/references/arc-resume.md` — operator-facing framing:
+  committed vs. gitignored split table, resume workflow on new machine,
+  troubleshooting via `doctor`, rationale for session-scoped identity fields.
+- `plugins/rune/skills/arc/references/arc-phase-loop-state.md` — schema /
+  lifecycle framing: hand-off between origin/destination machines, rationale
+  for why `/rune:arc-doctor` is intentionally NOT a slash command (per plan
+  non-goal).
+
+**Etched echo persisted** at `.rune/echoes/arc/MEMORY.md` —
+`arc-cross-machine-resume-state-hydration` pattern for future agents.
+(.rune/ is gitignored; entry persists locally per Core Rule #6.) Closes AC-8.
+
+### Fixed
+
+#### Canary-gate stuck-at-FAIL on healthy zero-deletion systems
+
+Fixed a MEDIUM usability bug in `arc-state-health.sh --canary-gate` mode
+(QUAL-002, flagged by in-run code review). When
+`deletion_deferred_vs_spurious_ratio == null` (i.e., zero deletions of either
+kind in the 7-day window), the gate previously returned FAIL with reason
+`"no deletion samples to evaluate ratio"` — making it stuck-at-FAIL for any
+deployment without deletion events. Per AC-4 semantics, the ratio criterion
+measures "deferral system works when deletions occur" — absence of deletions
+is a degenerate-but-safe state, not evidence of breakage. Other canary
+criteria (`verified >= 500`, `recovered+hydrated >= 10`, `corrupted == 0`,
+`layer2_mismatch == 0`) still gate the overall verdict. Added regression
+guard Case E2 to the accompanying test suite (8/8 cases now pass).
+
+Also documented the `doctor` subcommand exit codes (0 / 1 / 2) in the
+`rune-arc-init-state.sh` header comment block (DOC-001).
+
 ## [2.54.0] - 2026-04-18
 
 ### Added

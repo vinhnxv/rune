@@ -689,3 +689,49 @@ Hash expected: sha256:abc123...
 Hash found: sha256:xyz789...
 Demoting Phase 2 to "pending" — will re-run plan review.
 ```
+
+## Cross-Machine Migration
+
+An arc can be started on one machine and resumed on another. The checkpoint is a committed artifact; the phase-loop state file is not. This section documents the committed/ignored split, the expected hand-off workflow, and the troubleshooting path for when hydration does not happen automatically.
+
+### What is committed vs. what is not
+
+| Artifact | Path | Committed | Why |
+|---|---|---|---|
+| Checkpoint | `.rune/arc/{id}/checkpoint.json` | **Yes** | Durable record of plan, flags, phase statuses, `arc_config`, and resume tracking. Safe to share — all paths are relative and identity fields (`owner_pid`, `session_id`, `config_dir`) are session-scoped and re-validated on resume. |
+| Plan file | `plans/.../some-plan.md` | **Yes** | The source-of-truth that the pipeline implements. |
+| Phase-loop state | `.rune/arc-phase-loop.local.md` | **No** | Contains the current machine's `owner_pid`, `session_id`, and resolved `config_dir`. Committing it would cause cross-session corruption — the Stop hook would read identity from another machine's shell and silent-exit at GUARD 4. The `.local.md` suffix is gitignored by convention. |
+| `tmp/` artifacts | `tmp/arc/{id}/*`, `tmp/work/{id}/*` | **No** | Ephemeral working outputs; regenerated on demand by resume or downstream phases. |
+
+### Resume workflow on a new machine
+
+1. `git pull` on the feature branch that contains the checkpoint and plan.
+2. Open Claude Code in the repository.
+3. The `SessionStart:resume` hook attempts to hydrate the phase-loop state file automatically (v2.54.0+) by calling `rune-arc-init-state.sh create --source session-start` when it detects a recent owned checkpoint.
+4. Run `/rune:arc --resume`. The resume logic re-validates identity and re-constructs missing artifacts.
+
+When hydration works, you should see a `.rune/arc-phase-loop.local.md` appear before `/rune:arc --resume` is invoked. The phase loop then continues from the first pending phase.
+
+### Troubleshooting: state file missing after session start
+
+Run the doctor subcommand to identify the issue:
+
+```bash
+bash plugins/rune/scripts/rune-arc-init-state.sh doctor
+```
+
+The most common failure is `state_file: MISSING` under the `phase` kind while the checkpoint shows `OWNED`. The `Recommended fix` line tells you exactly what to do — typically:
+
+```bash
+bash plugins/rune/scripts/rune-arc-init-state.sh create --source skill --kind phase
+```
+
+Other patterns reported by `doctor`:
+
+- **`ORPHAN (owner_pid=N dead)`** — the state file was left behind by a previous machine or crashed session. Remove it, then re-run `--resume`.
+- **`FOREIGN`** — the state file belongs to a concurrent session on the same machine. Do not touch it; resume inside the owning session or wait for it to finish.
+- **`UNKNOWN`** — identity fields could not be resolved. Often a symptom of `CLAUDE_CONFIG_DIR` or `RUNE_SESSION_ID` being unset; re-open Claude Code in the project root.
+
+### Why `.local.md` is not committed
+
+Each machine resolves its own `owner_pid` (`$PPID` of the Claude Code process), `config_dir` (from `CLAUDE_CONFIG_DIR`), and `session_id` (from the Claude Code runtime). Committing a state file would freeze one machine's identity into the repository and the Stop hook on every other machine would treat it as a foreign-owned session — silent exit, no phase progression. Keeping `.local.md` gitignored and hydrating on demand from the committed checkpoint is the correct contract: the *intent* (checkpoint) travels across machines; the *ambient identity* (state file) does not.

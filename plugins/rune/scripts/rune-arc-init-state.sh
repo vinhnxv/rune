@@ -11,6 +11,7 @@
 #   rune-arc-init-state.sh verify                    [--kind KIND] [--checkpoint PATH]
 #   rune-arc-init-state.sh touch                     [--kind KIND]
 #   rune-arc-init-state.sh resolve-owned-checkpoint  [--source skill|hook]
+#   rune-arc-init-state.sh doctor                    [--kind KIND] [--json]
 #
 # SUBCOMMANDS:
 #   create                    Write state file atomically. If --checkpoint
@@ -23,11 +24,19 @@
 #   resolve-owned-checkpoint  Print path of the newest owned checkpoint on
 #                             stdout. Exit 1 when no owned checkpoint exists.
 #                             Used by arc-phase-stop-hook.sh self-heal path.
+#   doctor                    Report per-loop-kind health (phase/batch/hierarchy/
+#                             issues): checkpoint existence, state file existence,
+#                             ownership match, pending phases. Exit 0 when all
+#                             invariants hold, exit 1 with actionable fix hint
+#                             when violated. --json toggles structured output.
 #
 # EXIT CODES:
-#   0 success
-#   1 state missing AND --force omitted (verify), OR recoverable failure (create)
-#   2 unrecoverable failure — checkpoint missing/corrupt, invalid identity
+#   0 success (or, for doctor: all invariants hold — 0 issues found)
+#   1 state missing AND --force omitted (verify), OR recoverable failure
+#     (create), OR doctor found 1+ issues (checkpoint without state file,
+#     orphan state file with dead owner_pid, etc. — see "Recommended fix")
+#   2 unrecoverable failure — checkpoint missing/corrupt, invalid identity,
+#     OR invalid argument (e.g., doctor --kind not in {phase,batch,hierarchy,issues})
 #
 # KEY PROPERTIES:
 #   - INTEG Layer 1 pre-write assertions (configDir, ownerPid, sessionId, planFile)
@@ -571,16 +580,269 @@ cmd_resolve_owned_checkpoint() {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Subcommand: doctor
+#
+# Report health of the 4 arc loop kinds (phase/batch/hierarchy/issues):
+#   - checkpoint: presence + pending-phase count (for `phase` kind only)
+#   - state_file: presence + size
+#   - ownership:  OWNED (checkpoint session_id matches current session) /
+#                 FOREIGN (different session) / N/A (state file absent) /
+#                 ORPHAN (state file present but its owner_pid is dead)
+#   - integrity:  brief status line
+#
+# Exit 0 when all invariants hold (owned checkpoint + matching state file, OR
+# clean slate with no checkpoint and no state file). Exit 1 with an actionable
+# "Recommended fix" hint when any invariant is violated.
+#
+# Text output is the default; --json produces structured output for automation.
+# ─────────────────────────────────────────────────────────────────────────────
+_doctor_kind_checkpoint_path() {
+  # Return newest checkpoint path for the given kind.
+  # Only `phase` has a canonical checkpoint under .rune/arc/*/checkpoint.json.
+  # batch/hierarchy/issues are loop state files — no checkpoint counterpart.
+  case "$1" in
+    phase)
+      local _arc_dir="${CWD}/.rune/arc"
+      [ -d "$_arc_dir" ] || return 1
+      local _newest="" _newest_mtime=0 _f _m
+      while IFS= read -r _f; do
+        [ -z "$_f" ] && continue
+        _m=$(_stat_mtime "$_f" 2>/dev/null)
+        _m="${_m:-0}"
+        case "$_m" in ''|*[!0-9]*) _m=0 ;; esac
+        if [ "$_m" -gt "$_newest_mtime" ] 2>/dev/null; then
+          _newest_mtime="$_m"
+          _newest="$_f"
+        fi
+      done < <(find "$_arc_dir" -maxdepth 2 -name checkpoint.json -not -path "*/archived/*" 2>/dev/null)
+      [ -z "$_newest" ] && return 1
+      printf '%s\n' "$_newest"
+      ;;
+    *)
+      # No checkpoint concept for batch/hierarchy/issues
+      return 1
+      ;;
+  esac
+}
+
+_doctor_report_kind() {
+  # $1 kind, $2 json_flag (0|1)
+  local _kind="$1" _json="$2"
+  local _cp="" _sf=""
+  local _cp_status="none" _cp_detail=""
+  local _sf_status="absent" _sf_detail="OK"
+  local _own_status="N/A" _own_detail=""
+  local _integ_status="N/A" _integ_detail=""
+  local _issue_count=0 _fix_hint=""
+
+  # Resolve state file path via library
+  _sf=$(arc_state_file_path "$_kind" 2>/dev/null) || _sf=""
+
+  # Resolve checkpoint (phase kind only)
+  _cp=$(_doctor_kind_checkpoint_path "$_kind" 2>/dev/null) || _cp=""
+
+  # Checkpoint block
+  if [ -n "$_cp" ] && [ -f "$_cp" ]; then
+    _cp_status="present"
+    if [ "$_kind" = "phase" ] && command -v jq >/dev/null 2>&1; then
+      local _pending
+      _pending=$(jq -r '[.phases[]? | select(.status == "pending")] | length' "$_cp" 2>/dev/null | tr -d '\r')
+      case "$_pending" in ''|*[!0-9]*) _pending=0 ;; esac
+      _cp_detail="$_pending pending phases"
+    fi
+  fi
+
+  # State file block
+  if [ -n "$_sf" ] && [ -f "$_sf" ]; then
+    _sf_status="present"
+    local _size
+    _size=$(wc -c < "$_sf" 2>/dev/null | tr -d ' ')
+    case "$_size" in ''|*[!0-9]*) _size=0 ;; esac
+    _sf_detail="${_size}B"
+  elif [ "$_cp_status" = "present" ]; then
+    _sf_status="MISSING"
+    _sf_detail="run: create --source skill"
+    _issue_count=$((_issue_count + 1))
+    [ -z "$_fix_hint" ] && _fix_hint="run 'bash $(basename "${BASH_SOURCE[0]}") create --source skill --kind $_kind' to hydrate the missing state file"
+  fi
+
+  # Ownership block
+  if [ "$_sf_status" = "present" ]; then
+    local _sf_sid _sf_pid _cur_sid
+    _sf_sid=$(sed -n 's/^session_id:[[:space:]]*//p' "$_sf" 2>/dev/null | head -1 | tr -d '\r')
+    _sf_pid=$(sed -n 's/^owner_pid:[[:space:]]*//p' "$_sf" 2>/dev/null | head -1 | tr -d '\r')
+    _cur_sid="${RUNE_SESSION_ID:-${CLAUDE_SESSION_ID:-}}"
+
+    if [ -n "$_sf_sid" ] && [ -n "$_cur_sid" ] && [ "$_sf_sid" = "$_cur_sid" ]; then
+      _own_status="OWNED"
+      _own_detail="session_id match"
+    elif [ -n "$_sf_pid" ] && ! kill -0 "$_sf_pid" 2>/dev/null; then
+      _own_status="ORPHAN"
+      _own_detail="owner_pid=$_sf_pid dead"
+      _issue_count=$((_issue_count + 1))
+      [ -z "$_fix_hint" ] && _fix_hint="remove stale state file '$_sf' (dead owner PID $_sf_pid)"
+    elif [ -n "$_sf_sid" ] && [ -n "$_cur_sid" ] && [ "$_sf_sid" != "$_cur_sid" ]; then
+      _own_status="FOREIGN"
+      _own_detail="session $_sf_sid owns this state"
+    else
+      _own_status="UNKNOWN"
+      _own_detail="cannot determine ownership"
+    fi
+  else
+    _own_detail="no state file"
+  fi
+
+  # Integrity line
+  if [ "$_sf_status" = "present" ]; then
+    _integ_status="OK"
+    _integ_detail="state file readable"
+  else
+    _integ_detail="state file absent"
+  fi
+
+  # Checkpoint-without-state = the most actionable issue for `phase` kind
+  if [ "$_kind" = "phase" ] && [ "$_cp_status" = "present" ] && [ "$_sf_status" = "MISSING" ]; then
+    _integ_status="DEGRADED"
+    _integ_detail="checkpoint owned but state file absent — stop hook will stall at GUARD 4"
+  fi
+
+  if [ "$_json" = "1" ]; then
+    # JSON object per kind (comma handled by caller via index)
+    printf '  "%s": {\n' "$_kind"
+    printf '    "checkpoint": { "path": %s, "status": "%s", "detail": "%s" },\n' \
+      "$(printf '%s' "${_cp:-null}" | jq -R . 2>/dev/null || printf '"%s"' "${_cp:-}")" \
+      "$_cp_status" "$_cp_detail"
+    printf '    "state_file": { "path": %s, "status": "%s", "detail": "%s" },\n' \
+      "$(printf '%s' "${_sf:-null}" | jq -R . 2>/dev/null || printf '"%s"' "${_sf:-}")" \
+      "$_sf_status" "$_sf_detail"
+    printf '    "ownership": { "status": "%s", "detail": "%s" },\n' "$_own_status" "$_own_detail"
+    printf '    "integrity": { "status": "%s", "detail": "%s" },\n' "$_integ_status" "$_integ_detail"
+    printf '    "issues": %d\n' "$_issue_count"
+    printf '  }'
+  else
+    printf 'Loop kind: %s\n' "$_kind"
+    if [ -n "$_cp" ]; then
+      printf '  checkpoint:    %s (%s%s)\n' "$_cp" "$_cp_status" "${_cp_detail:+, $_cp_detail}"
+    else
+      printf '  checkpoint:    none\n'
+    fi
+    if [ -n "$_sf" ]; then
+      if [ "$_sf_status" = "MISSING" ]; then
+        printf '  state_file:    %s (MISSING — %s)\n' "$_sf" "$_sf_detail"
+      elif [ "$_sf_status" = "absent" ]; then
+        printf '  state_file:    %s (absent — %s)\n' "$_sf" "$_sf_detail"
+      else
+        printf '  state_file:    %s (%s, %s)\n' "$_sf" "$_sf_status" "$_sf_detail"
+      fi
+    fi
+    if [ "$_own_status" = "N/A" ]; then
+      printf '  ownership:     N/A (%s)\n' "$_own_detail"
+    else
+      printf '  ownership:     %s (%s)\n' "$_own_status" "$_own_detail"
+    fi
+    printf '  integrity:     %s (%s)\n' "$_integ_status" "$_integ_detail"
+  fi
+
+  # Emit fix hint to global aggregator via stderr (captured by caller)
+  if [ -n "$_fix_hint" ]; then
+    printf '%s\n' "$_fix_hint" >&3
+  fi
+  return "$_issue_count"
+}
+
+cmd_doctor() {
+  local _kind="" _json=0
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --kind) _kind="$2"; shift 2 ;;
+      --json) _json=1; shift ;;
+      *) echo "FATAL: unknown arg: $1" >&2; return 2 ;;
+    esac
+  done
+
+  local _kinds=""
+  if [ -n "$_kind" ]; then
+    case " phase batch hierarchy issues " in
+      *" $_kind "*) _kinds="$_kind" ;;
+      *) echo "FATAL: invalid kind: $_kind" >&2; return 2 ;;
+    esac
+  else
+    _kinds="phase batch hierarchy issues"
+  fi
+
+  # Collect fix hints via fd 3
+  local _hints_file
+  _hints_file=$(mktemp "${TMPDIR:-/tmp}/rune-arc-doctor-hints.XXXXXX") || {
+    echo "FATAL: mktemp failed for hint capture" >&2
+    return 2
+  }
+  trap 'rm -f "$_hints_file" 2>/dev/null' EXIT
+
+  local _total_issues=0 _first=1 _k _k_rc
+  if [ "$_json" = "1" ]; then
+    printf '{\n'
+    printf '  "arc_doctor_version": 1,\n'
+    printf '  "checked_at": "%s",\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)"
+    printf '  "session_id": "%s",\n' "${RUNE_SESSION_ID:-${CLAUDE_SESSION_ID:-}}"
+    printf '  "kinds": {\n'
+  fi
+
+  for _k in $_kinds; do
+    if [ "$_json" = "1" ] && [ "$_first" = "0" ]; then
+      printf ',\n'
+    fi
+    _doctor_report_kind "$_k" "$_json" 3>>"$_hints_file"
+    _k_rc=$?
+    _total_issues=$((_total_issues + _k_rc))
+    _first=0
+    [ "$_json" = "0" ] && printf '\n'
+  done
+
+  if [ "$_json" = "1" ]; then
+    printf '\n  },\n'
+    printf '  "total_issues": %d,\n' "$_total_issues"
+    printf '  "fix_hints": [\n'
+    local _first_hint=1 _hint
+    while IFS= read -r _hint; do
+      [ -z "$_hint" ] && continue
+      [ "$_first_hint" = "0" ] && printf ',\n'
+      printf '    %s' "$(printf '%s' "$_hint" | jq -R . 2>/dev/null || printf '"%s"' "$_hint")"
+      _first_hint=0
+    done < "$_hints_file"
+    printf '\n  ]\n'
+    printf '}\n'
+  else
+    if [ "$_total_issues" -eq 0 ]; then
+      printf 'Overall: 0 issues found. All invariants hold.\n'
+    else
+      printf 'Overall: %d issue(s) found.\n' "$_total_issues"
+      local _hint
+      while IFS= read -r _hint; do
+        [ -z "$_hint" ] && continue
+        printf 'Recommended fix: %s\n' "$_hint"
+      done < "$_hints_file"
+    fi
+  fi
+
+  rm -f "$_hints_file" 2>/dev/null
+  trap - EXIT
+
+  [ "$_total_issues" -eq 0 ] && return 0
+  return 1
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Main dispatcher
 # ─────────────────────────────────────────────────────────────────────────────
 if [ $# -lt 1 ]; then
   cat <<'USAGE' >&2
-Usage: rune-arc-init-state.sh <create|verify|touch|resolve-owned-checkpoint> [flags]
+Usage: rune-arc-init-state.sh <create|verify|touch|resolve-owned-checkpoint|doctor> [flags]
   create                    [--kind phase|batch|hierarchy|issues] [--checkpoint PATH]
                             [--force] [--source skill|hook]
   verify                    [--kind KIND]
   touch                     [--kind KIND]
   resolve-owned-checkpoint  [--source skill|hook]
+  doctor                    [--kind KIND] [--json]
 USAGE
   exit 2
 fi
@@ -591,5 +853,6 @@ case "$_cmd" in
   verify) cmd_verify "$@"; exit $? ;;
   touch)  cmd_touch  "$@"; exit $? ;;
   resolve-owned-checkpoint) cmd_resolve_owned_checkpoint "$@"; exit $? ;;
+  doctor) cmd_doctor "$@"; exit $? ;;
   *) echo "FATAL: unknown subcommand: $_cmd" >&2; exit 2 ;;
 esac
