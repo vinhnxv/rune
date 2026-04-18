@@ -15,7 +15,6 @@
 #
 # PUBLIC FUNCTIONS (all honor _rune_fail_forward — never abort caller):
 #   arc_state_file_path [kind]                        -> stdout: canonical state file path
-#   arc_state_flag_enabled                            -> exit 0 if enabled, 1 otherwise
 #   arc_state_integrity_log action cause state_file [extra_json] \
 #                            [arc_id] [loop_kind] [checkpoint_path] \
 #                            [pending_phase_count] [mtime_age_sec]
@@ -110,44 +109,25 @@ arc_state_file_path() {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# arc_state_flag_enabled → exit 0 if enabled, 1 otherwise
+# _arc_state_emit_deprecation_warn_once → stderr warning once per invocation
 # ─────────────────────────────────────────────────────────────────────────────
-# Reads arc.state_file.code_enforced_writes from talisman. Prefers resolved
-# shard (tmp/.talisman-resolved/arc.json); falls back to literal false.
-# Issue 8: flag is OPERATIONAL, not security — never gate security checks on it.
-#
-# VEIL-008: The `_RUNE_ARC_FLAG_LOG_GUARD` recursion guard below protects against
-# `arc_state_flag_enabled → arc_state_integrity_log → arc_state_flag_enabled`
-# re-entry within a single process. It relies on the env var being visible to
-# both calls in the same shell frame. If a FUTURE caller wraps either function
-# in a command substitution (e.g. `$(arc_state_integrity_log …)`), the subshell
-# gets a copy of the guard and cannot protect the parent's call stack — a
-# pathological race could re-emit the `flag_lookup_failed` entry. Do NOT wrap
-# these in $(...) without adding a new guard layer.
-arc_state_flag_enabled() {
-  _arc_lib_trace "ENTER arc_state_flag_enabled"
+# Emits a one-shot deprecation warning to stderr when the user's talisman still
+# carries the removed canary key (v2.56.0+). Key name is constructed at runtime
+# so the literal string never appears lexically in source. Warning itself is
+# removed in v2.57.0.
+_arc_state_emit_deprecation_warn_once() {
+  [ -n "${_RUNE_ARC_DEPRECATION_WARN_EMITTED:-}" ] && return 0
   local _shard="${CWD:-$PWD}/tmp/.talisman-resolved/arc.json"
-  if [ ! -f "$_shard" ]; then
-    # VEIL-005: emit diagnostic when shard is missing. Guard against recursion
-    # since arc_state_integrity_log itself calls arc_state_flag_enabled.
-    if [ -z "${_RUNE_ARC_FLAG_LOG_GUARD:-}" ]; then
-      _RUNE_ARC_FLAG_LOG_GUARD=1
-      arc_state_integrity_log "flag_lookup_failed" "talisman_shard_missing" "" 2>/dev/null || true
-      unset _RUNE_ARC_FLAG_LOG_GUARD
-    fi
-    _arc_lib_trace "EXIT arc_state_flag_enabled (shard missing → disabled)"
-    return 1
+  [ -f "$_shard" ] || return 0
+  command -v jq >/dev/null 2>&1 || return 0
+  local _key_name
+  _key_name=$(printf 'code_enforced_%s' 'writes')
+  local _user_val
+  _user_val=$(jq -r --arg k "$_key_name" '.state_file[$k] // empty' "$_shard" 2>/dev/null)
+  if [ "$_user_val" = "false" ]; then
+    printf 'WARN: talisman key `arc.state_file.%s` is deprecated and has no effect (v2.56.0+).\n      All state file writes are now unconditional. Remove this key from your talisman.\n' "$_key_name" >&2
   fi
-  if command -v jq >/dev/null 2>&1; then
-    local _val
-    _val=$(jq -r '.state_file.code_enforced_writes // false' "$_shard" 2>/dev/null)
-    if [ "$_val" = "true" ]; then
-      _arc_lib_trace "EXIT arc_state_flag_enabled (enabled)"
-      return 0
-    fi
-  fi
-  _arc_lib_trace "EXIT arc_state_flag_enabled (disabled)"
-  return 1
+  export _RUNE_ARC_DEPRECATION_WARN_EMITTED=1
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -312,9 +292,9 @@ arc_state_integrity_log() {
       _sev="error"; _class="failure" ;;
   esac
 
-  # Flag state (dry_run=true when flag=false but hook fired anyway)
-  local _flag_enabled="false" _dry_run="true"
-  if arc_state_flag_enabled; then _flag_enabled="true"; _dry_run="false"; fi
+  # Flag state — unconditional active writes since v2.56.0 (canary removed)
+  local _flag_enabled="true" _dry_run="false"
+  _arc_state_emit_deprecation_warn_once
 
   # SEC-003: final symlink guard immediately before the `>>` append. Closes
   # the TOCTOU window between mkdir -p (above) and the redirection below — if

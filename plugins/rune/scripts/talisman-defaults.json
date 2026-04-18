@@ -56,8 +56,7 @@
       "shared_branch": true
     },
     "state_file": {
-      "_comment": "Phase-loop state file integrity subsystem. YAML path: arc.state_file.code_enforced_writes. Default true since v2.55.0 — bash-driven creation (mktemp + mv -f), PostToolUse auto-recovery, Stop-hook watchdog, heartbeat mtime refresh, pending-phase-gated deletion, integrity log. Set to false to opt out. Rollout history: see CHANGELOG 'Rollout Criterion' section.",
-      "code_enforced_writes": true,
+      "_comment": "Phase-loop state file integrity subsystem. Bash-driven creation (mktemp + mv -f), PostToolUse auto-recovery, Stop-hook watchdog, heartbeat mtime refresh, pending-phase-gated deletion, integrity log. All writes are unconditional since v2.56.0 (canary removed).",
       "stale_multiplier": 3,
       "heartbeat_interval_sec": 60,
       "_note_retention_env_only": "Integrity-log retention is env-var-only: RUNE_ARC_INTEG_LOG_MAX_BYTES (default 5242880) and RUNE_ARC_INTEGRITY_LOG_MAX_ARCHIVES (default 5). Keys intentionally absent from this shard — no code consumer reads them.",

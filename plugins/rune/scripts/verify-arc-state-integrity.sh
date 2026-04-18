@@ -10,9 +10,8 @@
 # state file itself. RUNE_ARC_STATE_INIT_IN_PROGRESS guard for nested writes.
 #
 # DESIGN:
-#   - Dry-run mode when arc.state_file.code_enforced_writes == false
-#     (hook fires, logs observation, does NOT write the state file)
-#   - Active mode when flag == true (creates state file on miss)
+#   - Active mode only (v2.56.0+): creates state file on miss unconditionally.
+#     The legacy canary flag was removed — writes are now the sole path.
 #   - Always exit 0 — fail-forward protocol; never block the user's tool call
 #   - Budget: <5s total (default hook timeout)
 #
@@ -112,19 +111,11 @@ case "$_file_path" in
     ;;
 esac
 
-# ─── VEIL-004 FIX: always source libs when checkpoint regex matches ───
-# Previously this hook had a pre-source fast-path that exited WITHOUT sourcing
-# the library when arc.state_file.code_enforced_writes=false. That bypassed
-# the canary observation log entirely, defeating the purpose of dry-run mode.
-#
-# Now: for matching checkpoint writes, we always source libs and reach the
-# mode decision below (dry_run vs active). Observation entries are logged in
-# BOTH modes via arc_state_integrity_log; only active mode creates state files.
-# The pre-source grep fast-path at line ~66 still handles non-matching writes
-# in <1ms (preserves hot-path perf on general Write|Edit).
+# ─── Source lib for integrity log + state path helpers ───
+# Canary flag removed in v2.56.0 — all checkpoint writes unconditionally verify
+# + auto-recover state files. The grep fast-path at line ~66 still handles
+# non-matching writes in <1ms (preserves hot-path perf on general Write|Edit).
 # Re-entrancy (RUNE_ARC_STATE_INIT_IN_PROGRESS) already handles skip at top.
-
-# ─── Source lib to read flag + log ───
 # shellcheck disable=SC1091
 . "${SCRIPT_DIR}/lib/platform.sh" 2>/dev/null || true
 # shellcheck disable=SC1091
@@ -135,13 +126,7 @@ esac
   exit 0
 }
 
-# ─── Dry-run vs active decision ───
-_mode="dry_run"
-if arc_state_flag_enabled; then
-  _mode="active"
-fi
-
-# Always check and log — even in dry-run
+# ─── State file verify + auto-recovery (unconditional since v2.56.0) ───
 _init="${SCRIPT_DIR}/rune-arc-init-state.sh"
 [ -x "$_init" ] || {
   printf '{"hookSpecificOutput":{"hookEventName":"PostToolUse"}}'
@@ -151,29 +136,22 @@ _init="${SCRIPT_DIR}/rune-arc-init-state.sh"
 # Verify state file
 if "$_init" verify >/dev/null 2>&1; then
   # State file exists — touch to refresh mtime (throttled in lib)
-  if [ "$_mode" = "active" ]; then
-    "$_init" touch >/dev/null 2>&1 || true
-  fi
-  arc_state_integrity_log "verified" "posttooluse_hook_${_mode}" "$(arc_state_file_path phase 2>/dev/null)"
+  "$_init" touch >/dev/null 2>&1 || true
+  arc_state_integrity_log "verified" "posttooluse_hook_active" "$(arc_state_file_path phase 2>/dev/null)"
 else
-  # State file missing — auto-recreate in active mode, log-only in dry-run
-  if [ "$_mode" = "active" ]; then
-    # Normalize file path: absolute paths are passed through; relative paths
-    # are anchored to CWD. Prevents malformed "${CWD}/<absolute>" constructions
-    # that the previous `${_file_path#"${CWD}/"}` prefix-strip emitted when the
-    # hook delivered paths not prefixed by CWD.
-    case "$_file_path" in
-      /*) _cp_path="$_file_path" ;;
-      *)  _cp_path="${CWD}/${_file_path}" ;;
-    esac
-    if "$_init" create --source hook --checkpoint "$_cp_path" >/dev/null 2>&1; then
-      : # success — init script logs recovery event itself
-    else
-      arc_state_integrity_log "recovery_failed_no_checkpoint" "posttooluse_auto_create_failed" ""
-    fi
+  # State file missing — auto-recreate.
+  # Normalize file path: absolute paths are passed through; relative paths
+  # are anchored to CWD. Prevents malformed "${CWD}/<absolute>" constructions
+  # that the previous `${_file_path#"${CWD}/"}` prefix-strip emitted when the
+  # hook delivered paths not prefixed by CWD.
+  case "$_file_path" in
+    /*) _cp_path="$_file_path" ;;
+    *)  _cp_path="${CWD}/${_file_path}" ;;
+  esac
+  if "$_init" create --source hook --checkpoint "$_cp_path" >/dev/null 2>&1; then
+    : # success — init script logs recovery event itself
   else
-    # Dry-run: log what we WOULD have done
-    arc_state_integrity_log "recovery_failed_no_checkpoint" "posttooluse_dry_run_would_have_created" ""
+    arc_state_integrity_log "recovery_failed_no_checkpoint" "posttooluse_auto_create_failed" ""
   fi
 fi
 

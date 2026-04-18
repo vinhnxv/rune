@@ -1,5 +1,47 @@
 # Changelog
 
+## [2.56.0] — 2026-04-18
+
+### Removed
+
+Final child (4/4) of the arc state-file long-term hardening plan. Retires the
+Layer 3 canary surface after ≥2 weeks of child-3 (v2.55.0) Phase B soak with no
+regressions.
+
+- **Canary flag `arc.state_file.code_enforced_writes` removed.** All state file
+  writes are now unconditional.
+- `arc_state_flag_enabled()` helper removed from
+  `plugins/rune/scripts/lib/arc-loop-state.sh`.
+- Dry-run conditional branches removed from
+  `plugins/rune/scripts/verify-arc-state-integrity.sh`.
+- `dry_run` field is effectively frozen at `false` in
+  `.rune/arc-integrity-log.jsonl` entries. The field is retained in the schema
+  for backward-compat with logs written by v2.53.0–v2.55.0.
+- `plugins/rune/tests/canary/test-canary-flag-opt-out.sh` removed (obsolete
+  after flag removal); the empty `tests/canary/` directory also removed.
+- Canary mentions scrubbed from `hooks/hooks.json` rationale,
+  `.claude-plugin/plugin.json` description,
+  `.claude-plugin/marketplace.json` description, `CLAUDE.md` Hook
+  Infrastructure table, and `skills/arc/references/arc-state-file-integrity.md`.
+
+### Migration
+
+- Users who still have `code_enforced_writes: false` in their `talisman.yml`:
+  remove the key. A one-time deprecation warning is emitted from
+  `arc-loop-state.sh` during this release whenever the key is detected set to
+  `false`. The warning function itself will be removed in v2.57.0.
+- No behavior change for users on defaults — `code_enforced_writes: true` has
+  been the default since v2.55.0, and the removal only eliminates the opt-out
+  path + gating conditional.
+
+### Rationale
+
+- Canary completed successfully: v2.54.0 evidence window + v2.55.0 quiet
+  Phase B. Foundation is stable; flag served its purpose.
+- `plugins/rune/docs/canary-evidence/v2.55.0.md` preserved as historical audit
+  artifact. The AC-5 grep exclusion extends to `docs/canary-evidence/` so the
+  preserved evidence does not fail the zero-reference invariant.
+
 ## [2.55.0] - 2026-MM-DD
 <!-- replace 2026-MM-DD with the actual release date on merge day -->
 
