@@ -550,6 +550,18 @@
         ]
       },
       {
+        "matcher": "startup|resume|clear|compact",
+        "_rationale": "AC-5: Monitor host capability probe. Writes tmp/.rune-monitor-available (or .rune-monitor-unavailable with reason) so Track A (bot-review-wait Monitor) and Track B (plugin monitors) can capability-gate activation without a config flag. Detects Bedrock/Vertex/Foundry via ANTHROPIC_BEDROCK_BASE_URL, ANTHROPIC_VERTEX_PROJECT_ID, DISABLE_TELEMETRY, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC. Fail-open (exit 0 always).",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/probe-monitor-availability.sh",
+            "timeout": 5,
+            "async": false
+          }
+        ]
+      },
+      {
         "matcher": "startup|resume",
         "_rationale": "Resolves talisman.yml into per-namespace JSON shards for 94% token reduction. Must run after session-start.sh (workflow routing + venv setup) and before team hygiene. Not async — shards must be ready before first readTalismanSection() call. Excluded from clear (no workflows run) and compact (shards still valid).",
         "hooks": [
@@ -583,6 +595,18 @@
             "command": "${CLAUDE_PLUGIN_ROOT}/scripts/session-team-hygiene.sh",
             "timeout": 5,
             "statusMessage": "Checking team hygiene..."
+          }
+        ]
+      },
+      {
+        "matcher": "startup|resume|clear|compact",
+        "_rationale": "MONITOR-PROBE-001: Host capability probe for the Claude Code `Monitor` tool (plan AC-5). Inspects env vars (DISABLE_TELEMETRY, CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC, ANTHROPIC_BEDROCK_BASE_URL, ANTHROPIC_VERTEX_PROJECT_ID) and writes a sentinel file to ${CLAUDE_PROJECT_DIR}/tmp/.rune-monitor-{un,}available for downstream consumers. Idempotent, fail-open. OPERATIONAL — never blocks session start.",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/probe-monitor-availability.sh",
+            "timeout": 5,
+            "statusMessage": "Probing Monitor tool availability..."
           }
         ]
       },
