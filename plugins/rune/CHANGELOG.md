@@ -1,5 +1,30 @@
 # Changelog
 
+## [2.58.1] — 2026-04-19
+
+### Fixed — session_id precedence mismatch in arc state writer (BACK-IDN-004)
+
+`plugins/rune/scripts/rune-arc-init-state.sh` stamped arc state files using
+`${RUNE_SESSION_ID:-${CLAUDE_SESSION_ID:-}}` (RUNE first). The bridged
+`RUNE_SESSION_ID` can lag behind the authoritative harness identifier on resume:
+when `session-start.sh` receives a hook stdin payload without `session_id`, the
+bridge skips the sed-replace update and the old value persists in
+`CLAUDE_ENV_FILE`. Meanwhile, `on-session-stop.sh:104` reads `session_id`
+directly from the Stop hook stdin JSON (always the current harness session).
+
+The divergence showed up in the tripwire log as repeated `session_id mismatch`
+events across multiple PPIDs. Each Stop or tool call fired GUARD 5d, which saw
+the stale-stamped state file as foreign, deleted it, and left
+`arc-phase-stop-hook.sh` with nothing to dispatch — the arc phase loop died
+silently mid-run.
+
+**Fix**: flip the precedence to `${CLAUDE_SESSION_ID:-${RUNE_SESSION_ID:-}}` in
+all three call sites (`_resolve_newest_checkpoint`, `cmd_create`,
+`_doctor_report_kind`). This matches `resolve-session-identity.sh:123` and the
+reader contract in `on-session-stop.sh`. `RUNE_SESSION_ID` remains the fallback
+for Bash() tool context where `CLAUDE_SESSION_ID` is unavailable (documented in
+`session-start.sh:74-78`).
+
 ## [2.58.0] — 2026-04-19
 
 ### Added — durable-first completion detection (ARC-QA-001/002)
