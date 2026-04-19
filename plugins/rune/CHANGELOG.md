@@ -1,5 +1,44 @@
 # Changelog
 
+## [2.57.1] — 2026-04-19
+
+### Fixed — QA gate silent-exit on legacy verdict schema (QA-VRD-001)
+
+**Symptom**: After a QA phase completed, the arc Stop hook appeared to "not run" — no
+next-phase prompt was emitted and the pipeline looked frozen. In reality, the hook
+exited 0 silently after the QA gate check produced `_rc=5` which the EXIT trap
+converted to 0.
+
+**Root cause**: `lib/qa-gate-check.sh` read `jq -r '.scores.overall_score // 0'` and
+expected the canonical nested location. When the orchestrator wrote a pass-through
+verdict for a skipped phase (`verifier_role: "skipped_phase_pass_through"`) with the
+score at the top level (`{"overall_score": 100, ...}`), jq fell through to 0. The QA
+gate then drove score=0 into the retry budget path, the nested `jq '.items[]'` against
+a null items array returned exit 5, and the whole chain silent-exited without emitting
+the next-phase prompt.
+
+**Fix — reader tolerance + writer documentation**:
+
+- Reader fallback in 6 locations: `(.scores.overall_score // .overall_score // 0)` in
+  bash + `v.scores?.overall_score ?? v.overall_score ?? 0` in JS pseudocode.
+  - `scripts/lib/qa-gate-check.sh:124`
+  - `scripts/suggest-self-audit.sh:97`
+  - `skills/arc/references/arc-phase-qa-gate.md` (JS readers at 673, 957–960 + bash example at 792)
+  - `skills/arc/references/arc-phase-ship.md:155,206` (PR body QA + design QA score)
+- Sibling fix: `scripts/lib/qa-gate-check.sh:152` jq pipeline now uses `(.items // [])[]`
+  + `|| _remediation_raw=""` so missing items arrays no longer cascade exit 5 under
+  `set -euo pipefail`.
+- Added CANONICAL SCHEMA callout in `skills/arc/references/arc-phase-qa-gate.md`
+  §"Verdict File Format" to prevent LLM orchestrators from mis-nesting when writing
+  pass-through verdicts for skipped phases.
+- Regression tests in `scripts/tests/test-qa-gate.sh`: Test 15 (legacy top-level score
+  fallback), Test 16 (missing score + missing items → graceful degradation). Suite:
+  38/38 pass.
+
+**Compatibility**: Fully backwards-compatible. Canonical nested verdicts keep working
+unchanged; legacy top-level and orchestrator pass-through verdicts now also advance
+correctly instead of silently freezing the arc.
+
 ## [2.57.0] — 2026-04-19
 
 ### Added — Monitor tool integration

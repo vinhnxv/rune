@@ -485,6 +485,18 @@ Use glob patterns (e.g., `Glob("tmp/arc/{id}/resolution-report*.md")`) to discov
 QA agents write their verdict to `tmp/arc/{id}/qa/{phase}-verdict.json` before marking their
 task complete. The stop hook reads this file to decide whether to advance.
 
+**CANONICAL SCHEMA — LLM ORCHESTRATOR MUST FOLLOW** (QA-VRD-001):
+`overall_score` MUST be placed inside the nested `scores` object, NOT at top level.
+`artifact_score`, `quality_score`, `completeness_score` likewise live inside `scores`.
+When the Tarnished writes a pass-through verdict for a skipped phase
+(e.g., `verifier_role: "skipped_phase_pass_through"`), use the same nested schema.
+
+Mis-nesting caused a silent-exit bug in the Stop hook (`jq -r '.scores.overall_score // 0'`
+returned 0 when the field was at top level → QA gate triggered a retry → `_rc=5` converted
+to `exit 0` → no next-phase prompt emitted → arc appeared frozen).
+Readers are now defense-in-depth tolerant of both locations (see `lib/qa-gate-check.sh`
+line 124 comment), but writers MUST still follow the canonical schema.
+
 ```json
 {
   "phase": "work",
@@ -670,7 +682,8 @@ async function runQAGate(id, parentPhase, checkpoint) {
     const allItems = verdict.items || []
     const failedItems = allItems.filter(i => i.verdict === "FAIL")
     const timedOut = verdict.timed_out || false
-    const overallScore = verdict.scores?.overall_score ?? 0
+    // SCHEMA-TOLERANCE (QA-VRD-001): accept nested canonical or legacy top-level overall_score.
+    const overallScore = verdict.scores?.overall_score ?? verdict.overall_score ?? 0
 
     // Determine verdict string from score (agent writes this too, but we re-derive
     // as a safety check in case the agent's verdict string is malformed)
@@ -789,7 +802,8 @@ if [[ "$_IMMEDIATE_PREV" == *_qa ]]; then
 
   if [[ -f "$_qa_verdict_file" ]]; then
     _qa_verdict=$(jq -r '.verdict // "UNKNOWN"' "$_qa_verdict_file" 2>/dev/null)
-    _qa_score=$(jq -r '.scores.overall_score // 0' "$_qa_verdict_file" 2>/dev/null)
+    # SCHEMA-TOLERANCE (QA-VRD-001): accept nested canonical or legacy top-level overall_score.
+    _qa_score=$(jq -r '(.scores.overall_score // .overall_score // 0)' "$_qa_verdict_file" 2>/dev/null)
     _qa_timed_out=$(jq -r '.timed_out // false' "$_qa_verdict_file" 2>/dev/null)
     _qa_retries=$(jq -r '.retry_count // 0' "$_qa_verdict_file" 2>/dev/null)
 
@@ -953,10 +967,12 @@ function generateQADashboard(arcId) {
       phaseResults.push({
         phase,
         verdict: verdict.verdict ?? "UNKNOWN",
-        overall_score: verdict.scores?.overall_score ?? 0,
-        artifact_score: verdict.scores?.artifact_score ?? 0,
-        quality_score: verdict.scores?.quality_score ?? 0,
-        completeness_score: verdict.scores?.completeness_score ?? 0,
+        // SCHEMA-TOLERANCE (QA-VRD-001): accept nested canonical or legacy top-level location.
+        // `dimension_scores` is the legacy orchestrator pass-through location.
+        overall_score: verdict.scores?.overall_score ?? verdict.overall_score ?? 0,
+        artifact_score: verdict.scores?.artifact_score ?? verdict.dimension_scores?.artifact ?? 0,
+        quality_score: verdict.scores?.quality_score ?? verdict.dimension_scores?.quality ?? 0,
+        completeness_score: verdict.scores?.completeness_score ?? verdict.dimension_scores?.completeness ?? 0,
         checks_passed: verdict.checks?.passed ?? 0,
         checks_total: verdict.checks?.total ?? 0,
         retry_count: verdict.retry_count ?? 0,

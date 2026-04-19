@@ -387,6 +387,49 @@ local_parent_status=$(echo "$local_ckpt" | jq -r '.phases.gap_analysis.status')
 assert_eq "Parent phase stays completed (not demoted)" "completed" "$local_parent_status"
 echo ""
 
+# ── Test 15: Legacy top-level overall_score → read via fallback (QA-VRD-001) ──
+# Regression test for silent-exit bug where jq '.scores.overall_score // 0'
+# returned 0 when the score was placed at top level by an orchestrator
+# pass-through verdict (verifier_role="skipped_phase_pass_through").
+# Reader must fall through to .overall_score as a legacy location.
+echo "── Test 15: Legacy top-level overall_score → fallback accepted (QA-VRD-001) ──"
+TEST_DIR="${TMP_DIR}/test15"
+mkdir -p "$TEST_DIR/tmp/arc/test15/qa"
+cat > "$TEST_DIR/tmp/arc/test15/qa/work-verdict.json" <<'LEGACY_VERDICT_EOF'
+{
+  "phase": "work",
+  "verifier": "orchestrator-deterministic",
+  "verifier_role": "skipped_phase_pass_through",
+  "verdict": "PASS",
+  "overall_score": 100,
+  "dimension_scores": { "artifact": 100, "quality": 100, "completeness": 100 },
+  "retry_count": 0
+}
+LEGACY_VERDICT_EOF
+create_checkpoint "$TEST_DIR/checkpoint.json" 0 0 6 70 2 "work_qa"
+
+run_qa_gate "$TEST_DIR" "work_qa" "test15"
+
+assert_eq "NEXT_PHASE unchanged (legacy-schema PASS)" "next_default" "$NEXT_PHASE"
+assert_contains "Log contains qa_pass with score=100" "qa_pass" "${LOG_EVENTS[*]:-}"
+assert_contains "Score was parsed as 100 (not 0)" "score=100" "${LOG_EVENTS[*]:-}"
+echo ""
+
+# ── Test 16: Neither nested nor top-level score → defaults to 0 (graceful) ──
+echo "── Test 16: Malformed verdict (no score anywhere) → score=0 → FAIL path ──"
+TEST_DIR="${TMP_DIR}/test16"
+mkdir -p "$TEST_DIR/tmp/arc/test16/qa"
+cat > "$TEST_DIR/tmp/arc/test16/qa/work-verdict.json" <<'MALFORMED_EOF'
+{ "phase": "work", "verdict": "UNKNOWN" }
+MALFORMED_EOF
+create_checkpoint "$TEST_DIR/checkpoint.json" 0 0 6 70 2 "work_qa"
+
+run_qa_gate "$TEST_DIR" "work_qa" "test16"
+
+assert_eq "NEXT_PHASE reverts to parent (score=0 triggers FAIL path)" "work" "$NEXT_PHASE"
+assert_contains "Log records FAIL with score=0" "score=0" "${LOG_EVENTS[*]:-}"
+echo ""
+
 # ═══════════════════════════════════════════════
 echo ""
 echo "═══════════════════════════════════════════"

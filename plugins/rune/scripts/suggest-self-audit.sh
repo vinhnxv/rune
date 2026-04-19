@@ -94,7 +94,8 @@ _max_check=5
 # ERR-009 FIX: Use while-read loop to avoid word-splitting on paths with spaces
 while IFS= read -r _vf; do
   [[ -z "$_vf" ]] && continue
-  _score=$(jq -r '.scores.overall_score // 0' "$_vf" 2>/dev/null) || _score=0
+  # SCHEMA-TOLERANCE (QA-VRD-001): Accept nested canonical or legacy top-level overall_score.
+  _score=$(jq -r '(.scores.overall_score // .overall_score // 0)' "$_vf" 2>/dev/null) || _score=0
   # Truncate float to integer
   _score="${_score%.*}"
   # Numeric guard
