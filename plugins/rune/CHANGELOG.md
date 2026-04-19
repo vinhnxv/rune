@@ -1,5 +1,67 @@
 # Changelog
 
+## [2.58.1] — 2026-04-19
+
+### Fixed — session_id precedence mismatch in arc state writer (BACK-IDN-004)
+
+`plugins/rune/scripts/rune-arc-init-state.sh` stamped arc state files using
+`${RUNE_SESSION_ID:-${CLAUDE_SESSION_ID:-}}` (RUNE first). The bridged
+`RUNE_SESSION_ID` can lag behind the authoritative harness identifier on resume:
+when `session-start.sh` receives a hook stdin payload without `session_id`, the
+bridge skips the sed-replace update and the old value persists in
+`CLAUDE_ENV_FILE`. Meanwhile, `on-session-stop.sh:104` reads `session_id`
+directly from the Stop hook stdin JSON (always the current harness session).
+
+The divergence showed up in the tripwire log as repeated `session_id mismatch`
+events across multiple PPIDs. Each Stop or tool call fired GUARD 5d, which saw
+the stale-stamped state file as foreign, deleted it, and left
+`arc-phase-stop-hook.sh` with nothing to dispatch — the arc phase loop died
+silently mid-run.
+
+**Fix**: flip the precedence to `${CLAUDE_SESSION_ID:-${RUNE_SESSION_ID:-}}` in
+all three call sites (`_resolve_newest_checkpoint`, `cmd_create`,
+`_doctor_report_kind`). This matches `resolve-session-identity.sh:123` and the
+reader contract in `on-session-stop.sh`. `RUNE_SESSION_ID` remains the fallback
+for Bash() tool context where `CLAUDE_SESSION_ID` is unavailable (documented in
+`session-start.sh:74-78`).
+
+## [2.58.0] — 2026-04-19
+
+### Added — durable-first completion detection (ARC-QA-001/002)
+
+Fixes the arc QA notification race where agents write verdict files to disk but the leader
+skips phases on infra-failure narrative without polling the filesystem. Observed failure:
+`arc-1776528081000` where work_qa and gap_analysis_qa agents wrote EXCELLENT verdicts but
+SendMessage delivery failed and downstream phases (inspect, goldmask_verification, code_review)
+were skipped on "agent-team tear-down" rationale.
+
+**Iron Law ARC-QA-001 — Verify Before Skip**: added as Core Rule #16 in `plugins/rune/CLAUDE.md`.
+Mandates a 3-check protocol (sentinel / artifact / git) before marking any phase skipped with
+infrastructure-failure narrative. Empty TaskList and SendMessage delivery failure are NOT
+evidence of agent failure — filesystem artifacts are the authoritative signal.
+
+**Iron Law ARC-QA-002 — Stop Hook Self-Heal Precedence**: added as Core Rule #17. Declares the
+stop-hook contract for flipping in_progress phases with late-arriving artifacts on disk.
+
+**3-signal fusion in waitForCompletion**: new `countCompletedAgents()` helper in
+`monitor-utility.md` that fuses arc-scoped sentinels (durable) + artifact presence (durable) +
+team-scoped signals (ephemeral). Any one source reaching expectedCount is success. Backward-compat
+preserved when arcId is absent — degrades to current team-signal-only behaviour.
+
+**Completion Contract in 5 phase references**: appended to `arc-phase-qa-gate.md`,
+`arc-phase-inspect.md`, `arc-phase-code-review.md`, `arc-phase-goldmask-verification.md`,
+`arc-phase-mend.md`. Each phase that spawns agents must inject the 3-step contract (artifact
+write + sentinel at `tmp/arc/{id}/.done/{agent}.done` + TaskUpdate/SendMessage) into agent
+spawn prompts.
+
+**Deferred to follow-up** (tracked as Layer 3 / L5 in the plan):
+- `scripts/lib/arc-phase-self-heal.sh` shell helper + `_phase_find_next()` wiring (AC-4, SHOULD)
+- `talisman.yml arc.completion_detection` schema docs (AC-5, SHOULD)
+
+Files changed (7): `plugins/rune/CLAUDE.md`, `plugins/rune/skills/roundtable-circle/references/monitor-utility.md`, `plugins/rune/skills/arc/references/arc-phase-qa-gate.md`, `plugins/rune/skills/arc/references/arc-phase-inspect.md`, `plugins/rune/skills/arc/references/arc-phase-code-review.md`, `plugins/rune/skills/arc/references/arc-phase-goldmask-verification.md`, `plugins/rune/skills/arc/references/arc-phase-mend.md`. 179 insertions, 0 deletions, fully additive.
+
+Plan: `plans/2026-04-19-fix-arc-qa-notification-race-plan.md`. Commit: `b034dc5`.
+
 ## [2.57.2] — 2026-04-19
 
 ### Fixed — stale-teammate monitor blocks arc phase advance (MON-STALE-001)

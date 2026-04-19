@@ -124,7 +124,11 @@ _resolve_newest_checkpoint() {
     local _ckpt_pid _ckpt_sid _cur_sid _ckpt_comm _ownership_ok
     _ckpt_pid=$(jq -r '.owner_pid // empty' "$_newest" 2>/dev/null | tr -d '\r')
     _ckpt_sid=$(jq -r '.session_id // empty' "$_newest" 2>/dev/null | tr -d '\r')
-    _cur_sid="${RUNE_SESSION_ID:-${CLAUDE_SESSION_ID:-}}"
+    # BACK-IDN-004 FIX: CLAUDE_SESSION_ID is the authoritative harness identifier;
+    # RUNE_SESSION_ID is a bridged copy that can lag behind on resume. Reader side
+    # (on-session-stop.sh) uses the harness session_id from hook stdin JSON, so the
+    # writer must prefer the same source. Matches resolve-session-identity.sh:123.
+    _cur_sid="${CLAUDE_SESSION_ID:-${RUNE_SESSION_ID:-}}"
     _ownership_ok=0
 
     # Priority 1: session_id exact match → definitive (non-empty, equal)
@@ -355,7 +359,10 @@ cmd_create() {
     ''|*[!0-9]*) echo "FATAL (INTEG-INIT-002): ownerPid invalid: $_pid" >&2; return 2 ;;
   esac
 
-  _sid="${RUNE_SESSION_ID:-${CLAUDE_SESSION_ID:-}}"
+  # BACK-IDN-004 FIX: prefer CLAUDE_SESSION_ID (harness authoritative) over the
+  # bridged RUNE_SESSION_ID (can lag on resume — session-start.sh skips update when
+  # hook stdin lacks session_id, leaving the old value stamped into state files).
+  _sid="${CLAUDE_SESSION_ID:-${RUNE_SESSION_ID:-}}"
   if [ -z "$_sid" ]; then
     _sid=$(_ck_field "$_cp" 'session_id')
   fi
@@ -671,7 +678,8 @@ _doctor_report_kind() {
     local _sf_sid _sf_pid _cur_sid
     _sf_sid=$(sed -n 's/^session_id:[[:space:]]*//p' "$_sf" 2>/dev/null | head -1 | tr -d '\r')
     _sf_pid=$(sed -n 's/^owner_pid:[[:space:]]*//p' "$_sf" 2>/dev/null | head -1 | tr -d '\r')
-    _cur_sid="${RUNE_SESSION_ID:-${CLAUDE_SESSION_ID:-}}"
+    # BACK-IDN-004 FIX: match reader priority in on-session-stop.sh (harness first).
+    _cur_sid="${CLAUDE_SESSION_ID:-${RUNE_SESSION_ID:-}}"
 
     if [ -n "$_sf_sid" ] && [ -n "$_cur_sid" ] && [ "$_sf_sid" = "$_cur_sid" ]; then
       _own_status="OWNED"
