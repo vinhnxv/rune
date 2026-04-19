@@ -140,7 +140,6 @@ exponential backoff, deadlock detection), see
 
 ## Reference
 
-- [monitor-utility.md](../roundtable-circle/references/monitor-utility.md) — full monitoring utility specification, per-command config table, and Phase 2 event-driven fast path. **Not related to the Claude Code `Monitor` tool** — TaskList polling only.
-- [monitor-tool-patterns.md](references/monitor-tool-patterns.md) — Claude Code `Monitor` tool recipes (bot-review-wait, plugin monitors), capability probe, circuit-breaker, fallback wiring
-- CLAUDE.md Rule #9 — inline polling fidelity rule (multi-teammate Team case only; see decision table above for non-Team waits)
+- [monitor-utility.md](../roundtable-circle/references/monitor-utility.md) — full monitoring utility specification, per-command config table, and Phase 2 event-driven fast path
+- CLAUDE.md Rule #9 — inline polling fidelity rule
 - `pollIntervalMs` is sourced from the per-command config table (don't hardcode 30s if config changes)
