@@ -49,36 +49,31 @@ if ! command -v jq &>/dev/null; then
   exit 0
 fi
 
-# ── GUARD 0.5: monitor-active sentinel check ──
-# When the `stale-teammate-watcher` plugin monitor (Track B.1) is declared AND
-# the host supports plugin monitors (AC-5 probe wrote tmp/.rune-monitor-available),
-# this Stop hook backs off — continuous monitoring is responsible for stale detection.
-# Absence of the sentinel OR an explicit unavailable sentinel means we re-engage
-# full detection here.
+# ── GUARD 0.5 REMOVED (VEIL-005 fix, undoing PR #500) ──
+# Previously: backed off when monitor-stale-teammates.sh was declared, on the
+# assumption that the plugin monitor would handle stale detection.
 #
-# Back-off trigger: ALL of the following must be true.
-#   1. tmp/.rune-monitor-available exists (Monitor capable host)
-#   2. plugins/rune/monitors/monitors.json exists (plugin monitor declared)
-#   3. RUNE_DISABLE_STALE_BACKOFF is not set (escape hatch for debugging)
+# Why removed:
+#   1. Premise unsupported by Claude Code docs. Per docs.claude.com hooks.md,
+#      Stop fires BEFORE async background work completes — a running plugin
+#      monitor does NOT block Stop. The "monitor handles it" handoff was based
+#      on inferred runtime behavior, not a documented contract.
+#   2. The plugin monitor only emits on STALE (>3min idle), not on COMPLETION.
+#      detect-stale-lead.sh is the only mechanism that wakes the lead when
+#      teammates have called TaskUpdate(completed) but the lead is still idle.
+#      Backing off this hook left a coverage gap where arc phases advanced
+#      while teammates were still mid-tool-call.
+#   3. Observed regression (image attached to Issue): "Arc complete · Idle ·
+#      teammates running" with rune-smith-1 still editing files for 24+ minutes
+#      while arc-batch dispatched the next plan.
 #
-# If any condition fails → continue with full detection.
-_rune_project_dir="${CLAUDE_PROJECT_DIR:-${CWD:-.}}"
-if [[ -z "${RUNE_DISABLE_STALE_BACKOFF:-}" ]] \
-    && [[ -f "${_rune_project_dir}/tmp/.rune-monitor-available" ]]; then
-  # monitors/monitors.json lives under CLAUDE_PLUGIN_ROOT at runtime. We probe a couple of
-  # likely locations; absence is non-fatal — we just re-engage full detection.
-  for _candidate in \
-      "${CLAUDE_PLUGIN_ROOT:-}/monitors/monitors.json" \
-      "${_rune_project_dir}/plugins/rune/monitors/monitors.json"; do
-    if [[ -n "$_candidate" && -f "$_candidate" ]] \
-        && grep -q 'stale-teammate-watcher' "$_candidate" 2>/dev/null; then
-      # monitor-active sentinel check: the watcher handles it. Back off cleanly.
-      exit 0
-    fi
-  done
-  unset _candidate
-fi
-unset _rune_project_dir
+# Plugin monitor (monitor-stale-teammates.sh) remains useful as ADVISORY only —
+# it surfaces idle alerts in the session transcript. It no longer displaces
+# this Stop-hook detection.
+#
+# Companion fixes for the same regression:
+#   - team-sdk/references/engines.md  Step 3.5 (blocking liveness gate before TeamDelete)
+#   - arc/references/arc-phase-work.md Step 4a (state-file completion gate after Skill)
 
 # ── GUARD 1: Read CWD from stdin ──
 INPUT=$(head -c 1048576 2>/dev/null || true)

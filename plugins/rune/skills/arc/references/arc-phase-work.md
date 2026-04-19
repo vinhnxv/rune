@@ -171,6 +171,44 @@ if (postWorkStateFiles.length > 0) {
   }
 }
 
+// STEP 4a: State-file completion gate (VEIL-005 fix)
+// Skill("rune:strive") returning is NOT proof that the strive team finished — its
+// own shutdown() exits as soon as TaskList shows completed, but the rune-smith-1
+// process may still be running compaction or post-task tool calls. If this gate
+// is skipped, arc marks work=completed and the Stop hook dispatches Phase 6 (or
+// arc-batch dispatches the next plan) while a worker is still mid-edit. Observed
+// symptom: lead UI shows "* Idle · teammates running" with rune-smith-1 still
+// touching files.
+//
+// Pattern: poll the work state file for status=completed (written by strive's own
+// cleanup()) before marking phase done. Bounded to 6 polls × 5s = 30s — same
+// budget as the SDK liveness gate in engines.md Step 3.5. If state file never
+// flips, surface a warning and proceed; engines.md Step 5 (filesystem fallback +
+// process kill) is the safety net.
+const STRIVE_COMPLETION_MAX_POLLS = 6
+let striveCompleted = false
+for (let attempt = 0; attempt < STRIVE_COMPLETION_MAX_POLLS; attempt++) {
+  const candidates = Glob("tmp/.rune-work-*.json").filter(f => {
+    try {
+      const s = JSON.parse(Read(f))
+      const age = Date.now() - new Date(s.started).getTime()
+      return age >= 0 && age < PHASE_TIMEOUTS.work && (s.team_name || "").startsWith("rune-work-")
+    } catch (e) { return false }
+  })
+  if (candidates.length === 0) { striveCompleted = true; break }  // No state file = nothing to wait on
+  const allDone = candidates.every(f => {
+    try { return JSON.parse(Read(f)).status === "completed" } catch (e) { return false }
+  })
+  if (allDone) { striveCompleted = true; break }
+  if (attempt === 0) {
+    warn(`work phase: strive state file(s) still active after Skill() return — polling up to ${STRIVE_COMPLETION_MAX_POLLS * 5}s for completion stamp`)
+  }
+  Bash(`sleep 5`, { run_in_background: true })
+}
+if (!striveCompleted) {
+  warn(`work phase: strive state file did not reach status=completed within gate window — proceeding to checkpoint update; engines.md fallback handles process kill if needed`)
+}
+
 // STEP 4b: Log task file observability event (AC-7)
 // After strive Phase 1 delegation returns, log counts of all physical task files created.
 // This provides a concrete audit trail that file-based delegation actually ran.
