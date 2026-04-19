@@ -88,7 +88,10 @@ if [[ -d "$CHOME/teams/" ]]; then
   # QUAL-003 NOTE: No -mmin filter — after TeamDelete, report ALL remaining dirs (informational).
   # Unlike TLC-001/003 which use -mmin +30 threshold, TLC-002 shows everything since
   # PostToolUse cannot block and you want to know about ANY residual dirs post-delete.
-  done < <(find "$CHOME/teams/" -maxdepth 1 -type d \( -name "rune-*" -o -name "arc-*" \) 2>/dev/null)
+    # TEAM-002 FIX (audit 20260419-150325): include goldmask-* prefix to
+    # match enforce-team-lifecycle.sh:201. Previously zombie goldmask teams
+    # were invisible to the TLC-002 post-delete advisory.
+  done < <(find "$CHOME/teams/" -maxdepth 1 -type d \( -name "rune-*" -o -name "arc-*" -o -name "goldmask-*" \) 2>/dev/null)
 fi
 
 if [[ ${#remaining[@]} -gt 0 ]]; then

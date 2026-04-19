@@ -95,7 +95,10 @@ if [[ -f "${SCRIPT_DIR}/resolve-session-identity.sh" ]]; then
 else
   RUNE_CURRENT_CFG=$(cd "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" 2>/dev/null && pwd -P) || RUNE_CURRENT_CFG="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
   rune_pid_alive() {
-    [[ "$1" =~ ^[0-9]+$ ]] || return 1
+    # MON-005 FIX (audit 20260419-150325): numeric bounds (1..4194304).
+    # Bare ^[0-9]+$ accepts e.g. 999999999999 — OS rejects at kill -0 but
+    # explicit bounds are defense-in-depth and make the intent readable.
+    [[ "$1" =~ ^[0-9]+$ && "$1" -gt 0 && "$1" -lt 4194304 ]] || return 1
     local _err
     _err=$(kill -0 "$1" 2>&1) && return 0
     case "$_err" in *ermission*|*[Pp]erm*|*EPERM*) return 0 ;; esac
@@ -403,7 +406,7 @@ for sf in "${STATE_FILES[@]}"; do
     # The stored owner_pid is the Claude Code session PID whose children are the teammates.
     _stored_pid="$SF_PID"
     _teammate_count=0
-    if [[ -n "$_stored_pid" && "$_stored_pid" =~ ^[0-9]+$ ]] && command -v pgrep &>/dev/null; then
+    if [[ -n "$_stored_pid" && "$_stored_pid" =~ ^[0-9]+$ && "$_stored_pid" -gt 0 && "$_stored_pid" -lt 4194304 ]] && command -v pgrep &>/dev/null; then
       while IFS= read -r _child; do
         [[ -z "$_child" || ! "$_child" =~ ^[0-9]+$ ]] && continue
         _child_cmd=$(ps -p "$_child" -o comm= 2>/dev/null || true)

@@ -53,12 +53,16 @@ command_str=$(printf '%s\n' "$input" | jq -r '(.tool_input.command // .toolInput
 # Fast-path: skip if command doesn't involve gh or git push
 # This grep runs in <1ms for non-matching commands
 # SEC-002 FIX: Use printf instead of echo to avoid backslash expansion
-if ! printf '%s\n' "$command_str" | grep -qE '(^|\s|;|&&|\|\|)(gh\s+(pr|issue|api|repo)|git\s+push)'; then
+# ENF-001 FIX (audit 20260419-150325): BSD grep on stock macOS (no coreutils)
+# treats \s as literal `s`, so the fast-path silently exited 0 for any command
+# and gh account resolution never fired. Use POSIX [[:space:]] which matches
+# on both BSD and GNU grep — aligns with the rest of the enforcer set.
+if ! printf '%s\n' "$command_str" | grep -qE '(^|[[:space:]]|;|&&|\|\|)(gh[[:space:]]+(pr|issue|api|repo)|git[[:space:]]+push)'; then
   exit 0
 fi
 
 # Skip gh auth commands themselves (avoid infinite loop)
-if printf '%s\n' "$command_str" | grep -qE '(^|\s)gh\s+auth\s+(login|switch|status|setup-git)'; then
+if printf '%s\n' "$command_str" | grep -qE '(^|[[:space:]])gh[[:space:]]+auth[[:space:]]+(login|switch|status|setup-git)'; then
   exit 0
 fi
 

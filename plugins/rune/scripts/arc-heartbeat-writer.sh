@@ -114,7 +114,12 @@ _NONCE="${RUNE_SESSION_ID:-$$-$(date +%s)}"
 _NONCE="${_NONCE:0:16}"
 
 # ── Session isolation fields (AC-3.4: config_dir + session_id + owner_pid) ──
-_CONFIG_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+# MON-008 FIX (audit 20260419-150325): canonicalize config_dir so downstream
+# consumers (which compare against `cd "$CHOME" && pwd -P`) see the same value.
+# Without this, macOS guest accounts with a symlinked $HOME trigger silent skip
+# in session-isolation checks across the stop-hook cascade.
+_CONFIG_DIR_RAW="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+_CONFIG_DIR=$(cd "$_CONFIG_DIR_RAW" 2>/dev/null && pwd -P) || _CONFIG_DIR="$_CONFIG_DIR_RAW"
 _SESSION_ID="${RUNE_SESSION_ID:-unknown}"
 
 # ── Atomic write (mktemp + mv) ──

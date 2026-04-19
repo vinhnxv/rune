@@ -21,12 +21,15 @@
 _RUNE_STOP_FAILURE_COMMON_LOADED=1
 
 # Source talisman shard resolver if not already loaded
+# STOP-003 FIX (audit 20260419-150325): renamed `local_dir` to `_lib_dir` —
+# prior name visually collided with the bash `local` keyword, which made the
+# code harder to skim even though `local` is only valid inside functions.
 if ! type _rune_resolve_talisman_shard &>/dev/null; then
-  local_dir="$(dirname "${BASH_SOURCE[0]}")"
-  if [[ -f "${local_dir}/talisman-shard-path.sh" ]]; then
-    source "${local_dir}/talisman-shard-path.sh"
+  _lib_dir="$(dirname "${BASH_SOURCE[0]}")"
+  if [[ -f "${_lib_dir}/talisman-shard-path.sh" ]]; then
+    source "${_lib_dir}/talisman-shard-path.sh"
   fi
-  unset local_dir
+  unset _lib_dir
 fi
 
 # ── classify_stop_failure() ──

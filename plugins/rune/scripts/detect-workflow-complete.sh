@@ -361,8 +361,12 @@ for sf in "${STATE_FILES[@]}"; do
   fi
 
   # Session isolation: owner_pid must match OR be dead
+  # MON-005 FIX (audit 20260419-150325): add numeric bounds (1..4194304).
+  # The bare ^[0-9]+$ accepts values like 999999999999 that the OS would
+  # reject at kill -0 anyway; explicit bounds are defense-in-depth against
+  # corrupt/forged state files and make the intent readable.
   ORPHAN=false
-  if [[ -n "$SF_PID" && "$SF_PID" =~ ^[0-9]+$ ]]; then
+  if [[ -n "$SF_PID" && "$SF_PID" =~ ^[0-9]+$ && "$SF_PID" -gt 0 && "$SF_PID" -lt 4194304 ]]; then
     if [[ "$SF_PID" != "$PPID" ]]; then
       if rune_pid_alive "$SF_PID"; then
         _trace "SKIP $sf: belongs to live session PID=$SF_PID"
