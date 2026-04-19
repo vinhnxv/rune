@@ -160,13 +160,31 @@ function postPhaseCleanup(checkpoint, phaseName) {
 
     // Step 2: Prefix-based scan for this phase's expected prefixes
     // Even if team_name was null, scan by prefix to catch orphans
+    //
+    // v2.62.0 P1-C FIX (BUG-01): QA phase prefix collision.
+    // All 7 QA phases share prefix "arc-qa-" but actual team names follow
+    // pattern `arc-qa-{id}-{parent}` (see arc-phase-qa-gate.md:641). A broad
+    // prefix scan for `arc-qa-` matches ALL QA teams regardless of parent,
+    // so cleanup for `forge_qa` could wipe the team of a concurrently-
+    // running or just-created `work_qa`.
+    //
+    // Mitigation: when phaseName is a *_qa variant, require the team name
+    // to end with `-{parent}` (where parent is phaseName stripped of `_qa`).
+    // Non-QA prefixes are unchanged — they already have distinct mappings.
     const prefixes = PHASE_PREFIX_MAP[phaseName] || []
+    const isQaPhase = /_qa$/.test(phaseName)
+    const expectedQaSuffix = isQaPhase ? `-${phaseName.replace(/_qa$/, '')}` : null
     for (const prefix of prefixes) {
       if (!/^[a-z][a-z-]*-$/.test(prefix)) { warn(`postPhaseCleanup: invalid prefix format: ${prefix} — skipping`); continue }
       const dirs = Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && find "$CHOME/teams" -maxdepth 1 -type d -name "${prefix}*" 2>/dev/null`).split('\n').filter(Boolean)
       for (const dir of dirs) {
         const orphanName = dir.split('/').pop()
         if (!orphanName || !/^[a-zA-Z0-9_-]+$/.test(orphanName)) continue
+        // v2.62.0 P1-C FIX: suffix match for QA phases prevents cross-QA-phase wipe
+        if (expectedQaSuffix && !orphanName.endsWith(expectedQaSuffix)) {
+          warn(`postPhaseCleanup: Skipping ${orphanName} — QA phase suffix mismatch (expected ${expectedQaSuffix})`)
+          continue
+        }
         // Cross-session safety: check .session marker before cleaning
         // .session contains session_id (written by stamp-team-session.sh TLC-004)
         // If session_id differs from ours, skip — belongs to another session

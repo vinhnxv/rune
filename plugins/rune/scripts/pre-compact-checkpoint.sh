@@ -44,6 +44,24 @@ _trace() {
   return 0
 }
 
+# ── v2.62.0 P1-B FIX (NEW-002): PPID validation gate ──
+# Both jq sites below write owner_pid using `--arg pid "${PPID:-}"`. If $PPID
+# is unset or empty (documented possibility in hook runner contexts per
+# CLAUDE.md rule 11), the checkpoint lands with owner_pid="" and any later
+# session can claim it via the post-compact verify/recovery chain
+# (post-compact-verify.sh:124 accepts empty PPID as valid, session-compact-
+# recovery.sh:145 skips ownership check when CHKPT_PID is empty).
+#
+# Guard: if PPID is unset OR non-numeric, refuse to write checkpoint.
+# Fail-forward: compaction proceeds without preservation, but we don't
+# produce a poison-pill checkpoint that a foreign session could pick up.
+if [[ -z "${PPID:-}" ]] || ! [[ "${PPID}" =~ ^[0-9]+$ ]]; then
+  _trace "SKIP checkpoint write: PPID='${PPID:-}' invalid (empty or non-numeric) — refusing to write with empty owner_pid"
+  printf 'WARN: pre-compact-checkpoint.sh: PPID invalid — skipping checkpoint write (P1-B NEW-002)\n' >&2
+  exit 0
+fi
+_RUNE_OWNER_PID="$PPID"
+
 # ── Source platform helpers for cross-platform stat ──
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -f "${SCRIPT_DIR}/lib/platform.sh" ]]; then
@@ -258,7 +276,7 @@ if [[ -z "$active_team" ]]; then
       --arg team "" \
       --arg ts "$TIMESTAMP" \
       --arg cfg "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" \
-      --arg pid "${PPID:-}" \
+      --arg pid "$_RUNE_OWNER_PID" \
       --argjson batch "$arc_batch_state" \
       --argjson issues "$arc_issues_state" \
       --argjson phase_summaries "$arc_phase_summaries" \
@@ -427,7 +445,7 @@ if ! jq -n \
   --arg team "$active_team" \
   --arg ts "$TIMESTAMP" \
   --arg cfg "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" \
-  --arg pid "${PPID:-}" \
+  --arg pid "$_RUNE_OWNER_PID" \
   --argjson config "$team_config" \
   --argjson tasks "$tasks_json" \
   --argjson workflow "$workflow_state" \

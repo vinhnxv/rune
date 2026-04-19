@@ -978,6 +978,160 @@ else
   fi
 fi
 
+# ── VERIFY-BEFORE-COMPLETE GUARD (v2.62.0 — P1-D) ──
+# Root cause class: the phase scan below trusts `status == "completed"` as
+# ground truth, but the status field is LLM-self-reported. If an LLM
+# hallucinates "I've completed this phase" (context pressure, rationalization,
+# premature stop), the checkpoint gets `status: "completed"` with no real
+# evidence on disk. Stop hook advances past the fake-completion into the next
+# phase — which then builds on an invalid foundation.
+#
+# This guard demotes any `completed` phase lacking evidence:
+#   Tier 1 (artifact): if .artifact field is a non-empty string pointing to a
+#                      path, the file MUST exist and be non-empty.
+#   Tier 2 (hash):     if .artifact_hash is a 64-char hex (sha256), the actual
+#                      file hash MUST match. (Skipped if shasum unavailable.)
+#
+# Demoted phases flip `completed` → `pending` + `demote_reason`. The stop hook
+# then re-dispatches the SAME phase with an "evidence required" prompt
+# (injected via .phases[X].remediation_context).
+#
+# Scope: applies to phases with defined artifact paths (most phases). Phases
+# that legitimately complete without artifacts (e.g., cleanup-only phases)
+# are unaffected — they simply never had .artifact set, so Tier 1 skips them.
+#
+# Budget cap: max 20 demotions per hook invocation (prevents runaway if the
+# checkpoint is corrupted with bogus artifact paths everywhere).
+#
+# Fail-forward: any internal error returns the checkpoint unchanged.
+_VBC_DEMOTED_COUNT=0
+if [[ -n "${_phase_order_json:-}" ]] || _phase_order_json=$(printf '%s\n' "${PHASE_ORDER[@]}" | jq -R -s 'split("\n") | map(select(length > 0))' 2>/dev/null); then
+  # Enumerate completed phases with artifact+hash fields
+  _VBC_CANDIDATES=$(echo "$CKPT_CONTENT" | jq -r --argjson order "$_phase_order_json" '
+    .phases as $p |
+    $order
+    | map(select(($p[.].status // "") == "completed"))
+    | map({
+        phase: .,
+        artifact: ($p[.].artifact // ""),
+        hash: ($p[.].artifact_hash // ""),
+        already_verified: ($p[.].verified_at_advance // false)
+      })
+    | map(select(.artifact != "" and .already_verified == false))
+    | .[]
+    | "\(.phase)\t\(.artifact)\t\(.hash)"
+  ' 2>/dev/null || true)
+
+  if [[ -n "$_VBC_CANDIDATES" ]]; then
+    _VBC_DEMOTIONS=""
+    _VBC_LOOP_COUNT=0
+    while IFS=$'\t' read -r _vbc_phase _vbc_artifact _vbc_hash; do
+      [[ -z "$_vbc_phase" ]] && continue
+      (( _VBC_LOOP_COUNT >= 20 )) && break
+      _VBC_LOOP_COUNT=$((_VBC_LOOP_COUNT + 1))
+
+      # SEC: validate artifact path (no traversal, relative, allowed chars)
+      if [[ "$_vbc_artifact" == *".."* || "$_vbc_artifact" == /* ]]; then
+        _trace "VBC: skip ${_vbc_phase} — unsafe artifact path: ${_vbc_artifact}"
+        continue
+      fi
+      if [[ "$_vbc_artifact" =~ [^a-zA-Z0-9._/-] ]]; then
+        _trace "VBC: skip ${_vbc_phase} — artifact path has forbidden chars"
+        continue
+      fi
+
+      _vbc_full="${CWD}/${_vbc_artifact}"
+      _vbc_demote_reason=""
+
+      # Tier 1: existence + non-empty
+      if [[ ! -f "$_vbc_full" || -L "$_vbc_full" ]]; then
+        _vbc_demote_reason="artifact_missing"
+      elif [[ ! -s "$_vbc_full" ]]; then
+        _vbc_demote_reason="artifact_empty"
+      # Tier 2: hash match (only if hash field present, well-formed, and shasum available)
+      elif [[ -n "$_vbc_hash" && "$_vbc_hash" =~ ^[a-f0-9]{64}$ ]] && command -v shasum >/dev/null 2>&1; then
+        _vbc_actual=$(shasum -a 256 "$_vbc_full" 2>/dev/null | awk '{print $1}')
+        if [[ -n "$_vbc_actual" && "$_vbc_actual" != "$_vbc_hash" ]]; then
+          _vbc_demote_reason="hash_mismatch"
+          _trace "VBC: ${_vbc_phase} hash mismatch expected=${_vbc_hash:0:12} actual=${_vbc_actual:0:12}"
+        fi
+      fi
+
+      if [[ -n "$_vbc_demote_reason" ]]; then
+        _VBC_DEMOTIONS+="${_vbc_phase}"$'\t'"${_vbc_demote_reason}"$'\t'"${_vbc_artifact}"$'\n'
+        _VBC_DEMOTED_COUNT=$((_VBC_DEMOTED_COUNT + 1))
+        _log_phase "phase_demoted_no_evidence" "$_vbc_phase" "reason=${_vbc_demote_reason}" "artifact=${_vbc_artifact}"
+      else
+        # Mark as verified to avoid re-checking on every Stop fire
+        # (performance optimization — hash recompute is expensive on large artifacts)
+        _VBC_DEMOTIONS+="${_vbc_phase}"$'\t'"__MARK_VERIFIED__"$'\t'"${_vbc_artifact}"$'\n'
+      fi
+    done <<< "$_VBC_CANDIDATES"
+
+    # Apply updates if any phase demoted or marked verified
+    if [[ -n "$_VBC_DEMOTIONS" ]]; then
+      _vbc_json=$(printf '%s' "$_VBC_DEMOTIONS" | jq -R -s '
+        split("\n")
+        | map(select(length > 0))
+        | map(split("\t"))
+        | map({phase: .[0], reason: .[1], artifact: .[2]})
+      ' 2>/dev/null || echo "[]")
+
+      if [[ -n "$_vbc_json" && "$_vbc_json" != "[]" ]]; then
+        _vbc_now=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "unknown")
+        _vbc_new_ckpt=$(echo "$CKPT_CONTENT" | jq --argjson updates "$_vbc_json" --arg now "$_vbc_now" '
+          reduce $updates[] as $u (.;
+            if $u.reason == "__MARK_VERIFIED__" then
+              .phases[$u.phase].verified_at_advance = true
+              | .phases[$u.phase].verified_at = $now
+            else
+              .phases[$u.phase].status = "pending"
+              | .phases[$u.phase].demote_reason = $u.reason
+              | .phases[$u.phase].demoted_at = $now
+              | .phases[$u.phase].remediation_context = (
+                  "Previous completion claim lacked evidence (\($u.reason) for artifact \($u.artifact)). " +
+                  "This phase is being re-dispatched. Before marking completed: " +
+                  "(1) Verify the artifact file exists at the declared path. " +
+                  "(2) If artifact_hash is set, recompute sha256 and confirm match. " +
+                  "(3) If artifact cannot be produced, mark status=failed (not completed)."
+                )
+            end
+          )
+          | .verify_before_complete_log = ((.verify_before_complete_log // []) + [
+              $updates[] | select(.reason != "__MARK_VERIFIED__") | {
+                phase: .phase, reason: .reason, artifact: .artifact, timestamp: $now
+              }
+            ])
+        ' 2>/dev/null || true)
+
+        if [[ -n "$_vbc_new_ckpt" ]]; then
+          CKPT_CONTENT="$_vbc_new_ckpt"
+          # Atomic write
+          _vbc_tmp=$(mktemp "${CWD}/${CHECKPOINT_PATH}.XXXXXX" 2>/dev/null || echo "")
+          if [[ -n "$_vbc_tmp" ]]; then
+            if printf '%s\n' "$_vbc_new_ckpt" > "$_vbc_tmp" 2>/dev/null \
+               && mv -f "$_vbc_tmp" "${CWD}/${CHECKPOINT_PATH}" 2>/dev/null; then
+              _trace "VBC: ${_VBC_DEMOTED_COUNT} phase(s) demoted + verification flags persisted"
+            else
+              rm -f "$_vbc_tmp" 2>/dev/null || true
+              _trace "VBC: WARNING — atomic write failed, in-memory only"
+            fi
+          fi
+
+          # User-visible warning if demotions occurred
+          if (( _VBC_DEMOTED_COUNT > 0 )); then
+            cat >&2 <<VBCEOF
+⚠️  Verify-Before-Complete guard: ${_VBC_DEMOTED_COUNT} phase(s) demoted to pending — evidence missing or invalid.
+    Review: tmp/arc/${_ARC_ID_FOR_LOG}/phase-log.jsonl (filter event=phase_demoted_no_evidence)
+    Affected phases will re-dispatch with "evidence required" prompt.
+VBCEOF
+          fi
+        fi
+      fi
+    fi
+  fi
+fi
+
 # ── IN-PROGRESS GUARD (v2.62.0 — plan AC-1..4) ──
 # Root cause: phase scan below (L988-1011) filters only `pending` phases, making
 # `in_progress` phases invisible. A phase with an active team gets bypassed —
