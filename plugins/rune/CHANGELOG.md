@@ -1,5 +1,42 @@
 # Changelog
 
+## [2.61.0] — 2026-04-20
+
+### Removed — Monitor tool integration (PR #500, v2.57.0-v2.57.2)
+
+Complete rollback of the Claude Code `Monitor` tool integration shipped in PR #500
+(v2.57.0, commit `27c0182b`) and its follow-up patch v2.57.2. The integration
+caused an arc-workflow regression (see v2.60.0 — arc advancing while teammate
+still running) that subsequent patches (v2.57.2, v2.58.x, v2.59.0) only
+partially contained. The polling fallback paths that were preserved as RISK-D
+code-resident backup are now the sole implementation.
+
+**Deleted files:**
+- `plugins/rune/monitors/monitors.json` — plugin monitor descriptors
+- `plugins/rune/scripts/monitor-stale-teammates.sh` — Track B stale-teammate watcher
+- `plugins/rune/scripts/probe-monitor-availability.sh` — AC-5 host capability probe
+- `plugins/rune/scripts/echo-search/eager-reindex.sh` — Track B echo-search eager reindex
+- `plugins/rune/skills/polling-guard/references/monitor-tool-patterns.md` — Monitor recipe reference
+
+**Reverted changes:**
+- `hooks/hooks.json` — removed both `probe-monitor-availability.sh` SessionStart entries
+- `scripts/detect-stale-lead.sh` — removed obsolete GUARD 0.5 REMOVED block (monitor-handoff rationale comments)
+- `skills/arc/references/arc-phase-bot-review-wait.md` — removed Track A.1 Monitor streaming block (157 lines); polling loop remains as before PR #500
+- `skills/polling-guard/SKILL.md` — reverted References block to pre-PR state
+- `skills/roundtable-circle/references/monitor-utility.md` — reverted naming-disambiguation note
+- `skills/talisman/references/talisman-sections.md` — removed `process_management.monitors.enabled` section
+- `CLAUDE.md` — removed Core Rule #9 sub-bullet referencing deleted `monitor-tool-patterns.md`
+
+**Preserved (v2.57.1 QA-gate schema tolerance fix):**
+- `scripts/lib/qa-gate-check.sh` — `overall_score` fallback (top-level + nested)
+- `scripts/tests/test-qa-gate.sh` — regression tests
+- `skills/arc/references/arc-phase-qa-gate.md` — SCHEMA-TOLERANCE (QA-VRD-001) notes and reader-side fallbacks
+- `skills/arc/references/arc-phase-ship.md` — SCHEMA-TOLERANCE fallbacks in ship phase
+
+No migration required. Bots/CI still stream via the pull-based polling loop that
+existed before PR #500 — `arc-phase-bot-review-wait.md` reverts to the same
+behavior it had at v2.56.0.
+
 ## [2.60.1] — 2026-04-19
 
 ### Fixed — FORGE-SYNC-001 forge phase loop stall from late-arriving teammate messages

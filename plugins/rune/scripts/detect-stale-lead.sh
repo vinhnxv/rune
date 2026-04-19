@@ -49,32 +49,6 @@ if ! command -v jq &>/dev/null; then
   exit 0
 fi
 
-# ── GUARD 0.5 REMOVED (VEIL-005 fix, undoing PR #500) ──
-# Previously: backed off when monitor-stale-teammates.sh was declared, on the
-# assumption that the plugin monitor would handle stale detection.
-#
-# Why removed:
-#   1. Premise unsupported by Claude Code docs. Per docs.claude.com hooks.md,
-#      Stop fires BEFORE async background work completes — a running plugin
-#      monitor does NOT block Stop. The "monitor handles it" handoff was based
-#      on inferred runtime behavior, not a documented contract.
-#   2. The plugin monitor only emits on STALE (>3min idle), not on COMPLETION.
-#      detect-stale-lead.sh is the only mechanism that wakes the lead when
-#      teammates have called TaskUpdate(completed) but the lead is still idle.
-#      Backing off this hook left a coverage gap where arc phases advanced
-#      while teammates were still mid-tool-call.
-#   3. Observed regression (image attached to Issue): "Arc complete · Idle ·
-#      teammates running" with rune-smith-1 still editing files for 24+ minutes
-#      while arc-batch dispatched the next plan.
-#
-# Plugin monitor (monitor-stale-teammates.sh) remains useful as ADVISORY only —
-# it surfaces idle alerts in the session transcript. It no longer displaces
-# this Stop-hook detection.
-#
-# Companion fixes for the same regression:
-#   - team-sdk/references/engines.md  Step 3.5 (blocking liveness gate before TeamDelete)
-#   - arc/references/arc-phase-work.md Step 4a (state-file completion gate after Skill)
-
 # ── GUARD 1: Read CWD from stdin ──
 INPUT=$(head -c 1048576 2>/dev/null || true)
 CWD=$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)

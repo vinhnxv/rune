@@ -1,7 +1,5 @@
 # Monitor Utility — Parameterized Polling for Agent Teams
 
-> **Naming disambiguation**: This document covers `waitForCompletion` — an in-session TaskList polling utility for Agent Team task coordination. It is **not related to the Claude Code** `Monitor` tool (the LLM-invoked streaming-event tool). For the `Monitor` tool, see `polling-guard/SKILL.md` § "Choose the Right Waiting Pattern".
-
 > Shared polling utility used by all 7 Rune commands (`appraise`, `audit`, `strive`, `mend`, `devise`, `forge`, `arc`). Each command calls `waitForCompletion` with its own configuration instead of inlining a polling loop. ~147 lines of polling logic across 7 commands collapse into a single parameterized reference.
 
 ## Table of Contents
