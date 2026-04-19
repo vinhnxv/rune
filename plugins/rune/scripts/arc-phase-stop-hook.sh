@@ -939,6 +939,23 @@ else
   _trace "WARNING: skip_map jq parse returned empty — proceeding without auto-skip"
 fi
 
+# ── ARC-QA-002: Artifact-mtime self-heal for in_progress phases ──
+# Iron Law "Stop Hook Self-Heal Precedence" — runs BEFORE _phase_find_next so
+# that a QA verifier whose verdict landed on disk while it was still marked
+# `in_progress` gets flipped to `completed` and re-enters the retry loop.
+# Fail-forward: any internal error returns the original checkpoint unchanged.
+# Scope (v1): QA phases only. See scripts/lib/arc-phase-self-heal.sh.
+# shellcheck source=lib/arc-phase-self-heal.sh
+source "${SCRIPT_DIR}/lib/arc-phase-self-heal.sh"
+if [[ -n "$_ARC_ID_FOR_LOG" && "$_ARC_ID_FOR_LOG" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+  _SELF_HEAL_ARC_DIR="${CWD}/tmp/arc/${_ARC_ID_FOR_LOG}"
+  _SELF_HEAL_CKPT=$(_arc_phase_self_heal "$CKPT_CONTENT" "$_SELF_HEAL_ARC_DIR" "$_ARC_ID_FOR_LOG" "${CWD}/${CHECKPOINT_PATH}" 2>/dev/null || true)
+  if [[ -n "$_SELF_HEAL_CKPT" && "$_SELF_HEAL_CKPT" != "$CKPT_CONTENT" ]]; then
+    _trace "ARC-QA-002: self-heal mutated checkpoint — reloading CKPT_CONTENT"
+    CKPT_CONTENT="$_SELF_HEAL_CKPT"
+  fi
+fi
+
 # ── Find next pending phase in PHASE_ORDER (AC-3: single-jq optimization) ──
 # PERF FIX: Replace per-phase jq forks (O(N) process forks) with single jq call.
 # Also extracts _IMMEDIATE_PREV for Tier 0 compact interlude (Task 1.4).
@@ -1833,8 +1850,14 @@ if [[ "$NEXT_PHASE" == "test" ]]; then
             _force_test_team="arc-test-${_arc_id_for_fin}"
             _trace "Force-cleanup: removing team ${_force_test_team}"
             CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
-            CHOME=$(cd "$CHOME" 2>/dev/null && pwd -P || echo "$CHOME")
-            if [[ -d "$CHOME/teams/${_force_test_team}" && ! -L "$CHOME/teams/${_force_test_team}" ]]; then
+            # STOP-001 FIX (audit 20260419-150325): align with XVER-001 at
+            # line 1644 — skip the rm -rf branch entirely when canonicalization
+            # fails instead of silently proceeding with a non-canonical path.
+            # CHOME_FORCE_CANON is the canonical (symlink-resolved) form used
+            # by every filesystem op below this block.
+            CHOME_FORCE_CANON=$(cd "$CHOME" 2>/dev/null && pwd -P) || CHOME_FORCE_CANON=""
+            if [[ -n "$CHOME_FORCE_CANON" && -d "$CHOME_FORCE_CANON/teams/${_force_test_team}" && ! -L "$CHOME_FORCE_CANON/teams/${_force_test_team}" ]]; then
+              CHOME="$CHOME_FORCE_CANON"
               # PAT-003 FIX: Use _rune_kill_tree with teammates filter (MCP-PROTECT-003)
               # instead of blind pgrep|kill loop that could kill MCP servers
               if [[ -f "${SCRIPT_DIR}/lib/process-tree.sh" ]]; then

@@ -1,5 +1,49 @@
 # Changelog
 
+## [2.59.0] — 2026-04-19
+
+### Added — Iron Law ARC-QA-002 artifact-mtime self-heal (plan AC-4 ships)
+
+Closes the QA-notification race where the Stop hook advanced past `work_qa`
+while the verifier was still initializing. Symptom (image-attached report):
+`qa-work-verifier completed at 08:02:43Z with FAIL verdict (score=0)` — but
+the pipeline had already moved on to `drift_review`, `gap_analysis`, etc.
+The FAIL verdict landed as a ghost record on disk; `MAX_QA_RETRIES=2`
+revert-to-pending never fired because `_phase_find_next` saw `work_qa` as
+`in_progress` (not `pending`) and picked the next pending phase instead.
+
+**New helper**: `plugins/rune/scripts/lib/arc-phase-self-heal.sh` implements
+`_arc_phase_self_heal(ckpt_json, arc_dir, arc_id, ckpt_path)`. For every
+`phases[*].status == "in_progress"` entry it:
+  1. Looks up the expected artifact path (QA phases → `tmp/arc/{id}/qa/{parent}-verdict.json`)
+  2. Verifies the file exists and parses as a JSON object (rejects truncated mid-write)
+  3. Confirms mtime > `started_at` (defeats pre-existing files from prior runs — ARC-QA-001)
+  4. Flips status to `completed` with `self_healed: true`, `self_heal_reason`, `artifact`, `completed_at`
+  5. Appends a `self_heal_log[]` entry for operator audit
+  6. Writes the updated checkpoint atomically (tmp + mv)
+
+**Wiring**: `arc-phase-stop-hook.sh` sources the helper and calls it
+immediately before `_phase_find_next`. The mutated `CKPT_CONTENT` is reused
+by the existing jq scanner, which now sees `work_qa` as `completed` and
+`qa-gate-check.sh` reads the late verdict to drive the retry loop.
+
+**Scope**: QA phases only (v1): `forge_qa`, `work_qa`, `gap_analysis_qa`,
+`code_review_qa`, `mend_qa`, `test_qa`, `design_verification_qa`. Non-QA
+phase self-heal (sentinel discovery in `.done/*.done`) is future work.
+
+**Fail-forward**: any internal error (missing jq, bad arc_id, malformed
+checkpoint, unwritable disk) returns the original checkpoint unchanged.
+Iron Law ARC-QA-001 LLM-mediated 3-check remains the outer safety net.
+
+**Test**: `plugins/rune/scripts/tests/test-stop-hook-artifact-self-heal.sh`
+covers happy-path heal, stale artifact refusal, malformed JSON refusal,
+non-QA scope guard, SEC arc_id validation — 9/9 PASS.
+
+### Changed
+
+- `plugins/rune/CLAUDE.md` rule #17 — ARC-QA-002 reclassified from
+  `(PLANNED, not yet shipped)` to live, with v1 scope explicit.
+
 ## [2.58.2] — 2026-04-19
 
 ### Fixed — phantom Iron Law reference + AC-3/AC-5 gap closure (inspect verdict 69e43496)
