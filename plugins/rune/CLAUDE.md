@@ -175,6 +175,14 @@ Rune implements structural discipline enforcement across all pipelines. See `doc
     - **Bash-level fallback**: When process kill happens inside hook scripts (bash, no LLM access), use `_rune_kill_tree()` with `"teammates"` filter — it applies the same 3-check verification automatically via `_collect_teammate_pids()`.
     - **Why**: MCP/LSP servers, Claude Code connectors, and non-teammate processes share the same process tree. A blind `pgrep -P $PPID | xargs kill` kills MCP servers, breaking tool connectivity mid-session.
 15. **TaskOutput deprecated** (Claude Code v2.1.83): Use `Read` on the background task's output file path instead. Rune already follows this pattern — do not introduce TaskOutput usage.
+16. **Iron Law ARC-QA-001 — Verify Before Skip**: Before marking any phase as `skipped` with reasoning that invokes "agent failure", "team torn down", "infra unreliable", or similar infrastructure-failure narrative, the Tarnished MUST run this 3-check protocol:
+    - **Sentinel check**: `Glob("tmp/arc/{id}/.done/*.done")` — count sentinel files. If count > 0, agents completed successfully; read the sentinels for verdict paths.
+    - **Artifact check**: `Glob("tmp/arc/{id}/qa/*-verdict.json")` + `Glob("tmp/arc/{id}/{agent}-findings.md")` — do phase output artifacts exist?
+    - **Git check**: `Bash("git log --since '10 minutes ago' --oneline")` — were fresh commits pushed by workers?
+    - If ANY check returns evidence of completion, the phase is NOT failed. Flip status to `completed`, parse the artifact for verdict, record in checkpoint. **NEVER** mark `skipped` with infra narrative when artifacts exist.
+    - **Anti-rationalization**: `TaskList` returning no tasks is NOT evidence of agent failure — teams are cleaned up after task completion, so an empty TaskList after phase end is the expected state. `SendMessage` delivery failure is also NOT evidence of agent failure — message-to-turn promotion is known to drop in long sessions. Filesystem artifacts are the only authoritative signal.
+    - **Escalation when genuinely uncertain**: If all three checks are negative AND no other evidence exists, mark phase `in_progress` and rely on the stop-hook self-heal (Iron Law ARC-QA-002) to re-check on next fire. Do NOT mark `skipped` preemptively.
+17. **Iron Law ARC-QA-002 — Stop Hook Self-Heal Precedence**: The stop hook MUST check for late-arriving artifacts before retrying any `in_progress` phase. The self-heal protocol is defined in `scripts/lib/arc-phase-self-heal.sh` and runs automatically inside `_phase_find_next()`. Do not manually edit phase status to `completed` or `skipped` when the hook is about to dispatch — let self-heal run first.
 
 ## Teammate Lifecycle Safety
 

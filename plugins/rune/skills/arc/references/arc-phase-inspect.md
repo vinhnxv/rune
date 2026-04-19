@@ -293,3 +293,25 @@ if (inspIdx < 0 || fixIdx < 0 || inspIdx >= fixIdx) {
 **Output**: `tmp/arc/{id}/inspect-verdict.md` — unified VERDICT.md with completion %, dimension scores, gap classification.
 
 **Failure policy**: Non-blocking. Missing VERDICT proceeds to inspect_fix with null metrics. Individual inspector timeouts produce partial findings — verdict-binder aggregates whatever is available.
+
+---
+
+## Agent Completion Contract (v2.58.0+, ARC-QA-001/002)
+
+Agents spawned by this phase MUST follow the durable-first completion contract. Inject into every agent spawn prompt:
+
+```
+COMPLETION CONTRACT (mandatory — ARC-QA-001):
+When your task is complete, you MUST do ALL THREE:
+1. Write your artifact to its canonical path (e.g., tmp/arc/{id}/{agent}-findings.md)
+2. Write a sentinel to tmp/arc/{id}/.done/{your-agent-name}.done with a one-line JSON payload:
+   {"agent":"{your-name}","status":"completed","verdict_path":"<artifact-path>","timestamp":"<ISO8601 UTC>"}
+3. Call TaskUpdate(status:"completed") AND SendMessage to team-lead
+
+The sentinel (step 2) is the primary completion signal — survives TeamDelete. Steps 1 and 3
+are required for downstream consumers but the leader polls step 2 (ARC-QA-001 Sentinel check).
+
+Do NOT skip step 2 even if you completed steps 1 and 3.
+```
+
+See `roundtable-circle/references/monitor-utility.md` `countCompletedAgents()` for the leader-side fusion protocol.

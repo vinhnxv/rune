@@ -375,9 +375,69 @@ if (workflow === "rune-review" || workflow === "rune-audit") {
 }
 ```
 
+### 3-Signal Fusion (durable-first completion detection, v2.58.0+)
+
+`countCompletedAgents()` is the durable-first counter used by `waitForCompletion`. It fuses THREE sources — any one reaching `expectedCount` is success:
+
+| Priority | Source | Location | Lifetime |
+|----------|--------|----------|----------|
+| S1 | Arc-scoped sentinel files (durable, HIGHEST) | `tmp/arc/{arcId}/.done/*.done` | Survives `TeamDelete` |
+| S2 | Phase-specific artifact files (durable) | e.g. `tmp/arc/{arcId}/qa/{phase}-verdict.json` | Survives `TeamDelete` |
+| S3 | Team-scoped signal files (ephemeral, fast-path) | `tmp/.rune-signals/{teamName}/*.done` | Deleted with team |
+
+**Why durable-first**: `postPhaseCleanup()` runs `TeamDelete` which deletes `tmp/.rune-signals/{teamName}/` between the agent's final `TaskUpdate(completed)` and the leader's next poll. Team-scoped signals (S3) are ephemeral from the leader's perspective. Arc-scoped artifacts (S1, S2) are durable and survive team teardown — they are the authoritative source of truth.
+
+```javascript
+// Count completed agents via 3-signal fusion.
+// Returns the MAX across all three sources — any one reaching expectedCount = success.
+// Backward compat: when arcId is not provided, falls back to team-signal-only (S3).
+function countCompletedAgents(teamName, arcId, expectedAgents) {
+  // S1: arc-scoped durable sentinels (highest priority — survives TeamDelete)
+  let sentinelCount = 0
+  if (arcId) {
+    const sentinelDir = `tmp/arc/${arcId}/.done`
+    sentinelCount = exists(sentinelDir) ? Glob(`${sentinelDir}/*.done`).length : 0
+  }
+
+  // S2: direct artifact presence for known phases (e.g., QA verdict, TOME, inspect report)
+  // Only meaningful when expectedAgents includes phase-level artifact hints.
+  let artifactCount = 0
+  if (arcId && Array.isArray(expectedAgents)) {
+    artifactCount = countExpectedArtifacts(arcId, expectedAgents)
+  }
+
+  // S3: team-scoped ephemeral signals (legacy fast-path — may be deleted with team)
+  const teamSignalDir = `tmp/.rune-signals/${teamName}`
+  const teamSignalCount = exists(teamSignalDir)
+    ? Glob(`${teamSignalDir}/*.done`).length
+    : 0
+
+  // Return MAX — any single source at expectedCount is sufficient evidence
+  return Math.max(sentinelCount, artifactCount, teamSignalCount)
+}
+
+// countExpectedArtifacts: inspect known phase artifact locations.
+// Returns a count of distinct artifacts that exist. Agents are responsible for
+// writing their artifact to a canonical location per the Completion Contract.
+function countExpectedArtifacts(arcId, expectedAgents) {
+  const qaArtifacts = Glob(`tmp/arc/${arcId}/qa/*-verdict.json`).length
+  const findings = Glob(`tmp/arc/${arcId}/*-findings.md`).length
+  const reviews = Glob(`tmp/arc/${arcId}/reviews/*-verdict.md`).length
+  return qaArtifacts + findings + reviews
+}
+```
+
+**Contract with agents**: phase agents MUST write a sentinel to `tmp/arc/{arcId}/.done/{agent-name}.done` with a one-line JSON payload:
+```json
+{"agent":"work-qa-verifier","status":"completed","verdict_path":"tmp/arc/{id}/qa/work-verdict.json","timestamp":"<ISO8601>"}
+```
+See `arc-phase-qa-gate.md` Completion Contract section for the full agent-side obligation.
+
 ### Dual-Path Pseudocode
 
 The `waitForCompletion` function from Phase 1 gains a dual-path upgrade. The signal path is chosen when `tmp/.rune-signals/{teamName}/` exists; otherwise the existing polling path runs unchanged.
+
+> **3-Signal Fusion integration**: Callers that pass `arcId` and `expectedAgents` in `opts` get durable-first detection via `countCompletedAgents()`. When `opts.arcId` is absent, the function falls back to current team-signal-only behaviour (backward compat).
 
 ```javascript
 function waitForCompletion(teamName, expectedCount, opts) {
