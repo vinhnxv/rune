@@ -73,6 +73,63 @@ for (const sf of staleForgeFiles) {
 // NAMESPACE: MUST use "rune:forge" prefix — bare "forge" fails silently in plugin context.
 Skill("rune:forge", forgePlanPath)
 
+// ── BUG FIX (FORGE-SYNC-001, v2.56.1): Synchronous teammate completion guard ──
+// Root cause: /rune:forge may spawn research agents with `run_in_background: true`
+// and return from Skill() before teammates finish writing enrichments. When agents
+// complete AFTER this turn ends, their SendMessage arrives as new user turns,
+// preventing the Stop hook from firing (Claude Code treats arriving messages as
+// active dialogue). Phase loop stalls silently.
+//
+// Fix: After Skill("rune:forge") returns, wait for forge state file to show
+// status=completed OR all teammates idle. Hard timeout at forge's phase budget
+// minus 60s setup reserve. On timeout, force shutdown_request to all teammates
+// and proceed with whatever enrichment merged so far.
+{
+  const FORGE_SYNC_TIMEOUT_MS = (PHASE_TIMEOUTS?.forge ?? 900_000) - 60_000  // phase budget - 60s reserve
+  const FORGE_SYNC_POLL_MS = 15_000
+  const forgeSyncDeadline = Date.now() + FORGE_SYNC_TIMEOUT_MS
+  let forgeStateSettled = false
+  let lastForgeTeamName = null
+
+  while (Date.now() < forgeSyncDeadline && !forgeStateSettled) {
+    // Re-read state file each cycle (its schema: {team_name, status, started, ...})
+    const _forgeStateFiles = Glob("tmp/.rune-forge-*.json")
+    if (_forgeStateFiles.length > 0) {
+      try {
+        const _state = JSON.parse(Read(_forgeStateFiles[0]))
+        lastForgeTeamName = _state.team_name || lastForgeTeamName
+        if (_state.status === "completed" || _state.status === "cancelled" || _state.status === "failed") {
+          forgeStateSettled = true
+          break
+        }
+      } catch (e) { /* unparseable — keep waiting, will treat as timeout if persists */ }
+    } else {
+      // No state file yet — forge may not have created team. Short grace then assume no enrichment.
+      break
+    }
+
+    // Non-blocking sleep (Core Rule #9: never bare `sleep N`)
+    Bash(`sleep ${FORGE_SYNC_POLL_MS / 1000}`, { run_in_background: true })
+  }
+
+  if (!forgeStateSettled && lastForgeTeamName) {
+    warn(`FORGE-SYNC-001: forge did not settle within ${FORGE_SYNC_TIMEOUT_MS}ms — force-shutdown teammates in team "${lastForgeTeamName}" before marking phase complete`)
+    // Force shutdown_request to any known members — safe to send to absent teammates.
+    // Actual team cleanup happens in forge-cleanup.md; this only signals teammates.
+    try {
+      const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
+      const teamCfg = JSON.parse(Read(`${CHOME}/teams/${lastForgeTeamName}/config.json`))
+      const members = Array.isArray(teamCfg.members) ? teamCfg.members : []
+      for (const m of members) {
+        const name = m?.name
+        if (name && /^[a-zA-Z0-9_-]+$/.test(name)) {
+          try { SendMessage({ type: "shutdown_request", recipient: name, content: "forge phase timeout — arc proceeding" }) } catch (e) { /* absent — skip */ }
+        }
+      }
+    } catch (e) { /* team config unreadable — defer to forge-cleanup.md */ }
+  }
+}
+
 // STEP 2c: Discover team_name from state file written by /rune:forge and update checkpoint.
 // SEC-12 FIX: Use Glob() to resolve wildcard — Read() does not support glob expansion.
 // CDX-2 NOTE: Glob matches ALL forge state files — [0] is most recent by mtime.
