@@ -77,8 +77,13 @@ if [[ -d "$CHOME/teams/" ]]; then
         marker_session=$(jq -r '.session_id // empty' "$dir/.session" 2>/dev/null || echo "")
         marker_pid=$(jq -r '.owner_pid // empty' "$dir/.session" 2>/dev/null || echo "")
         if [[ -n "$marker_session" && "$marker_session" != "$HOOK_SESSION_ID" ]]; then
-          # Check if other session is still alive — if so, skip (not our zombie)
-          if [[ -n "$marker_pid" ]] && kill -0 "$marker_pid" 2>/dev/null; then
+          # SEC-006 FIX (review c1a9714-018c647e): bounds-check marker_pid before
+          # passing to `kill -0`. A crafted .session file with owner_pid 0 or -1
+          # would otherwise expand to kill -0 0 (entire process group) or -1 (all).
+          # kill -0 is signal-free so impact is bounded, but align with the
+          # defensive pattern applied in resolve-session-identity.sh:207 and
+          # detect-stale-lead.sh:101 (MON-005 FIX).
+          if [[ -n "$marker_pid" && "$marker_pid" =~ ^[0-9]+$ && "$marker_pid" -gt 0 && "$marker_pid" -lt 4194304 ]] && kill -0 "$marker_pid" 2>/dev/null; then
             continue
           fi
         fi

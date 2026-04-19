@@ -1,5 +1,5 @@
-#!/usr/bin/env bash
-# lib/arc-phase-self-heal.sh — Artifact-mtime self-heal for in_progress phases
+#!/bin/bash
+# scripts/lib/arc-phase-self-heal.sh — Artifact-mtime self-heal for in_progress phases
 #
 # Implements Iron Law ARC-QA-002 "Stop Hook Self-Heal Precedence" (plan AC-4).
 #
@@ -50,17 +50,16 @@
 # - If jq is missing, returns original content unchanged (fail-forward).
 # - If arc_id/arc_dir fail SEC validation, returns original content unchanged.
 
-# Guard against double-source
-if [[ -n "${_ARC_PHASE_SELF_HEAL_LOADED:-}" ]]; then
-  return 0 2>/dev/null || exit 0
-fi
-_ARC_PHASE_SELF_HEAL_LOADED=1
+# Guard against double-source (one-line form matches sibling libs)
+[[ -n "${_RUNE_ARC_PHASE_SELF_HEAL_LOADED:-}" ]] && return 0
+_RUNE_ARC_PHASE_SELF_HEAL_LOADED=1
 
 # Platform helpers (for _stat_mtime, _parse_iso_epoch)
 if [[ -z "${_RUNE_PLATFORM:-}" ]]; then
   _SH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   # shellcheck source=/dev/null
   [[ -f "${_SH_DIR}/platform.sh" ]] && source "${_SH_DIR}/platform.sh"
+  unset _SH_DIR
 fi
 
 # Private trace — reuses parent _trace if available, otherwise no-op
@@ -181,8 +180,16 @@ _arc_phase_self_heal() {
       continue
     fi
 
-    if (( _artifact_mtime <= _started_epoch )); then
-      _ash_trace "skip ${_phase}: artifact mtime ${_artifact_mtime} <= started ${_started_epoch} (stale)"
+    # VEIL-003 FIX (review c1a9714-018c647e): stat returns 1-second resolution
+    # on both macOS and Linux, and _parse_iso_epoch strips fractional seconds.
+    # When a QA verifier writes its verdict inside the same calendar second as
+    # `started_at`, `_artifact_mtime == _started_epoch`. The original `<=` guard
+    # refused such legitimate heals. Using strict `<` preserves the "defeat
+    # pre-existing files from prior runs" invariant (verdict mtimes from an
+    # older run will be seconds-to-minutes BELOW started_at, not equal to it)
+    # while admitting within-second writes.
+    if (( _artifact_mtime < _started_epoch )); then
+      _ash_trace "skip ${_phase}: artifact mtime ${_artifact_mtime} < started ${_started_epoch} (stale)"
       continue
     fi
 

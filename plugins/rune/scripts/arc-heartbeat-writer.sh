@@ -19,6 +19,15 @@ umask 077
 _rune_fail_forward() {
   if [[ "${RUNE_TRACE:-}" == "1" ]]; then
     local _ffl="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
+    # SEC-001 FIX (review c1a9714-018c647e): restrict _ffl to the TMPDIR/tmp
+    # allowlist. Previously, an attacker who could inject RUNE_TRACE_LOG into
+    # the hook environment had append-write to any path (e.g. ~/.ssh/authorized_keys)
+    # because only a symlink check ran. Mirror the allowlist used in
+    # detect-workflow-complete.sh:140-143.
+    case "$_ffl" in
+      "${TMPDIR:-/tmp}/"*|/tmp/*) ;;
+      *) _ffl="${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log" ;;
+    esac
     [[ -n "$_ffl" && ! -L "$_ffl" && ! -L "${_ffl%/*}" ]] && \
       printf '[%s] %s: ERR trap — fail-forward activated (line %s)\n' \
         "$(date +%H:%M:%S 2>/dev/null || true)" \

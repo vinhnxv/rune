@@ -122,8 +122,13 @@ _trace() { [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "$RUNE_TRACE_LOG" ]] && [[ 
 
 _trace "ENTER detect-stale-lead.sh"
 
-# Initialize variables that may be set conditionally inside loops
-_session_id=""
+# BACK-010 FIX (review c1a9714-018c647e): hoist _session_id extraction out of
+# GUARD 3's per-loop-file body so it runs unconditionally. Previously the
+# extraction only fired inside the loop at L158 — strive-only workflows (no
+# arc loop files) left _session_id empty, and GUARD 4's SID ownership check
+# at L272 silently bypassed, enabling cross-session false wake-ups in
+# violation of the Rune Session Isolation Rule (CLAUDE.md §Session Isolation).
+_session_id=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
 
 # ── GUARD 2: Fast-path — any state files at all? ──
 STATE_FILES=()
@@ -154,8 +159,8 @@ for loop_file in \
     if [[ -n "$_loop_cfg" && "$_loop_cfg" != "$RUNE_CURRENT_CFG" ]]; then
       continue
     fi
-    # FLAW-005 FIX: Use session_id for ownership check (PPID unreliable in hooks)
-    _session_id=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null) || _session_id=""
+    # FLAW-005 FIX: Use session_id for ownership check (PPID unreliable in hooks).
+    # _session_id hoisted above (BACK-010 FIX) — value from hook input JSON.
     _loop_sid=$(_get_fm_field "$_loop_fm" "session_id" 2>/dev/null) || _loop_sid=""
     # Skip loop files from other live sessions (prefer session_id, fall back to PID)
     if [[ -n "$_loop_sid" && -n "$_session_id" && "$_loop_sid" != "$_session_id" ]]; then

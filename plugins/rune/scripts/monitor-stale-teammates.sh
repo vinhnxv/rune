@@ -220,6 +220,13 @@ while true; do
       fname="${rel##*/}"
       member="${fname#activity-}"
       member="${member%.*}"
+      # SEC-004 FIX (review c1a9714-018c647e): validate the derived `member`
+      # token before composing it into emit output. `team` is validated in
+      # resolve_team_owner(), but `member` was previously derived from the
+      # filename without a separate check — an activity file with whitespace
+      # or special chars in its name could corrupt the harness-parsed stdout
+      # line (team=...:member=... age_secs=...).
+      [[ "$member" =~ ^[a-zA-Z0-9_-]+$ ]] || continue
       key="${team}:${member}"
       is_already_emitted "$key" && continue
 

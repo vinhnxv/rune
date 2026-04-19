@@ -94,8 +94,13 @@ rm -f "${ARC_DIR}/qa/work-verdict.json"
 cat > "${ARC_DIR}/qa/work-verdict.json" <<'EOF'
 {"phase":"work","verdict":"FAIL"}
 EOF
-# Wait ~1s and stamp started_at with a later time, forcing verdict to be stale
-sleep 1
+# VEIL-008 FIX (review c1a9714-018c647e): sleep 2 (not 1) to tolerate scheduler
+# jitter on loaded CI. stat() resolution is 1 second — with sleep 1, a jittery
+# scheduler could land verdict write and started_at stamp in the same second,
+# making the _artifact_mtime == _started_epoch case. After VEIL-003 fix changed
+# `<=` to `<`, that equality would INCORRECTLY heal instead of refusing stale.
+# sleep 2 guarantees >=1 full second of mtime separation.
+sleep 2
 STARTED_NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 cat > "$CKPT_PATH" <<EOF
 {

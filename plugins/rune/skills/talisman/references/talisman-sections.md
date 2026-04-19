@@ -79,7 +79,7 @@ arc:
       - team_signal               # tmp/.rune-signals/{team}/*.done (ephemeral fast-path)
       - task_list                 # SDK TaskList (legacy)
     poll_interval_ms: 15000       # waitForCompletion cycle interval
-    heal_on_mismatch: true        # [PLANNED — AC-4] stop hook auto-heals in_progress phases with fresh artifact
+    heal_on_mismatch: true        # stop hook auto-heals in_progress phases with fresh artifact (v2.59.0)
     iron_law_verify_before_skip: strict   # strict | warn | disabled — enforcement mode for ARC-QA-001
 ```
 
@@ -90,7 +90,7 @@ arc:
 | `primary` | string | `filesystem` | Authoritative source when signals disagree. `filesystem` = artifacts win; `task_list` = SDK state wins (legacy) |
 | `signal_sources` | list | `[sentinel, artifact, team_signal, task_list]` | Ordered priority list. Consumed by `countCompletedAgents()` in `monitor-utility.md` |
 | `poll_interval_ms` | int | `15000` | Milliseconds between `waitForCompletion` cycles |
-| `heal_on_mismatch` | bool | `true` | **PLANNED (AC-4)** — gates the stop-hook artifact-mtime self-heal. When the helper `scripts/lib/arc-phase-self-heal.sh` ships, this flag will gate its activation |
+| `heal_on_mismatch` | bool | `true` | Gates the stop-hook artifact-mtime self-heal (v2.59.0 — `scripts/lib/arc-phase-self-heal.sh`). **Current behaviour**: the helper runs unconditionally when the arc_id is valid; this flag is not yet wired as a kill-switch. If you need to disable self-heal, contact the maintainers or disable via the code path directly. Kill-switch wiring is tracked as a follow-up. |
 | `iron_law_verify_before_skip` | string | `strict` | Enforcement mode for Iron Law ARC-QA-001. `strict` = refuse to skip when artifacts exist; `warn` = log warning but allow; `disabled` = no check |
 
 **Consumers**:

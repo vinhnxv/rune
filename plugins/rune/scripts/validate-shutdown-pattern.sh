@@ -41,6 +41,15 @@ INPUT=$(head -c 1048576 2>/dev/null || true)
 FILE_PATH=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null || true)
 [[ -z "$FILE_PATH" ]] && exit 0
 
+# SEC-002 FIX (review c1a9714-018c647e): reject path-traversal in FILE_PATH
+# before it reaches the `cat "$FILE_PATH"` on the Edit branch. A crafted
+# tool_input.file_path like "../../etc/passwd" would otherwise disclose
+# arbitrary file contents into the advisory injected back into Claude's
+# context. This is advisory-only anyway (exit 0 on any reject).
+case "$FILE_PATH" in
+  *..*) exit 0 ;;
+esac
+
 # Extract CWD for relative path resolution
 CWD=$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
 [[ -z "$CWD" ]] && exit 0
