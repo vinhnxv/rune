@@ -1,5 +1,67 @@
 # Changelog
 
+## [2.62.0] — 2026-04-20
+
+### Fixed — Phase-skip bug in arc pipeline (plan `plans/2026-04-20-fix-stop-hook-phase-skip-and-stopfailure-plan.md`)
+
+User-visible symptom: arc pipeline advancing to the next phase while the current
+phase's agent team was still running. Root cause: `arc-phase-stop-hook.sh` phase
+scan (L988–1011) filtered only `status == "pending"` phases, making `in_progress`
+phases invisible to advance logic. Self-heal (v2.59.0) covered only QA phases,
+leaving `work`, `code_review`, `mend`, `test`, `gap_analysis`, `forge`, and
+`design_verification` unprotected.
+
+**3-layer defense** inserted before the phase scan:
+1. **Team liveness check** — new helper `_arc_team_has_live_members()` in
+   `lib/stop-hook-common.sh` inspects `${CHOME}/teams/{name}/config.json` +
+   mtime freshness. If any phase is `in_progress` with a live team, the Stop
+   hook exits 0 (waits for the team to complete naturally).
+2. **Extended self-heal** — `lib/arc-phase-self-heal.sh` now heals non-QA
+   phases via existence-based artifact validation (sentinels, markdown
+   reports) in addition to JSON verdicts. New `_ash_phase_artifact_kind()`
+   dispatcher selects validator by phase. Covers `work`, `code_review`, `mend`,
+   `test`, `gap_analysis`, `forge`, `design_verification`.
+3. **Stuck-count auto-skip** — when a phase is `in_progress` with no live team
+   AND no healable artifact, the guard increments `phases[X].stuck_count` and
+   re-injects the SAME phase prompt for retry. After `config.stuck_threshold`
+   consecutive Stop fires (default 3), the phase is auto-skipped with
+   `skip_reason: "team_dead_no_artifact_after_stuck_threshold"` + user warning.
+
+### Added — StopFailure hook (API-error logging + checkpoint snapshot)
+
+Re-enabled the `StopFailure` hook event in `hooks.json` after confirming via
+official Claude Code docs (code.claude.com/docs/en/hooks) that the event IS
+valid. Prior audit 20260414-012408 had incorrectly marked it as orphan and
+renamed the entry to `_StopFailure_disabled`. Per spec, output/exit code are
+ignored — so `scripts/on-stop-failure.sh` has been simplified from 305 lines
+to 136 lines: removed dead prompt-construction logic, kept logging +
+best-effort checkpoint snapshot.
+
+- Matcher scoped to: `rate_limit|server_error|max_output_tokens|authentication_failed`
+- JSONL log at `${TMPDIR}/rune-stop-failure-$(id -u).jsonl` (5 MB cap)
+- Checkpoint snapshots at `.rune/arc-checkpoint-snapshots/`
+
+### Fixed — Group boundary exit code (plan AC-10)
+
+`arc-phase-stop-hook.sh` group boundary `exit 0` changed to `exit 2` so the
+stderr banner (group complete, next group, resume instruction) is surfaced to
+the user. Previously `exit 0` discarded the banner per Stop hook semantics,
+leaving users with an unexplained pause.
+
+### Added — Regression test
+
+New `scripts/tests/test-stop-hook-in-progress-guard.sh` covers 7 scenarios
+(missing/fresh/empty-members/stale/invalid-name team liveness + self-heal
+dispatcher for non-QA phases). All 12 assertions pass.
+
+### Documentation
+
+- `CLAUDE.md` hook infrastructure table: updated StopFailure entry (removed
+  "orphan" classification, documented current behavior).
+- `plugins/rune/CLAUDE.md` and CHANGELOG updated.
+
+---
+
 ## [2.61.0] — 2026-04-20
 
 ### Removed — Monitor tool integration (PR #500, v2.57.0-v2.57.2)

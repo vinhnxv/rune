@@ -17,12 +17,16 @@
 # `completed` and records `self_healed: true` so qa-gate-check.sh can read
 # the late-arriving verdict and run the retry loop.
 #
-# SCOPE (v1 — matches plan AC-4 evidence set)
-# -------------------------------------------
-# Covers QA phases only: forge_qa, work_qa, gap_analysis_qa, code_review_qa,
-# mend_qa, test_qa, design_verification_qa. Non-QA phase self-heal (sentinel
-# discovery in .done/*.done) is future work — the qa-gate-check.sh feedback
-# loop is the critical protection surface.
+# SCOPE (v2 — plan AC-5, v2.62.0)
+# -------------------------------
+# Covers QA phases (forge_qa, work_qa, gap_analysis_qa, code_review_qa, mend_qa,
+# test_qa, design_verification_qa) via JSON verdict validation, AND non-QA
+# phases (work, code_review, mend, test, gap_analysis, forge, design_verification)
+# via existence-based artifact validation (sentinels + markdown reports).
+#
+# JSON validation applies to QA verdicts (strict parse to `object`); existence
+# validation applies to non-JSON artifacts (regular file, non-zero size).
+# Both paths honour the `mtime > started_at` staleness guard.
 #
 # USAGE
 # -----
@@ -71,13 +75,41 @@ _ash_trace() {
 
 # Map a phase name to the expected artifact path within an arc directory.
 # Returns empty string for unsupported phases (caller skips them).
+#
+# QA phases (v1): JSON verdict file.
+# Non-QA phases (v2, v2.62.0 — plan AC-5): sentinel or markdown artifact.
 _ash_phase_artifact_path() {
   local _phase="$1" _arc_dir="$2"
   case "$_phase" in
+    # QA phases — JSON verdict at tmp/arc/{id}/qa/{parent}-verdict.json
     forge_qa|work_qa|gap_analysis_qa|code_review_qa|mend_qa|test_qa|design_verification_qa)
-      # QA phases write to tmp/arc/{id}/qa/{parent}-verdict.json
       local _parent="${_phase%_qa}"
       printf '%s/qa/%s-verdict.json' "$_arc_dir" "$_parent"
+      ;;
+    # Non-QA phases (v2.62.0) — existence-based artifacts
+    work)                printf '%s/work/done/work-complete.done' "$_arc_dir" ;;
+    code_review)         printf '%s/review/TOME.md' "$_arc_dir" ;;
+    mend)                printf '%s/mend/resolution-report.md' "$_arc_dir" ;;
+    test)                printf '%s/test/test-report.md' "$_arc_dir" ;;
+    gap_analysis)        printf '%s/inspect/VERDICT.md' "$_arc_dir" ;;
+    forge)               printf '%s/forge/forge-complete.done' "$_arc_dir" ;;
+    design_verification) printf '%s/design-review/design-verdict.md' "$_arc_dir" ;;
+    *)                   printf '' ;;
+  esac
+}
+
+# Return the artifact VALIDATOR kind for a phase:
+#   "json"   — QA phases, must parse as JSON object
+#   "exists" — non-QA phases, regular file + non-zero size
+#   ""       — unsupported phase
+_ash_phase_artifact_kind() {
+  local _phase="$1"
+  case "$_phase" in
+    forge_qa|work_qa|gap_analysis_qa|code_review_qa|mend_qa|test_qa|design_verification_qa)
+      printf 'json'
+      ;;
+    work|code_review|mend|test|gap_analysis|forge|design_verification)
+      printf 'exists'
       ;;
     *)
       printf ''
@@ -85,18 +117,37 @@ _ash_phase_artifact_path() {
   esac
 }
 
-# Validate that a verdict JSON file is well-formed enough to heal from.
-# Returns 0 if valid, 1 otherwise. Quiet — errors logged via _ash_trace.
+# Validate a verdict JSON file — QA phases only.
+# Returns 0 if valid (parses as JSON object), 1 otherwise.
 _ash_verdict_valid() {
   local _path="$1"
   [[ -f "$_path" && ! -L "$_path" ]] || return 1
-  # Empty file → invalid
   [[ -s "$_path" ]] || return 1
-  # Must parse as JSON object (not array, not scalar — a verdict is always {...})
   local _type
   _type=$(jq -r 'type' "$_path" 2>/dev/null || echo "error")
   [[ "$_type" == "object" ]] || return 1
   return 0
+}
+
+# Validate a non-JSON artifact exists — non-QA phases only.
+# Returns 0 if regular file (not symlink) with non-zero size.
+_ash_artifact_valid_exists() {
+  local _path="$1"
+  [[ -f "$_path" && ! -L "$_path" ]] || return 1
+  [[ -s "$_path" ]] || return 1
+  return 0
+}
+
+# Dispatch validator by phase kind. Returns 0 if artifact is healable.
+_ash_artifact_valid_dispatch() {
+  local _phase="$1" _path="$2"
+  local _kind
+  _kind=$(_ash_phase_artifact_kind "$_phase")
+  case "$_kind" in
+    json)   _ash_verdict_valid "$_path" ;;
+    exists) _ash_artifact_valid_exists "$_path" ;;
+    *)      return 1 ;;
+  esac
 }
 
 # Core self-heal function.
@@ -160,9 +211,10 @@ _arc_phase_self_heal() {
       continue
     fi
 
-    # Verdict file must exist and parse as JSON object
-    if ! _ash_verdict_valid "$_artifact"; then
-      _ash_trace "skip ${_phase}: verdict missing or invalid at ${_artifact}"
+    # Validate artifact via phase-specific dispatcher
+    # (JSON for QA verdicts, exists-check for non-QA sentinels/markdown)
+    if ! _ash_artifact_valid_dispatch "$_phase" "$_artifact"; then
+      _ash_trace "skip ${_phase}: artifact missing or invalid at ${_artifact}"
       continue
     fi
 

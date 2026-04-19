@@ -978,12 +978,133 @@ else
   fi
 fi
 
+# ── IN-PROGRESS GUARD (v2.62.0 — plan AC-1..4) ──
+# Root cause: phase scan below (L988-1011) filters only `pending` phases, making
+# `in_progress` phases invisible. A phase with an active team gets bypassed —
+# the scan picks the NEXT pending phase and re-injects it, advancing past the
+# active team. Self-heal (above) only covers QA phases; non-QA phases (work,
+# code_review, mend, test, gap_analysis, forge, design_verification) had no
+# protection before this guard.
+#
+# 3-layer defense:
+#   Layer 1: Team liveness → if team dir exists + config.json has members +
+#            mtime within grace window (default 300s), exit 0 (wait).
+#   Layer 2: Self-heal already ran above — if a valid artifact landed on disk,
+#            the phase is now `completed`, so no in_progress phase found here.
+#   Layer 3: stuck_count fallback — dead team AND no heal → increment counter;
+#            threshold (default 3 consecutive Stop fires) → auto-skip with
+#            reason `team_dead_no_artifact`.
+_IN_PROGRESS_GUARD_PHASE=""
+_phase_order_json=$(printf '%s\n' "${PHASE_ORDER[@]}" | jq -R -s 'split("\n") | map(select(length > 0))' 2>/dev/null)
+if [[ -n "$_phase_order_json" ]]; then
+  _IN_PROGRESS_GUARD_PHASE=$(echo "$CKPT_CONTENT" | jq -r --argjson order "$_phase_order_json" '
+    .phases as $p |
+    [$order[] | select(($p[.].status // "pending") == "in_progress")] | first // ""
+  ' 2>/dev/null || echo "")
+fi
+
+if [[ -n "$_IN_PROGRESS_GUARD_PHASE" ]]; then
+  _IPG_TEAM="rune-arc-${_IN_PROGRESS_GUARD_PHASE}-${_ARC_ID_FOR_LOG}"
+
+  # Layer 1: team liveness — exit 0 if alive (wait for natural completion)
+  if declare -F _arc_team_has_live_members >/dev/null 2>&1 \
+     && _arc_team_has_live_members "$_IPG_TEAM"; then
+    _trace "IN-PROGRESS GUARD: ${_IN_PROGRESS_GUARD_PHASE} team '${_IPG_TEAM}' alive — exit 0, wait for completion"
+    _log_phase "phase_wait" "$_IN_PROGRESS_GUARD_PHASE" "reason=team_alive" "team=${_IPG_TEAM}"
+    exit 0
+  fi
+
+  # Layer 3: team dead + no artifact (Layer 2 self-heal already ran) → stuck logic
+  _IPG_STUCK_THRESHOLD=$(echo "$CKPT_CONTENT" | jq -r '.config.stuck_threshold // 3' 2>/dev/null || echo "3")
+  [[ "$_IPG_STUCK_THRESHOLD" =~ ^[0-9]+$ ]] || _IPG_STUCK_THRESHOLD=3
+  _IPG_CUR_STUCK=$(echo "$CKPT_CONTENT" | jq -r --arg p "$_IN_PROGRESS_GUARD_PHASE" '.phases[$p].stuck_count // 0' 2>/dev/null || echo "0")
+  [[ "$_IPG_CUR_STUCK" =~ ^[0-9]+$ ]] || _IPG_CUR_STUCK=0
+  _IPG_NEW_STUCK=$((_IPG_CUR_STUCK + 1))
+  _IPG_NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "unknown")
+
+  if (( _IPG_NEW_STUCK >= _IPG_STUCK_THRESHOLD )); then
+    # Auto-skip with evidence
+    _trace "IN-PROGRESS GUARD: ${_IN_PROGRESS_GUARD_PHASE} stuck_count=${_IPG_NEW_STUCK} >= threshold ${_IPG_STUCK_THRESHOLD} — auto-skip"
+    _log_phase "phase_stuck_auto_skipped" "$_IN_PROGRESS_GUARD_PHASE" "stuck_count=${_IPG_NEW_STUCK}" "threshold=${_IPG_STUCK_THRESHOLD}"
+
+    _IPG_NEW_CKPT=$(echo "$CKPT_CONTENT" | jq --arg p "$_IN_PROGRESS_GUARD_PHASE" --arg ts "$_IPG_NOW" '
+      .phases[$p].status = "skipped" |
+      .phases[$p].skip_reason = "team_dead_no_artifact_after_stuck_threshold" |
+      .phases[$p].auto_skipped_at = $ts |
+      .phase_skip_log = (.phase_skip_log // []) + [{
+        phase: $p, event: "stuck_auto_skipped",
+        reason: "team_dead_no_artifact_after_stuck_threshold",
+        timestamp: $ts
+      }]
+    ' 2>/dev/null || true)
+
+    if [[ -n "$_IPG_NEW_CKPT" ]]; then
+      CKPT_CONTENT="$_IPG_NEW_CKPT"
+      # Atomic write to disk
+      _IPG_TMP=$(mktemp "${CWD}/${CHECKPOINT_PATH}.XXXXXX" 2>/dev/null || echo "")
+      if [[ -n "$_IPG_TMP" ]]; then
+        if printf '%s\n' "$_IPG_NEW_CKPT" > "$_IPG_TMP" 2>/dev/null \
+           && mv -f "$_IPG_TMP" "${CWD}/${CHECKPOINT_PATH}" 2>/dev/null; then
+          _trace "IN-PROGRESS GUARD: auto-skip checkpoint written atomically"
+        else
+          rm -f "$_IPG_TMP" 2>/dev/null || true
+          _trace "IN-PROGRESS GUARD: WARNING — checkpoint atomic write failed, in-memory only"
+        fi
+      fi
+
+      # Emit user-visible warning to stderr
+      cat >&2 <<STUCKEOF
+⚠️  Arc ${_ARC_ID_FOR_LOG} phase '${_IN_PROGRESS_GUARD_PHASE}' auto-skipped:
+    Reason: no live team + no healable artifact after ${_IPG_NEW_STUCK} consecutive Stop fires
+    Review: tmp/arc/${_ARC_ID_FOR_LOG}/phase-log.jsonl
+    Resume: /rune:arc --resume (advances from next pending phase)
+STUCKEOF
+    fi
+    # Fall through to phase scan below — will pick up next pending phase
+  else
+    # Increment stuck_count and re-inject SAME phase to retry
+    _trace "IN-PROGRESS GUARD: ${_IN_PROGRESS_GUARD_PHASE} stuck_count=${_IPG_NEW_STUCK}/${_IPG_STUCK_THRESHOLD} — retry same phase"
+    _log_phase "phase_stuck_retry" "$_IN_PROGRESS_GUARD_PHASE" "stuck_count=${_IPG_NEW_STUCK}" "threshold=${_IPG_STUCK_THRESHOLD}"
+
+    _IPG_NEW_CKPT=$(echo "$CKPT_CONTENT" | jq --arg p "$_IN_PROGRESS_GUARD_PHASE" --argjson n "$_IPG_NEW_STUCK" --arg ts "$_IPG_NOW" '
+      .phases[$p].stuck_count = $n |
+      .phases[$p].last_stuck_at = $ts
+    ' 2>/dev/null || true)
+
+    if [[ -n "$_IPG_NEW_CKPT" ]]; then
+      CKPT_CONTENT="$_IPG_NEW_CKPT"
+      _IPG_TMP=$(mktemp "${CWD}/${CHECKPOINT_PATH}.XXXXXX" 2>/dev/null || echo "")
+      if [[ -n "$_IPG_TMP" ]]; then
+        if printf '%s\n' "$_IPG_NEW_CKPT" > "$_IPG_TMP" 2>/dev/null \
+           && mv -f "$_IPG_TMP" "${CWD}/${CHECKPOINT_PATH}" 2>/dev/null; then
+          _trace "IN-PROGRESS GUARD: stuck_count persisted"
+        else
+          rm -f "$_IPG_TMP" 2>/dev/null || true
+        fi
+      fi
+    fi
+
+    # Force NEXT_PHASE to this in-progress phase (retry same phase, not advance)
+    NEXT_PHASE="$_IN_PROGRESS_GUARD_PHASE"
+    _IMMEDIATE_PREV=""
+    # Build prev from completed phases for group-boundary logic
+    if [[ -n "$_phase_order_json" ]]; then
+      _IMMEDIATE_PREV=$(echo "$CKPT_CONTENT" | jq -r --argjson order "$_phase_order_json" '
+        .phases as $p |
+        [$order[] | select(($p[.].status // "pending") == "completed")] | last // ""
+      ' 2>/dev/null || echo "")
+    fi
+    # Skip the phase scan below — we already set NEXT_PHASE
+    _IPG_SKIP_SCAN=1
+  fi
+fi
+
 # ── Find next pending phase in PHASE_ORDER (AC-3: single-jq optimization) ──
 # PERF FIX: Replace per-phase jq forks (O(N) process forks) with single jq call.
 # Also extracts _IMMEDIATE_PREV for Tier 0 compact interlude (Task 1.4).
+if [[ -z "${_IPG_SKIP_SCAN:-}" ]]; then
 NEXT_PHASE=""
 _IMMEDIATE_PREV=""
-_phase_order_json=$(printf '%s\n' "${PHASE_ORDER[@]}" | jq -R -s 'split("\n") | map(select(length > 0))' 2>/dev/null)
 if [[ -n "$_phase_order_json" ]]; then
   _phase_result=$(echo "$CKPT_CONTENT" | jq -r --argjson order "$_phase_order_json" '
     .phases as $p |
@@ -1009,6 +1130,7 @@ if [[ -z "${NEXT_PHASE:-}" ]]; then
     fi
   done
 fi
+fi  # close _IPG_SKIP_SCAN block (v2.62.0)
 _trace "TIMING: phase_find done at +$(( $(date +%s) - _HOOK_START_EPOCH ))s"
 
 _trace "Next pending phase: ${NEXT_PHASE:-NONE} (prev=${_IMMEDIATE_PREV:-NONE}, iteration ${ITERATION}, auto_skipped=${_auto_skipped})"
@@ -1070,7 +1192,11 @@ if [[ "$_GROUP_MODE" == "active" && -n "$_IMMEDIATE_PREV" && -n "$NEXT_PHASE" ]]
 ARC_STATE: {"group":"${_prev_group}","next":"${_next_group}","status":"paused"}
 GROUPEOF
 
-        exit 0  # pause — session stops, user resumes with --resume
+        # v2.62.0 (plan AC-10): exit 2 surfaces the stderr banner above to the
+        # user. exit 0 would discard stdout/stderr per Stop hook semantics,
+        # swallowing both the banner AND the ARC_STATE signal line — users
+        # saw a clean session stop with no explanation of why the pipeline paused.
+        exit 2  # pause — session stops, user resumes with --resume
       fi
     else
       _trace "Group boundary detected but mid-convergence (review=${_conv_round}, inspect=${_inspect_round}, browser=${_browser_round}) — skipping pause"

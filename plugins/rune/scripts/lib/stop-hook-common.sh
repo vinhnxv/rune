@@ -1193,3 +1193,84 @@ validate_paths() {
   done
   return 0
 }
+
+# ── _arc_team_has_live_members(): team liveness check (v2.62.0) ──
+# Implements plan AC-2: conservative liveness check for IN-PROGRESS GUARD.
+#
+# Returns 0 (alive) when ALL conditions hold:
+#   1. Team name passes SEC regex ^[a-zA-Z0-9_-]+$
+#   2. Team directory ${CHOME}/teams/{name}/ exists (not a symlink)
+#   3. config.json exists and parses as JSON
+#   4. members[] array has length > 0
+#   5. Either (a) no staleness marker OR (b) team dir mtime < RUNE_TEAM_LIVENESS_GRACE_SECONDS (default 300s = 5 min)
+#
+# Returns 1 (dead) otherwise.
+#
+# DESIGN NOTES:
+#   - Conservative: prefers false-positive (wait indefinitely) over false-negative
+#     (advance past active team — the original phase-skip bug we are fixing).
+#   - The caller (arc-phase-stop-hook.sh in-progress guard) has a stuck_count
+#     fallback that auto-skips after 3 consecutive Stop fires, so "wait forever"
+#     is bounded in the worst case.
+#   - We intentionally do NOT kill -0 per-member PID because Rune teammates may
+#     be in-process (no dedicated PID) or tmux'd (PID != $PPID). Filesystem
+#     signals are the authoritative liveness signal.
+#   - The staleness window is longer than team-lifecycle.sh (which uses 30 min
+#     for STALE detection) because we want to catch SDK-dead-but-dir-not-cleaned
+#     cases more aggressively inside the arc stop hook.
+#
+# ENV VARS (overrides):
+#   CLAUDE_CONFIG_DIR              — custom ~/.claude path (multi-account)
+#   RUNE_TEAM_LIVENESS_GRACE_SECONDS — stale threshold (default 300)
+_arc_team_has_live_members() {
+  local _team_name="$1"
+
+  # SEC: name regex validation
+  if [[ ! "$_team_name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+    return 1
+  fi
+
+  local _CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+  local _team_dir="${_CHOME}/teams/${_team_name}"
+
+  # Condition 2: team directory must exist (TeamDelete removes it)
+  [[ -d "$_team_dir" && ! -L "$_team_dir" ]] || return 1
+
+  # Condition 3: config.json must be present and parseable
+  local _cfg="${_team_dir}/config.json"
+  [[ -f "$_cfg" && ! -L "$_cfg" ]] || return 1
+
+  # jq gate — if unavailable, fall back to "assume alive" (conservative)
+  if ! command -v jq >/dev/null 2>&1; then
+    return 0
+  fi
+
+  # Condition 4: members[] array must be non-empty
+  local _member_count
+  _member_count=$(jq -r '.members // [] | length' "$_cfg" 2>/dev/null || echo "0")
+  [[ "$_member_count" =~ ^[0-9]+$ ]] || _member_count=0
+  (( _member_count > 0 )) || return 1
+
+  # Condition 5: staleness check — prefer platform.sh helper, fallback to stat
+  local _grace="${RUNE_TEAM_LIVENESS_GRACE_SECONDS:-300}"
+  [[ "$_grace" =~ ^[0-9]+$ ]] || _grace=300
+
+  local _mtime _now
+  if declare -F _stat_mtime >/dev/null 2>&1; then
+    _mtime=$(_stat_mtime "$_team_dir" 2>/dev/null || echo "0")
+  else
+    # Fallback: BSD vs GNU stat
+    _mtime=$(stat -f '%m' "$_team_dir" 2>/dev/null || stat -c '%Y' "$_team_dir" 2>/dev/null || echo "0")
+  fi
+  _now=$(date +%s 2>/dev/null || echo "0")
+
+  # If mtime unreadable → conservative pass (assume alive)
+  [[ "$_mtime" =~ ^[0-9]+$ && "$_now" =~ ^[0-9]+$ && "$_mtime" != "0" ]] || return 0
+
+  local _age=$((_now - _mtime))
+  if (( _age > _grace )); then
+    return 1  # stale — team dir hasn't been touched in > grace window
+  fi
+
+  return 0  # alive
+}

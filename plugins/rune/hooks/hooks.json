@@ -720,6 +720,20 @@
         ]
       }
     ],
+    "StopFailure": [
+      {
+        "_rationale": "STOP-FAIL-001 (v2.62.0): API-error logging + checkpoint snapshot. Fires when turn ends due to API error (rate_limit, server_error, max_output_tokens, authentication_failed). Output and exit code are ignored per Claude Code docs (code.claude.com/docs/en/hooks) — hook is side-effect-only. Writes JSONL log entry + best-effort arc checkpoint snapshot. No process kill, no team cleanup (those are handled by Stop hooks in the next session via the existing Layer 5 cleanup).",
+        "matcher": "rate_limit|server_error|max_output_tokens|authentication_failed",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/on-stop-failure.sh",
+            "timeout": 10,
+            "statusMessage": "Logging API error..."
+          }
+        ]
+      }
+    ],
     "Elicitation": [
       {
         "_rationale": "ELIX-LOG-001: Append-only audit log for elicitation requests from echo-search and figma-to-react prompts. Logs to ${TMPDIR}/rune-elicitation-log-$(id -u).jsonl with a 5MB size cap. OPERATIONAL — fail-forward, never blocks.",
