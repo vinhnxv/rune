@@ -119,9 +119,13 @@ _qa_gate_check() {
 
   # ── Branch 1: Verdict file exists ──
   if [[ -f "$_qa_verdict_file" && ! -L "$_qa_verdict_file" ]]; then
-    # Read score with integer truncation
+    # Read score with integer truncation.
+    # SCHEMA-TOLERANCE (QA-VRD-001): Canonical path is `.scores.overall_score` (nested).
+    # Some orchestrator-written pass-through verdicts (verifier_role="skipped_phase_pass_through")
+    # place `overall_score` at top-level instead. Accept either location so the gate never
+    # silent-exits on legacy/LLM-drifted schemas. Falls through to 0 only if neither exists.
     local _qa_score
-    _qa_score=$(jq -r '.scores.overall_score // 0 | floor' "$_qa_verdict_file" 2>/dev/null)
+    _qa_score=$(jq -r '(.scores.overall_score // .overall_score // 0) | floor' "$_qa_verdict_file" 2>/dev/null)
     [[ "$_qa_score" =~ ^[0-9]+$ ]] || _qa_score=0
 
     # RUIN-004: Validate verdict against known enum
@@ -145,8 +149,11 @@ _qa_gate_check() {
       if [[ "$_qa_retries" -lt "$_effective_max_retries" && "$_qa_global" -lt "$_qa_max_global" ]]; then
         # LOOP BACK — revert parent phase to pending with sanitized remediation context
         local _remediation_raw
-        _remediation_raw=$(jq -r '[.items[] | select(.verdict=="FAIL")] |
-          map("- \(.id): \(.check) → \(.evidence)") | join("\n")' "$_qa_verdict_file" 2>/dev/null)
+        # SCHEMA-TOLERANCE (QA-VRD-001): `.items // []` guards against verdicts that omit the
+        # items array. Previously `.items[]` against null returned jq exit 5 which cascaded out
+        # under `set -euo pipefail` and could silently break the QA revert path.
+        _remediation_raw=$(jq -r '[(.items // [])[] | select(.verdict=="FAIL")] |
+          map("- \(.id): \(.check) → \(.evidence)") | join("\n")' "$_qa_verdict_file" 2>/dev/null) || _remediation_raw=""
 
         # RUIN-001: Sanitize before checkpoint injection
         local _remediation

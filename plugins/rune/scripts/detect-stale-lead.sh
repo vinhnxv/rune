@@ -49,6 +49,37 @@ if ! command -v jq &>/dev/null; then
   exit 0
 fi
 
+# ── GUARD 0.5: monitor-active sentinel check ──
+# When the `stale-teammate-watcher` plugin monitor (Track B.1) is declared AND
+# the host supports plugin monitors (AC-5 probe wrote tmp/.rune-monitor-available),
+# this Stop hook backs off — continuous monitoring is responsible for stale detection.
+# Absence of the sentinel OR an explicit unavailable sentinel means we re-engage
+# full detection here.
+#
+# Back-off trigger: ALL of the following must be true.
+#   1. tmp/.rune-monitor-available exists (Monitor capable host)
+#   2. plugins/rune/monitors/monitors.json exists (plugin monitor declared)
+#   3. RUNE_DISABLE_STALE_BACKOFF is not set (escape hatch for debugging)
+#
+# If any condition fails → continue with full detection.
+_rune_project_dir="${CLAUDE_PROJECT_DIR:-${CWD:-.}}"
+if [[ -z "${RUNE_DISABLE_STALE_BACKOFF:-}" ]] \
+    && [[ -f "${_rune_project_dir}/tmp/.rune-monitor-available" ]]; then
+  # monitors/monitors.json lives under CLAUDE_PLUGIN_ROOT at runtime. We probe a couple of
+  # likely locations; absence is non-fatal — we just re-engage full detection.
+  for _candidate in \
+      "${CLAUDE_PLUGIN_ROOT:-}/monitors/monitors.json" \
+      "${_rune_project_dir}/plugins/rune/monitors/monitors.json"; do
+    if [[ -n "$_candidate" && -f "$_candidate" ]] \
+        && grep -q 'stale-teammate-watcher' "$_candidate" 2>/dev/null; then
+      # monitor-active sentinel check: the watcher handles it. Back off cleanly.
+      exit 0
+    fi
+  done
+  unset _candidate
+fi
+unset _rune_project_dir
+
 # ── GUARD 1: Read CWD from stdin ──
 INPUT=$(head -c 1048576 2>/dev/null || true)
 CWD=$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)

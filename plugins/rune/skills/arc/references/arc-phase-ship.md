@@ -152,7 +152,8 @@ if (exists(qaDashboardPath)) {
     if (exists(verdictPath)) {
       try {
         const v = JSON.parse(Read(verdictPath))
-        qaResults.push(`${phase}: ${v.verdict ?? "?"} (${v.scores?.overall_score ?? "?"}%)`)
+        // SCHEMA-TOLERANCE (QA-VRD-001): accept nested canonical or legacy top-level overall_score.
+        qaResults.push(`${phase}: ${v.verdict ?? "?"} (${v.scores?.overall_score ?? v.overall_score ?? "?"}%)`)
       } catch (_) {}
     }
   }
@@ -203,7 +204,8 @@ if (arcConfig.design_sync?.enabled === true) {
       if (exists(designVerdictPath)) {
         try {
           const v = JSON.parse(Read(designVerdictPath))
-          designQaScore = v.scores?.overall_score ?? null
+          // SCHEMA-TOLERANCE (QA-VRD-001): accept nested canonical or legacy top-level overall_score.
+          designQaScore = v.scores?.overall_score ?? v.overall_score ?? null
         } catch (_) {}
       }
 

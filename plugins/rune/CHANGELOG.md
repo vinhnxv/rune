@@ -1,5 +1,120 @@
 # Changelog
 
+## [2.57.1] — 2026-04-19
+
+### Fixed — QA gate silent-exit on legacy verdict schema (QA-VRD-001)
+
+**Symptom**: After a QA phase completed, the arc Stop hook appeared to "not run" — no
+next-phase prompt was emitted and the pipeline looked frozen. In reality, the hook
+exited 0 silently after the QA gate check produced `_rc=5` which the EXIT trap
+converted to 0.
+
+**Root cause**: `lib/qa-gate-check.sh` read `jq -r '.scores.overall_score // 0'` and
+expected the canonical nested location. When the orchestrator wrote a pass-through
+verdict for a skipped phase (`verifier_role: "skipped_phase_pass_through"`) with the
+score at the top level (`{"overall_score": 100, ...}`), jq fell through to 0. The QA
+gate then drove score=0 into the retry budget path, the nested `jq '.items[]'` against
+a null items array returned exit 5, and the whole chain silent-exited without emitting
+the next-phase prompt.
+
+**Fix — reader tolerance + writer documentation**:
+
+- Reader fallback in 6 locations: `(.scores.overall_score // .overall_score // 0)` in
+  bash + `v.scores?.overall_score ?? v.overall_score ?? 0` in JS pseudocode.
+  - `scripts/lib/qa-gate-check.sh:124`
+  - `scripts/suggest-self-audit.sh:97`
+  - `skills/arc/references/arc-phase-qa-gate.md` (JS readers at 673, 957–960 + bash example at 792)
+  - `skills/arc/references/arc-phase-ship.md:155,206` (PR body QA + design QA score)
+- Sibling fix: `scripts/lib/qa-gate-check.sh:152` jq pipeline now uses `(.items // [])[]`
+  + `|| _remediation_raw=""` so missing items arrays no longer cascade exit 5 under
+  `set -euo pipefail`.
+- Added CANONICAL SCHEMA callout in `skills/arc/references/arc-phase-qa-gate.md`
+  §"Verdict File Format" to prevent LLM orchestrators from mis-nesting when writing
+  pass-through verdicts for skipped phases.
+- Regression tests in `scripts/tests/test-qa-gate.sh`: Test 15 (legacy top-level score
+  fallback), Test 16 (missing score + missing items → graceful degradation). Suite:
+  38/38 pass.
+
+**Compatibility**: Fully backwards-compatible. Canonical nested verdicts keep working
+unchanged; legacy top-level and orchestrator pass-through verdicts now also advance
+correctly instead of silently freezing the arc.
+
+## [2.57.0] — 2026-04-19
+
+### Added — Monitor tool integration
+
+Integrates Claude Code's `Monitor` tool (v2.1.98+) and plugin monitors (v2.1.105+) across the
+arc pipeline and Rune infrastructure. Replaces polling-heavy patterns with event-driven
+streams where the cadence-sparse/event-sparse ratio justifies the switch. Plan:
+`plans/2026-04-18-feat-monitor-tool-integration-plan.md`.
+
+**Hard requirement**: Claude Code **v2.1.105 or later**. Older versions emit a one-line
+upgrade advisory at SessionStart and Monitor activation is skipped cleanly.
+
+#### Track A — Monitor tool in arc pipeline
+
+- **Phase 9.1 (`bot-review-wait`)**: default-on streaming Monitor block replaces the inner
+  15-minute polling loop. Emits `STATE_CHANGE` only when bot+CI signature changes (BP-1),
+  baseline emission on first cycle (BP-3 LIST-then-WATCH). Pull-based polling loop remains
+  code-resident as a fallback path (RISK-D). Capability-gated via AC-5 sentinel (no opt-in
+  flag — automatic on supported hosts). Runtime circuit breaker: 2 consecutive
+  `STATE_ERROR` events abort Monitor and fall back to polling, with telemetry written to
+  `tmp/arc/{id}/monitor-fallback.log`. Fallback state does NOT persist across phase
+  invocations (RISK-C). File: `plugins/rune/skills/arc/references/arc-phase-bot-review-wait.md`.
+
+#### Track B — Plugin monitors
+
+- **`monitors/monitors.json`** — new plugin-monitor descriptor array with two entries:
+  - `stale-teammate-watcher` (always-on): detects teammate inactivity >3 min during active
+    Rune workflows. Companion script `scripts/monitor-stale-teammates.sh` fast-path-exits
+    when no workflow signals exist. `detect-stale-lead.sh` Stop hook now backs off when the
+    monitor-active sentinel check passes — complementary coverage, not redundant.
+  - `echo-search-eager-reindex` (`when: "on-skill-invoke:rune-echoes"`): watches
+    `tmp/.rune-signals/.echo-dirty` and triggers reindex eagerly so the first subsequent
+    `echo_search` does not pay the rebuild cost.
+- **Kill-switch**: `process_management.monitors.enabled` (default `true`). Setting `false`
+  disables ALL plugin monitors at SessionStart — existing Stop-hook coverage re-engages
+  automatically. Mid-session flips take effect at next SessionStart (EC-6). Documented in
+  `plugins/rune/skills/talisman/references/talisman-sections.md` § Plugin Monitors.
+
+#### Host capability fallback (AC-5)
+
+- **`scripts/probe-monitor-availability.sh`** — SessionStart hook writes
+  `tmp/.rune-monitor-available` (host supports Monitor) or `tmp/.rune-monitor-unavailable`
+  (with specific reason). Detects four documented unavailability conditions:
+  - `DISABLE_TELEMETRY=1`
+  - `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`
+  - `ANTHROPIC_BEDROCK_BASE_URL` set (Amazon Bedrock)
+  - `ANTHROPIC_VERTEX_PROJECT_ID` set (Google Vertex AI)
+- Fail-open: always exits 0. Never blocks SessionStart. Wired into `hooks.json` under
+  `SessionStart` matchers `startup|resume|clear|compact`.
+
+#### Track C — Documentation & disambiguation
+
+- `plugins/rune/skills/polling-guard/references/monitor-tool-patterns.md` — new reference
+  documenting Pattern A (state-change streaming), Pattern B (activity fanout), Pattern C
+  (on-demand reindex), the circuit-breaker recipe, and the testing checklist for new
+  Monitor consumers.
+- `plugins/rune/skills/roundtable-circle/references/monitor-utility.md` — added
+  disambiguation note clarifying it covers the `waitForCompletion` TaskList polling utility,
+  **not related to the Claude Code** `Monitor` tool.
+- `plugins/rune/skills/polling-guard/SKILL.md` — references section cross-links the new
+  `monitor-tool-patterns.md`.
+- `plugins/rune/CLAUDE.md` Rule #9 — added one-line pointer to polling-guard decision table
+  for non-Team waits. `Monitor` and background `Bash` must NOT be replaced with `TaskList`
+  loops.
+
+### Notes
+
+- **GitHub-side API cadence is UNCHANGED** for Track A.1. The Monitor script makes the same
+  `gh api` calls inside its `while` loop. The win is Claude-side context economy (~85%
+  fewer conversation messages on the bot-review-wait portion), not GitHub rate-limit
+  reduction.
+- **No user-facing opt-in flags**. Activation is capability-driven: host probe gates Track
+  A and B automatically. Talisman provides a single kill-switch for plugin monitors.
+- Plan `RISK-E` (`CLAUDE_CODE_ENTRYPOINT` as unavailability indicator) was explicitly
+  excluded from the AC-5 probe — not in official docs.
+
 ## [2.56.0] — 2026-04-18
 
 ### Removed
