@@ -1,14 +1,16 @@
 #!/bin/bash
 # scripts/validate-shutdown-pattern.sh
-# SHUTDOWN-DRIFT: Verifies canonical consumers of the team shutdown fallback
-# pattern source lib/team-shutdown.sh instead of inlining the pattern.
+# SHUTDOWN-DRIFT: Verifies canonical consumers of the MANDATORY 5-component
+# Agent Team cleanup pattern — dynamic discovery (C1), force-reply (C2),
+# adaptive grace (C3), retry-with-backoff (C4), filesystem fallback (C5).
+# Previously only checked C5 sourcing (TEAM-001 audit 20260419-150325); now
+# flags partial coverage across all five components.
 #
 # Detection strategy:
 #   1. Fast-path: exit 0 if jq missing
 #   2. Fast-path: exit 0 if FILE_PATH doesn't match one of the 3 canonical consumers
-#   3. Slow path: read the file content and verify it sources lib/team-shutdown.sh
-#      and calls rune_team_shutdown_fallback
-#   4. Advisory (additionalContext) if pattern is missing — does NOT block writes
+#   3. Slow path: read the file content and grep for each component signature
+#   4. Advisory (additionalContext) enumerating missing components — does NOT block writes
 #
 # Classification: OPERATIONAL (fail-forward)
 # Exit 0 always — this hook is advisory-only, never denies writes.
@@ -38,6 +40,15 @@ INPUT=$(head -c 1048576 2>/dev/null || true)
 # Extract file_path from tool_input
 FILE_PATH=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null || true)
 [[ -z "$FILE_PATH" ]] && exit 0
+
+# SEC-002 FIX (review c1a9714-018c647e): reject path-traversal in FILE_PATH
+# before it reaches the `cat "$FILE_PATH"` on the Edit branch. A crafted
+# tool_input.file_path like "../../etc/passwd" would otherwise disclose
+# arbitrary file contents into the advisory injected back into Claude's
+# context. This is advisory-only anyway (exit 0 on any reject).
+case "$FILE_PATH" in
+  *..*) exit 0 ;;
+esac
 
 # Extract CWD for relative path resolution
 CWD=$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
@@ -90,27 +101,70 @@ esac
 
 [[ -z "$NEW_CONTENT" ]] && exit 0
 
-# Check for the sourcing pattern: source lib/team-shutdown.sh + rune_team_shutdown_fallback
-# We look for BOTH indicators — the source line AND the function call
-HAS_SOURCE=0
-HAS_FUNCTION=0
+# Check all 5 components of the MANDATORY Agent Team cleanup pattern
+# (see plugins/rune/CLAUDE.md § "Agent Team Cleanup (MANDATORY)").
+# Each component has a distinct grep signature. Absence of any indicates
+# drift risk — the advisory enumerates missing components explicitly.
+#
+# Component 1: Dynamic member discovery from teams/{teamName}/config.json
+#   Signature: reads config.json under teams/${teamName}/
+# Component 2: Step 2a force-reply (plain "message" before shutdown_request)
+#   Signature: SendMessage with type "message" (distinct from shutdown_request)
+# Component 3: Adaptive grace period formula min(20, max(5, alive * 5))
+#   Signature: max(5,...*5) OR min(20,...) arithmetic
+# Component 4: TeamDelete retry-with-backoff + success sentinel
+#   Signature: cleanupTeamDeleteSucceeded flag (gates Component 5)
+# Component 5: Filesystem fallback via lib/team-shutdown.sh + rune_team_shutdown_fallback
+#   Signature: source line + function call (legacy checks — retained)
 
+HAS_C1=0; HAS_C2=0; HAS_C3=0; HAS_C4=0; HAS_C5_SOURCE=0; HAS_C5_FN=0
+
+# Component 1: teams/{teamName}/config.json pattern
+if printf '%s' "$NEW_CONTENT" | grep -Eq 'teams/\$\{?teamName\}?/config\.json' 2>/dev/null; then
+  HAS_C1=1
+fi
+
+# Component 2: force-reply plain message (distinct from shutdown_request)
+# Match: type: "message" or type:"message" within a SendMessage context
+if printf '%s' "$NEW_CONTENT" | grep -Eq 'type:[[:space:]]*"message"' 2>/dev/null; then
+  HAS_C2=1
+fi
+
+# Component 3: adaptive grace formula — max(5, ... * 5) is the canonical shape
+if printf '%s' "$NEW_CONTENT" | grep -Eq 'max\(5,[^)]*\*[[:space:]]*5' 2>/dev/null; then
+  HAS_C3=1
+fi
+
+# Component 4: TeamDelete retry success sentinel
+if printf '%s' "$NEW_CONTENT" | grep -q 'cleanupTeamDeleteSucceeded' 2>/dev/null; then
+  HAS_C4=1
+fi
+
+# Component 5: source + delegate
 if printf '%s' "$NEW_CONTENT" | grep -q 'lib/team-shutdown\.sh' 2>/dev/null; then
-  HAS_SOURCE=1
+  HAS_C5_SOURCE=1
 fi
-
 if printf '%s' "$NEW_CONTENT" | grep -q 'rune_team_shutdown_fallback' 2>/dev/null; then
-  HAS_FUNCTION=1
+  HAS_C5_FN=1
 fi
+HAS_C5=0
+[[ "$HAS_C5_SOURCE" -eq 1 && "$HAS_C5_FN" -eq 1 ]] && HAS_C5=1
 
-# If both are present, the file is compliant
-if [[ "$HAS_SOURCE" -eq 1 && "$HAS_FUNCTION" -eq 1 ]]; then
+# Fully compliant → exit silently
+if [[ "$HAS_C1" -eq 1 && "$HAS_C2" -eq 1 && "$HAS_C3" -eq 1 && "$HAS_C4" -eq 1 && "$HAS_C5" -eq 1 ]]; then
   exit 0
 fi
 
-# Advisory: file is a canonical consumer but doesn't source the shared library
-# This is additionalContext only — never blocks the write
-ADVISORY_MSG="SHUTDOWN-DRIFT: '${REL_PATH}' is a canonical consumer of the team shutdown fallback pattern but does not appear to source lib/team-shutdown.sh and call rune_team_shutdown_fallback(). The shared library was extracted to prevent pattern drift across consumers. Please update Step 5 to: source lib/team-shutdown.sh and delegate to rune_team_shutdown_fallback()."
+# Build a per-component missing list so the advisory names the gaps
+MISSING=""
+[[ "$HAS_C1" -eq 0 ]] && MISSING="${MISSING}  - C1 (dynamic discovery from teams/\${teamName}/config.json)\n"
+[[ "$HAS_C2" -eq 0 ]] && MISSING="${MISSING}  - C2 (Step 2a force-reply — SendMessage type \"message\" before shutdown_request, per GitHub #31389)\n"
+[[ "$HAS_C3" -eq 0 ]] && MISSING="${MISSING}  - C3 (adaptive grace period — max(5, alive*5))\n"
+[[ "$HAS_C4" -eq 0 ]] && MISSING="${MISSING}  - C4 (TeamDelete retry-with-backoff — cleanupTeamDeleteSucceeded sentinel)\n"
+[[ "$HAS_C5" -eq 0 ]] && MISSING="${MISSING}  - C5 (filesystem fallback — source lib/team-shutdown.sh + rune_team_shutdown_fallback)\n"
+
+# Advisory: additionalContext only — never blocks writes
+ADVISORY_MSG=$(printf 'SHUTDOWN-DRIFT: %s is a canonical consumer of the Agent Team cleanup pattern but appears to be missing the following component(s):\n%bSee plugins/rune/CLAUDE.md § "Agent Team Cleanup (MANDATORY)" and plugins/rune/skills/team-sdk/references/engines.md (shutdown()) for the canonical 5-component pattern. Each component is independently load-bearing: C1 prevents orphans when config reads fail, C2 prevents GitHub #31389 deliveries being dropped, C3 scales grace period with live members, C4 survives TeamDelete timing races, C5 cleans up filesystem state when SDK state is stuck.' "$REL_PATH" "$MISSING")
 
 printf '%s\n' "$(jq -n \
   --arg ctx "$ADVISORY_MSG" \

@@ -200,6 +200,11 @@ unset _RUNE_CACHE_NEEDS_WRITE _cached_sid_line _cached_sid
 # Returns: 0 if alive (or EPERM), 1 if dead
 rune_pid_alive() {
   local pid="$1"
+  # MON-005 FIX (audit 20260419-150325): numeric bounds (1..4194304) before
+  # kill -0. Linux's kernel.pid_max default is 2^22; 4194304 is a generous
+  # ceiling that rejects clearly-forged values like 999999999999 without
+  # requiring a runtime pid_max probe.
+  [[ "$pid" =~ ^[0-9]+$ && "$pid" -gt 0 && "$pid" -lt 4194304 ]] || return 1
   # Single kill -0 call — captures both exit code and stderr in one shot.
   # Fixes BACK-P2-001: eliminates TOCTOU window from double kill -0 calls.
   local err rc

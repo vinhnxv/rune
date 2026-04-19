@@ -939,6 +939,45 @@ else
   _trace "WARNING: skip_map jq parse returned empty — proceeding without auto-skip"
 fi
 
+# ── ARC-QA-002: Artifact-mtime self-heal for in_progress phases ──
+# Iron Law "Stop Hook Self-Heal Precedence" — runs before the inline PHASE_ORDER
+# scan so that a QA verifier whose verdict landed on disk while it was still
+# marked `in_progress` gets flipped to `completed` and re-enters the retry loop.
+# Fail-forward: any internal error returns the original checkpoint unchanged.
+# Scope (v1): QA phases only. See scripts/lib/arc-phase-self-heal.sh.
+#
+# BACK-002 FIX (review c1a9714-018c647e): guard the source with -f. Without
+# this, a missing self-heal lib file (partial deploy, NFS hiccup) would make
+# `source` return non-zero under set -euo pipefail, triggering the ERR trap,
+# firing _rune_fail_forward → exit 0, and silently stalling the arc phase
+# loop on every subsequent Stop hook fire. Every other optional lib in the
+# codebase is guarded this way (e.g. detect-workflow-complete.sh:103-119).
+# shellcheck source=lib/arc-phase-self-heal.sh
+if [[ -f "${SCRIPT_DIR}/lib/arc-phase-self-heal.sh" ]]; then
+  source "${SCRIPT_DIR}/lib/arc-phase-self-heal.sh"
+else
+  _trace "ARC-QA-002: self-heal lib missing at ${SCRIPT_DIR}/lib/arc-phase-self-heal.sh — skipping heal"
+fi
+if [[ -n "$_ARC_ID_FOR_LOG" && "$_ARC_ID_FOR_LOG" =~ ^[a-zA-Z0-9_-]+$ ]] && declare -F _arc_phase_self_heal >/dev/null 2>&1; then
+  _SELF_HEAL_ARC_DIR="${CWD}/tmp/arc/${_ARC_ID_FOR_LOG}"
+  _SELF_HEAL_CKPT=$(_arc_phase_self_heal "$CKPT_CONTENT" "$_SELF_HEAL_ARC_DIR" "$_ARC_ID_FOR_LOG" "${CWD}/${CHECKPOINT_PATH}" 2>/dev/null || true)
+  if [[ -n "$_SELF_HEAL_CKPT" && "$_SELF_HEAL_CKPT" != "$CKPT_CONTENT" ]]; then
+    _trace "ARC-QA-002: self-heal mutated checkpoint — reloading CKPT_CONTENT"
+    CKPT_CONTENT="$_SELF_HEAL_CKPT"
+  fi
+else
+  # VEIL-005 FIX (review c1a9714-018c647e): emit a trace when self-heal is
+  # bypassed so operators can tell "ran, nothing to do" apart from "skipped
+  # because arc_id was missing or the helper didn't load."
+  if ! declare -F _arc_phase_self_heal >/dev/null 2>&1; then
+    _trace "ARC-QA-002: SKIP — _arc_phase_self_heal function unavailable"
+  elif [[ -z "$_ARC_ID_FOR_LOG" ]]; then
+    _trace "ARC-QA-002: SKIP — _ARC_ID_FOR_LOG empty (jq extraction failed or .id missing)"
+  else
+    _trace "ARC-QA-002: SKIP — _ARC_ID_FOR_LOG='${_ARC_ID_FOR_LOG}' failed SEC regex"
+  fi
+fi
+
 # ── Find next pending phase in PHASE_ORDER (AC-3: single-jq optimization) ──
 # PERF FIX: Replace per-phase jq forks (O(N) process forks) with single jq call.
 # Also extracts _IMMEDIATE_PREV for Tier 0 compact interlude (Task 1.4).
@@ -1833,8 +1872,14 @@ if [[ "$NEXT_PHASE" == "test" ]]; then
             _force_test_team="arc-test-${_arc_id_for_fin}"
             _trace "Force-cleanup: removing team ${_force_test_team}"
             CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
-            CHOME=$(cd "$CHOME" 2>/dev/null && pwd -P || echo "$CHOME")
-            if [[ -d "$CHOME/teams/${_force_test_team}" && ! -L "$CHOME/teams/${_force_test_team}" ]]; then
+            # STOP-001 FIX (audit 20260419-150325): align with XVER-001 at
+            # line 1644 — skip the rm -rf branch entirely when canonicalization
+            # fails instead of silently proceeding with a non-canonical path.
+            # CHOME_FORCE_CANON is the canonical (symlink-resolved) form used
+            # by every filesystem op below this block.
+            CHOME_FORCE_CANON=$(cd "$CHOME" 2>/dev/null && pwd -P) || CHOME_FORCE_CANON=""
+            if [[ -n "$CHOME_FORCE_CANON" && -d "$CHOME_FORCE_CANON/teams/${_force_test_team}" && ! -L "$CHOME_FORCE_CANON/teams/${_force_test_team}" ]]; then
+              CHOME="$CHOME_FORCE_CANON"
               # PAT-003 FIX: Use _rune_kill_tree with teammates filter (MCP-PROTECT-003)
               # instead of blind pgrep|kill loop that could kill MCP servers
               if [[ -f "${SCRIPT_DIR}/lib/process-tree.sh" ]]; then

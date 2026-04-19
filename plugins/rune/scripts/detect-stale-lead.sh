@@ -49,36 +49,31 @@ if ! command -v jq &>/dev/null; then
   exit 0
 fi
 
-# ── GUARD 0.5: monitor-active sentinel check ──
-# When the `stale-teammate-watcher` plugin monitor (Track B.1) is declared AND
-# the host supports plugin monitors (AC-5 probe wrote tmp/.rune-monitor-available),
-# this Stop hook backs off — continuous monitoring is responsible for stale detection.
-# Absence of the sentinel OR an explicit unavailable sentinel means we re-engage
-# full detection here.
+# ── GUARD 0.5 REMOVED (VEIL-005 fix, undoing PR #500) ──
+# Previously: backed off when monitor-stale-teammates.sh was declared, on the
+# assumption that the plugin monitor would handle stale detection.
 #
-# Back-off trigger: ALL of the following must be true.
-#   1. tmp/.rune-monitor-available exists (Monitor capable host)
-#   2. plugins/rune/monitors/monitors.json exists (plugin monitor declared)
-#   3. RUNE_DISABLE_STALE_BACKOFF is not set (escape hatch for debugging)
+# Why removed:
+#   1. Premise unsupported by Claude Code docs. Per docs.claude.com hooks.md,
+#      Stop fires BEFORE async background work completes — a running plugin
+#      monitor does NOT block Stop. The "monitor handles it" handoff was based
+#      on inferred runtime behavior, not a documented contract.
+#   2. The plugin monitor only emits on STALE (>3min idle), not on COMPLETION.
+#      detect-stale-lead.sh is the only mechanism that wakes the lead when
+#      teammates have called TaskUpdate(completed) but the lead is still idle.
+#      Backing off this hook left a coverage gap where arc phases advanced
+#      while teammates were still mid-tool-call.
+#   3. Observed regression (image attached to Issue): "Arc complete · Idle ·
+#      teammates running" with rune-smith-1 still editing files for 24+ minutes
+#      while arc-batch dispatched the next plan.
 #
-# If any condition fails → continue with full detection.
-_rune_project_dir="${CLAUDE_PROJECT_DIR:-${CWD:-.}}"
-if [[ -z "${RUNE_DISABLE_STALE_BACKOFF:-}" ]] \
-    && [[ -f "${_rune_project_dir}/tmp/.rune-monitor-available" ]]; then
-  # monitors/monitors.json lives under CLAUDE_PLUGIN_ROOT at runtime. We probe a couple of
-  # likely locations; absence is non-fatal — we just re-engage full detection.
-  for _candidate in \
-      "${CLAUDE_PLUGIN_ROOT:-}/monitors/monitors.json" \
-      "${_rune_project_dir}/plugins/rune/monitors/monitors.json"; do
-    if [[ -n "$_candidate" && -f "$_candidate" ]] \
-        && grep -q 'stale-teammate-watcher' "$_candidate" 2>/dev/null; then
-      # monitor-active sentinel check: the watcher handles it. Back off cleanly.
-      exit 0
-    fi
-  done
-  unset _candidate
-fi
-unset _rune_project_dir
+# Plugin monitor (monitor-stale-teammates.sh) remains useful as ADVISORY only —
+# it surfaces idle alerts in the session transcript. It no longer displaces
+# this Stop-hook detection.
+#
+# Companion fixes for the same regression:
+#   - team-sdk/references/engines.md  Step 3.5 (blocking liveness gate before TeamDelete)
+#   - arc/references/arc-phase-work.md Step 4a (state-file completion gate after Skill)
 
 # ── GUARD 1: Read CWD from stdin ──
 INPUT=$(head -c 1048576 2>/dev/null || true)
@@ -95,7 +90,10 @@ if [[ -f "${SCRIPT_DIR}/resolve-session-identity.sh" ]]; then
 else
   RUNE_CURRENT_CFG=$(cd "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" 2>/dev/null && pwd -P) || RUNE_CURRENT_CFG="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
   rune_pid_alive() {
-    [[ "$1" =~ ^[0-9]+$ ]] || return 1
+    # MON-005 FIX (audit 20260419-150325): numeric bounds (1..4194304).
+    # Bare ^[0-9]+$ accepts e.g. 999999999999 — OS rejects at kill -0 but
+    # explicit bounds are defense-in-depth and make the intent readable.
+    [[ "$1" =~ ^[0-9]+$ && "$1" -gt 0 && "$1" -lt 4194304 ]] || return 1
     local _err
     _err=$(kill -0 "$1" 2>&1) && return 0
     case "$_err" in *ermission*|*[Pp]erm*|*EPERM*) return 0 ;; esac
@@ -124,8 +122,13 @@ _trace() { [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "$RUNE_TRACE_LOG" ]] && [[ 
 
 _trace "ENTER detect-stale-lead.sh"
 
-# Initialize variables that may be set conditionally inside loops
-_session_id=""
+# BACK-010 FIX (review c1a9714-018c647e): hoist _session_id extraction out of
+# GUARD 3's per-loop-file body so it runs unconditionally. Previously the
+# extraction only fired inside the loop at L158 — strive-only workflows (no
+# arc loop files) left _session_id empty, and GUARD 4's SID ownership check
+# at L272 silently bypassed, enabling cross-session false wake-ups in
+# violation of the Rune Session Isolation Rule (CLAUDE.md §Session Isolation).
+_session_id=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
 
 # ── GUARD 2: Fast-path — any state files at all? ──
 STATE_FILES=()
@@ -156,8 +159,8 @@ for loop_file in \
     if [[ -n "$_loop_cfg" && "$_loop_cfg" != "$RUNE_CURRENT_CFG" ]]; then
       continue
     fi
-    # FLAW-005 FIX: Use session_id for ownership check (PPID unreliable in hooks)
-    _session_id=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null) || _session_id=""
+    # FLAW-005 FIX: Use session_id for ownership check (PPID unreliable in hooks).
+    # _session_id hoisted above (BACK-010 FIX) — value from hook input JSON.
     _loop_sid=$(_get_fm_field "$_loop_fm" "session_id" 2>/dev/null) || _loop_sid=""
     # Skip loop files from other live sessions (prefer session_id, fall back to PID)
     if [[ -n "$_loop_sid" && -n "$_session_id" && "$_loop_sid" != "$_session_id" ]]; then
@@ -403,7 +406,7 @@ for sf in "${STATE_FILES[@]}"; do
     # The stored owner_pid is the Claude Code session PID whose children are the teammates.
     _stored_pid="$SF_PID"
     _teammate_count=0
-    if [[ -n "$_stored_pid" && "$_stored_pid" =~ ^[0-9]+$ ]] && command -v pgrep &>/dev/null; then
+    if [[ -n "$_stored_pid" && "$_stored_pid" =~ ^[0-9]+$ && "$_stored_pid" -gt 0 && "$_stored_pid" -lt 4194304 ]] && command -v pgrep &>/dev/null; then
       while IFS= read -r _child; do
         [[ -z "$_child" || ! "$_child" =~ ^[0-9]+$ ]] && continue
         _child_cmd=$(ps -p "$_child" -o comm= 2>/dev/null || true)

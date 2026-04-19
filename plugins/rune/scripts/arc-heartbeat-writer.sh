@@ -19,6 +19,15 @@ umask 077
 _rune_fail_forward() {
   if [[ "${RUNE_TRACE:-}" == "1" ]]; then
     local _ffl="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
+    # SEC-001 FIX (review c1a9714-018c647e): restrict _ffl to the TMPDIR/tmp
+    # allowlist. Previously, an attacker who could inject RUNE_TRACE_LOG into
+    # the hook environment had append-write to any path (e.g. ~/.ssh/authorized_keys)
+    # because only a symlink check ran. Mirror the allowlist used in
+    # detect-workflow-complete.sh:140-143.
+    case "$_ffl" in
+      "${TMPDIR:-/tmp}/"*|/tmp/*) ;;
+      *) _ffl="${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log" ;;
+    esac
     [[ -n "$_ffl" && ! -L "$_ffl" && ! -L "${_ffl%/*}" ]] && \
       printf '[%s] %s: ERR trap — fail-forward activated (line %s)\n' \
         "$(date +%H:%M:%S 2>/dev/null || true)" \
@@ -114,7 +123,12 @@ _NONCE="${RUNE_SESSION_ID:-$$-$(date +%s)}"
 _NONCE="${_NONCE:0:16}"
 
 # ── Session isolation fields (AC-3.4: config_dir + session_id + owner_pid) ──
-_CONFIG_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+# MON-008 FIX (audit 20260419-150325): canonicalize config_dir so downstream
+# consumers (which compare against `cd "$CHOME" && pwd -P`) see the same value.
+# Without this, macOS guest accounts with a symlinked $HOME trigger silent skip
+# in session-isolation checks across the stop-hook cascade.
+_CONFIG_DIR_RAW="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+_CONFIG_DIR=$(cd "$_CONFIG_DIR_RAW" 2>/dev/null && pwd -P) || _CONFIG_DIR="$_CONFIG_DIR_RAW"
 _SESSION_ID="${RUNE_SESSION_ID:-unknown}"
 
 # ── Atomic write (mktemp + mv) ──

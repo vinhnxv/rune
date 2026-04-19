@@ -634,8 +634,40 @@ function shutdown(handle) {
     Bash(`sleep 2`, { run_in_background: true })
   }
 
+  // --- 3.5. Blocking liveness gate (VEIL-005 fix) ---
+  // The grace period (Step 3) uses non-blocking sleep (Core Rule #9) — it does NOT
+  // guarantee teammates have finished. Without this gate, TeamDelete proceeds while
+  // teammates still in_progress: arc declares "Arc complete" but rune-smith-1 keeps
+  // editing files and running tests for tens of minutes (observed: 24m54s compaction
+  // mid-task). The next plan / next phase advances on top of a still-running teammate.
+  //
+  // Fix: poll TaskList for in_progress=0 before TeamDelete. TaskList is the
+  // authoritative workflow signal — a teammate that has called TaskUpdate(completed)
+  // has at least honored the workflow contract. A teammate still in_progress means it
+  // has NOT yet processed shutdown_request; tearing down here orphans the process.
+  //
+  // Pattern follows waitForCompletion: TaskList → check → background sleep → repeat.
+  // Budget: 6 polls × 5s = 30s additional max. Total shutdown budget rises from
+  // 21-39s to 51-69s — still bounded; far cheaper than a stranded teammate.
+  let livenessAttempts = 0
+  const LIVENESS_MAX_POLLS = 6
+  let stillRunning = 0
+  for (livenessAttempts = 0; livenessAttempts < LIVENESS_MAX_POLLS; livenessAttempts++) {
+    let tasks = []
+    try { tasks = TaskList() } catch (e) { break /* TaskList unavailable — proceed to TeamDelete */ }
+    stillRunning = tasks.filter(t => t.status === "in_progress").length
+    if (stillRunning === 0) break
+    if (livenessAttempts === 0) {
+      warn(`shutdown: ${stillRunning} task(s) still in_progress after grace — polling up to ${LIVENESS_MAX_POLLS * 5}s for teammate completion`)
+    }
+    Bash(`sleep 5`, { run_in_background: true })
+  }
+  if (stillRunning > 0 && livenessAttempts >= LIVENESS_MAX_POLLS) {
+    warn(`shutdown: liveness gate timed out — ${stillRunning} task(s) still in_progress; proceeding to TeamDelete (process kill via Step 5 fallback if SDK refuses)`)
+  }
+
   // --- 4. TeamDelete with retry-with-backoff ---
-  // Total budget: adaptive grace (2-20s) + retry (0+3+6+10=19s) = 21-39s max
+  // Total budget: adaptive grace (2-20s) + liveness gate (0-30s) + retry (0+3+6+10=19s) = 21-69s max
   // Reduced from [0, 5000, 10000, 15000] (30s) to [0, 3000, 6000, 10000] (19s).
   // Rationale: the adaptive grace period already gave teammates time to deregister.
   // The retry loop only needs to cover SDK-level deregistration lag, not tool completion.

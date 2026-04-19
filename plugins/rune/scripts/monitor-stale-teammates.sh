@@ -15,15 +15,106 @@
 
 set -euo pipefail
 
-# Cross-platform helpers — guarded
-if [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "${CLAUDE_PLUGIN_ROOT}/scripts/lib/platform.sh" ]]; then
+# MON-003 FIX (audit 20260419-150325): resolve SCRIPT_DIR from BASH_SOURCE and
+# source platform.sh unconditionally. Prior guarded `CLAUDE_PLUGIN_ROOT` sourcing
+# meant that when the env var was unset `_stat_mtime` was undefined, every loop
+# iteration short-circuited on `[[ "$mtime" -gt 0 ]]`, and the watcher emitted
+# zero alerts with zero warning — a silent invisible-regression path.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)" || SCRIPT_DIR="."
+if [[ -f "${SCRIPT_DIR}/lib/platform.sh" ]]; then
+  # shellcheck source=lib/platform.sh
+  source "${SCRIPT_DIR}/lib/platform.sh"
+elif [[ -n "${CLAUDE_PLUGIN_ROOT:-}" && -f "${CLAUDE_PLUGIN_ROOT}/scripts/lib/platform.sh" ]]; then
   # shellcheck source=/dev/null
-  source "${CLAUDE_PLUGIN_ROOT}/scripts/lib/platform.sh" 2>/dev/null || true
+  source "${CLAUDE_PLUGIN_ROOT}/scripts/lib/platform.sh"
+else
+  # Last-resort inline fallback — still better than silent undefined.
+  _stat_mtime() {
+    case "$(uname -s 2>/dev/null)" in
+      Darwin) stat -f '%m' "$1" 2>/dev/null || true ;;
+      *)      stat -c '%Y' "$1" 2>/dev/null || true ;;
+    esac
+  }
 fi
 
 STALE_THRESHOLD_SECS="${RUNE_STALE_THRESHOLD_SECS:-180}"  # 3 min — matches detect-stale-lead.sh
 POLL_SECS="${RUNE_STALE_POLL_SECS:-30}"
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+
+# MON-001 FIX (audit 20260419-150325): session isolation anchors.
+# Canonicalize CLAUDE_CONFIG_DIR once for comparison vs state-file config_dir.
+# OWNER_PID = $PPID — in a harness-spawned monitor, the parent is the Claude
+# Code session process, which is also what gets written into state files'
+# owner_pid field by skills at workflow start.
+RUNE_CURRENT_CFG=$(cd "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" 2>/dev/null && pwd -P) || \
+  RUNE_CURRENT_CFG="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+OWNER_PID="$PPID"
+
+# MON-004 FIX (audit 20260419-150325): wall-clock cap on the `while true` loop.
+# Combined with MON-001, leaked signal dirs from crashed prior sessions would
+# otherwise keep this watcher pinned indefinitely. Default 12h — any arc phase
+# exceeding that is a separate incident and human-should-be-alerted territory.
+MAX_WATCH_SECS="${RUNE_MAX_WATCH_SECS:-43200}"  # 12h
+WATCH_START_EPOCH=$(date +%s 2>/dev/null || printf '0')
+
+# MON-002 FIX (audit 20260419-150325): liveness check helpers.
+# Port of detect-stale-lead.sh:399-414 (Method D) — if the owning session still
+# has live node/claude teammate child processes, emission is suppressed.
+rune_pid_alive() {
+  [[ "$1" =~ ^[0-9]+$ ]] || return 1
+  local _err
+  _err=$(kill -0 "$1" 2>&1) && return 0
+  case "$_err" in *ermission*|*[Pp]erm*|*EPERM*) return 0 ;; esac
+  return 1
+}
+
+count_live_teammates() {
+  local _pid="$1"
+  local _count=0
+  [[ -n "$_pid" && "$_pid" =~ ^[0-9]+$ ]] || { printf '0'; return 0; }
+  command -v pgrep &>/dev/null || { printf '0'; return 0; }
+  while IFS= read -r _child; do
+    [[ -z "$_child" || ! "$_child" =~ ^[0-9]+$ ]] && continue
+    _cmd=$(ps -p "$_child" -o comm= 2>/dev/null || true)
+    case "$_cmd" in
+      node|claude|claude-*) _count=$((_count + 1)) ;;
+    esac
+  done < <(pgrep -P "$_pid" 2>/dev/null || true)
+  printf '%s' "$_count"
+}
+
+# Resolve (config_dir|owner_pid) for a given team name by scanning state files.
+# Returns empty string when no matching state file exists (likely an orphan).
+# Prefers jq when available; falls back to grep-based extraction for robustness.
+resolve_team_owner() {
+  local _team="$1"
+  [[ -z "$_team" ]] && return 0
+  [[ "$_team" =~ ^[a-zA-Z0-9_-]+$ ]] || return 0  # SEC-4
+  local _sf _cfg _pid
+  while IFS= read -r _sf; do
+    [[ -f "$_sf" && ! -L "$_sf" ]] || continue
+    local _tn=""
+    if command -v jq &>/dev/null; then
+      _tn=$(jq -r '.team_name // empty' "$_sf" 2>/dev/null || true)
+    else
+      _tn=$(grep -E '"team_name"[[:space:]]*:' "$_sf" 2>/dev/null \
+            | head -1 | sed -E 's/.*"team_name"[[:space:]]*:[[:space:]]*"([^"]*)".*/\1/' || true)
+    fi
+    [[ "$_tn" != "$_team" ]] && continue
+    if command -v jq &>/dev/null; then
+      _cfg=$(jq -r '.config_dir // empty' "$_sf" 2>/dev/null || true)
+      _pid=$(jq -r '.owner_pid // empty' "$_sf" 2>/dev/null || true)
+    else
+      _cfg=$(grep -E '"config_dir"[[:space:]]*:' "$_sf" 2>/dev/null \
+             | head -1 | sed -E 's/.*"config_dir"[[:space:]]*:[[:space:]]*"([^"]*)".*/\1/' || true)
+      _pid=$(grep -E '"owner_pid"[[:space:]]*:' "$_sf" 2>/dev/null \
+             | head -1 | sed -E 's/.*"owner_pid"[[:space:]]*:[[:space:]]*"?([0-9]+)"?.*/\1/' || true)
+    fi
+    printf '%s|%s' "$_cfg" "$_pid"
+    return 0
+  done < <(find "${PROJECT_DIR}/tmp" -maxdepth 1 -name '.rune-*.json' -type f 2>/dev/null || true)
+  return 0
+}
 
 signals_root() {
   printf '%s/tmp/.rune-signals' "$PROJECT_DIR"
@@ -97,6 +188,14 @@ now_epoch() {
 # (workflow ended).
 silent_streak=0
 while true; do
+  # MON-004 FIX: wall-clock cap. Exit cleanly past MAX_WATCH_SECS — any
+  # legitimate arc phase beyond that is a separate incident.
+  _now=$(date +%s 2>/dev/null || printf '0')
+  _elapsed=$(( _now - WATCH_START_EPOCH ))
+  if [[ "$_elapsed" -ge "$MAX_WATCH_SECS" ]]; then
+    exit 0
+  fi
+
   if ! has_active_workflow; then
     silent_streak=$((silent_streak + 1))
     [[ "$silent_streak" -ge 2 ]] && exit 0
@@ -121,8 +220,50 @@ while true; do
       fname="${rel##*/}"
       member="${fname#activity-}"
       member="${member%.*}"
+      # SEC-004 FIX (review c1a9714-018c647e): validate the derived `member`
+      # token before composing it into emit output. `team` is validated in
+      # resolve_team_owner(), but `member` was previously derived from the
+      # filename without a separate check — an activity file with whitespace
+      # or special chars in its name could corrupt the harness-parsed stdout
+      # line (team=...:member=... age_secs=...).
+      [[ "$member" =~ ^[a-zA-Z0-9_-]+$ ]] || continue
       key="${team}:${member}"
       is_already_emitted "$key" && continue
+
+      # MON-001 FIX: session isolation. Resolve the team's state-file owner
+      # before emitting. Skip teams owned by a different installation or a
+      # different live Claude Code session.
+      _own=$(resolve_team_owner "$team")
+      if [[ -z "$_own" ]]; then
+        # No state file for this team — likely orphan from crashed prior
+        # session. detect-workflow-complete.sh is responsible for that path;
+        # we stay silent to avoid phantom wakes.
+        continue
+      fi
+      _sf_cfg="${_own%%|*}"
+      _sf_pid="${_own##*|}"
+      if [[ -n "$_sf_cfg" && "$_sf_cfg" != "$RUNE_CURRENT_CFG" ]]; then
+        continue  # foreign installation
+      fi
+      if [[ -n "$_sf_pid" && "$_sf_pid" =~ ^[0-9]+$ && "$_sf_pid" != "$OWNER_PID" ]]; then
+        if rune_pid_alive "$_sf_pid"; then
+          continue  # live foreign session — not our concern
+        fi
+        # Owner dead → orphan. Defer to detect-workflow-complete.sh.
+        continue
+      fi
+
+      # MON-002 FIX: liveness probe. mtime alone is NOT a liveness signal —
+      # throttled activity writes (15s) + legit long-running tool calls (e.g.,
+      # browser tests) can push the file past STALE_THRESHOLD even when the
+      # teammate is fully alive. Check for live node|claude child processes
+      # of the OWNING session's PID before declaring stale.
+      _probe_pid="${_sf_pid:-$OWNER_PID}"
+      _alive_count=$(count_live_teammates "$_probe_pid")
+      if [[ "$_alive_count" -gt 0 ]]; then
+        continue
+      fi
+
       emit "$key" "$age"
     done < <(find "$sigs_dir" -maxdepth 2 -type f -name 'activity-*' 2>/dev/null || true)
   fi

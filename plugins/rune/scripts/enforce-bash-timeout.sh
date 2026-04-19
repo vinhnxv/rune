@@ -302,6 +302,20 @@ if [[ -z "$TIMEOUT_SECS" ]]; then
   TIMEOUT_SECS=300
 fi
 
+# ENF-002 FIX (audit 20260419-150325): clamp TIMEOUT_SECS to 600s.
+# Claude Code's Bash tool enforces a 600s hard ceiling (see Bash tool docs —
+# "optional timeout in milliseconds, up to 600000ms / 10 minutes"). Any value
+# above that is silently truncated by the harness, making talisman knobs like
+# `process_management.bash_timeout: 900` misleading — the user thinks they
+# have 15 minutes but only ever gets 10. Clamp here with a PreToolUse advisory
+# so operators see the truncation instead of being misled.
+BASH_TOOL_HARD_CEILING=600
+TIMEOUT_CLAMPED=""
+if [[ "$TIMEOUT_SECS" -gt "$BASH_TOOL_HARD_CEILING" ]]; then
+  TIMEOUT_CLAMPED="$TIMEOUT_SECS"  # preserve original for advisory
+  TIMEOUT_SECS="$BASH_TOOL_HARD_CEILING"
+fi
+
 # ── Detect timeout binary ──
 TIMEOUT_BIN=""
 KILL_AFTER_SUPPORTED=""
@@ -371,6 +385,14 @@ fi
 # Use jq to properly escape the wrapped command for JSON
 WRAPPED_JSON=$(printf '%s\n' "$WRAPPED" | jq -Rs '.')
 
+# ENF-002 FIX: include clamp notice in additionalContext when the talisman
+# value exceeded the Bash tool's 600s hard ceiling.
+ADDITIONAL_CTX="Command wrapped with ${TIMEOUT_BIN} ${TIMEOUT_SECS}s timeout (kill-after ${KILL_AFTER}s). Pattern: ${match_found}."
+if [[ -n "$TIMEOUT_CLAMPED" ]]; then
+  ADDITIONAL_CTX="${ADDITIONAL_CTX} NOTE: talisman process_management.bash_timeout=${TIMEOUT_CLAMPED}s was clamped to ${BASH_TOOL_HARD_CEILING}s (Bash tool hard ceiling). Reduce talisman value to silence this notice."
+fi
+ADDITIONAL_CTX_JSON=$(printf '%s' "$ADDITIONAL_CTX" | jq -Rs '.')
+
 cat <<ENDJSON
-{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow","permissionDecisionReason":"BASH-TIMEOUT-001: wrapped with ${TIMEOUT_BIN} ${TIMEOUT_SECS}s (pattern: ${match_found})","updatedInput":{"command":${WRAPPED_JSON}},"additionalContext":"Command wrapped with ${TIMEOUT_BIN} ${TIMEOUT_SECS}s timeout (kill-after ${KILL_AFTER}s). Pattern: ${match_found}."}}
+{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow","permissionDecisionReason":"BASH-TIMEOUT-001: wrapped with ${TIMEOUT_BIN} ${TIMEOUT_SECS}s (pattern: ${match_found})","updatedInput":{"command":${WRAPPED_JSON}},"additionalContext":${ADDITIONAL_CTX_JSON}}}
 ENDJSON

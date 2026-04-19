@@ -1,5 +1,143 @@
 # Changelog
 
+## [2.60.0] — 2026-04-19
+
+### Fixed — Arc advances while teammate still running (PR #500 regression)
+
+Closes the regression introduced by PR #500 (v2.57.0 Monitor tool integration)
+where arc declared "Arc complete" and arc-batch advanced to the next plan
+while `rune-smith-1` was still mid-edit (observed: 24m54s compaction running
+under "* Idle · teammates running" status). Three follow-up patches
+(v2.57.2, v2.58.x #501, v2.59.0) addressed surface symptoms but not the root.
+
+**Root cause** — chain of three premise failures in PR #500:
+
+1. **`detect-stale-lead.sh` GUARD 0.5 back-off** assumed plugin monitors block
+   the Stop hook ("continuous monitoring is responsible for stale detection").
+   Per [docs.claude.com/hooks.md](https://code.claude.com/docs/en/hooks.md),
+   Stop fires *before* async background work completes — a running monitor
+   does NOT block Stop. The handoff was based on inferred runtime behavior,
+   not a documented contract.
+2. **Plugin monitor only detects STALE (>3min), not COMPLETION.** The original
+   4-method detection cascade (sentinel/count/TaskList/liveness) in
+   `detect-stale-lead.sh` was the only mechanism that could wake the lead
+   between `TaskUpdate(completed)` and process exit. Backing it off left a
+   coverage gap.
+3. **`shutdown()` in team-sdk had no liveness gate before `TeamDelete`.** The
+   adaptive grace period uses non-blocking sleep (per Core Rule #9). When
+   `TaskUpdate(completed)` arrives but the teammate process is still in a
+   long tool call (24m+ compaction observed), TeamDelete proceeds and the
+   workflow advances regardless.
+
+**Changes** — 3 file fix on the current branch (`fix/arc-qa-artifact-self-heal`):
+
+- `plugins/rune/scripts/detect-stale-lead.sh` — Removed GUARD 0.5 back-off.
+  Stop hook now always engages full 4-method detection. The
+  `monitor-stale-teammates.sh` plugin monitor remains as advisory-only (idle
+  alerts in transcript), no longer displaces Stop-hook detection.
+- `plugins/rune/skills/team-sdk/references/engines.md` — Added Step 3.5
+  (blocking liveness gate) to `shutdown()`: polls `TaskList` for
+  `in_progress=0` before `TeamDelete`. Bounded to 6×5s = 30s. Total shutdown
+  budget rises from 21-39s to 51-69s — still bounded; cheaper than orphans.
+- `plugins/rune/skills/arc/references/arc-phase-work.md` — Added Step 4a
+  (state-file completion gate): after `Skill("rune:strive")` returns, polls
+  the work state file for `status=completed` (written by strive's own
+  `cleanup()`) before marking phase done. Same 30s budget.
+
+**Companion documented bugs** (referenced for context, not fixed here):
+
+- Issue [#33049](https://github.com/anthropics/claude-code/issues/33049):
+  SubagentStop does not fire for Agent-tool subagents — confirmed bug, no
+  workaround.
+- Issue #31389: teammate shutdown race condition — root of the existing
+  force-reply pattern in `engines.md` Step 2a-2c.
+
+**Verified docs sources**:
+- [hooks.md — Stop fires before async work](https://code.claude.com/docs/en/hooks.md)
+- [agent-teams.md — "Shutdown can be slow" + "Task status can lag"](https://code.claude.com/docs/en/agent-teams.md)
+- [plugins-reference.md — Monitor mechanism](https://code.claude.com/docs/en/plugins-reference.md)
+
+## [2.59.0] — 2026-04-19
+
+### Added — Iron Law ARC-QA-002 artifact-mtime self-heal (plan AC-4 ships)
+
+Closes the QA-notification race where the Stop hook advanced past `work_qa`
+while the verifier was still initializing. Symptom (image-attached report):
+`qa-work-verifier completed at 08:02:43Z with FAIL verdict (score=0)` — but
+the pipeline had already moved on to `drift_review`, `gap_analysis`, etc.
+The FAIL verdict landed as a ghost record on disk; `MAX_QA_RETRIES=2`
+revert-to-pending never fired because `_phase_find_next` saw `work_qa` as
+`in_progress` (not `pending`) and picked the next pending phase instead.
+
+**New helper**: `plugins/rune/scripts/lib/arc-phase-self-heal.sh` implements
+`_arc_phase_self_heal(ckpt_json, arc_dir, arc_id, ckpt_path)`. For every
+`phases[*].status == "in_progress"` entry it:
+  1. Looks up the expected artifact path (QA phases → `tmp/arc/{id}/qa/{parent}-verdict.json`)
+  2. Verifies the file exists and parses as a JSON object (rejects truncated mid-write)
+  3. Confirms mtime > `started_at` (defeats pre-existing files from prior runs — ARC-QA-001)
+  4. Flips status to `completed` with `self_healed: true`, `self_heal_reason`, `artifact`, `completed_at`
+  5. Appends a `self_heal_log[]` entry for operator audit
+  6. Writes the updated checkpoint atomically (tmp + mv)
+
+**Wiring**: `arc-phase-stop-hook.sh` sources the helper and calls it
+before the inline PHASE_ORDER scan (arc-phase-stop-hook.sh:959-989 —
+there is no `_phase_find_next` function; the scan is inline code).
+The mutated `CKPT_CONTENT` is reused by the existing jq scanner, which
+now sees `work_qa` as `completed` and `qa-gate-check.sh` reads the late
+verdict to drive the retry loop.
+
+**Known ordering caveat**: self-heal runs AFTER the demotion (L823-876)
+and auto-skip (L885-940) blocks. If a QA phase's status were ever flipped
+to `skipped` by auto-skip before self-heal inspects it, the late verdict
+would be lost. Current skip_map only covers phases computed at init, so
+QA phases are not at risk today — but future changes to skip_map should
+preserve this invariant OR extend self-heal to also inspect `skipped`
+phases lacking `self_heal_reason`. (Finding VEIL-001 from review
+`c1a9714-018c647e`, deferred for a follow-up release.)
+
+**Scope**: QA phases only (v1): `forge_qa`, `work_qa`, `gap_analysis_qa`,
+`code_review_qa`, `mend_qa`, `test_qa`, `design_verification_qa`. Non-QA
+phase self-heal (sentinel discovery in `.done/*.done`) is future work.
+
+**Fail-forward**: any internal error (missing jq, bad arc_id, malformed
+checkpoint, unwritable disk) returns the original checkpoint unchanged.
+Iron Law ARC-QA-001 LLM-mediated 3-check remains the outer safety net.
+
+**Test**: `plugins/rune/scripts/tests/test-stop-hook-artifact-self-heal.sh`
+covers happy-path heal, stale artifact refusal, malformed JSON refusal,
+non-QA scope guard, SEC arc_id validation — 9/9 PASS.
+
+### Changed
+
+- `plugins/rune/CLAUDE.md` rule #17 — ARC-QA-002 reclassified from
+  `(PLANNED, not yet shipped)` to live, with v1 scope explicit.
+
+### Fixed — Resolves 10 findings from audit `20260419-150325` (commit c1a9714)
+
+Follow-up to the v2.59.0 feature ship. The post-ship audit surfaced 10 findings
+across the hook/lib surface. Each fix is scoped, fail-forward, and landed in
+one commit. Files touched:
+
+- `plugins/rune/scripts/arc-heartbeat-writer.sh` — COMPAT-002: trace log path PID scope.
+- `plugins/rune/scripts/arc-phase-stop-hook.sh` — audit cleanups.
+- `plugins/rune/scripts/detect-stale-lead.sh` — FLAW-005/BACK-007: session-id ownership + arc-loop defer.
+- `plugins/rune/scripts/detect-workflow-complete.sh` — ORPHAN TOCTOU + trace log allowlist.
+- `plugins/rune/scripts/enforce-bash-timeout.sh` — active-workflow probe hardening.
+- `plugins/rune/scripts/enforce-gh-account.sh` — ENF-001: POSIX `[[:space:]]` in gate regex.
+- `plugins/rune/scripts/lib/arc-phase-self-heal.sh` — shipped in this release.
+- `plugins/rune/scripts/lib/stop-failure-common.sh` — STOP-003: `local_dir` → `_lib_dir` naming.
+- `plugins/rune/scripts/monitor-stale-teammates.sh` — MON-001..005: session isolation + liveness probe.
+- `plugins/rune/scripts/resolve-session-identity.sh` — XVER-SEC-001: safer cache read.
+- `plugins/rune/scripts/validate-shutdown-pattern.sh` — 5-component coverage expansion.
+- `plugins/rune/scripts/verify-team-cleanup.sh` — TEAM-002: include `goldmask-*` prefix.
+- `plugins/rune/scripts/tests/test-stop-hook-artifact-self-heal.sh` (new) — 9/9 assertions.
+- `plugins/rune/scripts/tests/test-stop-hook-self-heal.sh` — v2.54.0 state-file heal scope note.
+- `plugins/rune/CLAUDE.md` — hook table + Iron Law reclassification follow-ups.
+
+Also in this release: 15 findings from review `c1a9714-018c647e` applied
+(SEC hardening, style consistency, guard additions, doc accuracy). See
+the resolution report at `tmp/mend/c1a9714-018c647e/resolution-report.md`.
+
 ## [2.58.2] — 2026-04-19
 
 ### Fixed — phantom Iron Law reference + AC-3/AC-5 gap closure (inspect verdict 69e43496)

@@ -53,17 +53,32 @@ command_str=$(printf '%s\n' "$input" | jq -r '(.tool_input.command // .toolInput
 # Fast-path: skip if command doesn't involve gh or git push
 # This grep runs in <1ms for non-matching commands
 # SEC-002 FIX: Use printf instead of echo to avoid backslash expansion
-if ! printf '%s\n' "$command_str" | grep -qE '(^|\s|;|&&|\|\|)(gh\s+(pr|issue|api|repo)|git\s+push)'; then
+# ENF-001 FIX (audit 20260419-150325): BSD grep with -E does not support `\s`
+# (GNU ERE extension). On stock macOS (no coreutils) the `\s` atom silently
+# failed to match whitespace, so the fast-path regex never matched any command
+# and gh account resolution never fired. Use POSIX `[[:space:]]` which works
+# on both BSD and GNU grep — aligns with the rest of the enforcer set.
+# (VEIL-009 comment refinement from review c1a9714-018c647e.)
+if ! printf '%s\n' "$command_str" | grep -qE '(^|[[:space:]]|;|&&|\|\|)(gh[[:space:]]+(pr|issue|api|repo)|git[[:space:]]+push)'; then
   exit 0
 fi
 
 # Skip gh auth commands themselves (avoid infinite loop)
-if printf '%s\n' "$command_str" | grep -qE '(^|\s)gh\s+auth\s+(login|switch|status|setup-git)'; then
+if printf '%s\n' "$command_str" | grep -qE '(^|[[:space:]])gh[[:space:]]+auth[[:space:]]+(login|switch|status|setup-git)'; then
   exit 0
 fi
 
+# SEC-003 FIX (review c1a9714-018c647e): sanitize the session-id component of
+# the debounce marker path. Mirror the validator in resolve-session-identity.sh:125-129
+# (charset [a-zA-Z0-9_-], max 64 chars). On validation failure, fall back to PPID.
+_safe_sid="${CLAUDE_SESSION_ID:-${PPID:-unknown}}"
+if [[ -n "$_safe_sid" && "$_safe_sid" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+  _safe_sid="${_safe_sid:0:64}"
+else
+  _safe_sid="${PPID:-unknown}"
+fi
 # Debounce: only resolve once per session (write marker on success)
-DEBOUNCE_MARKER="${TMPDIR:-/tmp}/rune-gh-account-resolved-${CLAUDE_SESSION_ID:-${PPID:-unknown}}"
+DEBOUNCE_MARKER="${TMPDIR:-/tmp}/rune-gh-account-resolved-${_safe_sid}"
 # SEC-004 FIX: Reject symlink before reading debounce marker (TOCTOU mitigation)
 if [[ -f "$DEBOUNCE_MARKER" && ! -L "$DEBOUNCE_MARKER" ]]; then
   # Already resolved this session — check if marker is fresh (< 30 min)
