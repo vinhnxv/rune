@@ -1,5 +1,35 @@
 # Changelog
 
+## [2.57.2] — 2026-04-19
+
+### Fixed — stale-teammate monitor blocks arc phase advance (MON-STALE-001)
+
+**Symptom**: During an arc run, after a phase completed (e.g., Phase 2 plan_review),
+the UI showed "Churned for Nm Xs · 1 monitor still running" and the Stop hook could
+not advance to the next phase (e.g., Phase 2.5 plan_refine). The `stale-teammate-watcher`
+plugin monitor had `Runtime: 19m+` with `Output: No output available` and never exited.
+
+**Root cause**: `scripts/monitor-stale-teammates.sh` self-terminates when
+`has_active_workflow()` returns false for 2 consecutive cycles (~60s). The function
+checked BOTH `tmp/.rune-signals/{team}/` directories AND any `tmp/.rune-*.json` state
+files. The second check was too broad: stale state files from prior sessions (audit,
+review, mend, goldmask) linger in `tmp/` and make the function always return true,
+so the `while true` loop never exited. Claude Code treated the still-running monitor
+as "work in progress" and blocked the Stop hook from firing → arc phase loop stuck.
+
+**Fix — narrow the scope to team signals only**:
+
+- `scripts/monitor-stale-teammates.sh`: removed `state_files_root()` helper and the
+  `ls "$state_dir"/.rune-*.json` check inside `has_active_workflow()`. The monitor
+  now exits after ~60s of no active team signal directories, regardless of unrelated
+  state file residue. This matches the actual scope of the monitor — stale TEAMMATES
+  can only exist inside active teams, so no-teams means no work for this monitor.
+- Added inline comment documenting the deliberate scope narrowing for future readers.
+
+**Workaround (pre-upgrade)**: Set `process_management.monitors.enabled: false` in
+`.rune/talisman.yml` and restart the session. The `detect-stale-lead.sh` Stop hook
+covers stale detection without the monitor.
+
 ## [2.57.1] — 2026-04-19
 
 ### Fixed — QA gate silent-exit on legacy verdict schema (QA-VRD-001)

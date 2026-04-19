@@ -29,31 +29,24 @@ signals_root() {
   printf '%s/tmp/.rune-signals' "$PROJECT_DIR"
 }
 
-state_files_root() {
-  printf '%s/tmp' "$PROJECT_DIR"
-}
-
 sentinel_ok() {
   printf '%s/tmp/.rune-monitor-available' "$PROJECT_DIR"
 }
 
-# fast-path exit — no Rune workflow signals
+# fast-path exit — no Rune team signals.
+# Scope: this monitor tracks stale TEAMMATES, which only exist inside an active team.
+# We intentionally do NOT check `tmp/.rune-*.json` state files — those persist across
+# arc phases and leak from prior sessions, causing the watcher to loop forever and
+# block the Stop hook from advancing the phase loop (see v2.57.2 bug fix).
 has_active_workflow() {
   local sigs_dir
   sigs_dir="$(signals_root)"
-  local state_dir
-  state_dir="$(state_files_root)"
 
   # Any team signal dir present?
   if [[ -d "$sigs_dir" ]]; then
     if find "$sigs_dir" -maxdepth 1 -mindepth 1 -type d -print -quit 2>/dev/null | grep -q .; then
       return 0
     fi
-  fi
-
-  # Any Rune state file present?
-  if ls "$state_dir"/.rune-*.json >/dev/null 2>&1; then
-    return 0
   fi
 
   return 1
