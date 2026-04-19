@@ -1,6 +1,17 @@
 #!/usr/bin/env bash
 # test-stop-hook-self-heal.sh (AC-2 positive)
 #
+# SCOPE NOTE (v2.58.1+): This test covers the v2.54.0 "state-file self-heal"
+# feature (GUARD 4 in arc-phase-stop-hook.sh) — recreating the phase-loop
+# state file when an owned checkpoint exists but the state file is absent.
+# Corresponds to the arc state-file canary plan's AC-2.
+#
+# This test does NOT cover the artifact-mtime self-heal described in
+# `plans/2026-04-19-fix-arc-qa-notification-race-plan.md` AC-4 (Iron Law
+# ARC-QA-002). That feature is not yet implemented — the helper
+# `scripts/lib/arc-phase-self-heal.sh` does not exist. When AC-4 lands, add
+# a separate test file named `test-stop-hook-artifact-self-heal.sh`.
+#
 # Scenario: owned checkpoint present, state file absent. Stop hook GUARD 4
 # self-heals by calling rune-arc-init-state.sh create --source hook --force
 # and replays itself via exec to resume the arc loop.

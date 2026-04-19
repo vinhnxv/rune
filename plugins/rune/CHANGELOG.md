@@ -1,5 +1,48 @@
 # Changelog
 
+## [2.58.2] — 2026-04-19
+
+### Fixed — phantom Iron Law reference + AC-3/AC-5 gap closure (inspect verdict 69e43496)
+
+Follow-up hotfix after `/rune:inspect` audit of the v2.58.0 durable-first completion detection
+plan (`plans/2026-04-19-fix-arc-qa-notification-race-plan.md`). Verdict: READY_PARTIAL (78%).
+
+**GRC-01 (P1) — Iron Law ARC-QA-002 phantom reference**: rule #17 in `plugins/rune/CLAUDE.md`
+claimed `scripts/lib/arc-phase-self-heal.sh` exists and runs automatically inside
+`_phase_find_next()`. Reality: the file was deferred in v2.58.0 but the Iron Law shipped as
+if it were live. Because CLAUDE.md is globally loaded on every Rune session, this propagated
+a false factual claim into every agent's reasoning chain. Rewrote the rule as
+`(PLANNED, not yet shipped)` with explicit reference to the plan's AC-4 follow-up. Also
+revised rule #16's "escalation when genuinely uncertain" clause — previously told Tarnished
+to "rely on the stop-hook self-heal" which does not exist; now correctly routes uncertainty
+back through the next Stop-hook fire of Iron Law ARC-QA-001's 3-check protocol, gated by
+`arc.max_infra_global_retries`.
+
+**VIG-02 (P2) — AC-3 test coverage**: added `plugins/rune/scripts/tests/test-count-completed-agents.sh`
+validating the filesystem-level invariants of `countCompletedAgents()` (sentinel glob layout,
+3-signal fusion via Math.max, sentinel durability across team deletion, backward-compat when
+arcId absent).
+
+**VIG-03 (P3) — AC-5 talisman schema**: added `arc.completion_detection` documentation to
+`plugins/rune/skills/talisman/references/talisman-sections.md` with schema, key-field table,
+consumers, and backward-compat note. `heal_on_mismatch` flag explicitly marked PLANNED (AC-4).
+
+**DOC-01 (P2) — misleading test name**: added scope-note header to
+`scripts/tests/test-stop-hook-self-heal.sh` clarifying it tests v2.54.0 state-file self-heal
+(GUARD 4), not AC-4 artifact-mtime self-heal. Recommended follow-up test name:
+`test-stop-hook-artifact-self-heal.sh` when AC-4 lands.
+
+**DOC-02 (P3) — CHANGELOG callout**: added note to v2.58.0 entry warning readers that Iron
+Law ARC-QA-002 is aspirational until AC-4 ships.
+
+Files changed (5): `plugins/rune/CLAUDE.md`, `plugins/rune/CHANGELOG.md`,
+`plugins/rune/scripts/tests/test-stop-hook-self-heal.sh`,
+`plugins/rune/scripts/tests/test-count-completed-agents.sh` (new),
+`plugins/rune/skills/talisman/references/talisman-sections.md`.
+
+AC-4 (`scripts/lib/arc-phase-self-heal.sh` + `_phase_find_next()` wiring) remains deferred
+for a future release — still tracked in the original plan.
+
 ## [2.58.1] — 2026-04-19
 
 ### Fixed — session_id precedence mismatch in arc state writer (BACK-IDN-004)
@@ -57,6 +100,12 @@ spawn prompts.
 **Deferred to follow-up** (tracked as Layer 3 / L5 in the plan):
 - `scripts/lib/arc-phase-self-heal.sh` shell helper + `_phase_find_next()` wiring (AC-4, SHOULD)
 - `talisman.yml arc.completion_detection` schema docs (AC-5, SHOULD)
+
+> **Note**: Iron Law ARC-QA-002 (Core Rule #17 in `plugins/rune/CLAUDE.md`) is tagged
+> `(PLANNED, not yet shipped)` in v2.58.1 to reflect that the self-heal helper and
+> `_phase_find_next()` wiring have not landed yet. Until AC-4 ships, automatic recovery
+> from `in_progress` phases with on-disk artifacts relies on Iron Law ARC-QA-001 (the
+> LLM-mediated 3-check protocol), not the stop hook.
 
 Files changed (7): `plugins/rune/CLAUDE.md`, `plugins/rune/skills/roundtable-circle/references/monitor-utility.md`, `plugins/rune/skills/arc/references/arc-phase-qa-gate.md`, `plugins/rune/skills/arc/references/arc-phase-inspect.md`, `plugins/rune/skills/arc/references/arc-phase-code-review.md`, `plugins/rune/skills/arc/references/arc-phase-goldmask-verification.md`, `plugins/rune/skills/arc/references/arc-phase-mend.md`. 179 insertions, 0 deletions, fully additive.
 

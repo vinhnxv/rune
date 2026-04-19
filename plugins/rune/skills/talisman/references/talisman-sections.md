@@ -65,6 +65,41 @@ These sections affect core workflow correctness:
 **Impact**: Per-phase timeout controls for arc pipeline.
 **Must have**: All 24 phase timeout entries for predictable behavior.
 
+### `arc.completion_detection` (v2.58.0+)
+**Impact**: Controls how the arc leader decides "agent done" — durable filesystem signals vs ephemeral SDK-layer signals. Addresses the notification race where agents write verdicts to disk but `SendMessage` delivery drops silently, leaving phases stuck in `in_progress`. See plan `plans/2026-04-19-fix-arc-qa-notification-race-plan.md`.
+
+**Schema**:
+```yaml
+arc:
+  completion_detection:
+    primary: filesystem           # filesystem | task_list — which signal source wins a conflict
+    signal_sources:               # ordered priority list; any one reaching expectedCount = success
+      - sentinel                  # tmp/arc/{id}/.done/*.done (durable, highest priority)
+      - artifact                  # phase-specific known files (durable)
+      - team_signal               # tmp/.rune-signals/{team}/*.done (ephemeral fast-path)
+      - task_list                 # SDK TaskList (legacy)
+    poll_interval_ms: 15000       # waitForCompletion cycle interval
+    heal_on_mismatch: true        # [PLANNED — AC-4] stop hook auto-heals in_progress phases with fresh artifact
+    iron_law_verify_before_skip: strict   # strict | warn | disabled — enforcement mode for ARC-QA-001
+```
+
+**Key fields**:
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `primary` | string | `filesystem` | Authoritative source when signals disagree. `filesystem` = artifacts win; `task_list` = SDK state wins (legacy) |
+| `signal_sources` | list | `[sentinel, artifact, team_signal, task_list]` | Ordered priority list. Consumed by `countCompletedAgents()` in `monitor-utility.md` |
+| `poll_interval_ms` | int | `15000` | Milliseconds between `waitForCompletion` cycles |
+| `heal_on_mismatch` | bool | `true` | **PLANNED (AC-4)** — gates the stop-hook artifact-mtime self-heal. When the helper `scripts/lib/arc-phase-self-heal.sh` ships, this flag will gate its activation |
+| `iron_law_verify_before_skip` | string | `strict` | Enforcement mode for Iron Law ARC-QA-001. `strict` = refuse to skip when artifacts exist; `warn` = log warning but allow; `disabled` = no check |
+
+**Consumers**:
+- `plugins/rune/skills/roundtable-circle/references/monitor-utility.md` — `countCompletedAgents()` 3-signal fusion
+- `plugins/rune/CLAUDE.md` — Core Rules 16/17 (Iron Laws ARC-QA-001/002)
+- `plugins/rune/skills/arc/references/arc-phase-qa-gate.md` et al. — Completion Contract prompts
+
+**Backward compat**: All fields are optional. Defaults match v2.58.0 behaviour (filesystem-primary, all sources enabled, strict iron law). Existing arc runs without this section continue unchanged.
+
 ### `stack_awareness.priority` (v1.178.0+)
 **Impact**: Boosts MCP-discovered agent scores for specified languages/frameworks during agent discovery.
 **Key fields**:
