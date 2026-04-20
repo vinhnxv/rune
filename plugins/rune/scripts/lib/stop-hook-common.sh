@@ -857,6 +857,20 @@ for k in d.dups:
   fi
 
   # ── CKPT-INT-008: Field type enforcement for arc_id, phases, overall_status, current_phase ──
+  #
+  # BACK-002 (v2.63.0): arc_id is INTENTIONALLY optional, hence the `!= "absent"`
+  # whitelist below. Real checkpoints identify themselves via `.id` (see any
+  # .rune/arc/*/checkpoint.json), and `arc_id` is only populated in derived
+  # artefacts — arc-result-current.json signal (scripts/arc-result-signal-writer.sh:138)
+  # and heartbeat.json (scripts/arc-heartbeat-writer.sh:146). No downstream
+  # consumer reads `.arc_id` from checkpoint.json as a lock filename or other
+  # identity-bearing path, so absence does NOT produce the speculative
+  # `tmp/arcs/.lock` collision. If a future change adopts `.arc_id` as a
+  # load-bearing checkpoint field, this guard must be tightened at that time
+  # along with a migration for existing checkpoint files.
+  #
+  # The asymmetry between arc_id (optional) and overall_status/current_phase
+  # (required) reflects load-bearing status in the current schema.
   local _arc_id_type _phases_type _overall_status _current_phase
   _arc_id_type=$(jq -r 'if has("arc_id") then (.arc_id | type) else "absent" end' "$ckpt_path" 2>/dev/null || echo "absent")
   _phases_type=$(jq -r 'if has("phases") then (.phases | type) else "absent" end' "$ckpt_path" 2>/dev/null || echo "absent")

@@ -226,9 +226,18 @@ rune_reject_symlink_path() {
 
   # Resolve to absolute for the symlink walk (reject_symlink_deep accepts both,
   # but an absolute path gives a more useful walk across parent dirs).
+  #
+  # BACK-006 (v2.63.0): CWD is NOT a POSIX-standard variable (the shell
+  # exports PWD; CWD is a Claude Code convention passed via hook input).
+  # In any hook context where CWD is unset, the prior `"${CWD}/${path}"`
+  # expanded to `/${path}` — a relative `src/config` would become
+  # `/src/config`, resolving under filesystem root and silently escaping
+  # the symlink guard's intended allowlist scope. The fallback chain
+  # CWD → PWD → pwd(1) always yields a real working directory.
+  local cwd_safe="${CWD:-${PWD:-$(pwd 2>/dev/null)}}"
   local abs_path="$path_to_check"
   if [[ "$abs_path" != /* ]]; then
-    abs_path="${CWD}/${abs_path}"
+    abs_path="${cwd_safe}/${abs_path}"
   fi
 
   if command -v reject_symlink_deep &>/dev/null; then

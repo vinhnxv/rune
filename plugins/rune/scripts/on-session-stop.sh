@@ -244,8 +244,11 @@ _check_loop_ownership() {
   # LEGACY_PPID_FALLBACK is false (the default), we cannot reliably determine
   # ownership via $PPID — hook context $PPID is the hook runner subprocess, not
   # the Claude Code process. Return 1 (not owned) to skip cleanup.
+  # DOC-002 (v2.63.0): trace prefix is `SKIP <state_file>:` for greppable
+  # parity with scripts/detect-workflow-complete.sh:379. Operators filtering
+  # AC-13 diagnostics by `grep SKIP` must see both hooks.
   if [[ -z "$sid" && "${LEGACY_PPID_FALLBACK:-false}" != "true" ]]; then
-    _trace "_check_loop_ownership: no session_id, legacy_ppid_fallback=false — skipping PPID check (AC-13)"
+    _trace "SKIP $state_file: no session_id, legacy_ppid_fallback=false (AC-13)"
     return 1
   fi
   # Fallback: PID check (for state files without session_id, legacy_ppid_fallback=true only)

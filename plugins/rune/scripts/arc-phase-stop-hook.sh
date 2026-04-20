@@ -149,6 +149,12 @@ if [[ ! -f "$STATE_FILE" ]]; then
   # post-arc prompt has already been emitted and the operator completed the
   # mandatory steps; re-injecting it on every Stop event is a pipeline bug.
   # Silent exit instead — the arc is done, nothing left to drive.
+  #
+  # BACK-003 (v2.63.0): When jq is absent the guard cannot inspect the
+  # checkpoint; we continue to self-heal (existing behaviour) but emit a
+  # loud trace warning so operators can spot v2.62.1 regressions in minimal
+  # images. Fail-forward rather than fail-closed here because a missing jq
+  # in the self-heal path would otherwise brick stop-hook progress.
   if command -v jq >/dev/null 2>&1; then
     _TCP_COMPLETED=$(jq -r '.completed_at // empty' "$_OWNED_CP" 2>/dev/null | tr -d '\r')
     _TCP_NON_TERMINAL=$(jq -r '[.phases[]? | select(.status == "pending" or .status == "in_progress")] | length' "$_OWNED_CP" 2>/dev/null | tr -d '\r')
@@ -157,6 +163,8 @@ if [[ ! -f "$STATE_FILE" ]]; then
       _trace "EXIT: owned checkpoint is terminal (completed_at=${_TCP_COMPLETED}) — silent exit, no self-heal"
       exit 0
     fi
+  else
+    _trace "WARN: jq absent — terminal-checkpoint guard degraded (v2.62.1 regression risk: post-arc prompt may re-inject). Install jq to restore guard."
   fi
   export RUNE_STOP_HOOK_SELF_HEAL_ATTEMPTED=1
   _trace "SELF-HEAL: missing state file + owned checkpoint ${_OWNED_CP} — recreating"
@@ -823,20 +831,57 @@ ${line}"
 }
 
 # AC-11: Strip prompt-injection vectors from user-controlled content before embedding
-# in stop-hook phase prompts. Targets markdown code fences, HTML comments,
-# ANCHOR/RE-ANCHOR directives (Truthbinding markers), and zero-width characters.
+# in stop-hook phase prompts. Targets markdown code fence BLOCKS (multi-line),
+# HTML comments, ANCHOR/RE-ANCHOR directives (Truthbinding markers, including
+# indented ones), and zero-width characters (UTF-8-aware).
+#
+# Fail-closed: if any pipeline stage fails, the command substitution captures
+# empty stdout, which cascades to an empty return. The embed gate's
+# `[[ -n "$content" ]]` then drops the injection silently — never re-emits raw
+# attacker input. No `|| printf '%s' "$content"` fallback is used.
+#
+# Defects this version fixes (v2.63.0):
+#   SEC-001: `tr -d '\u200b\ufeff'` is byte-oriented and deletes ASCII
+#            u/f/2/0/b/e while leaving real U+200B/U+FEFF bytes intact. Use
+#            LC_ALL=C sed with explicit UTF-8 byte sequences (BSD+GNU safe).
+#   SEC-002: `sed 's/\`\`\`[^\`]*//g'` is line-based — multi-line fence
+#            payloads survive. Use awk fence-toggle to strip whole blocks.
+#   SEC-003: `|| printf '%s' "$content"` re-emits raw content on any pipeline
+#            error. Drop the fallback so failure produces empty instead.
+#   SEC-004: `grep -v '^<!-- ANCHOR:'` anchors at column 0 only — indented
+#            directives bypass. Broaden to `^[[:space:]]*`.
 _sanitize_prompt_content() {
   local content="$1"
   local max_len=2000
-  # Strip markdown code fences (``` ... ``` blocks — single-line and bare fence markers)
-  content=$(printf '%s' "$content" | sed 's/```[^`]*//g' 2>/dev/null || printf '%s' "$content")
-  # Strip HTML comments (<!-- ... -->); use tr to handle embedded newlines
-  content=$(printf '%s' "$content" | tr '\n' '\r' | sed 's/<!--[^>]*-->//g' | tr '\r' '\n' 2>/dev/null || printf '%s' "$content")
-  # Strip ANCHOR and RE-ANCHOR Truthbinding directives
-  content=$(printf '%s' "$content" | grep -v '^<!-- ANCHOR:' | grep -v '^<!-- RE-ANCHOR:' | grep -v '^# ANCHOR:' | grep -v '^# RE-ANCHOR:' 2>/dev/null || printf '%s' "$content")
-  # Strip zero-width characters (U+200B zero-width space, U+FEFF BOM)
-  content=$(printf '%s' "$content" | tr -d '\u200b\ufeff' 2>/dev/null || printf '%s' "$content")
-  # Cap at max_len characters
+  [[ -z "$content" ]] && return 0
+
+  # Stage 1 — Strip markdown code fence BLOCKS (multi-line).
+  # awk toggles `flag` on every line containing ```; lines inside a fence
+  # (flag=1) and the fence markers themselves are dropped via `next`.
+  content=$(printf '%s' "$content" | awk '/```/{flag=!flag; next} !flag')
+  [[ -z "$content" ]] && return 0
+
+  # Stage 2 — Strip HTML comments (<!-- ... -->) across newlines.
+  # Flatten \n → \r for sed line-scope expansion, then unflatten.
+  content=$(printf '%s' "$content" | tr '\n' '\r' | sed 's/<!--[^>]*-->//g' | tr '\r' '\n')
+  [[ -z "$content" ]] && return 0
+
+  # Stage 3 — Strip ANCHOR / RE-ANCHOR Truthbinding directives.
+  # SEC-004 fix: allow optional leading whitespace. Covers both HTML-comment
+  # form (`<!-- ANCHOR: ... -->`) and shell-comment form (`# ANCHOR: ...`).
+  content=$(printf '%s' "$content" \
+    | grep -Ev '^[[:space:]]*<!--[[:space:]]*(RE-)?ANCHOR:' \
+    | grep -Ev '^[[:space:]]*#[[:space:]]*(RE-)?ANCHOR:')
+  [[ -z "$content" ]] && return 0
+
+  # Stage 4 — Strip zero-width characters (U+200B ZERO WIDTH SPACE and
+  # U+FEFF BOM). LC_ALL=C forces byte-locale so sed matches the exact
+  # UTF-8 byte sequences. ANSI-C quoting (\xe2\x80\x8b, \xef\xbb\xbf)
+  # works on BSD and GNU sed.
+  content=$(printf '%s' "$content" | LC_ALL=C sed $'s/\xe2\x80\x8b//g; s/\xef\xbb\xbf//g')
+
+  # Stage 5 — Cap at max_len characters. Paired with the embed gate at the
+  # _rem_ctx / _meta_qa_echoes callsites (which uses `-le 2000` per BACK-004).
   if [[ "${#content}" -gt "$max_len" ]]; then
     content="${content:0:${max_len}}"
   fi
@@ -2482,6 +2527,13 @@ _rem_ctx=""
 if [[ -n "${NEXT_PHASE:-}" ]]; then
   _rem_ctx=$(echo "$CKPT_CONTENT" | jq -r --arg p "$NEXT_PHASE" '.phases[$p].remediation_context // empty' 2>/dev/null) || _rem_ctx=""
 fi
+# QUAL-004: _rem_ctx is user-controlled checkpoint content (same trust boundary
+# as _meta_qa_echoes below). AC-11 sanitizer must apply here too, otherwise a
+# remediation_context field carrying injection vectors reaches the re-dispatched
+# prompt verbatim and defeats the scope-narrow sanitizer guarantee.
+if [[ -n "$_rem_ctx" ]]; then
+  _rem_ctx=$(_sanitize_prompt_content "$_rem_ctx")
+fi
 if [[ -n "$_rem_ctx" ]]; then
   PHASE_PROMPT="${PHASE_PROMPT}
 
@@ -2558,7 +2610,11 @@ if [[ -f "$_mqa_file" && ! -L "$_mqa_file" ]]; then
 fi
 # AC-11: Sanitize before embedding — _meta_qa_echoes is user-controlled filesystem content.
 _meta_qa_echoes=$(_sanitize_prompt_content "$_meta_qa_echoes")
-if [[ -n "$_meta_qa_echoes" ]] && [[ "${#_meta_qa_echoes}" -lt 2000 ]]; then
+# BACK-004: Align boundary with sanitizer's truncate-at-2000 semantics.
+# Sanitizer: `-gt 2000 → truncate to 2000` (result length ≤ 2000).
+# Embed gate must accept exactly-2000 — otherwise truncated-to-max content is
+# silently dropped. Using -le here matches the sanitizer's upper bound.
+if [[ -n "$_meta_qa_echoes" ]] && [[ "${#_meta_qa_echoes}" -le 2000 ]]; then
   PHASE_PROMPT="${PHASE_PROMPT}
 
 ## Meta-QA Warnings (from self-audit)

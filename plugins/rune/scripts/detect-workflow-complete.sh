@@ -315,8 +315,19 @@ fi
 # AC-13: Read legacy_ppid_fallback from talisman-resolved misc shard.
 # Default false — PPID-based ownership checks are unreliable in hook context because
 # $PPID is the hook runner subprocess PID, not the Claude Code process PID.
+#
+# PAT-001 (v2.63.0): path uses ${CLAUDE_PROJECT_DIR:-.} to match the sibling
+# AC-13 gate in scripts/on-session-stop.sh:91. Prior drift (${CWD}/tmp/...)
+# silently missed the shard when CWD resolution diverged from
+# CLAUDE_PROJECT_DIR in mixed environments, defaulting LEGACY_PPID_FALLBACK
+# to false and producing asymmetric behaviour between the two hooks that
+# both participate in the AC-13 decision. Also matches L60 above
+# (auto_cleanup shard path) — all three shard reads now share one convention.
+# DOC-003 (v2.63.0): rationale is maintained in parallel with
+# scripts/on-session-stop.sh:242-246. Keep both files in lockstep on any
+# change to the AC-13 predicate OR its skip-trace prefix (DOC-002).
 LEGACY_PPID_FALLBACK=false
-_talisman_misc="${CWD}/tmp/.talisman-resolved/misc.json"
+_talisman_misc="${CLAUDE_PROJECT_DIR:-.}/tmp/.talisman-resolved/misc.json"
 if [[ -f "$_talisman_misc" && ! -L "$_talisman_misc" ]]; then
   _legppid=$(jq -r '.process_management.legacy_ppid_fallback // empty' "$_talisman_misc" 2>/dev/null || true)
   [[ "$_legppid" == "true" ]] && LEGACY_PPID_FALLBACK=true
