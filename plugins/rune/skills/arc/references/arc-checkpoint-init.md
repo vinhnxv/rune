@@ -1,10 +1,10 @@
 # Initialize Checkpoint (ARC-2) — Full Algorithm
 
 Checkpoint initialization: config resolution (3-layer), session identity,
-checkpoint schema v28 creation, skip map computation, and initial state write.
+checkpoint schema v30 creation, skip map computation, and initial state write.
 
 **Inputs**: plan path, talisman config, arc arguments, `freshnessResult` from Freshness Check
-**Outputs**: checkpoint object (schema v28), resolved arc config (`arcConfig`), pre-computed `skip_map`
+**Outputs**: checkpoint object (schema v30), resolved arc config (`arcConfig`), pre-computed `skip_map`
 **Error handling**: Fail arc if plan file missing or config invalid
 **Consumers**: SKILL.md checkpoint-init stub, resume logic in [arc-resume.md](arc-resume.md)
 
@@ -453,7 +453,7 @@ const parentPlanMeta = {
 const checkpointPath = `.rune/arc/${id}/checkpoint.json`
 Bash(`mkdir -p ".rune/arc/${id}"`)
 Write(checkpointPath, {
-  id, schema_version: 29, plan_file: planFile,
+  id, schema_version: 30, plan_file: planFile,
   config_dir: configDir, owner_pid: ownerPid, session_id: "${CLAUDE_SESSION_ID}" || Bash(`echo "\${RUNE_SESSION_ID:-}"`).trim(),
   // RUIN-003 FIX: Remove redundant ?? guards — Layer 2 resolveArcConfig() already guarantees all values are defined
   flags: { approve: arcConfig.approve, no_forge: arcConfig.no_forge, skip_freshness: arcConfig.skip_freshness, confirm: arcConfig.confirm, no_test: arcConfig.no_test, no_browser_test: arcConfig.no_browser_test, accept_external_changes: arcConfig.accept_external_changes, bot_review: arcConfig.bot_review, no_bot_review: arcConfig.no_bot_review, step_groups: arcConfig.step_groups },
@@ -461,6 +461,13 @@ Write(checkpointPath, {
   pr_url: null,
   freshness: freshnessResult || null,
   session_nonce: sessionNonce, phase_sequence: 0,
+  // Schema v30 addition (v2.64.1): CKPT-INT-008 required fields.
+  // Validator at scripts/lib/stop-hook-common.sh:885-886 rejects checkpoints
+  // missing either field — GUARD 8.5 halts the arc with a CKPT-INTEG FAIL trace line.
+  // current_phase is the canonical "what runs next" pointer, seeded to PHASE_ORDER[0].
+  // overall_status is the arc-level lifecycle marker ("in_progress" → "completed" at merge).
+  overall_status: "in_progress",
+  current_phase: "forge",
   // Schema v14 addition (v1.79.0): parent_plan metadata for hierarchical execution
   parent_plan: parentPlanMeta,
   // Schema v15 addition (v1.80.0): stagnation sentinel state — error patterns, file velocity, budget
