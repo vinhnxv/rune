@@ -143,6 +143,21 @@ if [[ ! -f "$STATE_FILE" ]]; then
     _trace "EXIT: no owned checkpoint — silent exit (cross-session safety)"
     exit 0
   fi
+  # ── TERMINAL-CHECKPOINT GUARD (v2.62.1) ──
+  # If the owned checkpoint has reached terminal state (completed_at stamped,
+  # zero pending/in_progress phases), do NOT self-heal the state file. The
+  # post-arc prompt has already been emitted and the operator completed the
+  # mandatory steps; re-injecting it on every Stop event is a pipeline bug.
+  # Silent exit instead — the arc is done, nothing left to drive.
+  if command -v jq >/dev/null 2>&1; then
+    _TCP_COMPLETED=$(jq -r '.completed_at // empty' "$_OWNED_CP" 2>/dev/null | tr -d '\r')
+    _TCP_NON_TERMINAL=$(jq -r '[.phases[]? | select(.status == "pending" or .status == "in_progress")] | length' "$_OWNED_CP" 2>/dev/null | tr -d '\r')
+    case "$_TCP_NON_TERMINAL" in ''|*[!0-9]*) _TCP_NON_TERMINAL=0 ;; esac
+    if [[ -n "$_TCP_COMPLETED" ]] && [[ "$_TCP_NON_TERMINAL" == "0" ]]; then
+      _trace "EXIT: owned checkpoint is terminal (completed_at=${_TCP_COMPLETED}) — silent exit, no self-heal"
+      exit 0
+    fi
+  fi
   export RUNE_STOP_HOOK_SELF_HEAL_ATTEMPTED=1
   _trace "SELF-HEAL: missing state file + owned checkpoint ${_OWNED_CP} — recreating"
   bash "${SCRIPT_DIR}/rune-arc-init-state.sh" create --source hook --force 2>/dev/null || {

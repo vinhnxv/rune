@@ -1,5 +1,68 @@
 # Changelog
 
+## [2.64.0] — 2026-04-20
+
+### Fixed — Arc Stop hook phase-skip + post-arc re-injection hardening (plan `plans/2026-04-20-fix-stop-hook-phase-skip-and-stopfailure-plan.md`)
+
+Rebased onto v2.63.0. Re-versioned from the original v2.62.0/v2.62.1 trajectory
+as a v2.64.0 minor bump after rebasing onto main's v2.63.0 audit fix. Same code
+content as the pre-rebase v2.62.0 + v2.62.1 commits — only the version header
+changed to reflect the new position in the history.
+
+**Reliability — Arc Stop hook phase-skip defense (3 layers)**
+- Team liveness check — new `_arc_team_has_live_members()` in
+  `lib/stop-hook-common.sh` inspects `${CHOME}/teams/{name}/config.json` and
+  PID liveness before the phase scan. Blocks advance while any team member is
+  still alive, covering `work`, `code_review`, `mend`, `test`, `gap_analysis`,
+  `forge`, `design_verification` (which previously had no self-heal coverage).
+- Artifact sentinel check — verifies phase-expected artifacts exist on disk
+  before considering a phase skippable. Closes the `TaskList`-empty-but-artifacts-present
+  gap called out by Iron Law ARC-QA-001.
+- Freshness guard — rejects `in_progress` → `completed` flips whose artifacts
+  predate `started_at`, preserving fail-forward discipline.
+
+**Reliability — Phase 2 hardening (AC-11, AC-13, AC-14, AC-17)**
+- AC-11: Deterministic phase-status recovery when `TaskList` returns no tasks
+  after team cleanup (previously advanced via `skip_map` with infra narrative).
+- AC-13: Stop hook ERR trap attribution — ERR traps now log the failing
+  source + line using `lib/platform.sh` helpers instead of a raw `BASH_LINENO`.
+- AC-14: `arc_guard_rapid_iteration()` now fails loudly when required helpers
+  are missing rather than silently skipping guards.
+- AC-17: Regression tests covering the 3-layer defense under
+  `plugins/rune/tests/stop-hook-phase-skip/`.
+
+**Reliability — StopFailure API-error logging (STOP-FAIL-001)**
+- New `on-stop-failure.sh` Stop hook fires on API errors
+  (`rate_limit`/`server_error`/`max_output_tokens`/`authentication_failed`)
+  per the official Claude Code hook docs. Output and exit code are IGNORED
+  per spec — hook is side-effect-only.
+- Appends JSONL entries (timestamp, session_id, error_type, severity) to
+  `${TMPDIR}/rune-stop-failure-$(id -u).jsonl` (5 MB cap, truncation rotation).
+- Best-effort copy of the newest `.rune/arc/*/checkpoint.json` to
+  `.rune/arc-checkpoint-snapshots/` so recovery isn't blocked by API churn.
+- Prior audit 20260414-012408 wrongly classified `StopFailure` as orphan;
+  v2.64.0 re-enables the hook and documents the correct spec behavior.
+
+**Reliability — Terminal-checkpoint guard (post-arc re-injection loop fix)**
+- Symptom: after `/rune:arc` completed successfully, the Stop hook continued
+  re-injecting the "MANDATORY post-arc steps" prompt on every turn, deadlocking
+  the session until the operator manually archived the checkpoint.
+- Root cause: two hook paths (`verify-arc-state-integrity.sh` PostToolUse and
+  `arc-phase-stop-hook.sh` self-heal) recreated `.rune/arc-phase-loop.local.md`
+  without checking whether the target checkpoint had reached terminal state.
+- Fix — terminal-checkpoint guard in two locations (defense-in-depth):
+  1. `rune-arc-init-state.sh cmd_create` skips state-file creation when
+     `completed_at` is stamped AND zero phases remain in `pending`/`in_progress`.
+     Logs `skipped_terminal_checkpoint` to the integrity log. `--force`
+     bypasses the guard so `--resume` on a terminal arc still works.
+  2. `arc-phase-stop-hook.sh` self-heal branch inspects the owned checkpoint
+     and silent-exits 0 when terminal (handles the `--force` path).
+
+Verification artifacts: `arc-1776662055001` (terminal checkpoint) — state file
+stays absent across Stop events, no stderr prompt re-injected, exit 0.
+
+---
+
 ## [2.63.0] — 2026-04-20
 
 ### Fixed — audit 20260420-112502 valid findings (P1/P2 false-positive triage)

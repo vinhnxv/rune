@@ -270,6 +270,28 @@ cmd_create() {
     *..*)     echo "FATAL: checkpoint path traversal: $_cp" >&2; return 2 ;;
   esac
 
+  # ── TERMINAL-CHECKPOINT GUARD (v2.62.1) ──
+  # Skip state-file (re)creation when the target checkpoint has reached terminal
+  # state (all phases completed/skipped AND completed_at stamped). Without this
+  # guard the Stop hook's self-heal path (arc-phase-stop-hook.sh:148) and the
+  # PostToolUse verify-arc-state-integrity.sh hook keep recreating the phase
+  # loop state file after post-arc completion, causing the stop hook to
+  # re-inject the "MANDATORY post-arc steps" prompt on every Stop event.
+  #
+  # --force bypasses this guard so explicit operator intent (e.g.,
+  # `/rune:arc --resume` on a terminal arc that needs rehydration) still works.
+  if [ "$_force" = "0" ] && [ "$_kind" = "phase" ] && command -v jq >/dev/null 2>&1; then
+    local _cp_completed _cp_non_terminal
+    _cp_completed=$(jq -r '.completed_at // empty' "$_cp" 2>/dev/null | tr -d '\r')
+    _cp_non_terminal=$(jq -r '[.phases[]? | select(.status == "pending" or .status == "in_progress")] | length' "$_cp" 2>/dev/null | tr -d '\r')
+    case "$_cp_non_terminal" in ''|*[!0-9]*) _cp_non_terminal=0 ;; esac
+    if [ -n "$_cp_completed" ] && [ "$_cp_non_terminal" = "0" ]; then
+      _trace "skip state file create: checkpoint terminal (completed_at=${_cp_completed}, non_terminal=0)"
+      arc_state_integrity_log "skipped_terminal_checkpoint" "post_arc_finalized" "$_cp"
+      return 0
+    fi
+  fi
+
   # INTEG Layer 1 pre-write assertions
   local _arc_id _plan _branch
   _arc_id=$(_ck_field "$_cp" 'id')
