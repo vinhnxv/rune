@@ -2,7 +2,7 @@
 
 Multi-agent engineering orchestration for [Claude Code](https://claude.ai/claude-code). Plan features, implement with swarm workers, review code, and ship — all with parallel AI agents that each get their own dedicated context window.
 
-**Current version**: [2.64.1](CHANGELOG.md) — CKPT-INT-008 producer/consumer schema drift fix (silent arc halt on v2.64.0). See [CHANGELOG.md](CHANGELOG.md) for details.
+**Current version**: [2.64.2](CHANGELOG.md) — PATH-COPY-001 eliminates `Bash(cp)` permission prompts on plugin cache reads (Read+Write refactor for qa-manifests + doc-packs); PATH-RESOLVE-001 fixes design-sync runtime paths to use `${RUNE_PLUGIN_ROOT}/` prefix for cache-installed plugin compatibility. See [CHANGELOG.md](CHANGELOG.md) for details.
 
 ## What Is This?
 

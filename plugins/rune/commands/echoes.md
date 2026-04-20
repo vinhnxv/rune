@@ -222,7 +222,11 @@ Install a curated doc pack (framework patterns, gotchas, recipes) to the global 
 3. Verify `<stack>` exists in registry — error if not
 4. Set `CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`
 5. Create dirs: `mkdir -p "$CHOME/echoes/global/doc-packs/<stack>" "$CHOME/echoes/global/manifests"`
-6. Copy: `cp "${RUNE_PLUGIN_ROOT}/data/doc-packs/<stack>/MEMORY.md" "$CHOME/echoes/global/doc-packs/<stack>/"`
+6. Copy via `Read`+`Write` (avoids Bash(cp) permission prompt on plugin cache reads — PATH-COPY-001):
+   ```javascript
+   const packContent = Read("${RUNE_PLUGIN_ROOT}/data/doc-packs/<stack>/MEMORY.md")
+   Write("$CHOME/echoes/global/doc-packs/<stack>/MEMORY.md", packContent)
+   ```
 7. Write manifest JSON to `$CHOME/echoes/global/manifests/<stack>.json`
 8. Write dirty signal: `touch "$CHOME/echoes/global/.global-echo-dirty"`
 9. Report: "Installed `<stack>` (v1.0.0). Search with `echo_search(query, scope='global')`"

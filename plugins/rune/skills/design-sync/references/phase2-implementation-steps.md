@@ -53,13 +53,16 @@ catch:
   codegenProfile = "generic"
 
 // Step 1.5: Load codegen profile reference for worker injection
-// See framework-codegen-profiles.md for the full transformation rules per profile
-codegenProfileRef = "plugins/rune/skills/frontend-design-patterns/references/framework-codegen-profiles.md"
+// See framework-codegen-profiles.md for the full transformation rules per profile.
+// PATH-RESOLVE-001 (v2.64.2): Use ${RUNE_PLUGIN_ROOT}/ prefix — plugin may live in the
+// Claude Code plugin cache (e.g., /home/user/.claude/plugins/cache/rune-marketplace/rune/<ver>/),
+// NOT at repo-relative plugins/rune/. Bare repo-relative paths fail Read() on installed plugins.
+codegenProfileRef = "${RUNE_PLUGIN_ROOT}/skills/frontend-design-patterns/references/framework-codegen-profiles.md"
 tokenMapRef = null
 if codegenProfile === "shadcn":
-  tokenMapRef = "plugins/rune/skills/frontend-design-patterns/references/profiles/shadcn-token-map.yaml"
+  tokenMapRef = "${RUNE_PLUGIN_ROOT}/skills/frontend-design-patterns/references/profiles/shadcn-token-map.yaml"
 else if codegenProfile === "untitled-ui":
-  tokenMapRef = "plugins/rune/skills/frontend-design-patterns/references/profiles/untitled-ui-token-map.yaml"
+  tokenMapRef = "${RUNE_PLUGIN_ROOT}/skills/frontend-design-patterns/references/profiles/untitled-ui-token-map.yaml"
 
 codegenContext = "Codegen profile: {codegenProfile}. " +
   "Follow transformation rules in {codegenProfileRef} for the '{codegenProfile}' profile. " +
