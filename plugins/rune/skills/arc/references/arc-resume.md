@@ -408,7 +408,46 @@ On resume, validate checkpoint integrity before proceeding:
      checkpoint.schema_version = 29
    }
    ```
-// NOTE: Step 3r runs after all schema migrations complete (steps 3a–3ac). Step 3p was skipped in the original numbering.
+3ad. CKPT-INT-008 required-field migration (v29 → v30):
+   ```javascript
+   // Step 3ad: v29 → v30 (CKPT-INT-008 required fields — v2.64.1)
+   // Backfills the two top-level fields introduced by the v2.64.0 Stop hook
+   // validator at scripts/lib/stop-hook-common.sh:885-886. Without these fields,
+   // GUARD 8.5 rejects the checkpoint on every Stop event and the arc halts
+   // silently between phases (only the trace log records the CKPT-INTEG FAIL).
+   //
+   // Backfill strategy:
+   //   - current_phase: first status=="pending" phase in PHASE_ORDER order
+   //     (falls back to "forge" if all phases appear terminal — defensive default)
+   //   - overall_status: derived from phase statuses:
+   //       * "completed" if every non-skipped phase is completed
+   //       * "failed"    if any phase is "failed" AND no pending remain
+   //       * "in_progress" otherwise (most common resume case)
+   if (checkpoint.schema_version < 30) {
+     // Backfill current_phase if absent or empty
+     if (!checkpoint.current_phase) {
+       const firstPending = PHASE_ORDER.find(
+         p => checkpoint.phases?.[p]?.status === "pending"
+       )
+       checkpoint.current_phase = firstPending ?? "forge"
+     }
+     // Backfill overall_status if absent or empty
+     if (!checkpoint.overall_status) {
+       const statuses = PHASE_ORDER.map(p => checkpoint.phases?.[p]?.status)
+       const hasPending = statuses.includes("pending") || statuses.includes("in_progress")
+       const hasFailed = statuses.includes("failed") || statuses.includes("timeout")
+       if (!hasPending && !hasFailed) {
+         checkpoint.overall_status = "completed"
+       } else if (hasFailed && !hasPending) {
+         checkpoint.overall_status = "failed"
+       } else {
+         checkpoint.overall_status = "in_progress"
+       }
+     }
+     checkpoint.schema_version = 30
+   }
+   ```
+// NOTE: Step 3r runs after all schema migrations complete (steps 3a–3ad). Step 3p was skipped in the original numbering.
 3r. Resume freshness re-check:
    a. Read plan file from checkpoint.plan_file
    b. Extract git_sha from plan frontmatter (use optional chaining: `extractYamlFrontmatter(planContent)?.git_sha` — returns null on parse error if plan was manually edited between sessions)

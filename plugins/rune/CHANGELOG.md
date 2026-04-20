@@ -1,5 +1,44 @@
 # Changelog
 
+## [2.64.1] — 2026-04-20
+
+### Fixed — CKPT-INT-008 producer/consumer schema drift (silent arc halt on Ubuntu)
+
+The Stop hook validator added in v2.64.0 (`scripts/lib/stop-hook-common.sh:885-886`)
+requires two top-level checkpoint fields — `overall_status` and `current_phase` —
+but the arc writers (`skills/arc/references/arc-checkpoint-init.md` and
+`arc-resume.md`) never emitted them. Every Stop event failed `CKPT-INT-008` with
+`GUARD 8.5 FAILED: Checkpoint integrity check failed — halting arc`, but the
+failure was trace-only: no user-visible error, no stderr re-injection, no
+checkpoint update. Symptom: arc pipeline appears to "stop" between phases even
+though ownership, session-match, and phase state are all healthy. Manual hook
+invocation worked because the validator saw a different checkpoint path in the
+user's working directory; automatic invocation always hit the broken path.
+
+Reproduction on Ubuntu v2.64.0: any `/rune:arc` run past the first phase hits
+the halt after phase transition. Visible only by enabling `RUNE_TRACE=1` and
+reading `/tmp/rune-hook-trace-*.log`.
+
+**Writer fixes**
+- `arc-checkpoint-init.md`: Initial `Write()` now emits `overall_status: "in_progress"`
+  and `current_phase: "forge"` alongside `phase_sequence: 0`. Bumped
+  `schema_version` from 29 → 30.
+- `arc-resume.md`: Added schema v29 → v30 migration (step 3ad) that backfills both
+  fields from existing phase state — `current_phase` from the first status=="pending"
+  phase in PHASE_ORDER, `overall_status` derived from phase statuses
+  (completed/failed/in_progress heuristic). Existing checkpoints resume cleanly
+  without manual patching.
+
+**Why the tests didn't catch this**: `tests/stop-hook/test-stop-hook-fixes.sh:274`
+uses a minimum-valid checkpoint fixture that already includes both fields, so the
+validator passed in isolation. No integration test writes a real arc checkpoint
+via the init pseudocode and then runs it through the validator. Follow-up: add an
+end-to-end init+validate test to prevent future producer/consumer drift.
+
+**Credit**: Diagnosed by a user running arc on Ubuntu v2.64.0 — trace log
+evidence (`CKPT-INTEG FAIL CKPT-INT-008: missing required field: overall_status`)
+directly identified the schema gap.
+
 ## [2.64.0] — 2026-04-20
 
 ### Fixed — Arc Stop hook phase-skip + post-arc re-injection hardening (plan `plans/2026-04-20-fix-stop-hook-phase-skip-and-stopfailure-plan.md`)
