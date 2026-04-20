@@ -221,8 +221,10 @@ fi
 
 # Insufficient assumptions — enforce based on block_on_missing config
 if [[ "$BLOCK_ON_MISSING" == "true" ]]; then
-  # DENY: ONLY emit stderr + exit 2 (CONCERN-1: NO marker written on deny path)
-  cat >&2 <<DENY_MSG
+  # DENY: emit Claude Code 2.1.63 permissionDecision JSON on stdout + exit 0
+  # (CONCERN-1: NO marker written on deny path)
+  # Routes the reason into Claude's context rather than the hook-error stderr channel.
+  DENY_MSG=$(cat <<DENYEOF
 INNER-FLAME-0: Assumption gate blocked.
 Task ${TASK_ID} has ${ASSUMPTION_COUNT}/${MIN_ASSUMPTIONS} required [ASSUMPTION-N] declarations.
 
@@ -237,8 +239,17 @@ Add an Assumptions section:
 
 This gate ensures work decisions are explicit and reviewable.
 To disable: set inner_flame.assumption_gate.block_on_missing: false in .rune/talisman.yml
-DENY_MSG
-  exit 2
+DENYEOF
+)
+  DENY_JSON=$(jq -n --arg reason "$DENY_MSG" '{
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "deny",
+      permissionDecisionReason: $reason
+    }
+  }')
+  printf '%s\n' "$DENY_JSON"
+  exit 0
 fi
 
 # Soft enforcement — warn only, do not block
