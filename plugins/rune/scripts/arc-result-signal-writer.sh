@@ -69,6 +69,13 @@ CWD=$(cd "$CWD" 2>/dev/null && pwd -P) || exit 0
 # SEC-001: Defense-in-depth — verify CWD is inside a project (has .git)
 [[ -d "${CWD}/.git" ]] || exit 0
 
+# ── Validate checkpoint JSON before field extraction ──
+# AC-10 (NEW-001, P1): If the checkpoint file was written mid-operation (partial JSON) or
+# is malformed for any reason, field extraction silently produces empty strings and the
+# completion signal is dropped. `jq -e .` returns non-zero on parse failure, giving us an
+# explicit signal to exit cleanly rather than emit a phantom result file.
+jq -e . "$FILE_PATH" >/dev/null 2>&1 || exit 0
+
 # ── Extract checkpoint data ──
 # Single jq call to minimize subprocess overhead
 CKPT_DATA=$(jq -r '[
