@@ -1,5 +1,27 @@
 # Changelog
 
+## [2.64.3] — 2026-04-21
+
+### Fixed — Root README version badge sync oversight
+
+The v2.64.2 release bumped the plugin-scoped README (`plugins/rune/README.md`)
+but missed the repo-root `README.md` Shields.io badge, which still advertised
+2.64.1. Users browsing the GitHub landing page would see a stale version
+number that disagreed with `plugin.json`, `marketplace.json`, and the
+in-repo CHANGELOG. PATCH bump with no functional changes — same PATH-COPY-001
+and PATH-RESOLVE-001 behavior as v2.64.2, now consistently versioned across
+all four sync surfaces:
+
+- `.claude-plugin/marketplace.json` → 2.64.3
+- `plugins/rune/.claude-plugin/plugin.json` → 2.64.3
+- `plugins/rune/README.md` → 2.64.3 (in-text badge)
+- `README.md` (repo root) → 2.64.3 (**newly synced**)
+
+Follow-up: the pre-commit checklist in `plugins/rune/CLAUDE.md` currently
+lists only the plugin-scoped README under "component counts verified" — it
+does not explicitly require root-README version-badge parity. Consider
+adding that entry to the checklist to prevent future drift.
+
 ## [2.64.2] — 2026-04-21
 
 ### Fixed — PATH-COPY-001 plugin cache read refactor (permission prompt elimination)
