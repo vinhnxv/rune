@@ -1,305 +1,207 @@
 #!/bin/bash
 # scripts/on-stop-failure.sh
-# STOP-FAILURE-001: Handle API errors during arc pipeline and standalone workflows.
+# STOP-FAIL-001 (v2.62.0): Log API errors and snapshot arc checkpoint.
 #
-# ⚠ ORPHAN SCRIPT (T5 / HOOK-001, audit 20260414-012408) ⚠
-# The `StopFailure` hook event does NOT exist in Claude Code — this script has
-# never fired in production. The hooks.json entry has been renamed to
-# `_StopFailure_disabled` until we pick a migration path:
-#   (a) inline into Stop hook with branch detection, or
-#   (b) rewire to PostToolUseFailure / SessionEnd.
-# Until then: API-error checkpoint preservation is NOT active. The script is
-# preserved intact so its classifier/backoff logic is ready to wire up.
+# StopFailure fires when a Claude Code turn ends due to an API error (rate_limit,
+# server_error, max_output_tokens, authentication_failed, etc). Per the official
+# hook docs (code.claude.com/docs/en/hooks):
 #
-# Hook event: StopFailure (historical — currently unused)
-# Exit 0: No active workflow — allow failure (stdout/stderr discarded by Claude Code)
-# Exit 2 + stderr: Re-inject recovery prompt (with backoff for rate limits)
+#   > StopFailure — When the turn ends due to an API error.
+#   > Output and exit code are IGNORED — used for side effects like logging
+#   > or cleanup only.
 #
-# OPERATIONAL: Fail-forward (crash -> exit 0, allow failure, don't make worse)
+# So this script is pure side-effect:
+#   1. Parse hook input JSON (session_id, error_type, transcript_path)
+#   2. Classify error via lib/stop-failure-common.sh
+#   3. Append JSONL entry to ${TMPDIR}/rune-stop-failure-$(id -u).jsonl
+#      (5MB size cap, rotation by truncation)
+#   4. Best-effort copy of current arc checkpoint to
+#      .rune/arc-checkpoint-snapshots/checkpoint-{timestamp}.json
+#
+# What this script does NOT do (because output is ignored):
+#   - Construct backoff / retry prompts (would be discarded)
+#   - Kill teammate processes (Stop hook handles next session)
+#   - TeamDelete / filesystem cleanup (Stop hook handles next session)
+#
+# OPERATIONAL: fail-forward (exit 0 on any error — exit code ignored anyway).
 
 set -euo pipefail
-umask 077  # PAT-003 FIX
+umask 077
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# P3-006 FIX: Scope trace log per-UID + PID, aligning with pre-compact-checkpoint.sh
+# (avoids cross-user trace content leakage on shared/multi-user systems).
+RUNE_TRACE_LOG="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
 
-# ── Source ordering (verified from arc-phase-stop-hook.sh) ──
-# shellcheck source=lib/arc-stop-hook-common.sh
-if [[ ! -f "${SCRIPT_DIR}/lib/arc-stop-hook-common.sh" ]]; then
-  exit 0  # fail-forward: allow failure rather than crash with undefined functions
-fi
-source "${SCRIPT_DIR}/lib/arc-stop-hook-common.sh"  # 1st: ERR trap + jq guard
-arc_setup_err_trap                                    # NOT verbose (lightweight)
-arc_init_trace_log
-arc_guard_jq_required                                 # exit 0 if jq missing
+# Fail-forward ERR trap (exit code is ignored per spec, but consistent with
+# other OPERATIONAL hooks for auditing).
+_rune_fail_forward() {
+  [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "$RUNE_TRACE_LOG" ]] \
+    && printf '[%s] on-stop-failure: ERR at line %s\n' "$(date +%H:%M:%S)" "${BASH_LINENO[0]:-?}" >> "$RUNE_TRACE_LOG"
+  exit 0
+}
+trap '_rune_fail_forward' ERR
 
-# shellcheck source=lib/stop-hook-common.sh
-source "${SCRIPT_DIR}/lib/stop-hook-common.sh"        # 2nd: parse_input, resolve_cwd
-
-# ── Define _trace after arc_init_trace_log ──
-_trace() { [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "$RUNE_TRACE_LOG" ]] && printf '[%s] on-stop-failure: %s\n' "$(date +%H:%M:%S)" "$*" >> "$RUNE_TRACE_LOG"; return 0; }
-
-_trace "ENTER on-stop-failure.sh"
-
-# ── Guard 1: Parse input (stdin) ──
-parse_input
-
-# ── Guard 2: Resolve CWD ──
-resolve_cwd
-
-# ── Standalone handler for non-arc workflows ──
-_handle_standalone_stop_failure() {
-  local error_type="$1"
-  local wait_seconds="$2"
-  case "$error_type" in
-    RATE_LIMIT)
-      local has_active=false
-      local sf
-      # ERR-017 FIX: Use while-read to avoid word-splitting on paths with spaces
-      while IFS= read -r sf; do
-        [[ -z "$sf" || -L "$sf" ]] && continue
-        local sf_status
-        sf_status=$(jq -r '.status // empty' "$sf" 2>/dev/null || true)
-        [[ "$sf_status" == "active" ]] && has_active=true && break
-      done < <(find "${CWD}/tmp" -maxdepth 1 -name '.rune-*.json' -type f 2>/dev/null)
-      if [[ "$has_active" == "true" ]]; then
-        printf '[STOP-FAILURE] API rate limit during active Rune workflow. Wait %d seconds then retry.\n' "$wait_seconds" >&2
-        exit 2
-      fi
-      printf '[STOP-FAILURE] API rate limit. Wait and retry your request.\n' >&2
-      exit 0
-      ;;
-    AUTH)
-      printf '[STOP-FAILURE] Authentication error. Check your API key and billing status.\n' >&2
-      exit 0
-      ;;
-    *)
-      printf '[STOP-FAILURE] API error (%s). Retry your request.\n' "$error_type" >&2
-      exit 0
-      ;;
-  esac
+_trace() {
+  [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "$RUNE_TRACE_LOG" ]] \
+    && printf '[%s] on-stop-failure: %s\n' "$(date +%H:%M:%S)" "$*" >> "$RUNE_TRACE_LOG"
+  return 0
 }
 
-# ── Guard 3: Check for active arc OR handle standalone ──
-STATE_FILE="${CWD}/${RUNE_STATE}/arc-phase-loop.local.md"
-if [[ ! -f "$STATE_FILE" ]]; then
-  # No arc state — handle standalone workflows
-  source "${SCRIPT_DIR}/lib/stop-failure-common.sh"
-  classify_stop_failure
-  _handle_standalone_stop_failure "$ERROR_TYPE" "$WAIT_SECONDS"
-  # _handle_standalone_stop_failure exits internally
-fi
-check_state_file "$STATE_FILE"
-
-# ── Guard 4: Reject symlinks on state file ──
-reject_symlink "$STATE_FILE"
-
-# ── Guard 5: Parse frontmatter from state file ──
-parse_frontmatter "$STATE_FILE"
-
-# ── Guard 6: Get hook session ID ──
-arc_get_hook_session_id
-
-# ── Guard 7: Validate session ownership (exit 0 if different session) ──
-# FLAW-002 FIX: Use if-guard instead of bare call (avoids ERR trap as control flow)
-if ! validate_session_ownership_strict "$STATE_FILE"; then
-  _trace "EXIT: session ownership strict check failed"
-  exit 0
+# P2-001 FIX: Source platform.sh for cross-platform _stat_mtime helper (CLAUDE.md §Cross-Platform).
+if [[ -f "${SCRIPT_DIR}/lib/platform.sh" ]]; then
+  # shellcheck source=lib/platform.sh
+  source "${SCRIPT_DIR}/lib/platform.sh" 2>/dev/null || true
 fi
 
-_trace "Guards passed — classifying stop failure"
-
-# ── Classification ──
-# shellcheck source=lib/stop-failure-common.sh
-source "${SCRIPT_DIR}/lib/stop-failure-common.sh"
-classify_stop_failure
-
-_trace "ERROR_TYPE=${ERROR_TYPE} WAIT_SECONDS=${WAIT_SECONDS} ERROR_ACTION=${ERROR_ACTION}"
-
-# ── Read checkpoint info from state file frontmatter ──
-checkpoint_path=$(get_field "checkpoint_path")
-_trace "checkpoint_path=${checkpoint_path}"
-
-# SEC-001: Validate checkpoint_path before use (path traversal + metachar rejection)
-if [[ -n "$checkpoint_path" ]] && ! validate_paths "$checkpoint_path"; then
-  _trace "WARN: checkpoint_path failed validation, clearing"
-  checkpoint_path=""
+# P2-006 FIX: Source stop-hook-common.sh to inherit the 1 MB stdin cap + shared
+# field accessors. `classify_stop_failure` (below) also expects CWD/INPUT to be
+# set by the common loader via its source chain.
+if [[ -f "${SCRIPT_DIR}/lib/stop-hook-common.sh" ]]; then
+  # shellcheck source=lib/stop-hook-common.sh
+  source "${SCRIPT_DIR}/lib/stop-hook-common.sh" 2>/dev/null || true
 fi
 
-# Determine current phase from checkpoint (if readable)
-current_phase=""
-next_phase=""
-if [[ -n "$checkpoint_path" ]] && [[ -f "${CWD}/${checkpoint_path}" ]] && [[ ! -L "${CWD}/${checkpoint_path}" ]]; then
-  current_phase=$(jq -r '.current_phase // empty' "${CWD}/${checkpoint_path}" 2>/dev/null || true)
-  # Find next pending phase
-  # FLAW-011 FIX: checkpoint .phases is an object (keys=phase names), not an array
-  next_phase=$(jq -r '
-    .phases // {} | to_entries | map(select(.value.status == "pending")) | .[0].key // empty
-  ' "${CWD}/${checkpoint_path}" 2>/dev/null || true)
+# Source error classifier (optional — fail-forward if missing)
+if [[ -f "${SCRIPT_DIR}/lib/stop-failure-common.sh" ]]; then
+  # shellcheck source=lib/stop-failure-common.sh
+  source "${SCRIPT_DIR}/lib/stop-failure-common.sh" 2>/dev/null || true
 fi
 
-# Fallback: read phase from state file frontmatter
-if [[ -z "$current_phase" ]]; then
-  current_phase=$(get_field "current_phase")
+# jq is required for JSON log entry construction
+command -v jq >/dev/null 2>&1 || { _trace "SKIP: jq unavailable"; exit 0; }
+
+# ── Parse hook input ──
+# P2-006 FIX: Use shared parse_input() from stop-hook-common.sh when available
+# (1 MB DoS cap). Falls back to inline head -c on older setups.
+if declare -F parse_input >/dev/null 2>&1; then
+  parse_input 2>/dev/null || true
+else
+  INPUT="$(head -c 1048576 2>/dev/null || true)"
+fi
+[[ -z "${INPUT:-}" ]] && { _trace "SKIP: empty stdin"; exit 0; }
+
+SESSION_ID=$(printf '%s' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
+ERROR_TYPE=$(printf '%s' "$INPUT" | jq -r '.error_type // "unknown"' 2>/dev/null || echo "unknown")
+CWD=$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
+TRANSCRIPT=$(printf '%s' "$INPUT" | jq -r '.transcript_path // empty' 2>/dev/null || true)
+
+# SEC: validate fields
+[[ "$SESSION_ID" =~ ^[a-zA-Z0-9_-]+$ ]] || SESSION_ID=""
+[[ "$ERROR_TYPE" =~ ^[a-zA-Z0-9_]+$ ]] || ERROR_TYPE="unknown"
+# P3-005 FIX: ERROR_TYPE is used as a filename suffix below — cap length to avoid
+# ENAMETOOLONG (POSIX 255-byte limit) even when the regex passes.
+(( ${#ERROR_TYPE} > 32 )) && ERROR_TYPE="unknown"
+
+# P1-003 FIX: CWD feeds mkdir/cp below. Reject relative paths and traversal
+# sequences, then canonicalize via `cd && pwd -P` (matches stop-hook-common.sh
+# resolve_cwd() pattern). On any failure, blank CWD so the snapshot block
+# short-circuits — we never write to an attacker-influenced path.
+if [[ -z "$CWD" || "$CWD" != /* || "$CWD" == *".."* ]]; then
+  CWD=""
+fi
+if [[ -n "$CWD" ]]; then
+  CWD="$(cd "$CWD" 2>/dev/null && pwd -P)" || CWD=""
 fi
 
-_trace "current_phase=${current_phase} next_phase=${next_phase}"
+_trace "ENTER session=${SESSION_ID:-?} error=${ERROR_TYPE}"
 
-# ── Build phase context string ──
-phase_info=""
-if [[ -n "$current_phase" ]]; then
-  phase_info=" at phase '${current_phase}'"
+# ── Log entry ──
+LOG_DIR="${TMPDIR:-/tmp}"
+LOG_FILE="${LOG_DIR}/rune-stop-failure-$(id -u).jsonl"
+LOG_MAX_BYTES=$((5 * 1024 * 1024))  # 5 MB cap
+
+# Rotation: if file exceeds cap, truncate (best-effort, fail-forward)
+if [[ -f "$LOG_FILE" && ! -L "$LOG_FILE" ]]; then
+  _log_size=$(wc -c < "$LOG_FILE" 2>/dev/null | tr -d ' ' || echo "0")
+  if [[ "$_log_size" =~ ^[0-9]+$ ]] && (( _log_size > LOG_MAX_BYTES )); then
+    : > "$LOG_FILE" 2>/dev/null || true
+    _trace "log rotated: size ${_log_size} exceeded ${LOG_MAX_BYTES}"
+  fi
 fi
-resume_phase=""
-if [[ -n "$next_phase" ]]; then
-  resume_phase=" from phase '${next_phase}'"
-elif [[ -n "$current_phase" ]]; then
-  resume_phase=" from phase '${current_phase}'"
+
+TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "unknown")
+
+# Optional error classification from lib/stop-failure-common.sh.
+#
+# P1-002 FIX: The function is `classify_stop_failure` (not `stop_failure_classify`)
+# and it takes NO args — it reads global $INPUT and SETS globals ERROR_TYPE,
+# WAIT_SECONDS, ERROR_ACTION. The previous code had three bugs:
+#   1. Wrong function name (silent no-op).
+#   2. Used command-substitution to capture stdout, but classifier writes no stdout.
+#   3. Passed an arg the classifier doesn't accept.
+#
+# We preserve the raw hook-input error_type for the JSONL entry (call it
+# RAW_ERROR_TYPE), run the classifier, then derive severity from the classified
+# ERROR_TYPE (RATE_LIMIT / AUTH / SERVER / UNKNOWN). Finally we restore
+# ERROR_TYPE to the raw hook value so the log entry keeps its original shape.
+RAW_ERROR_TYPE="$ERROR_TYPE"
+CLASSIFIED_SEVERITY="info"
+CLASSIFIED_CATEGORY="UNKNOWN"
+CLASSIFIED_ACTION="proceed"
+if declare -F classify_stop_failure >/dev/null 2>&1; then
+  # classify_stop_failure writes globals; preserve our local ERROR_TYPE.
+  classify_stop_failure 2>/dev/null || true
+  CLASSIFIED_CATEGORY="${ERROR_TYPE:-UNKNOWN}"
+  CLASSIFIED_ACTION="${ERROR_ACTION:-proceed}"
+  case "$CLASSIFIED_CATEGORY" in
+    AUTH)       CLASSIFIED_SEVERITY="critical" ;;  # credential compromise risk
+    SERVER)     CLASSIFIED_SEVERITY="warning"  ;;  # API outage
+    RATE_LIMIT) CLASSIFIED_SEVERITY="notice"   ;;  # expected, retryable
+    *)          CLASSIFIED_SEVERITY="info"     ;;
+  esac
+  ERROR_TYPE="$RAW_ERROR_TYPE"
 fi
 
-# ── Resolve talisman shard for retry config ──
-talisman_shard=""
-if type _rune_resolve_talisman_shard &>/dev/null; then
-  talisman_shard=$(_rune_resolve_talisman_shard "arc" "${CWD:-}" 2>/dev/null || true)
+# Append JSONL entry (atomic — jq outputs one line)
+if [[ ! -L "$LOG_FILE" ]]; then
+  jq -cn \
+    --arg ts "$TIMESTAMP" \
+    --arg sid "$SESSION_ID" \
+    --arg err "$ERROR_TYPE" \
+    --arg cat "$CLASSIFIED_CATEGORY" \
+    --arg sev "$CLASSIFIED_SEVERITY" \
+    --arg act "$CLASSIFIED_ACTION" \
+    --arg cwd "$CWD" \
+    '{timestamp: $ts, session_id: $sid, error_type: $err, category: $cat, severity: $sev, action: $act, cwd: $cwd, schema_version: 2}' \
+    >> "$LOG_FILE" 2>/dev/null || _trace "log append failed"
 fi
-[[ -z "$talisman_shard" ]] && talisman_shard="${CWD}/tmp/.talisman-resolved/arc.json"
 
-# ── Actions by error type (all via stderr + exit 2) ──
-case "$ERROR_TYPE" in
-  RATE_LIMIT)
-    # ── Retry counter with exponential backoff ──
-    api_retries=0
-    if [[ -n "$checkpoint_path" ]] && [[ -f "${CWD}/${checkpoint_path}" ]] && [[ ! -L "${CWD}/${checkpoint_path}" ]]; then
-      api_retries=$(jq -r '.api_error_retries // 0' "${CWD}/${checkpoint_path}" 2>/dev/null || echo "0")
+# ── Best-effort checkpoint snapshot ──
+# Find the most-recently-modified arc checkpoint in CWD and copy it to
+# .rune/arc-checkpoint-snapshots/ with a timestamp suffix. Non-fatal.
+if [[ -n "$CWD" && -d "$CWD/.rune/arc" ]]; then
+  SNAP_DIR="$CWD/.rune/arc-checkpoint-snapshots"
+  mkdir -p "$SNAP_DIR" 2>/dev/null || true
+
+  # Find newest checkpoint.json under .rune/arc/*/checkpoint.json
+  LATEST_CHECKPOINT=""
+  LATEST_MTIME=0
+  # P2-001 FIX: use _stat_mtime() from lib/platform.sh (cross-platform) instead
+  # of inlining the BSD/GNU fallback chain.
+  # Shebang is bash — `[[ -f ... ]] || continue` already handles the no-match
+  # case when bash returns the literal pattern. No nullglob needed.
+  for _ckpt in "$CWD"/.rune/arc/*/checkpoint.json; do
+    [[ -f "$_ckpt" && ! -L "$_ckpt" ]] || continue
+    if declare -F _stat_mtime >/dev/null 2>&1; then
+      _m=$(_stat_mtime "$_ckpt" 2>/dev/null || echo "0")
+    else
+      _m=$(stat -f '%m' "$_ckpt" 2>/dev/null || stat -c '%Y' "$_ckpt" 2>/dev/null || echo "0")
     fi
-    [[ "$api_retries" =~ ^[0-9]+$ ]] || api_retries=0
-
-    # Read max_retries from talisman (default: 3)
-    max_retries=3
-    if [[ -f "$talisman_shard" ]] && [[ ! -L "$talisman_shard" ]]; then
-      _mr=$(jq -r '.rate_limit.max_retries // 3' "$talisman_shard" 2>/dev/null || echo "3")
-      [[ "$_mr" =~ ^[0-9]+$ ]] && max_retries="$_mr"
+    [[ "$_m" =~ ^[0-9]+$ ]] || continue
+    if (( _m > LATEST_MTIME )); then
+      LATEST_MTIME=$_m
+      LATEST_CHECKPOINT="$_ckpt"
     fi
+  done
 
-    # Check if retries exceeded — halt if so
-    if [[ "$api_retries" -ge "$max_retries" ]]; then
-      _trace "RATE_LIMIT — retries exhausted (${api_retries}/${max_retries}), halting"
-      cat >&2 <<EOF
-API rate limit hit${phase_info}. Retry limit reached (${api_retries}/${max_retries}). Arc paused.
+  if [[ -n "$LATEST_CHECKPOINT" ]]; then
+    SNAP_NAME="checkpoint-${TIMESTAMP//:/-}-${ERROR_TYPE}.json"
+    cp -p "$LATEST_CHECKPOINT" "$SNAP_DIR/$SNAP_NAME" 2>/dev/null \
+      && _trace "checkpoint snapshot: $SNAP_NAME" \
+      || _trace "checkpoint snapshot failed"
+  fi
+fi
 
-Checkpoint preserved at: ${checkpoint_path:-<unknown>}
-To resume later: /rune:arc --resume
-EOF
-      exit 0
-    fi
-
-    # Calculate exponential backoff: base_wait * 2^retries, capped at max_wait
-    backoff=$((1 << api_retries))
-    WAIT_SECONDS=$((WAIT_SECONDS * backoff))
-    # Cap at max_wait from talisman
-    max_wait=300
-    if [[ -f "$talisman_shard" ]] && [[ ! -L "$talisman_shard" ]]; then
-      _mw=$(jq -r '.rate_limit.max_wait_seconds // 300' "$talisman_shard" 2>/dev/null || echo "300")
-      [[ "$_mw" =~ ^[0-9]+$ ]] && max_wait="$_mw"
-    fi
-    [[ "$WAIT_SECONDS" -gt "$max_wait" ]] && WAIT_SECONDS="$max_wait"
-
-    # Increment retry counter atomically in checkpoint
-    if [[ -n "$checkpoint_path" ]] && [[ -f "${CWD}/${checkpoint_path}" ]] && [[ ! -L "${CWD}/${checkpoint_path}" ]]; then
-      # FLAW-003 FIX: Create temp file on same filesystem for atomic rename
-      _tmp=$(mktemp "${CWD}/${checkpoint_path}.XXXXXX" 2>/dev/null || mktemp "${TMPDIR:-/tmp}/rune-cp-XXXXXX")
-      if jq ".api_error_retries = $((api_retries + 1))" "${CWD}/${checkpoint_path}" > "$_tmp" 2>/dev/null; then
-        mv -f "$_tmp" "${CWD}/${checkpoint_path}"
-      else
-        rm -f "$_tmp"
-      fi
-    fi
-
-    _trace "RATE_LIMIT — retry ${api_retries}/${max_retries}, backoff=${backoff}x, wait=${WAIT_SECONDS}s"
-    cat >&2 <<EOF
-API rate limit hit${phase_info}. Retry ${api_retries}/${max_retries} — wait ${WAIT_SECONDS} seconds (${backoff}x backoff).
-
-After waiting, continue arc${resume_phase}. Checkpoint preserved at: ${checkpoint_path:-<unknown>}
-
-Run: sleep ${WAIT_SECONDS} && then continue the arc pipeline.
-EOF
-    exit 2
-    ;;
-
-  SERVER)
-    # ── Retry counter for server errors ──
-    server_retries=0
-    if [[ -n "$checkpoint_path" ]] && [[ -f "${CWD}/${checkpoint_path}" ]] && [[ ! -L "${CWD}/${checkpoint_path}" ]]; then
-      server_retries=$(jq -r '.server_error_retries // 0' "${CWD}/${checkpoint_path}" 2>/dev/null || echo "0")
-    fi
-    [[ "$server_retries" =~ ^[0-9]+$ ]] || server_retries=0
-
-    # Read max_server_retries from talisman (default: 2)
-    max_server_retries=2
-    if [[ -f "$talisman_shard" ]] && [[ ! -L "$talisman_shard" ]]; then
-      _msr=$(jq -r '.rate_limit.max_server_retries // 2' "$talisman_shard" 2>/dev/null || echo "2")
-      [[ "$_msr" =~ ^[0-9]+$ ]] && max_server_retries="$_msr"
-    fi
-
-    # Check if retries exceeded — halt if so
-    if [[ "$server_retries" -ge "$max_server_retries" ]]; then
-      _trace "SERVER — retries exhausted (${server_retries}/${max_server_retries}), halting"
-      cat >&2 <<EOF
-API server error${phase_info}. Retry limit reached (${server_retries}/${max_server_retries}). Arc paused.
-
-Checkpoint preserved at: ${checkpoint_path:-<unknown>}
-To resume later: /rune:arc --resume
-EOF
-      exit 0
-    fi
-
-    # Calculate exponential backoff for server errors
-    backoff=$((1 << server_retries))
-    WAIT_SECONDS=$((WAIT_SECONDS * backoff))
-    max_wait=300
-    if [[ -f "$talisman_shard" ]] && [[ ! -L "$talisman_shard" ]]; then
-      _mw=$(jq -r '.rate_limit.max_wait_seconds // 300' "$talisman_shard" 2>/dev/null || echo "300")
-      [[ "$_mw" =~ ^[0-9]+$ ]] && max_wait="$_mw"
-    fi
-    [[ "$WAIT_SECONDS" -gt "$max_wait" ]] && WAIT_SECONDS="$max_wait"
-
-    # Increment retry counter atomically in checkpoint
-    if [[ -n "$checkpoint_path" ]] && [[ -f "${CWD}/${checkpoint_path}" ]] && [[ ! -L "${CWD}/${checkpoint_path}" ]]; then
-      # FLAW-003 FIX: Create temp file on same filesystem for atomic rename
-      _tmp=$(mktemp "${CWD}/${checkpoint_path}.XXXXXX" 2>/dev/null || mktemp "${TMPDIR:-/tmp}/rune-cp-XXXXXX")
-      if jq ".server_error_retries = $((server_retries + 1))" "${CWD}/${checkpoint_path}" > "$_tmp" 2>/dev/null; then
-        mv -f "$_tmp" "${CWD}/${checkpoint_path}"
-      else
-        rm -f "$_tmp"
-      fi
-    fi
-
-    _trace "SERVER — retry ${server_retries}/${max_server_retries}, backoff=${backoff}x, wait=${WAIT_SECONDS}s"
-    cat >&2 <<EOF
-API server error${phase_info}. Retry ${server_retries}/${max_server_retries} — wait ${WAIT_SECONDS} seconds (${backoff}x backoff).
-
-After waiting, continue arc${resume_phase}. Checkpoint preserved at: ${checkpoint_path:-<unknown>}
-
-Run: sleep ${WAIT_SECONDS} && then continue the arc pipeline.
-EOF
-    exit 2
-    ;;
-
-  AUTH)
-    _trace "AUTH — halting arc, preserving checkpoint"
-    cat >&2 <<EOF
-API authentication error${phase_info}. Arc paused. Checkpoint preserved at: ${checkpoint_path:-<unknown>}
-
-Fix credentials, then resume with: /rune:arc --resume
-EOF
-    exit 2
-    ;;
-
-  UNKNOWN|*)
-    _trace "UNKNOWN — preserving checkpoint for manual resume"
-    cat >&2 <<EOF
-API error during arc${phase_info}. Checkpoint preserved at: ${checkpoint_path:-<unknown>}
-
-To resume: /rune:arc --resume
-EOF
-    exit 2
-    ;;
-esac
+_trace "EXIT ok"
+exit 0

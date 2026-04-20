@@ -44,6 +44,24 @@ _trace() {
   return 0
 }
 
+# ── v2.62.0 P1-B FIX (NEW-002): PPID validation gate ──
+# Both jq sites below write owner_pid using `--arg pid "${PPID:-}"`. If $PPID
+# is unset or empty (documented possibility in hook runner contexts per
+# CLAUDE.md rule 11), the checkpoint lands with owner_pid="" and any later
+# session can claim it via the post-compact verify/recovery chain
+# (post-compact-verify.sh:124 accepts empty PPID as valid, session-compact-
+# recovery.sh:145 skips ownership check when CHKPT_PID is empty).
+#
+# Guard: if PPID is unset OR non-numeric, refuse to write checkpoint.
+# Fail-forward: compaction proceeds without preservation, but we don't
+# produce a poison-pill checkpoint that a foreign session could pick up.
+if [[ -z "${PPID:-}" ]] || ! [[ "${PPID}" =~ ^[0-9]+$ ]]; then
+  _trace "SKIP checkpoint write: PPID='${PPID:-}' invalid (empty or non-numeric) — refusing to write with empty owner_pid"
+  printf 'WARN: pre-compact-checkpoint.sh: PPID invalid — skipping checkpoint write (P1-B NEW-002)\n' >&2
+  exit 0
+fi
+_RUNE_OWNER_PID="$PPID"
+
 # ── Source platform helpers for cross-platform stat ──
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -f "${SCRIPT_DIR}/lib/platform.sh" ]]; then
@@ -258,7 +276,7 @@ if [[ -z "$active_team" ]]; then
       --arg team "" \
       --arg ts "$TIMESTAMP" \
       --arg cfg "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" \
-      --arg pid "${PPID:-}" \
+      --arg pid "$_RUNE_OWNER_PID" \
       --argjson batch "$arc_batch_state" \
       --argjson issues "$arc_issues_state" \
       --argjson phase_summaries "$arc_phase_summaries" \
@@ -354,9 +372,12 @@ arc_file=""
 _ckpt_dir="${CWD}/${RUNE_STATE}/arc"
 if [[ -d "$_ckpt_dir" ]]; then
   _newest_mtime=0
-  # BACK-006 FIX: Protect glob with nullglob to prevent literal-path iteration on no match
-  shopt -s nullglob 2>/dev/null || true
-  for _f in "$_ckpt_dir"/*/checkpoint.json; do
+  # P2-004 FIX: `shopt -s nullglob` is bash-only — under zsh the glob in the
+  # `for` loop still fatally errors on no-match (CLAUDE.md §8). Use `find`
+  # instead (null-terminated output to survive paths with whitespace) and
+  # `read -d ''` so no glob ever expands. This also matches the portable
+  # pattern used elsewhere in this file.
+  while IFS= read -r -d '' _f; do
     [[ -f "$_f" ]] && [[ ! -L "$_f" ]] || continue
     _pid=$(jq -r '.owner_pid // empty' "$_f" 2>/dev/null) || continue
     [[ "$_pid" == "$PPID" ]] || continue
@@ -365,8 +386,7 @@ if [[ -d "$_ckpt_dir" ]]; then
       _newest_mtime="$_mt"
       arc_file="$_f"
     fi
-  done
-  shopt -u nullglob 2>/dev/null || true
+  done < <(find "$_ckpt_dir" -mindepth 2 -maxdepth 2 -name 'checkpoint.json' -type f -print0 2>/dev/null)
 fi
 if [[ -n "$arc_file" ]] && [[ -f "$arc_file" ]] && [[ ! -L "$arc_file" ]]; then
   arc_checkpoint=$(jq -c '.' "$arc_file" 2>/dev/null || echo '{}')
@@ -427,7 +447,7 @@ if ! jq -n \
   --arg team "$active_team" \
   --arg ts "$TIMESTAMP" \
   --arg cfg "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" \
-  --arg pid "${PPID:-}" \
+  --arg pid "$_RUNE_OWNER_PID" \
   --argjson config "$team_config" \
   --argjson tasks "$tasks_json" \
   --argjson workflow "$workflow_state" \

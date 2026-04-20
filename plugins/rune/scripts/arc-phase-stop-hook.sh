@@ -978,12 +978,371 @@ else
   fi
 fi
 
+# ── VERIFY-BEFORE-COMPLETE GUARD (v2.62.0 — P1-D) ──
+# Root cause class: the phase scan below trusts `status == "completed"` as
+# ground truth, but the status field is LLM-self-reported. If an LLM
+# hallucinates "I've completed this phase" (context pressure, rationalization,
+# premature stop), the checkpoint gets `status: "completed"` with no real
+# evidence on disk. Stop hook advances past the fake-completion into the next
+# phase — which then builds on an invalid foundation.
+#
+# This guard demotes any `completed` phase lacking evidence:
+#   Tier 1 (artifact): if .artifact field is a non-empty string pointing to a
+#                      path, the file MUST exist and be non-empty.
+#   Tier 2 (hash):     if .artifact_hash is a 64-char hex (sha256), the actual
+#                      file hash MUST match. (Skipped if shasum unavailable.)
+#
+# Demoted phases flip `completed` → `pending` + `demote_reason`. The stop hook
+# then re-dispatches the SAME phase with an "evidence required" prompt
+# (injected via .phases[X].remediation_context).
+#
+# Scope: applies to phases with defined artifact paths (most phases). Phases
+# that legitimately complete without artifacts (e.g., cleanup-only phases)
+# are unaffected — they simply never had .artifact set, so Tier 1 skips them.
+#
+# Budget cap: max 20 demotions per hook invocation (prevents runaway if the
+# checkpoint is corrupted with bogus artifact paths everywhere).
+#
+# Fail-forward: any internal error returns the checkpoint unchanged.
+_VBC_DEMOTED_COUNT=0
+# P2-003 FIX: Initialize _phase_order_json unconditionally before the VBC
+# guard. The previous pattern
+#   `if [[ -n "${_phase_order_json:-}" ]] || _phase_order_json=$(...); then`
+# short-circuited to FALSE whenever the jq call returned non-zero, silently
+# skipping VBC entirely — the exact class of fake-completion bug VBC exists
+# to catch. Now we always attempt the build, then branch on the populated value.
+if [[ -z "${_phase_order_json:-}" ]]; then
+  _phase_order_json=$(printf '%s\n' "${PHASE_ORDER[@]}" \
+    | jq -R -s 'split("\n") | map(select(length > 0))' 2>/dev/null || echo "")
+fi
+if [[ -z "$_phase_order_json" ]]; then
+  _trace "VBC: _phase_order_json unavailable — skipping verify-before-complete (fail-forward)"
+fi
+if [[ -n "$_phase_order_json" ]]; then
+  # Enumerate completed phases with artifact+hash fields
+  _VBC_CANDIDATES=$(echo "$CKPT_CONTENT" | jq -r --argjson order "$_phase_order_json" '
+    .phases as $p |
+    $order
+    | map(select(($p[.].status // "") == "completed"))
+    | map({
+        phase: .,
+        artifact: ($p[.].artifact // ""),
+        hash: ($p[.].artifact_hash // ""),
+        already_verified: ($p[.].verified_at_advance // false)
+      })
+    | map(select(.artifact != "" and .already_verified == false))
+    | .[]
+    | "\(.phase)\t\(.artifact)\t\(.hash)"
+  ' 2>/dev/null || true)
+
+  if [[ -n "$_VBC_CANDIDATES" ]]; then
+    _VBC_DEMOTIONS=""
+    _VBC_LOOP_COUNT=0
+    while IFS=$'\t' read -r _vbc_phase _vbc_artifact _vbc_hash; do
+      [[ -z "$_vbc_phase" ]] && continue
+      (( _VBC_LOOP_COUNT >= 20 )) && break
+      _VBC_LOOP_COUNT=$((_VBC_LOOP_COUNT + 1))
+
+      # SEC: validate artifact path (no traversal, relative, allowed chars)
+      if [[ "$_vbc_artifact" == *".."* || "$_vbc_artifact" == /* ]]; then
+        _trace "VBC: skip ${_vbc_phase} — unsafe artifact path: ${_vbc_artifact}"
+        continue
+      fi
+      if [[ "$_vbc_artifact" =~ [^a-zA-Z0-9._/-] ]]; then
+        _trace "VBC: skip ${_vbc_phase} — artifact path has forbidden chars"
+        continue
+      fi
+
+      _vbc_full="${CWD}/${_vbc_artifact}"
+      _vbc_demote_reason=""
+
+      # Tier 1: existence + non-empty
+      if [[ ! -f "$_vbc_full" || -L "$_vbc_full" ]]; then
+        _vbc_demote_reason="artifact_missing"
+      elif [[ ! -s "$_vbc_full" ]]; then
+        _vbc_demote_reason="artifact_empty"
+      # Tier 2: hash match (only if hash field present, well-formed, and shasum available)
+      elif [[ -n "$_vbc_hash" && "$_vbc_hash" =~ ^[a-f0-9]{64}$ ]] && command -v shasum >/dev/null 2>&1; then
+        _vbc_actual=$(shasum -a 256 "$_vbc_full" 2>/dev/null | awk '{print $1}')
+        if [[ -n "$_vbc_actual" && "$_vbc_actual" != "$_vbc_hash" ]]; then
+          _vbc_demote_reason="hash_mismatch"
+          _trace "VBC: ${_vbc_phase} hash mismatch expected=${_vbc_hash:0:12} actual=${_vbc_actual:0:12}"
+        fi
+      fi
+
+      if [[ -n "$_vbc_demote_reason" ]]; then
+        _VBC_DEMOTIONS+="${_vbc_phase}"$'\t'"${_vbc_demote_reason}"$'\t'"${_vbc_artifact}"$'\n'
+        _VBC_DEMOTED_COUNT=$((_VBC_DEMOTED_COUNT + 1))
+        _log_phase "phase_demoted_no_evidence" "$_vbc_phase" "reason=${_vbc_demote_reason}" "artifact=${_vbc_artifact}"
+      else
+        # Mark as verified to avoid re-checking on every Stop fire
+        # (performance optimization — hash recompute is expensive on large artifacts)
+        _VBC_DEMOTIONS+="${_vbc_phase}"$'\t'"__MARK_VERIFIED__"$'\t'"${_vbc_artifact}"$'\n'
+      fi
+    done <<< "$_VBC_CANDIDATES"
+
+    # Apply updates if any phase demoted or marked verified
+    if [[ -n "$_VBC_DEMOTIONS" ]]; then
+      _vbc_json=$(printf '%s' "$_VBC_DEMOTIONS" | jq -R -s '
+        split("\n")
+        | map(select(length > 0))
+        | map(split("\t"))
+        | map({phase: .[0], reason: .[1], artifact: .[2]})
+      ' 2>/dev/null || echo "[]")
+
+      if [[ -n "$_vbc_json" && "$_vbc_json" != "[]" ]]; then
+        _vbc_now=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "unknown")
+        _vbc_new_ckpt=$(echo "$CKPT_CONTENT" | jq --argjson updates "$_vbc_json" --arg now "$_vbc_now" '
+          reduce $updates[] as $u (.;
+            if $u.reason == "__MARK_VERIFIED__" then
+              .phases[$u.phase].verified_at_advance = true
+              | .phases[$u.phase].verified_at = $now
+            else
+              .phases[$u.phase].status = "pending"
+              | .phases[$u.phase].demote_reason = $u.reason
+              | .phases[$u.phase].demoted_at = $now
+              | .phases[$u.phase].remediation_context = (
+                  "Previous completion claim lacked evidence (\($u.reason) for artifact \($u.artifact)). " +
+                  "This phase is being re-dispatched. Before marking completed: " +
+                  "(1) Verify the artifact file exists at the declared path. " +
+                  "(2) If artifact_hash is set, recompute sha256 and confirm match. " +
+                  "(3) If artifact cannot be produced, mark status=failed (not completed)."
+                )
+            end
+          )
+          | .verify_before_complete_log = ((.verify_before_complete_log // []) + [
+              $updates[] | select(.reason != "__MARK_VERIFIED__") | {
+                phase: .phase, reason: .reason, artifact: .artifact, timestamp: $now
+              }
+            ])
+        ' 2>/dev/null || true)
+
+        if [[ -n "$_vbc_new_ckpt" ]]; then
+          CKPT_CONTENT="$_vbc_new_ckpt"
+          # Atomic write
+          _vbc_tmp=$(mktemp "${CWD}/${CHECKPOINT_PATH}.XXXXXX" 2>/dev/null || echo "")
+          if [[ -n "$_vbc_tmp" ]]; then
+            if printf '%s\n' "$_vbc_new_ckpt" > "$_vbc_tmp" 2>/dev/null \
+               && mv -f "$_vbc_tmp" "${CWD}/${CHECKPOINT_PATH}" 2>/dev/null; then
+              _trace "VBC: ${_VBC_DEMOTED_COUNT} phase(s) demoted + verification flags persisted"
+            else
+              rm -f "$_vbc_tmp" 2>/dev/null || true
+              _trace "VBC: WARNING — atomic write failed, in-memory only"
+            fi
+          fi
+
+          # User-visible warning if demotions occurred
+          if (( _VBC_DEMOTED_COUNT > 0 )); then
+            cat >&2 <<VBCEOF
+⚠️  Verify-Before-Complete guard: ${_VBC_DEMOTED_COUNT} phase(s) demoted to pending — evidence missing or invalid.
+    Review: tmp/arc/${_ARC_ID_FOR_LOG}/phase-log.jsonl (filter event=phase_demoted_no_evidence)
+    Affected phases will re-dispatch with "evidence required" prompt.
+VBCEOF
+          fi
+        fi
+      fi
+    fi
+  fi
+fi
+
+# ── IN-PROGRESS GUARD (v2.62.0 — plan AC-1..4) ──
+# Root cause: phase scan below (L988-1011) filters only `pending` phases, making
+# `in_progress` phases invisible. A phase with an active team gets bypassed —
+# the scan picks the NEXT pending phase and re-injects it, advancing past the
+# active team. Self-heal (above) only covers QA phases; non-QA phases (work,
+# code_review, mend, test, gap_analysis, forge, design_verification) had no
+# protection before this guard.
+#
+# 3-layer defense:
+#   Layer 1: Team liveness → if team dir exists + config.json has members +
+#            mtime within grace window (default 300s), exit 0 (wait).
+#   Layer 2: Self-heal already ran above — if a valid artifact landed on disk,
+#            the phase is now `completed`, so no in_progress phase found here.
+#   Layer 3: stuck_count fallback — dead team AND no heal → increment counter;
+#            threshold (default 3 consecutive Stop fires) → auto-skip with
+#            reason `team_dead_no_artifact`.
+_IN_PROGRESS_GUARD_PHASE=""
+_phase_order_json=$(printf '%s\n' "${PHASE_ORDER[@]}" | jq -R -s 'split("\n") | map(select(length > 0))' 2>/dev/null)
+if [[ -n "$_phase_order_json" ]]; then
+  _IN_PROGRESS_GUARD_PHASE=$(echo "$CKPT_CONTENT" | jq -r --argjson order "$_phase_order_json" '
+    .phases as $p |
+    [$order[] | select(($p[.].status // "pending") == "in_progress")] | first // ""
+  ' 2>/dev/null || echo "")
+fi
+
+if [[ -n "$_IN_PROGRESS_GUARD_PHASE" ]]; then
+  # P1-001 FIX: The previous implementation constructed the team name as
+  # `rune-arc-${phase}-${arcId}` but no phase in the Rune plugin registers a
+  # team with that prefix. Real prefixes are per-phase: `rune-work-`,
+  # `rune-review-`, `rune-mend-`, `arc-test-`, `arc-qa-…-{parent}`, etc.
+  # Layer 1 therefore stat'd a non-existent directory and returned "dead" on
+  # every call — bypassing the guard and letting stuck_count drive every Stop
+  # fire straight to auto-skip.
+  #
+  # Fix: read the canonical team name recorded by the phase itself (written to
+  # `.phases[$p].team_name` at team-create time). If the field is missing or
+  # malformed we can't run Layer 1 safely — fall through to Layer 3 (stuck
+  # counter) for THIS phase only. Validated via a strict allowlist so a
+  # prompt-injected checkpoint can't inject shell metacharacters.
+  _IPG_TEAM=$(echo "$CKPT_CONTENT" \
+    | jq -r --arg p "$_IN_PROGRESS_GUARD_PHASE" '.phases[$p].team_name // ""' \
+      2>/dev/null || echo "")
+  if [[ -n "$_IPG_TEAM" && ! "$_IPG_TEAM" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+    _trace "IN-PROGRESS GUARD: team_name for '${_IN_PROGRESS_GUARD_PHASE}' failed allowlist — skipping Layer 1"
+    _IPG_TEAM=""
+  fi
+
+  # Layer 1: team liveness — exit 0 if alive (wait for natural completion).
+  # Only runs when we actually know the team name from the checkpoint.
+  if [[ -n "$_IPG_TEAM" ]] \
+     && declare -F _arc_team_has_live_members >/dev/null 2>&1 \
+     && _arc_team_has_live_members "$_IPG_TEAM"; then
+    _trace "IN-PROGRESS GUARD: ${_IN_PROGRESS_GUARD_PHASE} team '${_IPG_TEAM}' alive — exit 0, wait for completion"
+    _log_phase "phase_wait" "$_IN_PROGRESS_GUARD_PHASE" "reason=team_alive" "team=${_IPG_TEAM}"
+    exit 0
+  fi
+
+  # Layer 3: team dead + no artifact (Layer 2 self-heal already ran) → stuck logic
+  _IPG_STUCK_THRESHOLD=$(echo "$CKPT_CONTENT" | jq -r '.config.stuck_threshold // 3' 2>/dev/null || echo "3")
+  [[ "$_IPG_STUCK_THRESHOLD" =~ ^[0-9]+$ ]] || _IPG_STUCK_THRESHOLD=3
+  # P3-004 FIX: Enforce a minimum of 2 so a prompt-injected checkpoint with
+  # `stuck_threshold: 0` (or 1) can't trigger an immediate auto-skip on the
+  # first Stop. LLM-written values are untrusted input per Truthbinding.
+  (( _IPG_STUCK_THRESHOLD < 2 )) && _IPG_STUCK_THRESHOLD=3
+
+  # P2-002 FIX: Track stuck_count in an external counter file so it still
+  # advances when the in-checkpoint jq update fails (e.g., checkpoint
+  # corruption). Previously a jq error would leave stuck_count at 0 on disk,
+  # so _IPG_NEW_STUCK reset to 1 every Stop fire and the threshold was never
+  # reached — unbounded retries until MAX_ITERATIONS. Same pattern as
+  # phase-dispatch-counts.json elsewhere in the codebase.
+  _IPG_COUNTER_DIR="${CWD}/tmp/arc/${_ARC_ID_FOR_LOG}"
+  _IPG_COUNTER_FILE="${_IPG_COUNTER_DIR}/stuck-counts.json"
+  mkdir -p "$_IPG_COUNTER_DIR" 2>/dev/null || true
+
+  _IPG_FILE_STUCK=0
+  if [[ -f "$_IPG_COUNTER_FILE" && ! -L "$_IPG_COUNTER_FILE" ]]; then
+    _IPG_FILE_STUCK=$(jq -r --arg p "$_IN_PROGRESS_GUARD_PHASE" \
+      '.[$p] // 0' "$_IPG_COUNTER_FILE" 2>/dev/null || echo "0")
+    [[ "$_IPG_FILE_STUCK" =~ ^[0-9]+$ ]] || _IPG_FILE_STUCK=0
+  fi
+
+  _IPG_CKPT_STUCK=$(echo "$CKPT_CONTENT" | jq -r --arg p "$_IN_PROGRESS_GUARD_PHASE" '.phases[$p].stuck_count // 0' 2>/dev/null || echo "0")
+  [[ "$_IPG_CKPT_STUCK" =~ ^[0-9]+$ ]] || _IPG_CKPT_STUCK=0
+
+  # Use the HIGHER of the two — external file is authoritative when checkpoint
+  # update previously failed; checkpoint is authoritative on a fresh phase.
+  if (( _IPG_FILE_STUCK > _IPG_CKPT_STUCK )); then
+    _IPG_CUR_STUCK=$_IPG_FILE_STUCK
+  else
+    _IPG_CUR_STUCK=$_IPG_CKPT_STUCK
+  fi
+  _IPG_NEW_STUCK=$((_IPG_CUR_STUCK + 1))
+  _IPG_NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "unknown")
+
+  # Persist to external counter file FIRST (atomic write), so the count
+  # survives even if the checkpoint jq update below fails.
+  _IPG_COUNTER_TMP=$(mktemp "${_IPG_COUNTER_FILE}.XXXXXX" 2>/dev/null || echo "")
+  if [[ -n "$_IPG_COUNTER_TMP" ]]; then
+    if [[ -f "$_IPG_COUNTER_FILE" && ! -L "$_IPG_COUNTER_FILE" ]]; then
+      _IPG_NEW_COUNTER=$(jq --arg p "$_IN_PROGRESS_GUARD_PHASE" --argjson n "$_IPG_NEW_STUCK" \
+        '. + {($p): $n}' "$_IPG_COUNTER_FILE" 2>/dev/null || true)
+    else
+      _IPG_NEW_COUNTER=$(jq -n --arg p "$_IN_PROGRESS_GUARD_PHASE" --argjson n "$_IPG_NEW_STUCK" \
+        '{($p): $n}' 2>/dev/null || true)
+    fi
+    if [[ -n "$_IPG_NEW_COUNTER" ]]; then
+      printf '%s\n' "$_IPG_NEW_COUNTER" > "$_IPG_COUNTER_TMP" 2>/dev/null \
+        && mv -f "$_IPG_COUNTER_TMP" "$_IPG_COUNTER_FILE" 2>/dev/null \
+        || rm -f "$_IPG_COUNTER_TMP" 2>/dev/null || true
+    else
+      rm -f "$_IPG_COUNTER_TMP" 2>/dev/null || true
+    fi
+  fi
+
+  if (( _IPG_NEW_STUCK >= _IPG_STUCK_THRESHOLD )); then
+    # Auto-skip with evidence
+    _trace "IN-PROGRESS GUARD: ${_IN_PROGRESS_GUARD_PHASE} stuck_count=${_IPG_NEW_STUCK} >= threshold ${_IPG_STUCK_THRESHOLD} — auto-skip"
+    _log_phase "phase_stuck_auto_skipped" "$_IN_PROGRESS_GUARD_PHASE" "stuck_count=${_IPG_NEW_STUCK}" "threshold=${_IPG_STUCK_THRESHOLD}"
+
+    _IPG_NEW_CKPT=$(echo "$CKPT_CONTENT" | jq --arg p "$_IN_PROGRESS_GUARD_PHASE" --arg ts "$_IPG_NOW" '
+      .phases[$p].status = "skipped" |
+      .phases[$p].skip_reason = "team_dead_no_artifact_after_stuck_threshold" |
+      .phases[$p].auto_skipped_at = $ts |
+      .phase_skip_log = (.phase_skip_log // []) + [{
+        phase: $p, event: "stuck_auto_skipped",
+        reason: "team_dead_no_artifact_after_stuck_threshold",
+        timestamp: $ts
+      }]
+    ' 2>/dev/null || true)
+
+    if [[ -n "$_IPG_NEW_CKPT" ]]; then
+      CKPT_CONTENT="$_IPG_NEW_CKPT"
+      # Atomic write to disk
+      _IPG_TMP=$(mktemp "${CWD}/${CHECKPOINT_PATH}.XXXXXX" 2>/dev/null || echo "")
+      if [[ -n "$_IPG_TMP" ]]; then
+        if printf '%s\n' "$_IPG_NEW_CKPT" > "$_IPG_TMP" 2>/dev/null \
+           && mv -f "$_IPG_TMP" "${CWD}/${CHECKPOINT_PATH}" 2>/dev/null; then
+          _trace "IN-PROGRESS GUARD: auto-skip checkpoint written atomically"
+        else
+          rm -f "$_IPG_TMP" 2>/dev/null || true
+          _trace "IN-PROGRESS GUARD: WARNING — checkpoint atomic write failed, in-memory only"
+        fi
+      fi
+
+      # Emit user-visible warning to stderr
+      cat >&2 <<STUCKEOF
+⚠️  Arc ${_ARC_ID_FOR_LOG} phase '${_IN_PROGRESS_GUARD_PHASE}' auto-skipped:
+    Reason: no live team + no healable artifact after ${_IPG_NEW_STUCK} consecutive Stop fires
+    Review: tmp/arc/${_ARC_ID_FOR_LOG}/phase-log.jsonl
+    Resume: /rune:arc --resume (advances from next pending phase)
+STUCKEOF
+    fi
+    # Fall through to phase scan below — will pick up next pending phase
+  else
+    # Increment stuck_count and re-inject SAME phase to retry
+    _trace "IN-PROGRESS GUARD: ${_IN_PROGRESS_GUARD_PHASE} stuck_count=${_IPG_NEW_STUCK}/${_IPG_STUCK_THRESHOLD} — retry same phase"
+    _log_phase "phase_stuck_retry" "$_IN_PROGRESS_GUARD_PHASE" "stuck_count=${_IPG_NEW_STUCK}" "threshold=${_IPG_STUCK_THRESHOLD}"
+
+    _IPG_NEW_CKPT=$(echo "$CKPT_CONTENT" | jq --arg p "$_IN_PROGRESS_GUARD_PHASE" --argjson n "$_IPG_NEW_STUCK" --arg ts "$_IPG_NOW" '
+      .phases[$p].stuck_count = $n |
+      .phases[$p].last_stuck_at = $ts
+    ' 2>/dev/null || true)
+
+    if [[ -n "$_IPG_NEW_CKPT" ]]; then
+      CKPT_CONTENT="$_IPG_NEW_CKPT"
+      _IPG_TMP=$(mktemp "${CWD}/${CHECKPOINT_PATH}.XXXXXX" 2>/dev/null || echo "")
+      if [[ -n "$_IPG_TMP" ]]; then
+        if printf '%s\n' "$_IPG_NEW_CKPT" > "$_IPG_TMP" 2>/dev/null \
+           && mv -f "$_IPG_TMP" "${CWD}/${CHECKPOINT_PATH}" 2>/dev/null; then
+          _trace "IN-PROGRESS GUARD: stuck_count persisted"
+        else
+          rm -f "$_IPG_TMP" 2>/dev/null || true
+        fi
+      fi
+    fi
+
+    # Force NEXT_PHASE to this in-progress phase (retry same phase, not advance)
+    NEXT_PHASE="$_IN_PROGRESS_GUARD_PHASE"
+    _IMMEDIATE_PREV=""
+    # Build prev from completed phases for group-boundary logic
+    if [[ -n "$_phase_order_json" ]]; then
+      _IMMEDIATE_PREV=$(echo "$CKPT_CONTENT" | jq -r --argjson order "$_phase_order_json" '
+        .phases as $p |
+        [$order[] | select(($p[.].status // "pending") == "completed")] | last // ""
+      ' 2>/dev/null || echo "")
+    fi
+    # Skip the phase scan below — we already set NEXT_PHASE
+    _IPG_SKIP_SCAN=1
+  fi
+fi
+
 # ── Find next pending phase in PHASE_ORDER (AC-3: single-jq optimization) ──
 # PERF FIX: Replace per-phase jq forks (O(N) process forks) with single jq call.
 # Also extracts _IMMEDIATE_PREV for Tier 0 compact interlude (Task 1.4).
+if [[ -z "${_IPG_SKIP_SCAN:-}" ]]; then
 NEXT_PHASE=""
 _IMMEDIATE_PREV=""
-_phase_order_json=$(printf '%s\n' "${PHASE_ORDER[@]}" | jq -R -s 'split("\n") | map(select(length > 0))' 2>/dev/null)
 if [[ -n "$_phase_order_json" ]]; then
   _phase_result=$(echo "$CKPT_CONTENT" | jq -r --argjson order "$_phase_order_json" '
     .phases as $p |
@@ -1009,6 +1368,7 @@ if [[ -z "${NEXT_PHASE:-}" ]]; then
     fi
   done
 fi
+fi  # close _IPG_SKIP_SCAN block (v2.62.0)
 _trace "TIMING: phase_find done at +$(( $(date +%s) - _HOOK_START_EPOCH ))s"
 
 _trace "Next pending phase: ${NEXT_PHASE:-NONE} (prev=${_IMMEDIATE_PREV:-NONE}, iteration ${ITERATION}, auto_skipped=${_auto_skipped})"
@@ -1070,7 +1430,11 @@ if [[ "$_GROUP_MODE" == "active" && -n "$_IMMEDIATE_PREV" && -n "$NEXT_PHASE" ]]
 ARC_STATE: {"group":"${_prev_group}","next":"${_next_group}","status":"paused"}
 GROUPEOF
 
-        exit 0  # pause — session stops, user resumes with --resume
+        # v2.62.0 (plan AC-10): exit 2 surfaces the stderr banner above to the
+        # user. exit 0 would discard stdout/stderr per Stop hook semantics,
+        # swallowing both the banner AND the ARC_STATE signal line — users
+        # saw a clean session stop with no explanation of why the pipeline paused.
+        exit 2  # pause — session stops, user resumes with --resume
       fi
     else
       _trace "Group boundary detected but mid-convergence (review=${_conv_round}, inspect=${_inspect_round}, browser=${_browser_round}) — skipping pause"
