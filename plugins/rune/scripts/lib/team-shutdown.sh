@@ -54,11 +54,25 @@ rune_team_shutdown_fallback() {
   local fallback_members="${4:-}"
   local grace_seconds="${5:-5}"
 
-  # Clamp grace_seconds to [0,20] and validate — treat invalid as default 5
-  if [[ ! "$grace_seconds" =~ ^[0-9]+$ ]]; then
+  # Clamp grace_seconds to [0,20].
+  # BACK-005 (v2.63.0): accept signed ints so callers passing `-1` (over-budget
+  # shorthand) or a computed negative remainder get clamped to 0 rather than
+  # silently reverting to the 5s default. Decimal inputs (e.g. `2.5`) are not
+  # supported — we keep integer-only semantics but trace the coercion so
+  # callers can adjust.
+  local _gs_original="$grace_seconds"
+  if [[ "$grace_seconds" =~ ^-?[0-9]+$ ]]; then
+    if (( grace_seconds < 0 )); then
+      grace_seconds=0
+    elif (( grace_seconds > 20 )); then
+      grace_seconds=20
+    fi
+    if [[ "$_gs_original" != "$grace_seconds" ]]; then
+      [[ "${RUNE_TRACE:-}" == "1" ]] && printf '[team-shutdown] grace_seconds clamped %s → %s\n' "$_gs_original" "$grace_seconds" >&2
+    fi
+  else
     grace_seconds=5
-  elif [[ "$grace_seconds" -gt 20 ]]; then
-    grace_seconds=20
+    [[ "${RUNE_TRACE:-}" == "1" ]] && printf '[team-shutdown] grace_seconds invalid (%s) — using default 5\n' "$_gs_original" >&2
   fi
 
   # ── Respect disable flag ──
@@ -156,13 +170,33 @@ rune_team_shutdown_fallback() {
     "$PPID")
 
   # Atomic write via tmp+mv
-  # RUIN-003 FIX: Symlink guard on tmp path — the fallback branch (diag_tmp="${TMPDIR}/rune-diag-$$")
-  # uses a predictable PID-based name that an attacker with TMPDIR access could pre-create as a symlink.
-  # Reject any symlink before writing to prevent content redirection.
+  # SEC-005 (v2.63.0): mktemp must succeed — when it fails we SKIP the
+  # diagnostic write entirely rather than falling back to the predictable
+  # `${TMPDIR}/rune-diag-$$` name. The prior fallback + symlink guard closed
+  # the actual content-redirection attack but left a narrow TOCTOU window
+  # (attacker pre-creates symlink → our `-L` check runs → attacker swaps
+  # symlink for a regular file → mv overwrites attacker-chosen path). Failing
+  # closed removes that window entirely; diagnostics are best-effort anyway
+  # and the team-shutdown return code already reflects fallback_exercised.
+  #
+  # RUIN-003 FIX (retained): even on the mktemp happy path we still reject
+  # symlink targets in case the temp dir itself is compromised (e.g., TOCTOU
+  # via a shared TMPDIR on a multi-user host).
   local diag_tmp
-  diag_tmp=$(mktemp "${TMPDIR:-/tmp}/rune-diag-XXXXXX" 2>/dev/null) || diag_tmp="${TMPDIR:-/tmp}/rune-diag-$$"
+  diag_tmp=$(mktemp "${TMPDIR:-/tmp}/rune-diag-XXXXXX" 2>/dev/null)
+  if [[ -z "$diag_tmp" ]]; then
+    [[ "${RUNE_TRACE:-}" == "1" ]] && printf '[team-shutdown] mktemp failed — skipping diagnostic write (fail-closed)\n' >&2
+    if [[ "$fallback_exercised" == "true" ]]; then
+      return 1
+    fi
+    return 0
+  fi
   if [[ -L "$diag_tmp" ]]; then
     [[ "${RUNE_TRACE:-}" == "1" ]] && printf '[team-shutdown] diag_tmp is a symlink — aborting diagnostic write: %s\n' "$diag_tmp" >&2
+    rm -f -- "$diag_tmp" 2>/dev/null
+    if [[ "$fallback_exercised" == "true" ]]; then
+      return 1
+    fi
     return 0
   fi
   printf '%s\n' "$diag_json" > "$diag_tmp" 2>/dev/null

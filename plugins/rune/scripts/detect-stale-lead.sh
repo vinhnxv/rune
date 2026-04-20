@@ -204,6 +204,44 @@ fi
 # ── GUARD 4: Find ALL active teams for this session ──
 HOOK_NOW=$(date +%s)
 
+# AC-14: Cumulative Method C budget (ms) across outer loop iterations.
+# Prevents DoS when a session has many teams, each with large task directories.
+#
+# BACK-001 (v2.63.0): previous implementation used `date +%s` (whole seconds).
+# Iterations completing in <1s contributed 0ms to the counter, so a session
+# with 100 adversarial sub-second iterations accumulated 0ms while burning 50s
+# of wall clock. The cap at 7000ms was unreachable, defeating the DoS guard.
+# We now capture milliseconds via `_rune_epoch_ms` (gdate → GNU %s%3N → secs*1000
+# fallback chain). Even in the degraded seconds*1000 fallback the counter is
+# still correct — it just has second-level granularity, which matches the prior
+# behaviour and is the best portable option when neither gdate nor GNU date is
+# available.
+#
+# SEC-006 (v2.63.0): if _rune_epoch_ms returns empty or non-numeric on either
+# t0 or t1 capture, the loop fails CLOSED (breaks with a warning) instead of
+# pinning epoch to 0 and producing negative arithmetic that bypasses the cap.
+_rune_epoch_ms() {
+  if command -v gdate >/dev/null 2>&1; then
+    gdate +%s%3N 2>/dev/null
+  else
+    # POSIX date with GNU-style %3N extension? Probe: a real support prints
+    # pure digits; BSD date prints literal "%3N" as a trailing suffix.
+    local _probe
+    _probe=$(date +%s%3N 2>/dev/null)
+    if [[ "$_probe" =~ ^[0-9]+$ ]]; then
+      printf '%s' "$_probe"
+    else
+      # Degraded fallback: seconds * 1000. Preserves cap semantics but with
+      # 1s granularity (same as pre-BACK-001 behaviour — no regression).
+      local _secs
+      _secs=$(date +%s 2>/dev/null)
+      [[ "$_secs" =~ ^[0-9]+$ ]] && printf '%d' $(( _secs * 1000 ))
+    fi
+  fi
+}
+
+_mc_cumulative_ms=0
+
 for sf in "${STATE_FILES[@]}"; do
   [[ -f "$sf" ]] || continue
   [[ -L "$sf" ]] && continue  # skip symlinks
@@ -330,6 +368,13 @@ for sf in "${STATE_FILES[@]}"; do
   fi
 
   # ── Method C: Scan task files in $CHOME/tasks/$TEAM/ ──
+  # AC-14: Record wall-clock start for cumulative budget tracking.
+  # BACK-001/SEC-006: ms precision + fail-closed on date failure.
+  _mc_t0=$(_rune_epoch_ms)
+  if [[ ! "$_mc_t0" =~ ^[0-9]+$ ]]; then
+    _trace "AC-14: epoch_ms failed at t0 capture — aborting outer loop (fail-closed)"
+    break
+  fi
   if [[ -z "$WAKE_MODE" ]]; then
     TASK_DIR="${CHOME}/tasks/${SF_TEAM}"
     if [[ -d "$TASK_DIR" ]]; then
@@ -371,6 +416,29 @@ for sf in "${STATE_FILES[@]}"; do
         TOTAL_TASKS="$_total"
       fi
     fi
+  fi
+
+  # AC-14: Accumulate Method C elapsed time and break if cumulative > 7s (7000ms).
+  # This caps the total Method C budget across ALL outer loop iterations, preventing
+  # a session with many large-team task directories from holding the Stop hook too long.
+  # BACK-001/SEC-006: ms precision + fail-closed on date failure.
+  _mc_t1=$(_rune_epoch_ms)
+  if [[ ! "$_mc_t1" =~ ^[0-9]+$ ]]; then
+    _trace "AC-14: epoch_ms failed at t1 capture — aborting outer loop (fail-closed)"
+    break
+  fi
+  # Delta may be 0 on the degraded seconds*1000 path when an iteration completes
+  # inside the same second. That is acceptable — the cap still triggers because
+  # cumulative seconds continue to accumulate across outer iterations.
+  _mc_iter_ms=$(( _mc_t1 - _mc_t0 ))
+  if (( _mc_iter_ms < 0 )); then
+    _trace "AC-14: clock ran backwards (t0=${_mc_t0} t1=${_mc_t1}) — aborting (fail-closed)"
+    break
+  fi
+  _mc_cumulative_ms=$(( _mc_cumulative_ms + _mc_iter_ms ))
+  if [[ $_mc_cumulative_ms -gt 7000 ]]; then
+    _trace "Method C budget: ${_mc_cumulative_ms}ms cumulative — breaking outer loop"
+    break
   fi
 
   # ── Method D: Liveness check — no processes but tasks in_progress ──

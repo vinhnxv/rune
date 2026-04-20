@@ -84,6 +84,9 @@ fi
 
 # ── GUARD 1.5: Talisman auto_cleanup config (AC-5) ──
 # Env var takes precedence. If not set, check talisman process_management.auto_cleanup.
+# AC-13: LEGACY_PPID_FALLBACK defaults false — PPID checks are gated behind explicit opt-in
+# because $PPID in hook context is the hook runner subprocess PID, not the Claude Code PID.
+LEGACY_PPID_FALLBACK=false
 if [[ -z "${RUNE_DISABLE_AUTO_CLEANUP:-}" ]]; then
   _talisman_shard="${CLAUDE_PROJECT_DIR:-.}/tmp/.talisman-resolved/misc.json"
   if [[ -f "$_talisman_shard" && ! -L "$_talisman_shard" ]]; then
@@ -91,6 +94,11 @@ if [[ -z "${RUNE_DISABLE_AUTO_CLEANUP:-}" ]]; then
     if [[ "$_auto_cleanup" == "false" ]]; then
       exit 0
     fi
+    # AC-13: Read legacy_ppid_fallback from the same shard (default false).
+    # When false (default), state files with no session_id skip PPID comparison
+    # because $PPID in hook context is the hook runner PID, not the Claude Code PID.
+    _legppid=$(jq -r '.process_management.legacy_ppid_fallback // empty' "$_talisman_shard" 2>/dev/null || true)
+    [[ "$_legppid" == "true" ]] && LEGACY_PPID_FALLBACK=true
   fi
 fi
 
@@ -231,7 +239,19 @@ _check_loop_ownership() {
       fi
     fi
   fi
-  # Fallback: PID check (for state files without session_id)
+  # AC-13: Gate PPID fallback behind legacy_ppid_fallback flag.
+  # When sid is absent (we reached this point without a session_id match) AND
+  # LEGACY_PPID_FALLBACK is false (the default), we cannot reliably determine
+  # ownership via $PPID — hook context $PPID is the hook runner subprocess, not
+  # the Claude Code process. Return 1 (not owned) to skip cleanup.
+  # DOC-002 (v2.63.0): trace prefix is `SKIP <state_file>:` for greppable
+  # parity with scripts/detect-workflow-complete.sh:379. Operators filtering
+  # AC-13 diagnostics by `grep SKIP` must see both hooks.
+  if [[ -z "$sid" && "${LEGACY_PPID_FALLBACK:-false}" != "true" ]]; then
+    _trace "SKIP $state_file: no session_id, legacy_ppid_fallback=false (AC-13)"
+    return 1
+  fi
+  # Fallback: PID check (for state files without session_id, legacy_ppid_fallback=true only)
   if [[ -n "$pid" && "$pid" =~ ^[0-9]+$ && "$pid" != "$PPID" ]]; then
     if rune_pid_alive "$pid"; then
       return 1

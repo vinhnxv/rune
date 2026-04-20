@@ -382,16 +382,32 @@ if [[ "$project_json" == '{}' && "$global_json" == '{}' && -z "$PARSE_FAILURES" 
   # shasum subprocess (down from 3 forks). The composite hash still invalidates
   # the system cache when either file changes — identical semantics to the
   # previous three-step hash chain (BACK-IDN-005 FIX, v2.53.2).
+  #
+  # BACK-007 (v2.63.0): `cat "$FILE" 2>/dev/null` produces empty output on
+  # both (a) missing file and (b) unreadable file (chmod 000, permission
+  # error, etc.). Hashing empty input always yields the same digest, so the
+  # fast-path would "match" its prior state across qualitatively different
+  # failure modes and serve stale shards. We now pre-flight each source with
+  # `[[ -r "$file" ]]` and force a cache-miss sentinel when the defaults
+  # file is unreadable so the full resolver path runs (which will surface
+  # the real error to the operator instead of silently caching broken state).
   _RESOLVER_SCRIPT_PATH="${BASH_SOURCE[0]:-}"
-  if [[ -n "$_RESOLVER_SCRIPT_PATH" && -f "$_RESOLVER_SCRIPT_PATH" && ! -L "$_RESOLVER_SCRIPT_PATH" ]]; then
+  if [[ ! -r "$DEFAULTS_FILE" ]]; then
+    # Defaults missing or unreadable — never cache against an invisible file.
+    # Use a value that cannot match any real sha256 so the comparison below
+    # always refuses the fast path.
+    CURRENT_DEFAULTS_HASH="no-hash"
+    _trace "Fast path bypassed: DEFAULTS_FILE unreadable or missing ($DEFAULTS_FILE)"
+  elif [[ -n "$_RESOLVER_SCRIPT_PATH" && -f "$_RESOLVER_SCRIPT_PATH" && ! -L "$_RESOLVER_SCRIPT_PATH" && -r "$_RESOLVER_SCRIPT_PATH" ]]; then
     CURRENT_DEFAULTS_HASH=$({
-      cat "$DEFAULTS_FILE" 2>/dev/null
+      cat "$DEFAULTS_FILE"
       printf '\n---resolver---\n'
-      cat "$_RESOLVER_SCRIPT_PATH" 2>/dev/null
-    } | { shasum -a 256 2>/dev/null || sha256sum 2>/dev/null; } | cut -d' ' -f1)
+      cat "$_RESOLVER_SCRIPT_PATH"
+    } 2>/dev/null | { shasum -a 256 2>/dev/null || sha256sum 2>/dev/null; } | cut -d' ' -f1)
     [[ -z "$CURRENT_DEFAULTS_HASH" ]] && CURRENT_DEFAULTS_HASH="no-hash"
   else
-    # Resolver script path not resolvable — hash defaults file alone
+    # Resolver script path not resolvable (or unreadable) — hash defaults file alone.
+    # Defaults readability was asserted above, so cat is unconditional here.
     CURRENT_DEFAULTS_HASH=$({ shasum -a 256 "$DEFAULTS_FILE" 2>/dev/null || sha256sum "$DEFAULTS_FILE" 2>/dev/null; } | cut -d' ' -f1)
     [[ -z "$CURRENT_DEFAULTS_HASH" ]] && CURRENT_DEFAULTS_HASH="no-hash"
   fi

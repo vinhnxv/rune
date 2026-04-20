@@ -1,5 +1,68 @@
 # Changelog
 
+## [2.64.0] — 2026-04-20
+
+### Fixed — Arc Stop hook phase-skip + post-arc re-injection hardening (plan `plans/2026-04-20-fix-stop-hook-phase-skip-and-stopfailure-plan.md`)
+
+Rebased onto v2.63.0. Re-versioned from the original v2.62.0/v2.62.1 trajectory
+as a v2.64.0 minor bump after rebasing onto main's v2.63.0 audit fix. Same code
+content as the pre-rebase v2.62.0 + v2.62.1 commits — only the version header
+changed to reflect the new position in the history.
+
+**Reliability — Arc Stop hook phase-skip defense (3 layers)**
+- Team liveness check — new `_arc_team_has_live_members()` in
+  `lib/stop-hook-common.sh` inspects `${CHOME}/teams/{name}/config.json` and
+  PID liveness before the phase scan. Blocks advance while any team member is
+  still alive, covering `work`, `code_review`, `mend`, `test`, `gap_analysis`,
+  `forge`, `design_verification` (which previously had no self-heal coverage).
+- Artifact sentinel check — verifies phase-expected artifacts exist on disk
+  before considering a phase skippable. Closes the `TaskList`-empty-but-artifacts-present
+  gap called out by Iron Law ARC-QA-001.
+- Freshness guard — rejects `in_progress` → `completed` flips whose artifacts
+  predate `started_at`, preserving fail-forward discipline.
+
+**Reliability — Phase 2 hardening (AC-11, AC-13, AC-14, AC-17)**
+- AC-11: Deterministic phase-status recovery when `TaskList` returns no tasks
+  after team cleanup (previously advanced via `skip_map` with infra narrative).
+- AC-13: Stop hook ERR trap attribution — ERR traps now log the failing
+  source + line using `lib/platform.sh` helpers instead of a raw `BASH_LINENO`.
+- AC-14: `arc_guard_rapid_iteration()` now fails loudly when required helpers
+  are missing rather than silently skipping guards.
+- AC-17: Regression tests covering the 3-layer defense under
+  `plugins/rune/tests/stop-hook-phase-skip/`.
+
+**Reliability — StopFailure API-error logging (STOP-FAIL-001)**
+- New `on-stop-failure.sh` Stop hook fires on API errors
+  (`rate_limit`/`server_error`/`max_output_tokens`/`authentication_failed`)
+  per the official Claude Code hook docs. Output and exit code are IGNORED
+  per spec — hook is side-effect-only.
+- Appends JSONL entries (timestamp, session_id, error_type, severity) to
+  `${TMPDIR}/rune-stop-failure-$(id -u).jsonl` (5 MB cap, truncation rotation).
+- Best-effort copy of the newest `.rune/arc/*/checkpoint.json` to
+  `.rune/arc-checkpoint-snapshots/` so recovery isn't blocked by API churn.
+- Prior audit 20260414-012408 wrongly classified `StopFailure` as orphan;
+  v2.64.0 re-enables the hook and documents the correct spec behavior.
+
+**Reliability — Terminal-checkpoint guard (post-arc re-injection loop fix)**
+- Symptom: after `/rune:arc` completed successfully, the Stop hook continued
+  re-injecting the "MANDATORY post-arc steps" prompt on every turn, deadlocking
+  the session until the operator manually archived the checkpoint.
+- Root cause: two hook paths (`verify-arc-state-integrity.sh` PostToolUse and
+  `arc-phase-stop-hook.sh` self-heal) recreated `.rune/arc-phase-loop.local.md`
+  without checking whether the target checkpoint had reached terminal state.
+- Fix — terminal-checkpoint guard in two locations (defense-in-depth):
+  1. `rune-arc-init-state.sh cmd_create` skips state-file creation when
+     `completed_at` is stamped AND zero phases remain in `pending`/`in_progress`.
+     Logs `skipped_terminal_checkpoint` to the integrity log. `--force`
+     bypasses the guard so `--resume` on a terminal arc still works.
+  2. `arc-phase-stop-hook.sh` self-heal branch inspects the owned checkpoint
+     and silent-exits 0 when terminal (handles the `--force` path).
+
+Verification artifacts: `arc-1776662055001` (terminal checkpoint) — state file
+stays absent across Stop events, no stderr prompt re-injected, exit 0.
+
+---
+
 ## [2.63.0] — 2026-04-20
 
 ### Fixed — audit 20260420-112502 valid findings (P1/P2 false-positive triage)
@@ -142,6 +205,57 @@ dispatcher for non-QA phases). All 12 assertions pass.
 - `CLAUDE.md` hook infrastructure table: updated StopFailure entry (removed
   "orphan" classification, documented current behavior).
 - `plugins/rune/CLAUDE.md` and CHANGELOG updated.
+
+### Fixed — AC-11: prompt injection guard in `_sanitize_prompt_content()`
+
+`arc-phase-stop-hook.sh` now sanitizes `_meta_qa_echoes` content before
+injecting it into `PHASE_PROMPT`. New helper `_sanitize_prompt_content()`:
+- Strips markdown code fences (``` blocks)
+- Strips HTML comments (`<!-- ... -->`)
+- Strips ANCHOR / RE-ANCHOR Truthbinding directives
+- Strips zero-width Unicode chars (U+200B ZWSP, U+FEFF BOM) — cross-platform
+  via octal `tr` escapes (BSD/GNU compatible)
+- Caps output at 2000 characters
+
+### Fixed — AC-13: PPID legacy-fallback gate in `detect-workflow-complete.sh`
+
+State files that carry `owner_pid` but no `session_id` (written by pre-session-id
+Rune versions) are now skipped when `process_management.legacy_ppid_fallback: false`
+(the new default). This prevents the `[[ $SF_PID == $PPID ]]` PPID match from
+advancing cleanup on state files that belong to a different session.
+Talisman opt-in: set `legacy_ppid_fallback: true` to restore old behaviour for
+sites that cannot upgrade state files.
+
+### Fixed — AC-14: Method C 7000 ms prompt-build budget guard
+
+`arc-phase-stop-hook.sh` Method C (PHASE_PROMPT construction) now enforces a
+7000 ms wall-clock budget. If prompt construction exceeds the budget, the hook
+falls back to a minimal phase-name-only prompt rather than re-injecting a
+potentially stale or truncated prompt.
+
+### Fixed — AC-17: CKPT-INT-008 required field validation in `validate_checkpoint_json_integrity()`
+
+`lib/stop-hook-common.sh` `validate_checkpoint_json_integrity()` now enforces
+four additional CKPT-INT-008 invariants:
+- `arc_id` must be a JSON string (not integer)
+- `phases` must be a JSON object (not null or array)
+- `overall_status` field must be present
+- `current_phase` field must be present
+
+Returns exit code 1 on any violation; never calls `exit` directly (safe to
+source-and-call from tests).
+
+### Added — Regression tests (GAP-T5 / GAP-T6 / GAP-T7)
+
+New `tests/stop-hook/test-stop-hook-fixes.sh` — 12-test suite:
+- **GAP-T5** (5 tests): `_sanitize_prompt_content()` — fences, HTML comments,
+  ANCHOR directives, 2000-char cap, short passthrough
+- **GAP-T6** (2 tests): AC-13 PPID gate fires / does not fire based on state
+  file shape
+- **GAP-T7** (5 tests): CKPT-INT-008 rejects arc_id=int, phases=null, missing
+  overall_status, missing current_phase; accepts valid checkpoint
+
+All 12 assertions pass on macOS (BSD tools) and Linux.
 
 ---
 
