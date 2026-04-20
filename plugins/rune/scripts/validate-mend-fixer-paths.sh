@@ -22,7 +22,24 @@
 
 set -euo pipefail
 umask 077
-trap 'exit 0' ERR
+
+# --- Fail-forward guard (OPERATIONAL hook — VEIL-002) ---
+# Crash before validation → allow operation (don't stall workflows).
+# Replaces the prior bare `trap 'exit 0' ERR` which silently hid crash sites.
+# AC-27 (FIND-003, P2): adds trace logging per VEIL-002 for observability.
+_rune_fail_forward() {
+  if [[ "${RUNE_TRACE:-}" == "1" ]]; then
+    local _log="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
+    # SEC-007: reject symlink to prevent log redirection attacks
+    [[ ! -L "$_log" ]] && printf '[%s] %s: ERR trap — fail-forward activated (line %s)\n' \
+      "$(date +%H:%M:%S 2>/dev/null || true)" \
+      "${BASH_SOURCE[0]##*/}" \
+      "${BASH_LINENO[0]:-?}" \
+      >> "$_log" 2>/dev/null
+  fi
+  exit 0
+}
+trap '_rune_fail_forward' ERR
 
 # Pre-flight: jq is required for JSON parsing (fail-open if missing).
 if ! command -v jq &>/dev/null; then
