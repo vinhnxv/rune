@@ -204,6 +204,11 @@ fi
 # ── GUARD 4: Find ALL active teams for this session ──
 HOOK_NOW=$(date +%s)
 
+# AC-14: Cumulative Method C budget (ms) across outer loop iterations.
+# Prevents DoS when a session has many teams, each with large task directories.
+# Uses seconds × 1000 — cross-platform (avoids date +%s%3N which is GNU-only).
+_mc_cumulative_ms=0
+
 for sf in "${STATE_FILES[@]}"; do
   [[ -f "$sf" ]] || continue
   [[ -L "$sf" ]] && continue  # skip symlinks
@@ -330,6 +335,8 @@ for sf in "${STATE_FILES[@]}"; do
   fi
 
   # ── Method C: Scan task files in $CHOME/tasks/$TEAM/ ──
+  # AC-14: Record wall-clock start for cumulative budget tracking.
+  _mc_t0=$(date +%s 2>/dev/null || echo "0")
   if [[ -z "$WAKE_MODE" ]]; then
     TASK_DIR="${CHOME}/tasks/${SF_TEAM}"
     if [[ -d "$TASK_DIR" ]]; then
@@ -371,6 +378,18 @@ for sf in "${STATE_FILES[@]}"; do
         TOTAL_TASKS="$_total"
       fi
     fi
+  fi
+
+  # AC-14: Accumulate Method C elapsed time and break if cumulative > 7s (7000ms).
+  # This caps the total Method C budget across ALL outer loop iterations, preventing
+  # a session with many large-team task directories from holding the Stop hook too long.
+  _mc_t1=$(date +%s 2>/dev/null || echo "0")
+  if [[ "$_mc_t0" =~ ^[0-9]+$ && "$_mc_t1" =~ ^[0-9]+$ ]]; then
+    _mc_cumulative_ms=$(( _mc_cumulative_ms + (_mc_t1 - _mc_t0) * 1000 ))
+  fi
+  if [[ $_mc_cumulative_ms -gt 7000 ]]; then
+    _trace "Method C budget: ${_mc_cumulative_ms}ms cumulative — breaking outer loop"
+    break
   fi
 
   # ── Method D: Liveness check — no processes but tasks in_progress ──

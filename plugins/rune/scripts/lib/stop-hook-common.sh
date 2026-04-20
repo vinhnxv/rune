@@ -856,6 +856,21 @@ for k in d.dups:
     fi
   fi
 
+  # ── CKPT-INT-008: Field type enforcement for arc_id, phases, overall_status, current_phase ──
+  local _arc_id_type _phases_type _overall_status _current_phase
+  _arc_id_type=$(jq -r 'if has("arc_id") then (.arc_id | type) else "absent" end' "$ckpt_path" 2>/dev/null || echo "absent")
+  _phases_type=$(jq -r 'if has("phases") then (.phases | type) else "absent" end' "$ckpt_path" 2>/dev/null || echo "absent")
+  _overall_status=$(jq -r '.overall_status // empty' "$ckpt_path" 2>/dev/null || true)
+  _current_phase=$(jq -r '.current_phase // empty' "$ckpt_path" 2>/dev/null || true)
+  if [[ "$_arc_id_type" != "string" && "$_arc_id_type" != "absent" ]]; then
+    _ckpt_integ_fail "CKPT-INT-008" "arc_id must be a string, got type '${_arc_id_type}'"
+  fi
+  if [[ "$_phases_type" != "object" && "$_phases_type" != "absent" ]]; then
+    _ckpt_integ_fail "CKPT-INT-008" "phases must be an object, got type '${_phases_type}'"
+  fi
+  [[ -n "$_overall_status" ]] || _ckpt_integ_fail "CKPT-INT-008" "missing required field: overall_status"
+  [[ -n "$_current_phase" ]] || _ckpt_integ_fail "CKPT-INT-008" "missing required field: current_phase"
+
   if [[ $_errors -gt 0 ]]; then
     $_trace_fn "CHECKPOINT INTEGRITY CHECK FAILED: ${_errors} error(s) for ${ckpt_path}"
     return 1

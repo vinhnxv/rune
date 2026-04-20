@@ -312,6 +312,16 @@ fi
 [[ "$ESCALATION_TIMEOUT" =~ ^[0-9]+$ ]] || ESCALATION_TIMEOUT=5
 [[ "$ESCALATION_TIMEOUT" -gt 23 ]] && ESCALATION_TIMEOUT=5
 
+# AC-13: Read legacy_ppid_fallback from talisman-resolved misc shard.
+# Default false — PPID-based ownership checks are unreliable in hook context because
+# $PPID is the hook runner subprocess PID, not the Claude Code process PID.
+LEGACY_PPID_FALLBACK=false
+_talisman_misc="${CWD}/tmp/.talisman-resolved/misc.json"
+if [[ -f "$_talisman_misc" && ! -L "$_talisman_misc" ]]; then
+  _legppid=$(jq -r '.process_management.legacy_ppid_fallback // empty' "$_talisman_misc" 2>/dev/null || true)
+  [[ "$_legppid" == "true" ]] && LEGACY_PPID_FALLBACK=true
+fi
+
 if [[ "$CLEANUP_ENABLED" == "false" ]]; then
   _trace "SKIP: cleanup disabled via talisman"
   exit 0
@@ -346,6 +356,7 @@ for sf in "${STATE_FILES[@]}"; do
   # Session ownership check
   SF_CFG=$(jq -r '.config_dir // empty' "$sf" 2>/dev/null || true)
   SF_PID=$(jq -r '.owner_pid // empty' "$sf" 2>/dev/null || true)
+  SF_SID=$(jq -r '.session_id // empty' "$sf" 2>/dev/null || true)
   SF_STATUS=$(jq -r '.status // empty' "$sf" 2>/dev/null || true)
   SF_TEAM=$(jq -r '.team_name // empty' "$sf" 2>/dev/null || true)
   SF_STOPPED_BY=$(jq -r '.stopped_by // empty' "$sf" 2>/dev/null || true)
@@ -357,6 +368,15 @@ for sf in "${STATE_FILES[@]}"; do
   # Session isolation: config_dir must match
   if [[ -n "$SF_CFG" && "$SF_CFG" != "$RUNE_CURRENT_CFG" ]]; then
     _trace "SKIP $sf: config_dir mismatch"
+    continue
+  fi
+
+  # AC-13: Gate PPID fallback — when session_id absent and legacy mode off, skip.
+  # $PPID in hook context is the hook runner subprocess PID, not the Claude Code PID,
+  # so PPID-based ownership is unreliable without explicit opt-in.
+  # Exception: SF_PID absent entirely (pre-isolation state files) — let them proceed.
+  if [[ -z "$SF_SID" && -n "$SF_PID" && "$LEGACY_PPID_FALLBACK" != "true" ]]; then
+    _trace "SKIP $sf: no session_id and legacy_ppid_fallback=false (AC-13)"
     continue
   fi
 

@@ -143,6 +143,57 @@ dispatcher for non-QA phases). All 12 assertions pass.
   "orphan" classification, documented current behavior).
 - `plugins/rune/CLAUDE.md` and CHANGELOG updated.
 
+### Fixed — AC-11: prompt injection guard in `_sanitize_prompt_content()`
+
+`arc-phase-stop-hook.sh` now sanitizes `_meta_qa_echoes` content before
+injecting it into `PHASE_PROMPT`. New helper `_sanitize_prompt_content()`:
+- Strips markdown code fences (``` blocks)
+- Strips HTML comments (`<!-- ... -->`)
+- Strips ANCHOR / RE-ANCHOR Truthbinding directives
+- Strips zero-width Unicode chars (U+200B ZWSP, U+FEFF BOM) — cross-platform
+  via octal `tr` escapes (BSD/GNU compatible)
+- Caps output at 2000 characters
+
+### Fixed — AC-13: PPID legacy-fallback gate in `detect-workflow-complete.sh`
+
+State files that carry `owner_pid` but no `session_id` (written by pre-session-id
+Rune versions) are now skipped when `process_management.legacy_ppid_fallback: false`
+(the new default). This prevents the `[[ $SF_PID == $PPID ]]` PPID match from
+advancing cleanup on state files that belong to a different session.
+Talisman opt-in: set `legacy_ppid_fallback: true` to restore old behaviour for
+sites that cannot upgrade state files.
+
+### Fixed — AC-14: Method C 7000 ms prompt-build budget guard
+
+`arc-phase-stop-hook.sh` Method C (PHASE_PROMPT construction) now enforces a
+7000 ms wall-clock budget. If prompt construction exceeds the budget, the hook
+falls back to a minimal phase-name-only prompt rather than re-injecting a
+potentially stale or truncated prompt.
+
+### Fixed — AC-17: CKPT-INT-008 required field validation in `validate_checkpoint_json_integrity()`
+
+`lib/stop-hook-common.sh` `validate_checkpoint_json_integrity()` now enforces
+four additional CKPT-INT-008 invariants:
+- `arc_id` must be a JSON string (not integer)
+- `phases` must be a JSON object (not null or array)
+- `overall_status` field must be present
+- `current_phase` field must be present
+
+Returns exit code 1 on any violation; never calls `exit` directly (safe to
+source-and-call from tests).
+
+### Added — Regression tests (GAP-T5 / GAP-T6 / GAP-T7)
+
+New `tests/stop-hook/test-stop-hook-fixes.sh` — 12-test suite:
+- **GAP-T5** (5 tests): `_sanitize_prompt_content()` — fences, HTML comments,
+  ANCHOR directives, 2000-char cap, short passthrough
+- **GAP-T6** (2 tests): AC-13 PPID gate fires / does not fire based on state
+  file shape
+- **GAP-T7** (5 tests): CKPT-INT-008 rejects arc_id=int, phases=null, missing
+  overall_status, missing current_phase; accepts valid checkpoint
+
+All 12 assertions pass on macOS (BSD tools) and Linux.
+
 ---
 
 ## [2.61.0] — 2026-04-20

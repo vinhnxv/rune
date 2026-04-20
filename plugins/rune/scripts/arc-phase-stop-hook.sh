@@ -807,6 +807,27 @@ ${line}"
   fi
 }
 
+# AC-11: Strip prompt-injection vectors from user-controlled content before embedding
+# in stop-hook phase prompts. Targets markdown code fences, HTML comments,
+# ANCHOR/RE-ANCHOR directives (Truthbinding markers), and zero-width characters.
+_sanitize_prompt_content() {
+  local content="$1"
+  local max_len=2000
+  # Strip markdown code fences (``` ... ``` blocks — single-line and bare fence markers)
+  content=$(printf '%s' "$content" | sed 's/```[^`]*//g' 2>/dev/null || printf '%s' "$content")
+  # Strip HTML comments (<!-- ... -->); use tr to handle embedded newlines
+  content=$(printf '%s' "$content" | tr '\n' '\r' | sed 's/<!--[^>]*-->//g' | tr '\r' '\n' 2>/dev/null || printf '%s' "$content")
+  # Strip ANCHOR and RE-ANCHOR Truthbinding directives
+  content=$(printf '%s' "$content" | grep -v '^<!-- ANCHOR:' | grep -v '^<!-- RE-ANCHOR:' | grep -v '^# ANCHOR:' | grep -v '^# RE-ANCHOR:' 2>/dev/null || printf '%s' "$content")
+  # Strip zero-width characters (U+200B zero-width space, U+FEFF BOM)
+  content=$(printf '%s' "$content" | tr -d '\u200b\ufeff' 2>/dev/null || printf '%s' "$content")
+  # Cap at max_len characters
+  if [[ "${#content}" -gt "$max_len" ]]; then
+    content="${content:0:${max_len}}"
+  fi
+  printf '%s' "$content"
+}
+
 # ── Defensive: demote phases "skipped" without skip_reason back to "pending" ──
 # Root cause: LLM orchestrator may batch-skip conditional phases in a single turn
 # without reading reference files (which set skip_reason). Phases skipped legitimately
@@ -2520,6 +2541,8 @@ if [[ -f "$_mqa_file" && ! -L "$_mqa_file" ]]; then
     _trace "META-QA: MEMORY.md too large (${_mqa_size} bytes) — skipping echo injection"
   fi
 fi
+# AC-11: Sanitize before embedding — _meta_qa_echoes is user-controlled filesystem content.
+_meta_qa_echoes=$(_sanitize_prompt_content "$_meta_qa_echoes")
 if [[ -n "$_meta_qa_echoes" ]] && [[ "${#_meta_qa_echoes}" -lt 2000 ]]; then
   PHASE_PROMPT="${PHASE_PROMPT}
 
