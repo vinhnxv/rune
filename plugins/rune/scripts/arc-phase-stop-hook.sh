@@ -1005,7 +1005,20 @@ fi
 #
 # Fail-forward: any internal error returns the checkpoint unchanged.
 _VBC_DEMOTED_COUNT=0
-if [[ -n "${_phase_order_json:-}" ]] || _phase_order_json=$(printf '%s\n' "${PHASE_ORDER[@]}" | jq -R -s 'split("\n") | map(select(length > 0))' 2>/dev/null); then
+# P2-003 FIX: Initialize _phase_order_json unconditionally before the VBC
+# guard. The previous pattern
+#   `if [[ -n "${_phase_order_json:-}" ]] || _phase_order_json=$(...); then`
+# short-circuited to FALSE whenever the jq call returned non-zero, silently
+# skipping VBC entirely — the exact class of fake-completion bug VBC exists
+# to catch. Now we always attempt the build, then branch on the populated value.
+if [[ -z "${_phase_order_json:-}" ]]; then
+  _phase_order_json=$(printf '%s\n' "${PHASE_ORDER[@]}" \
+    | jq -R -s 'split("\n") | map(select(length > 0))' 2>/dev/null || echo "")
+fi
+if [[ -z "$_phase_order_json" ]]; then
+  _trace "VBC: _phase_order_json unavailable — skipping verify-before-complete (fail-forward)"
+fi
+if [[ -n "$_phase_order_json" ]]; then
   # Enumerate completed phases with artifact+hash fields
   _VBC_CANDIDATES=$(echo "$CKPT_CONTENT" | jq -r --argjson order "$_phase_order_json" '
     .phases as $p |
@@ -1158,10 +1171,31 @@ if [[ -n "$_phase_order_json" ]]; then
 fi
 
 if [[ -n "$_IN_PROGRESS_GUARD_PHASE" ]]; then
-  _IPG_TEAM="rune-arc-${_IN_PROGRESS_GUARD_PHASE}-${_ARC_ID_FOR_LOG}"
+  # P1-001 FIX: The previous implementation constructed the team name as
+  # `rune-arc-${phase}-${arcId}` but no phase in the Rune plugin registers a
+  # team with that prefix. Real prefixes are per-phase: `rune-work-`,
+  # `rune-review-`, `rune-mend-`, `arc-test-`, `arc-qa-…-{parent}`, etc.
+  # Layer 1 therefore stat'd a non-existent directory and returned "dead" on
+  # every call — bypassing the guard and letting stuck_count drive every Stop
+  # fire straight to auto-skip.
+  #
+  # Fix: read the canonical team name recorded by the phase itself (written to
+  # `.phases[$p].team_name` at team-create time). If the field is missing or
+  # malformed we can't run Layer 1 safely — fall through to Layer 3 (stuck
+  # counter) for THIS phase only. Validated via a strict allowlist so a
+  # prompt-injected checkpoint can't inject shell metacharacters.
+  _IPG_TEAM=$(echo "$CKPT_CONTENT" \
+    | jq -r --arg p "$_IN_PROGRESS_GUARD_PHASE" '.phases[$p].team_name // ""' \
+      2>/dev/null || echo "")
+  if [[ -n "$_IPG_TEAM" && ! "$_IPG_TEAM" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+    _trace "IN-PROGRESS GUARD: team_name for '${_IN_PROGRESS_GUARD_PHASE}' failed allowlist — skipping Layer 1"
+    _IPG_TEAM=""
+  fi
 
-  # Layer 1: team liveness — exit 0 if alive (wait for natural completion)
-  if declare -F _arc_team_has_live_members >/dev/null 2>&1 \
+  # Layer 1: team liveness — exit 0 if alive (wait for natural completion).
+  # Only runs when we actually know the team name from the checkpoint.
+  if [[ -n "$_IPG_TEAM" ]] \
+     && declare -F _arc_team_has_live_members >/dev/null 2>&1 \
      && _arc_team_has_live_members "$_IPG_TEAM"; then
     _trace "IN-PROGRESS GUARD: ${_IN_PROGRESS_GUARD_PHASE} team '${_IPG_TEAM}' alive — exit 0, wait for completion"
     _log_phase "phase_wait" "$_IN_PROGRESS_GUARD_PHASE" "reason=team_alive" "team=${_IPG_TEAM}"
@@ -1171,10 +1205,60 @@ if [[ -n "$_IN_PROGRESS_GUARD_PHASE" ]]; then
   # Layer 3: team dead + no artifact (Layer 2 self-heal already ran) → stuck logic
   _IPG_STUCK_THRESHOLD=$(echo "$CKPT_CONTENT" | jq -r '.config.stuck_threshold // 3' 2>/dev/null || echo "3")
   [[ "$_IPG_STUCK_THRESHOLD" =~ ^[0-9]+$ ]] || _IPG_STUCK_THRESHOLD=3
-  _IPG_CUR_STUCK=$(echo "$CKPT_CONTENT" | jq -r --arg p "$_IN_PROGRESS_GUARD_PHASE" '.phases[$p].stuck_count // 0' 2>/dev/null || echo "0")
-  [[ "$_IPG_CUR_STUCK" =~ ^[0-9]+$ ]] || _IPG_CUR_STUCK=0
+  # P3-004 FIX: Enforce a minimum of 2 so a prompt-injected checkpoint with
+  # `stuck_threshold: 0` (or 1) can't trigger an immediate auto-skip on the
+  # first Stop. LLM-written values are untrusted input per Truthbinding.
+  (( _IPG_STUCK_THRESHOLD < 2 )) && _IPG_STUCK_THRESHOLD=3
+
+  # P2-002 FIX: Track stuck_count in an external counter file so it still
+  # advances when the in-checkpoint jq update fails (e.g., checkpoint
+  # corruption). Previously a jq error would leave stuck_count at 0 on disk,
+  # so _IPG_NEW_STUCK reset to 1 every Stop fire and the threshold was never
+  # reached — unbounded retries until MAX_ITERATIONS. Same pattern as
+  # phase-dispatch-counts.json elsewhere in the codebase.
+  _IPG_COUNTER_DIR="${CWD}/tmp/arc/${_ARC_ID_FOR_LOG}"
+  _IPG_COUNTER_FILE="${_IPG_COUNTER_DIR}/stuck-counts.json"
+  mkdir -p "$_IPG_COUNTER_DIR" 2>/dev/null || true
+
+  _IPG_FILE_STUCK=0
+  if [[ -f "$_IPG_COUNTER_FILE" && ! -L "$_IPG_COUNTER_FILE" ]]; then
+    _IPG_FILE_STUCK=$(jq -r --arg p "$_IN_PROGRESS_GUARD_PHASE" \
+      '.[$p] // 0' "$_IPG_COUNTER_FILE" 2>/dev/null || echo "0")
+    [[ "$_IPG_FILE_STUCK" =~ ^[0-9]+$ ]] || _IPG_FILE_STUCK=0
+  fi
+
+  _IPG_CKPT_STUCK=$(echo "$CKPT_CONTENT" | jq -r --arg p "$_IN_PROGRESS_GUARD_PHASE" '.phases[$p].stuck_count // 0' 2>/dev/null || echo "0")
+  [[ "$_IPG_CKPT_STUCK" =~ ^[0-9]+$ ]] || _IPG_CKPT_STUCK=0
+
+  # Use the HIGHER of the two — external file is authoritative when checkpoint
+  # update previously failed; checkpoint is authoritative on a fresh phase.
+  if (( _IPG_FILE_STUCK > _IPG_CKPT_STUCK )); then
+    _IPG_CUR_STUCK=$_IPG_FILE_STUCK
+  else
+    _IPG_CUR_STUCK=$_IPG_CKPT_STUCK
+  fi
   _IPG_NEW_STUCK=$((_IPG_CUR_STUCK + 1))
   _IPG_NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "unknown")
+
+  # Persist to external counter file FIRST (atomic write), so the count
+  # survives even if the checkpoint jq update below fails.
+  _IPG_COUNTER_TMP=$(mktemp "${_IPG_COUNTER_FILE}.XXXXXX" 2>/dev/null || echo "")
+  if [[ -n "$_IPG_COUNTER_TMP" ]]; then
+    if [[ -f "$_IPG_COUNTER_FILE" && ! -L "$_IPG_COUNTER_FILE" ]]; then
+      _IPG_NEW_COUNTER=$(jq --arg p "$_IN_PROGRESS_GUARD_PHASE" --argjson n "$_IPG_NEW_STUCK" \
+        '. + {($p): $n}' "$_IPG_COUNTER_FILE" 2>/dev/null || true)
+    else
+      _IPG_NEW_COUNTER=$(jq -n --arg p "$_IN_PROGRESS_GUARD_PHASE" --argjson n "$_IPG_NEW_STUCK" \
+        '{($p): $n}' 2>/dev/null || true)
+    fi
+    if [[ -n "$_IPG_NEW_COUNTER" ]]; then
+      printf '%s\n' "$_IPG_NEW_COUNTER" > "$_IPG_COUNTER_TMP" 2>/dev/null \
+        && mv -f "$_IPG_COUNTER_TMP" "$_IPG_COUNTER_FILE" 2>/dev/null \
+        || rm -f "$_IPG_COUNTER_TMP" 2>/dev/null || true
+    else
+      rm -f "$_IPG_COUNTER_TMP" 2>/dev/null || true
+    fi
+  fi
 
   if (( _IPG_NEW_STUCK >= _IPG_STUCK_THRESHOLD )); then
     # Auto-skip with evidence

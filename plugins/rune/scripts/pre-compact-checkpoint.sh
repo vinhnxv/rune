@@ -372,9 +372,12 @@ arc_file=""
 _ckpt_dir="${CWD}/${RUNE_STATE}/arc"
 if [[ -d "$_ckpt_dir" ]]; then
   _newest_mtime=0
-  # BACK-006 FIX: Protect glob with nullglob to prevent literal-path iteration on no match
-  shopt -s nullglob 2>/dev/null || true
-  for _f in "$_ckpt_dir"/*/checkpoint.json; do
+  # P2-004 FIX: `shopt -s nullglob` is bash-only — under zsh the glob in the
+  # `for` loop still fatally errors on no-match (CLAUDE.md §8). Use `find`
+  # instead (null-terminated output to survive paths with whitespace) and
+  # `read -d ''` so no glob ever expands. This also matches the portable
+  # pattern used elsewhere in this file.
+  while IFS= read -r -d '' _f; do
     [[ -f "$_f" ]] && [[ ! -L "$_f" ]] || continue
     _pid=$(jq -r '.owner_pid // empty' "$_f" 2>/dev/null) || continue
     [[ "$_pid" == "$PPID" ]] || continue
@@ -383,8 +386,7 @@ if [[ -d "$_ckpt_dir" ]]; then
       _newest_mtime="$_mt"
       arc_file="$_f"
     fi
-  done
-  shopt -u nullglob 2>/dev/null || true
+  done < <(find "$_ckpt_dir" -mindepth 2 -maxdepth 2 -name 'checkpoint.json' -type f -print0 2>/dev/null)
 fi
 if [[ -n "$arc_file" ]] && [[ -f "$arc_file" ]] && [[ ! -L "$arc_file" ]]; then
   arc_checkpoint=$(jq -c '.' "$arc_file" 2>/dev/null || echo '{}')

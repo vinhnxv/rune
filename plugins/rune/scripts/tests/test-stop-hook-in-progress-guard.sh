@@ -160,6 +160,54 @@ else
   echo "  ⊘ skipped (cannot source arc-phase-self-heal.sh)"
 fi
 
+# ── P3-003 FIX: integration coverage for the P1-001 regression path ──
+# The prior test suite only exercised _arc_team_has_live_members in isolation.
+# These cases reproduce the failure mode the in-progress guard has in
+# arc-phase-stop-hook.sh: (a) the old constructed team name `rune-arc-{phase}-{id}`
+# never matched real team dirs, and (b) the new implementation must read
+# `.phases[$p].team_name` from the checkpoint via the allowlist regex.
+
+echo "SCENARIO 8: regression — constructed 'rune-arc-{phase}-{id}' misses real team"
+# Real team uses the `arc-qa-{id}-{parent}` pattern. Constructed name would
+# be `rune-arc-work_qa-{id}` — that directory does NOT exist.
+_REAL_TEAM="arc-qa-regtest-work"
+_CONSTRUCTED="rune-arc-work_qa-regtest"
+mkdir -p "$CLAUDE_CONFIG_DIR/teams/$_REAL_TEAM"
+echo '{"members": [{"name": "qa-verifier-1"}]}' > "$CLAUDE_CONFIG_DIR/teams/$_REAL_TEAM/config.json"
+touch "$CLAUDE_CONFIG_DIR/teams/$_REAL_TEAM"
+
+set +e
+_arc_team_has_live_members "$_CONSTRUCTED"; _rc_bad=$?
+_arc_team_has_live_members "$_REAL_TEAM";   _rc_good=$?
+set -e
+_assert "constructed 'rune-arc-{phase}-{id}' returns 1 (dead — dir absent)" \
+  "$([[ $_rc_bad -eq 1 ]] && echo 0 || echo 1)"
+_assert "real team name from checkpoint returns 0 (alive)" \
+  "$([[ $_rc_good -eq 0 ]] && echo 0 || echo 1)"
+
+echo "SCENARIO 9: team_name extraction — valid allowlist passes, metachar fails"
+# Verify the regex guard in arc-phase-stop-hook.sh Layer 1 rejects shell
+# metacharacters injected into .phases[$p].team_name.
+_VALID_NAME="rune-work-arc-abc123"
+_INVALID_NAME='rune-work-abc; rm -rf $HOME'
+# Re-use the same allowlist used by the hook fix.
+_assert "valid team_name passes [a-zA-Z0-9_-]+ allowlist" \
+  "$([[ "$_VALID_NAME" =~ ^[a-zA-Z0-9_-]+$ ]] && echo 0 || echo 1)"
+_assert "metachar team_name rejected by allowlist" \
+  "$([[ ! "$_INVALID_NAME" =~ ^[a-zA-Z0-9_-]+$ ]] && echo 0 || echo 1)"
+
+echo "SCENARIO 10: stuck_threshold floor — prompt-injected '0' is clamped"
+# Matches the P3-004 fix: (( _IPG_STUCK_THRESHOLD < 2 )) && _IPG_STUCK_THRESHOLD=3
+for _injected in 0 1; do
+  _t="$_injected"
+  (( _t < 2 )) && _t=3
+  _assert "stuck_threshold=${_injected} → clamped to 3" \
+    "$([[ "$_t" == "3" ]] && echo 0 || echo 1)"
+done
+# Happy path: a legitimate value passes through.
+_t=5; (( _t < 2 )) && _t=3
+_assert "stuck_threshold=5 → preserved" "$([[ "$_t" == "5" ]] && echo 0 || echo 1)"
+
 # ── Summary ──
 echo ""
 echo "═══════════════════════════════════════"

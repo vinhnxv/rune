@@ -194,6 +194,16 @@ _validate_session_ownership_core() {
   # Ownership checks were previously unreliable due to PPID/session_id mismatch between
   # Bash tool context and hook subprocess context (see v1.144.16 notes), now fixed.
   if [[ "${RUNE_SKIP_OWNERSHIP:-0}" == "1" ]]; then
+    # P2-007 FIX: Always emit a stderr warning when the bypass is active so an
+    # operator who leaves it set in CI sees an immediate runtime signal that
+    # session isolation is disabled (concurrent sessions will cross-process
+    # each other's state files). Debounce via a per-UID marker so we warn at
+    # most once per PPID — avoids stderr spam when many hooks fire in a session.
+    local _bypass_marker="${TMPDIR:-/tmp}/rune-skip-ownership-warned-$(id -u)-${PPID}"
+    if [[ ! -f "$_bypass_marker" ]]; then
+      : > "$_bypass_marker" 2>/dev/null || true
+      printf '[rune] WARNING: RUNE_SKIP_OWNERSHIP=1 — session isolation disabled (PPID=%s). Concurrent Rune sessions may interfere.\n' "${PPID:-?}" >&2
+    fi
     if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
       _trace "${_tp}: BYPASSED (RUNE_SKIP_OWNERSHIP=1)"
     fi
@@ -1255,17 +1265,23 @@ _arc_team_has_live_members() {
   local _grace="${RUNE_TEAM_LIVENESS_GRACE_SECONDS:-300}"
   [[ "$_grace" =~ ^[0-9]+$ ]] || _grace=300
 
+  # P2-005 FIX: Distinguish "stat failed" from "mtime == 0" (epoch). On
+  # Docker/NFS/bind-mounts a real mtime of 0 is possible and should NOT be
+  # conflated with a stat error. We sentinel the failure case with an empty
+  # string so epoch-0 timestamps fall through to the normal age comparison.
   local _mtime _now
   if declare -F _stat_mtime >/dev/null 2>&1; then
-    _mtime=$(_stat_mtime "$_team_dir" 2>/dev/null || echo "0")
+    _mtime=$(_stat_mtime "$_team_dir" 2>/dev/null || echo "")
   else
-    # Fallback: BSD vs GNU stat
-    _mtime=$(stat -f '%m' "$_team_dir" 2>/dev/null || stat -c '%Y' "$_team_dir" 2>/dev/null || echo "0")
+    # Fallback: BSD vs GNU stat. Empty on failure, numeric (including "0") on success.
+    _mtime=$(stat -f '%m' "$_team_dir" 2>/dev/null || stat -c '%Y' "$_team_dir" 2>/dev/null || echo "")
   fi
-  _now=$(date +%s 2>/dev/null || echo "0")
+  _now=$(date +%s 2>/dev/null || echo "")
 
-  # If mtime unreadable → conservative pass (assume alive)
-  [[ "$_mtime" =~ ^[0-9]+$ && "$_now" =~ ^[0-9]+$ && "$_mtime" != "0" ]] || return 0
+  # If stat truly failed (empty) or clock read failed → conservative pass (assume alive).
+  # Previously this block returned 0 on mtime == "0" too, silently masking epoch-0
+  # directories as alive and delaying stuck auto-skip.
+  [[ "$_mtime" =~ ^[0-9]+$ && "$_now" =~ ^[0-9]+$ ]] || return 0
 
   local _age=$((_now - _mtime))
   if (( _age > _grace )); then
