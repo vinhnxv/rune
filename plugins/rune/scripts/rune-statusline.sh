@@ -120,19 +120,22 @@ fi
 COST_FMT=$(printf '$%.2f' "$COST" 2>/dev/null || echo '$0.00')
 
 # Active Rune workflow detection
+# EMBER-001 FIX: Batch jq across all state files into one fork (skip symlinks via -f+-L pre-filter).
+# Picks the first .workflow whose .status == "active".
 WORKFLOW=""
 shopt -s nullglob
+_rune_state_files=()
 for f in "${DIR}"/tmp/.rune-*.json; do
-  [[ -f "$f" ]] || continue
-  [[ -L "$f" ]] && continue   # P2-2 FIX: symlink guard on workflow detection
-  WF_STATUS=$(jq -r '.status // empty' "$f" 2>/dev/null || true)  # QUAL-004 FIX: Renamed from STATUS (read-only in zsh)
-  if [[ "$WF_STATUS" == "active" ]]; then
-    WF_TYPE=$(jq -r '.workflow // empty' "$f" 2>/dev/null || true)
-    WORKFLOW=" ${BOLD}${WF_TYPE}${RESET}"
-    break
-  fi
+  [[ -f "$f" && ! -L "$f" ]] || continue   # P2-2 FIX: symlink guard retained
+  _rune_state_files+=("$f")
 done
 shopt -u nullglob
+if [[ ${#_rune_state_files[@]} -gt 0 ]]; then
+  WF_TYPE=$(jq -rs 'map(select(.status=="active")) | first | .workflow // empty' \
+    "${_rune_state_files[@]}" 2>/dev/null || true)
+  [[ -n "$WF_TYPE" ]] && WORKFLOW=" ${BOLD}${WF_TYPE}${RESET}"
+fi
+unset _rune_state_files
 
 # Output
 BRANCH_DISPLAY=""

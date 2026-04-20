@@ -31,13 +31,17 @@ if [[ -z "${_RUNE_PROCESS_TREE_LOADED:-}" ]]; then
   source "${_RUNE_TS_DIR}/process-tree.sh"
 fi
 
-# rune_team_shutdown_fallback <team_name> <owner_pid> <workflow_label> [fallback_members]
+# rune_team_shutdown_fallback <team_name> <owner_pid> <workflow_label> [fallback_members] [grace_seconds]
 #
 # Parameters:
 #   team_name        — Team name (required, [a-zA-Z0-9_-]+)
 #   owner_pid        — PID of the owning Claude Code session (required, digits)
 #   workflow_label   — Label for diagnostics (required, defaults to "unknown" if empty)
 #   fallback_members — Comma-separated list of member names (optional, for diagnostics)
+#   grace_seconds    — SIGTERM→SIGKILL grace period (optional, default 5, clamped to [0,20]).
+#                      RUIN-002 FIX: Callers with a tight hook budget (e.g.,
+#                      detect-workflow-complete.sh computing _budget_remaining) should pass
+#                      a budget-aware value. Omitting preserves legacy 5s behavior.
 #
 # Environment:
 #   _RUNE_DISABLE_SHUTDOWN_FALLBACK=1  — Skip all cleanup (for testing)
@@ -48,6 +52,14 @@ rune_team_shutdown_fallback() {
   local owner_pid="${2:-}"
   local workflow_label="${3:-unknown}"
   local fallback_members="${4:-}"
+  local grace_seconds="${5:-5}"
+
+  # Clamp grace_seconds to [0,20] and validate — treat invalid as default 5
+  if [[ ! "$grace_seconds" =~ ^[0-9]+$ ]]; then
+    grace_seconds=5
+  elif [[ "$grace_seconds" -gt 20 ]]; then
+    grace_seconds=20
+  fi
 
   # ── Respect disable flag ──
   if [[ "${_RUNE_DISABLE_SHUTDOWN_FALLBACK:-}" == "1" ]]; then
@@ -96,7 +108,7 @@ rune_team_shutdown_fallback() {
   # ── Step 5a: Process kill via _rune_kill_tree ──
   if [[ -n "$owner_pid" ]] && kill -0 "$owner_pid" 2>/dev/null; then
     [[ "${RUNE_TRACE:-}" == "1" ]] && printf '[team-shutdown] Step 5a: killing tree for pid=%s team=%s\n' "$owner_pid" "$team_name" >&2
-    killed=$(_rune_kill_tree "$owner_pid" "2stage" "5" "teammates" "$team_name")
+    killed=$(_rune_kill_tree "$owner_pid" "2stage" "$grace_seconds" "teammates" "$team_name")
     [[ "$killed" =~ ^[0-9]+$ ]] || killed=0
     if [[ "$killed" -gt 0 ]]; then
       fallback_exercised=true
@@ -144,8 +156,15 @@ rune_team_shutdown_fallback() {
     "$PPID")
 
   # Atomic write via tmp+mv
+  # RUIN-003 FIX: Symlink guard on tmp path — the fallback branch (diag_tmp="${TMPDIR}/rune-diag-$$")
+  # uses a predictable PID-based name that an attacker with TMPDIR access could pre-create as a symlink.
+  # Reject any symlink before writing to prevent content redirection.
   local diag_tmp
   diag_tmp=$(mktemp "${TMPDIR:-/tmp}/rune-diag-XXXXXX" 2>/dev/null) || diag_tmp="${TMPDIR:-/tmp}/rune-diag-$$"
+  if [[ -L "$diag_tmp" ]]; then
+    [[ "${RUNE_TRACE:-}" == "1" ]] && printf '[team-shutdown] diag_tmp is a symlink — aborting diagnostic write: %s\n' "$diag_tmp" >&2
+    return 0
+  fi
   printf '%s\n' "$diag_json" > "$diag_tmp" 2>/dev/null
   mv "$diag_tmp" "$diag_file" 2>/dev/null || true
 

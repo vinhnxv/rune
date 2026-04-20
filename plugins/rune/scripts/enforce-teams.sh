@@ -190,19 +190,22 @@ fi
 # ADVISORY: VEIL-005 — PPID may differ between skills and hooks (hook runner subprocess).
 # session_id is the authoritative isolation mechanism. PPID is a supplementary check
 # with kill -0 liveness validation. See CLAUDE.md session isolation rule.
+#
+# ORDER-002 NOTE: The conditional-source pattern below is INTENTIONAL — not defensive
+# over-engineering. The file is only sourced after the fast-path exits at L57-59 (team_name
+# grep), L89-91 (tool filter), and L97-98 (CWD canonicalization) have discarded non-Task
+# invocations. Moving the source to the top would force every hook fire (including
+# non-Task tools, which dominate) to pay the source cost. Keep the current structure.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # shellcheck source=resolve-session-identity.sh
-# SEC-001/VEIL-005 FIX: Guard against missing resolve-session-identity.sh.
-# Without this guard, a missing file triggers the ERR trap which exits 0,
-# leaving RUNE_CURRENT_CFG unset and silently allowing bare Agent/Task calls.
+# SEC-001/VEIL-005/FLAW-007 FIX: Fail-closed if resolve-session-identity.sh is missing.
+# Without session identity, ownership filtering can't enforce cross-session safety, so
+# we deny the tool call (exit 2) rather than fall back to a stub that would silently
+# process foreign state files.
 if [[ -f "${SCRIPT_DIR}/resolve-session-identity.sh" ]]; then
   source "${SCRIPT_DIR}/resolve-session-identity.sh"
   source "${SCRIPT_DIR}/lib/rune-state.sh"
 else
-  # FLAW-007 FIX: Fail-closed when identity script is missing.
-  # Previous behavior: rune_pid_alive() { return 1; } treated ALL PIDs as dead,
-  # causing ALL state files to be processed regardless of ownership — cross-session interference.
-  # Now: deny the tool call so the user sees a clear error instead of silent mis-ownership.
   printf '[%s] enforce-teams.sh: CRITICAL — resolve-session-identity.sh not found at %s\n' \
     "$(date +%H:%M:%S 2>/dev/null || true)" "${SCRIPT_DIR}" >&2
   printf 'Session ownership filtering unavailable — blocking to prevent cross-session interference.\n' >&2

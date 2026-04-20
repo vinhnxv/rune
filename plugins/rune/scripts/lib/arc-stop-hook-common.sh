@@ -36,6 +36,20 @@
 # Source rune-state if not already loaded (stop-hook-common.sh may have loaded it)
 [[ -n "${RUNE_STATE:-}" ]] || source "$(dirname "${BASH_SOURCE[0]}")/rune-state.sh"
 
+# ORDER-003 FIX: Runtime dependency check helper. This file's rapid-iteration guard
+# needs _iso_to_epoch and _check_context_critical from stop-hook-common.sh (see
+# header "Dependencies" block). Callers MUST source stop-hook-common.sh AFTER this
+# file (the jq guard must run in between — see arc_guard_jq_required). Any function
+# here that requires those helpers calls this helper first so a misordered sourcing
+# fails loudly with a clear message instead of a cryptic "command not found".
+_arc_require_stop_hook_common() {
+  if ! declare -f _iso_to_epoch &>/dev/null || ! declare -f _check_context_critical &>/dev/null; then
+    printf 'FATAL: arc-stop-hook-common.sh requires stop-hook-common.sh to be sourced first (missing _iso_to_epoch / _check_context_critical)\n' >&2
+    return 2
+  fi
+  return 0
+}
+
 # ─────────────────────────────────────────────────────────────
 # Block A: _rune_fail_forward + ERR trap
 # ─────────────────────────────────────────────────────────────
@@ -481,6 +495,10 @@ arc_guard_rapid_iteration() {
   local _abort_cb="$4"
   local _graceful_cb="$5"
   local _label="$6"
+
+  # ORDER-003 FIX: Explicit dependency assertion — fails loudly if stop-hook-common.sh
+  # was not sourced before this call (instead of cryptic "_iso_to_epoch: command not found").
+  _arc_require_stop_hook_common || return 2
 
   if [[ -n "$_started_at" ]] && [[ "$_started_at" != "null" ]]; then
     local _now_epoch

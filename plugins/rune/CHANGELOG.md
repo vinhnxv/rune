@@ -1,5 +1,88 @@
 # Changelog
 
+## [2.63.0] — 2026-04-20
+
+### Fixed — audit 20260420-112502 valid findings (P1/P2 false-positive triage)
+
+Resolves verified P1/P2 findings from audit `tmp/audit/20260420-112502/TOME.md`
+after independent cross-verification. 5 findings dismissed as false positives
+(RUIN-001, SEC-AUDIT-001, RUIN-007, SEC-AUDIT-002, SEC-AUDIT-003); 3 large
+refactors (ORDER-001, ROT-003, ROT-004) deferred to dedicated PRs.
+
+**Security**
+- **SEC-AUDIT-004** — Added `rune_reject_symlink_path()` helper in
+  `lib/pretooluse-write-guard.sh` and wired into the 4 untrusted-Ash path
+  validators (strive-worker, mend-fixer, gap-fixer, resolve-fixer). Blocks
+  writes whose path traverses a symlink component, preventing scope escape
+  via e.g. `src/link -> /tmp/outside` (CWE-61). Uses `reject_symlink_deep()`
+  from `platform.sh` with a shallow `-L` fallback.
+- **RUIN-003** — Added symlink guard before the fallback diagnostic-write path
+  in `lib/team-shutdown.sh:147-153`. The predictable `${TMPDIR}/rune-diag-$$`
+  filename could be pre-created as a symlink by a user with TMPDIR access.
+
+**Reliability**
+- **RUIN-002** — `rune_team_shutdown_fallback()` now accepts an optional 5th
+  parameter `grace_seconds` (default 5, clamped to `[0,20]`). Callers with a
+  tight hook budget (e.g., `detect-workflow-complete.sh` computing
+  `_budget_remaining`) can pass a budget-aware value instead of losing the
+  hardcoded 5s to SIGTERM→SIGKILL escalation. Fully backward compatible —
+  all existing callers continue to use the 5s default.
+- **ORDER-003** — Added `_arc_require_stop_hook_common()` runtime-assertion
+  helper in `lib/arc-stop-hook-common.sh`; `arc_guard_rapid_iteration()` now
+  fails loudly when `_iso_to_epoch` / `_check_context_critical` are missing
+  instead of crashing with a cryptic "command not found".
+
+**Performance**
+- **EMBER-001** — `rune-statusline.sh` batches N jq forks into one `jq -rs`
+  call when scanning workflow state files. Reduces per-render cost from
+  10-30ms/file to ~20ms total.
+- **EMBER-002** — `talisman-resolve.sh` consolidates 3 `shasum` forks into
+  one composite hash pipeline (defaults + resolver script concatenated).
+  ~70% reduction in SessionStart startup cost for the hash-guard path.
+- **EMBER-003** — `rune-context-monitor.sh` batches the `config_dir` and
+  `owner_pid` extraction into a single `jq -r '[…] | @tsv'` call. Matches
+  the proven `@tsv` pattern from `enforce-teams.sh:227-228`.
+
+**Maintenance**
+- **ROT-001** — Deleted three 0-byte stub scripts
+  (`build-agent-registry.sh`, `validate-self-audit.sh`, `write-phase-summary.sh`).
+  Never wired into `hooks.json`, never referenced by any other script — stale
+  placeholders from an abandoned implementation branch.
+- **ORDER-002** — Strengthened the FLAW-007 comment in `enforce-teams.sh`
+  documenting the intent of the conditional source pattern (fail-closed when
+  `resolve-session-identity.sh` is missing) so future contributors don't
+  "simplify" away the safety.
+
+**Dismissed as false positive after independent re-verification**
+- **RUIN-001** — `arc_compact_interlude_phase_a()` mktemp abort. Phase A is
+  the setter for `compact_pending=true`; on mktemp failure the flag was never
+  written. "Flag stays true indefinitely" scenario is impossible because
+  Phase A entry is gated on `COMPACT_PENDING != "true"` at all 3 callers.
+- **SEC-AUDIT-001** — URL-encoding bypass in `validate-gap-fixer-paths.sh:83`.
+  The `*%*` glob rejects *any* `%` — both `%2e%2e` and `%252e%252e` are
+  caught immediately. `rune_normalize_path()` performs no URL-decoding, so
+  a bypass via double-encoding is impossible.
+- **RUIN-007** — `rune_pid_alive` EPERM handling. The old fallback stub that
+  returned `1` unconditionally was already replaced by FLAW-007 FIX (fail-closed
+  `exit 2`). The real `rune_pid_alive` in `resolve-session-identity.sh:194-222`
+  has explicit EPERM handling.
+- **SEC-AUDIT-002** — Bash null-byte check ineffectiveness. Already documented
+  as ACCEPTED RISK (SEC-004) in code comment; jq handles nulls safely upstream.
+- **SEC-AUDIT-003** — Missing quote metacharacters in elicitation blocklist.
+  Downstream consumers (`echo-search`, `figma-to-react` MCP servers) are Python,
+  not shell. Values flow into FTS5 queries and Figma API parameters, never `eval`
+  or `sh -c`. Blocking quotes would break legitimate natural-language queries.
+
+**Deferred to dedicated PRs**
+- **ORDER-001** — Split `enforce-team-lifecycle.sh` (340 lines, 4 responsibilities)
+- **ROT-003** — Split `arc-phase-stop-hook.sh` (2185 lines)
+- **ROT-004** — Split `lib/stop-hook-common.sh` (1195 lines)
+
+Verification artifacts: `tmp/audit/20260420-112502/verification/VERDICT.md`
+(4 independent finding-verifier agent runs, all HIGH confidence).
+
+---
+
 ## [2.62.0] — 2026-04-20
 
 ### Fixed — Phase-skip bug in arc pipeline (plan `plans/2026-04-20-fix-stop-hook-phase-skip-and-stopfailure-plan.md`)

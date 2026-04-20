@@ -207,6 +207,46 @@ rune_normalize_path() {
   REL_FILE_PATH="${REL_FILE_PATH#./}"
 }
 
+# ── rune_reject_symlink_path(): Reject writes whose path contains a symlink component ──
+# SEC-AUDIT-004 FIX: rune_normalize_path() is pure string manipulation — it cannot
+# detect a symlink at e.g. `src/link -> /tmp/outside` that would escape the allowlist.
+# Call this helper AFTER rune_normalize_path() and BEFORE downstream allowlist checks
+# so that symlink traversal is blocked before path-prefix rules are evaluated.
+#
+# Uses reject_symlink_deep() from platform.sh when available (deep walk, CWE-61-aware).
+# Falls back to a shallow `-L` check when platform.sh has not been sourced.
+#
+# On rejection: emits a deny JSON via rune_deny_write() (exits 2).
+# On pass: returns silently so the caller continues validation.
+#
+# Param: $1 = absolute or relative path to check (defaults to FILE_PATH)
+rune_reject_symlink_path() {
+  local path_to_check="${1:-$FILE_PATH}"
+  [[ -z "$path_to_check" ]] && return 0
+
+  # Resolve to absolute for the symlink walk (reject_symlink_deep accepts both,
+  # but an absolute path gives a more useful walk across parent dirs).
+  local abs_path="$path_to_check"
+  if [[ "$abs_path" != /* ]]; then
+    abs_path="${CWD}/${abs_path}"
+  fi
+
+  if command -v reject_symlink_deep &>/dev/null; then
+    if ! reject_symlink_deep "$abs_path"; then
+      rune_deny_write \
+        "SEC-WRITE-SYMLINK: Write rejected — path contains a symlink component." \
+        "Path $abs_path traverses a symlink. Symlinks are rejected to prevent scope escape (CWE-61)."
+    fi
+  else
+    # Platform.sh helper not loaded — fall back to shallow check on the target only.
+    if [[ -L "$abs_path" ]]; then
+      rune_deny_write \
+        "SEC-WRITE-SYMLINK: Write rejected — target is a symlink." \
+        "Path $abs_path is a symlink. Symlinks are rejected to prevent scope escape (CWE-61)."
+    fi
+  fi
+}
+
 # ── rune_deny_write(): Emit standard deny JSON and exit ──
 # Param: $1 = SEC code + reason (e.g., "SEC-STRIVE-001: Strive worker attempted...")
 # Param: $2 = additional context message for Claude

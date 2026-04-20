@@ -125,6 +125,11 @@ fi
 # Normalize the target file path (resolve relative to CWD, strip ./)
 rune_normalize_path "$FILE_PATH"
 
+# SEC-AUDIT-004 FIX: Reject symlink components before the allowlist check so a
+# symlinked path cannot be matched against an allowed target and then written
+# outside scope.
+rune_reject_symlink_path "$FILE_PATH"
+
 # Check if the target file is in the allowed set
 while IFS= read -r allowed; do
   # Strip leading ./ from allowed path too

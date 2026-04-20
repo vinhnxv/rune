@@ -60,6 +60,9 @@ rune_verify_session_ownership "$STATE_FILE"
 # Normalize the target file path (resolve relative to CWD, strip ./)
 rune_normalize_path
 
+# SEC-AUDIT-004 FIX: Reject symlink components before allowlist evaluation.
+rune_reject_symlink_path "$FILE_PATH"
+
 # XVER-003: Reject absolute paths not under CWD (scope bypass prevention)
 # After normalization, REL_FILE_PATH should be relative. If it's still absolute,
 # the original FILE_PATH was outside the project root — block it.
