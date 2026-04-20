@@ -114,8 +114,7 @@ read -r REMAINING USED_PCT TIMESTAMP <<< "$(echo "$BRIDGE" | jq -r '[.remaining_
 
 # P1-3 FIX: Session isolation — verify bridge ownership (Core Rule 11)
 # GAP-1 FIX: $RUNE_CURRENT_CFG from resolve-session-identity.sh (resolved with pwd -P)
-B_CFG=$(echo "$BRIDGE" | jq -r '.config_dir // empty' 2>/dev/null || true)
-B_PID=$(echo "$BRIDGE" | jq -r '.owner_pid // empty' 2>/dev/null || true)
+IFS=$'\t' read -r B_CFG B_PID <<< "$(echo "$BRIDGE" | jq -r '[.config_dir // "", .owner_pid // ""] | @tsv' 2>/dev/null || printf '\t')"
 [[ -n "$B_CFG" && "$B_CFG" != "$RUNE_CURRENT_CFG" ]] && { _trace "SKIP: config_dir mismatch"; exit 0; }
 if [[ -n "$B_PID" && "$B_PID" =~ ^[0-9]+$ && "$B_PID" != "${PPID:-0}" ]]; then
   rune_pid_alive "$B_PID" && { _trace "SKIP: bridge owned by live PID $B_PID (EPERM-safe)"; exit 0; }

@@ -102,6 +102,11 @@ fi
 # Normalize the target file path (resolve relative to CWD, strip ./)
 rune_normalize_path "$FILE_PATH"
 
+# SEC-AUDIT-004 FIX: Reject writes whose path traverses a symlink component.
+# Worker Ashes are untrusted — a symlink at src/link -> /tmp/outside would
+# escape the allowlist below without this check.
+rune_reject_symlink_path "$FILE_PATH"
+
 # Also allow writes to the strive output directory (workers write reports/patches there)
 WORK_OUTPUT_PREFIX="tmp/work/${IDENTIFIER}/"
 if [[ "$REL_FILE_PATH" == "${WORK_OUTPUT_PREFIX}"* ]]; then

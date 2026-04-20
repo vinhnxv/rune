@@ -378,24 +378,24 @@ if [[ "$project_json" == '{}' && "$global_json" == '{}' && -z "$PARSE_FAILURES" 
   # changes (like v2.53.1 adding arc.state_file) invalidate the system-cache
   # fast-path even when talisman-defaults.json content is unchanged.
   DEFAULTS_HASH_FILE="${SYSTEM_SHARD_DIR}/.defaults-hash"
-  if type _rune_venv_hash &>/dev/null; then
-    _RAW_DEFAULTS_HASH=$(_rune_venv_hash "$DEFAULTS_FILE")
-  else
-    # Inline fallback if rune-venv.sh not sourced
-    _RAW_DEFAULTS_HASH=$(shasum -a 256 "$DEFAULTS_FILE" 2>/dev/null | cut -d' ' -f1 || sha256sum "$DEFAULTS_FILE" 2>/dev/null | cut -d' ' -f1 || echo "no-hash")
-  fi
+  # EMBER-002 FIX: Combine defaults-file + resolver-script hashing into a single
+  # shasum subprocess (down from 3 forks). The composite hash still invalidates
+  # the system cache when either file changes — identical semantics to the
+  # previous three-step hash chain (BACK-IDN-005 FIX, v2.53.2).
   _RESOLVER_SCRIPT_PATH="${BASH_SOURCE[0]:-}"
   if [[ -n "$_RESOLVER_SCRIPT_PATH" && -f "$_RESOLVER_SCRIPT_PATH" && ! -L "$_RESOLVER_SCRIPT_PATH" ]]; then
-    _RESOLVER_SCRIPT_HASH=$(shasum -a 256 "$_RESOLVER_SCRIPT_PATH" 2>/dev/null | cut -d' ' -f1 || sha256sum "$_RESOLVER_SCRIPT_PATH" 2>/dev/null | cut -d' ' -f1 || echo "")
-    if [[ -n "$_RESOLVER_SCRIPT_HASH" && "$_RAW_DEFAULTS_HASH" != "no-hash" ]]; then
-      CURRENT_DEFAULTS_HASH=$(printf '%s|resolver:%s' "$_RAW_DEFAULTS_HASH" "$_RESOLVER_SCRIPT_HASH" | shasum -a 256 2>/dev/null | cut -d' ' -f1 || printf '%s|resolver:%s' "$_RAW_DEFAULTS_HASH" "$_RESOLVER_SCRIPT_HASH" | sha256sum 2>/dev/null | cut -d' ' -f1 || echo "$_RAW_DEFAULTS_HASH")
-    else
-      CURRENT_DEFAULTS_HASH="$_RAW_DEFAULTS_HASH"
-    fi
+    CURRENT_DEFAULTS_HASH=$({
+      cat "$DEFAULTS_FILE" 2>/dev/null
+      printf '\n---resolver---\n'
+      cat "$_RESOLVER_SCRIPT_PATH" 2>/dev/null
+    } | { shasum -a 256 2>/dev/null || sha256sum 2>/dev/null; } | cut -d' ' -f1)
+    [[ -z "$CURRENT_DEFAULTS_HASH" ]] && CURRENT_DEFAULTS_HASH="no-hash"
   else
-    CURRENT_DEFAULTS_HASH="$_RAW_DEFAULTS_HASH"
+    # Resolver script path not resolvable — hash defaults file alone
+    CURRENT_DEFAULTS_HASH=$({ shasum -a 256 "$DEFAULTS_FILE" 2>/dev/null || sha256sum "$DEFAULTS_FILE" 2>/dev/null; } | cut -d' ' -f1)
+    [[ -z "$CURRENT_DEFAULTS_HASH" ]] && CURRENT_DEFAULTS_HASH="no-hash"
   fi
-  unset _RAW_DEFAULTS_HASH _RESOLVER_SCRIPT_PATH _RESOLVER_SCRIPT_HASH
+  unset _RESOLVER_SCRIPT_PATH
 
   if [[ -f "$DEFAULTS_HASH_FILE" && -f "${SYSTEM_SHARD_DIR}/_meta.json" ]]; then
     stored_hash=$(cat "$DEFAULTS_HASH_FILE" 2>/dev/null || true)

@@ -81,6 +81,9 @@ DENY_PATTERNS=(
 # Normalize the target file path (resolve relative to CWD, strip ./)
 rune_normalize_path "$FILE_PATH"
 
+# SEC-AUDIT-004 FIX: Reject symlink components before allowlist evaluation.
+rune_reject_symlink_path "$FILE_PATH"
+
 # Use anchored matching to prevent false positives (e.g., "src/not.claude/file.ts")
 for pattern in "${DENY_PATTERNS[@]}"; do
   if [[ "$REL_FILE_PATH" == "$pattern"* || "$REL_FILE_PATH" == */"$pattern"* ]]; then
