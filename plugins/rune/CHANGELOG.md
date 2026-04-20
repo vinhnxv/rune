@@ -1,5 +1,90 @@
 # Changelog
 
+## [2.64.3] — 2026-04-21
+
+### Fixed — Root README version badge sync oversight
+
+The v2.64.2 release bumped the plugin-scoped README (`plugins/rune/README.md`)
+but missed the repo-root `README.md` Shields.io badge, which still advertised
+2.64.1. Users browsing the GitHub landing page would see a stale version
+number that disagreed with `plugin.json`, `marketplace.json`, and the
+in-repo CHANGELOG. PATCH bump with no functional changes — same PATH-COPY-001
+and PATH-RESOLVE-001 behavior as v2.64.2, now consistently versioned across
+all four sync surfaces:
+
+- `.claude-plugin/marketplace.json` → 2.64.3
+- `plugins/rune/.claude-plugin/plugin.json` → 2.64.3
+- `plugins/rune/README.md` → 2.64.3 (in-text badge)
+- `README.md` (repo root) → 2.64.3 (**newly synced**)
+
+Follow-up: the pre-commit checklist in `plugins/rune/CLAUDE.md` currently
+lists only the plugin-scoped README under "component counts verified" — it
+does not explicitly require root-README version-badge parity. Consider
+adding that entry to the checklist to prevent future drift.
+
+## [2.64.2] — 2026-04-21
+
+### Fixed — PATH-COPY-001 plugin cache read refactor (permission prompt elimination)
+
+Three call sites instructed `Bash(cp "${RUNE_PLUGIN_ROOT}/...")` — an anti-pattern
+that crosses out of the project sandbox and triggers Claude Code's default
+Bash permission prompt on every invocation. On Ubuntu multi-account setups the
+prompt wording exposes the cache path (`/home/<user>/.claude/plugins/cache/
+rune-marketplace/rune/<version>/...`), creating friction for every doc-pack
+install and arc QA-gate step.
+
+**Refactor**: Replace `Bash(cp <plugin-cache-path> <dest>)` with
+`Write(<dest>, Read(<plugin-cache-path>))`. `Read` is auto-allowed for most
+paths in the harness; `Write` auto-allows inside the project. The net effect
+is zero permission prompts for plugin-cache reads.
+
+**Call sites fixed**:
+- `skills/rune-echoes/SKILL.md:200` — doc-pack install step 5
+- `commands/echoes.md:225` — doc-pack install step 6 (alias command)
+- `skills/arc/references/arc-phase-qa-gate.md:576` — QA manifest read.
+  Previously read from `tmp/arc/${id}/qa-manifests/${parentPhase}.yaml`, a
+  path that was never explicitly staged — Claude Code improvised a `cp`
+  from the plugin cache. Now reads directly from
+  `${RUNE_PLUGIN_ROOT}/skills/arc/references/qa-manifests/${parentPhase}.yaml`,
+  eliminating both the improvised copy and the tmp-dir staging step.
+
+**Caveat**: The `manifest: "qa-manifests/{phase}.yaml"` field in the execution
+log (e.g., `arc-phase-work.md:308`, `arc-phase-forge.md:214`) remains a stable
+logical ID and is NOT dereferenced as a path — left unchanged intentionally.
+Doc-pack install still writes to `$CHOME/echoes/...` which is outside the
+project; that destination may still prompt on first Write depending on
+`additionalDirectories` config. Arc QA case is fully covered (destination is
+project-local `tmp/arc/...`).
+
+### Fixed — PATH-RESOLVE-001 design-sync worker path resolution (cache-install compatibility)
+
+Three design-sync runtime path references used *repo-relative* `plugins/rune/...`
+strings instead of `${RUNE_PLUGIN_ROOT}/...`. When the plugin is installed from
+the Claude Code marketplace cache (e.g., Ubuntu:
+`/home/<user>/.claude/plugins/cache/rune-marketplace/rune/<version>/`), those
+paths resolve to nowhere — `Read()` / `Glob()` fail with ENOENT, and Claude Code
+may improvise a `Bash(cp)` stage step (the same failure mode PATH-COPY-001
+fixes for qa-manifests). Kept latent by chance until PATH-COPY-001 scan surfaced it.
+
+**Call sites fixed**:
+- `skills/design-sync/references/phase2-implementation-steps.md:57,60,62` —
+  codegen profile ref + shadcn/untitled-ui token map refs used by workers.
+- `skills/strive/references/worker-prompts.md:1183,1189` — design-sync trust
+  hierarchy doc loaded into worker prompts when `design_sync.enabled: true`.
+- `skills/strive/references/worker-prompts.md:1351` — framework-profile path
+  loaded into worker prompts when frontend stack detected.
+
+All six references now use `${RUNE_PLUGIN_ROOT}/skills/...`. The `${RUNE_PLUGIN_ROOT}`
+env var is resolved by the tool-call site at runtime (same pattern as
+`talisman/SKILL.md:98` and the PATH-COPY-001 qa-manifest fix above).
+
+**Scope note**: Meta-QA auditor paths (`agents/meta-qa/*.md`),
+repo-root validator scripts (`scripts/validate-shutdown-pattern.sh`), and
+commented-out pseudocode in `roundtable-circle/orchestration-phases.md`
+intentionally keep repo-relative paths — they either run in the plugin
+development repo or are inert. Only *runtime worker pseudocode* was
+affected by the cache-install bug.
+
 ## [2.64.1] — 2026-04-20
 
 ### Fixed — CKPT-INT-008 producer/consumer schema drift (silent arc halt on Ubuntu)

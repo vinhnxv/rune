@@ -197,7 +197,11 @@ Install a bundled doc pack to the global echo store.
 3. Check if already installed: `$CHOME/echoes/global/doc-packs/<stack>/MEMORY.md`
    - If exists: overwrite (idempotent re-install)
 4. Create directories: `mkdir -p "$CHOME/echoes/global/doc-packs/<stack>" "$CHOME/echoes/global/manifests"`
-5. Copy pack: `cp "${RUNE_PLUGIN_ROOT}/data/doc-packs/<stack>/MEMORY.md" "$CHOME/echoes/global/doc-packs/<stack>/"`
+5. Copy pack via `Read`+`Write` (avoids Bash(cp) permission prompt on plugin cache reads — PATH-COPY-001):
+   ```javascript
+   const packContent = Read("${RUNE_PLUGIN_ROOT}/data/doc-packs/<stack>/MEMORY.md")
+   Write("$CHOME/echoes/global/doc-packs/<stack>/MEMORY.md", packContent)
+   ```
 6. Write manifest to `$CHOME/echoes/global/manifests/<stack>.json`:
    ```json
    {

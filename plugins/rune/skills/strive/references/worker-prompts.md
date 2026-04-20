@@ -1179,14 +1179,17 @@ if (designContext.strategy === 'design-prototype') {
   // Strategy 5 uses prototype-based trust hierarchy (step 4.7.6), not VSM-based (step 4.7.5)
   // Skip 4.7.5 to avoid contradictory VSM-first guidance
 } else {
-// Guard: verify reference file exists before injection — skip with warning if missing
-const trustHierarchyPath = "plugins/rune/skills/design-sync/references/worker-trust-hierarchy.md"
+// Guard: verify reference file exists before injection — skip with warning if missing.
+// PATH-RESOLVE-001 (v2.64.2): Use ${RUNE_PLUGIN_ROOT}/ prefix — see design-sync
+// phase2-implementation-steps.md rationale. Glob on absolute plugin-root paths works
+// when ${RUNE_PLUGIN_ROOT} is resolved by the caller at the tool-call site.
+const trustHierarchyPath = "${RUNE_PLUGIN_ROOT}/skills/design-sync/references/worker-trust-hierarchy.md"
 if (!Glob(trustHierarchyPath).length) {
   warn(`Trust hierarchy reference missing: ${trustHierarchyPath}. Skipping step 4.7.5.`)
   // Step numbering falls through to 4.8 — no design trust hierarchy guidance for this task
 } else {
 `    4.7.5. TRUST HIERARCHY (design_sync active):
-           Read: plugins/rune/skills/design-sync/references/worker-trust-hierarchy.md
+           Read: ${RUNE_PLUGIN_ROOT}/skills/design-sync/references/worker-trust-hierarchy.md
            This defines your source priority order. Key rules:
            - VSM is PRIMARY, library components are SECONDARY
            - figma_to_react() reference code is LOW trust (~50-60% accurate)
@@ -1348,7 +1351,8 @@ function buildComponentConstraintBlock(plan, designProfile) {
   // Gate 3: profile file must exist
   const library = designProfile?.library ?? detectLibraryFromPlan(plan)
   if (!library) return ''
-  const profilePath = `plugins/rune/skills/frontend-design-patterns/references/profiles/${library}-profile.md`
+  // PATH-RESOLVE-001 (v2.64.2): Use ${RUNE_PLUGIN_ROOT}/ prefix for cache-installed plugin compatibility.
+  const profilePath = `${RUNE_PLUGIN_ROOT}/skills/frontend-design-patterns/references/profiles/${library}-profile.md`
   try { Read(profilePath) } catch (e) { return '' }  // Profile not found — skip silently
 
   // Extract token constraints summary from plan (used in STRICT RULES header)

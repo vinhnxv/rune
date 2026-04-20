@@ -573,7 +573,10 @@ function buildQAAgentPrompt(id, parentPhase, timestamp, qaDir) {
   prompt += `- Output directory: ${qaDir}\n\n`
 
   // 2. Inject FULL manifest content (AC-24)
-  const manifestPath = `tmp/arc/${id}/qa-manifests/${parentPhase}.yaml`
+  // Read directly from plugin root — avoids Bash(cp) permission prompt on plugin cache reads (PATH-COPY-001).
+  // The execution log's `manifest: "qa-manifests/{phase}.yaml"` field remains a stable logical ID
+  // (not a live path); it is NOT dereferenced here.
+  const manifestPath = `${RUNE_PLUGIN_ROOT}/skills/arc/references/qa-manifests/${parentPhase}.yaml`
   try {
     const manifestContent = Read(manifestPath)
     prompt += `## Process Manifest (full content)\n\n\`\`\`yaml\n${manifestContent}\n\`\`\`\n\n`
