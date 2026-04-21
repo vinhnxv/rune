@@ -52,7 +52,19 @@ rune_team_shutdown_fallback() {
   local owner_pid="${2:-}"
   local workflow_label="${3:-unknown}"
   local fallback_members="${4:-}"
+  # TEAM-SEC-002 (audit 20260420-171018): track whether the caller supplied an
+  # explicit grace_seconds value. Callers that compute a budget-aware value
+  # pass $5; callers that rely on the legacy 5s default omit it entirely.
+  # The distinction matters for diagnostics — silent defaults in tight hook
+  # budgets can overshoot and produce orphaned teammates.
+  local _gs_supplied=1
+  if [[ $# -lt 5 ]]; then
+    _gs_supplied=0
+  fi
   local grace_seconds="${5:-5}"
+  if [[ "$_gs_supplied" == "0" && "${RUNE_TRACE:-}" == "1" ]]; then
+    printf '[team-shutdown] grace_seconds not supplied by caller (workflow=%s) — using legacy default 5s. Budget-aware callers should pass $5 explicitly (see RUIN-002).\n' "$workflow_label" >&2
+  fi
 
   # Clamp grace_seconds to [0,20].
   # BACK-005 (v2.63.0): accept signed ints so callers passing `-1` (over-budget

@@ -164,8 +164,10 @@ const sessionNonce = checkpoint.session_nonce
 // SEC-001 FIX: On invalid nonce, set effectiveNonce to null so ternary takes allMarkers branch.
 // L-4 FIX: Tightened regex to match generation format ([0-9a-f]{12}) exactly.
 // Previously used permissive [a-zA-Z0-9_-]+ which allowed tampered nonces to pass validation.
+// ARC-SEC-004 (audit 20260420-171018): accept both legacy 12-hex (pre-2.65)
+// and current 32-hex (2.65+) so active arcs spanning the upgrade keep filtering.
 let effectiveNonce = sessionNonce
-if (sessionNonce && !/^[0-9a-f]{12}$/.test(sessionNonce)) {
+if (sessionNonce && !/^[0-9a-f]{12}$|^[0-9a-f]{32}$/.test(sessionNonce)) {
   warn(`Invalid session nonce format: ${sessionNonce} — falling back to unfiltered markers`)
   effectiveNonce = null
 }

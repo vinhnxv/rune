@@ -1,5 +1,105 @@
 # Changelog
 
+## [2.65.0] — 2026-04-21
+
+### Security hardening — audit 20260420-171018 findings resolved
+
+Six valid findings from the Ward Sentinel security audit on
+`plugins/rune/hooks`, `plugins/rune/scripts`, `plugins/rune/skills/arc`,
+and `plugins/rune/skills/team-sdk`. Two audit findings (HOOKS-SEC-005 and
+TEAM-SEC-004) were verified overstated during double-check — the uniform-
+600s-timeout premise was factually wrong (actual range is 2-30s) and the
+VEIL-005 liveness gate is already bounded at `LIVENESS_MAX_POLLS × 5s = 30s`
+with a `try/catch → break` fallback — so those two findings were NOT acted on.
+
+#### ARC-SEC-004 — Session nonce upgraded from 48 to 128 bits
+
+The arc session nonce generated in `arc-checkpoint-init.md` was
+`crypto.randomBytes(6).toString('hex')` — 12 hex chars, 48 bits of entropy.
+Industry standard for security-sensitive tokens is 128 bits (16 bytes).
+The nonce gates TOME.md marker filtering and checkpoint tampering
+validation, so the entropy gap represented a real defense-in-depth hole.
+
+- Generation now uses `crypto.randomBytes(16)` → 32 hex chars (128 bits)
+- Validators in `arc-resume.md` and `verify-mend.md` accept BOTH legacy
+  `{12}` and current `{32}` regex during transition so active arcs spanning
+  the upgrade keep filtering their own TOME markers correctly
+- Drop the `{12}` branch once all in-flight arcs have rotated (>= 1 major
+  release)
+
+#### ARC-SEC-005 — `_safe_jq` wrapper for pipefail contexts
+
+Scripts under `set -o pipefail` must append `|| true` to every `jq` call
+to prevent partial-JSON read failures from aborting the script. Drift was
+documented as a risk — some call sites had the guard, others didn't. A
+reusable `_safe_jq` helper now lives in `scripts/lib/platform.sh` so future
+scripts can opt in:
+
+```bash
+source "$SCRIPT_DIR/lib/platform.sh"
+VALUE=$(_safe_jq -r '.workflow' "$STATE_FILE")  # empty string on any failure
+```
+
+The helper is explicitly NOT for SECURITY-class validation — those paths
+still need to see jq's real exit code and fail-closed.
+
+#### TEAM-SEC-002 — `grace_seconds` trace for legacy default callers
+
+`rune_team_shutdown_fallback()` in `lib/team-shutdown.sh` accepts an
+optional `grace_seconds` parameter (clamped to [0,20]). Callers that omit
+the parameter silently inherit a 5s default, which can overshoot tight
+hook budgets (`detect-workflow-complete.sh` computes `_budget_remaining`
+and expects budget-aware values). A new trace fires under `RUNE_TRACE=1`
+when the caller omits `$5` entirely, naming the workflow label so operators
+can see which caller should be upgraded to budget-aware shutdown.
+
+#### HOOKS-SEC-002 — jq-missing policy codified in CLAUDE.md
+
+The behavior was already correct (SECURITY → `exit 2`, OPERATIONAL → `exit 0`)
+but the policy was not codified — it lived in developer judgment. The
+plugin CLAUDE.md "Hook Crash Classification" section now has a jq-missing
+table that names the class → behavior mapping explicitly.
+
+#### HOOKS-SEC-003 — ERR trap classification checklist
+
+Added a 4-question decision checklist to the CLAUDE.md hook classification
+section so new hooks are class-typed BEFORE the ERR trap is chosen. This
+closes the drift path where a SECURITY hook accidentally gets
+`_rune_fail_forward` installed.
+
+#### HOOKS-SEC-007 — Comment-vs-behavior drift fixed
+
+`validate-resolve-fixer-paths.sh` headers said "Fail-forward design" but
+the trap (`trap 'exit 2' ERR`) and the missing-jq guard (`exit 2`) are
+both fail-closed SECURITY-class behaviors. Header rewritten to match the
+actual behavior and cite HOOKS-SEC-007 for the audit trail.
+
+### Not changed — overstated findings
+
+- **HOOKS-SEC-005** (Uniform 600s timeout): claim was factually wrong.
+  `hooks.json` timeouts range 2s (throttled writers) → 30s (Stop hooks).
+  The premise "all hooks use 600s" was false; no change needed.
+- **TEAM-SEC-004** (VEIL-005 indefinite wait): already bounded. The
+  liveness gate at `engines.md:652-667` has
+  `LIVENESS_MAX_POLLS = 6 × 5s = 30s` and breaks on TaskList exception.
+  The recommended "60s fallback" would be redundant.
+
+### Follow-up (not acted on in this release)
+
+- **ARC-SEC-002 / ARC-SEC-003**: automated PHASE_PREFIX_MAP + ARC_TEAM_PREFIXES
+  cross-reference check. Real maintenance burden but requires a new
+  validator script (`scripts/validate-arc-team-prefixes.sh`) and a
+  pre-commit wiring. Deferred to a dedicated follow-up.
+- **HOOKS-SEC-004** (macOS Unicode PCRE gap): grep -P used for Unicode
+  override detection; silently no-ops on BSD grep. Defer until a
+  platform.sh helper can wrap the PCRE fallback.
+- **ARC-SEC-006 / 007 / 008**: UNCERTAIN confidence, suitable for future
+  hardening review, not immediate action.
+- **Shell scripts audit INCOMPLETE**: the original audit terminated before
+  Ward Sentinel finished reviewing `plugins/rune/scripts/`. Re-run
+  `/rune:audit --dirs plugins/rune/scripts --focus security --deep` to
+  close the coverage gap.
+
 ## [2.64.3] — 2026-04-21
 
 ### Fixed — Root README version badge sync oversight

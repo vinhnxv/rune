@@ -206,3 +206,21 @@ reject_symlink_deep() {
     _cur="$_next"
   done
 }
+
+# _safe_jq <args...>
+# ARC-SEC-005 (audit 20260420-171018): wrapper that insulates callers from
+# `set -o pipefail` + jq parse-failure cascades. Without this, any jq call
+# in a pipeline under pipefail will abort the script on malformed/partial
+# JSON, even when the caller only wanted a best-effort read (e.g. scanning
+# a mid-write state file).
+#
+# Contract:
+#   - stdout  = jq's raw output on success, empty string on any failure
+#   - stderr  = suppressed (best-effort by design)
+#   - exit    = always 0 (never propagates jq's non-zero exit under pipefail)
+#
+# Do NOT use this wrapper for SECURITY-class validation — those paths must
+# see jq's real exit code and fail-closed. Use plain `jq` there.
+_safe_jq() {
+  jq "$@" 2>/dev/null || true
+}
