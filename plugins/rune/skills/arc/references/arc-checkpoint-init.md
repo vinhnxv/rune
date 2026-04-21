@@ -19,11 +19,15 @@ if (!/^arc-[a-zA-Z0-9_-]+$/.test(id)) throw new Error("Invalid arc identifier")
 // SEC: Session nonce prevents TOME injection from prior sessions.
 // MUST be cryptographically random — NOT derived from timestamp or arc id.
 // LLM shortcutting this to `arc{id}` defeats the security purpose.
-const rawNonce = crypto.randomBytes(6).toString('hex').toLowerCase()
-// Validate format AFTER generation, BEFORE checkpoint write: exactly 12 lowercase hex characters
+// ARC-SEC-004 (audit 20260420-171018): upgraded from 6→16 bytes (48→128 bits)
+// to match industry standard for security tokens. Validators across arc-resume
+// and verify-mend accept both legacy 12-hex and current 32-hex to preserve
+// backward compatibility with checkpoints written before the upgrade.
+const rawNonce = crypto.randomBytes(16).toString('hex').toLowerCase()
+// Validate format AFTER generation, BEFORE checkpoint write: exactly 32 lowercase hex characters
 // .toLowerCase() ensures consistency across JS runtimes (defense-in-depth)
-if (!/^[0-9a-f]{12}$/.test(rawNonce)) {
-  throw new Error(`Session nonce generation failed. Must be 12 hex chars from crypto.randomBytes(6). Retry arc invocation.`)
+if (!/^[0-9a-f]{32}$/.test(rawNonce)) {
+  throw new Error(`Session nonce generation failed. Must be 32 hex chars from crypto.randomBytes(16). Retry arc invocation.`)
 }
 const sessionNonce = rawNonce
 

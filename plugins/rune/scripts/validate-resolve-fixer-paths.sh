@@ -14,10 +14,11 @@
 # Exit 0 without JSON (or with permissionDecision="allow") = tool call allowed.
 # Exit 2 = hook error, stderr fed to Claude (not used by this script).
 #
-# Fail-forward design: On any parsing/validation error, allow the operation.
-# Fail-closed on missing jq (SECURITY-class requirement).
+# Fail-closed design (SECURITY class): ERR trap exits 2 on any unhandled failure,
+# and missing jq exits 2. Parsing errors inside validation logic deliberately
+# call `exit 0` (allow) because a malformed inscription.json is a stale-state
+# condition, not an attack signal. See HOOKS-SEC-007 (audit 20260420-171018).
 
-# Fail-forward: errors allow the operation (exit 0) rather than blocking.
 # CLD-QUAL-001 FIX: set -euo before trap (consistent with sibling scripts).
 # CLD-QUAL-002 FIX: Removed duplicate trap.
 set -euo pipefail

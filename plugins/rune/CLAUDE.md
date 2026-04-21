@@ -400,6 +400,28 @@ The `_rune_fail_forward` function logs crash location (`BASH_LINENO[0]`) to `$RU
 
 All hooks require `jq` for JSON parsing. If `jq` is missing, SECURITY-CRITICAL hooks (`enforce-readonly.sh`) exit 2 (blocking). Non-security hooks exit 0 (non-blocking, fail-open). The 3 `validate-*-paths.sh` scripts and `pretooluse-write-guard.sh` (shared library) all exit 0 when jq is missing. A `SessionStart` hook validates `jq` availability and warns if missing. Hook configuration lives in `hooks/hooks.json`.
 
+#### jq-Missing Policy (HOOKS-SEC-002, audit 20260420-171018)
+
+The rule is class-driven — NOT script-by-script judgment:
+
+| Hook Class | Missing-jq Behavior | Rationale |
+|-----------|---------------------|-----------|
+| SECURITY  | `exit 2` (fail-closed) | A SECURITY hook that cannot validate its input MUST block. Letting a write through because jq is missing would defeat the trust boundary. |
+| OPERATIONAL | `exit 0` (fail-open) | An OPERATIONAL hook that cannot read state should not block user-facing work. The degraded mode is advisory-free but not broken. |
+
+When writing a new hook, decide its class FIRST, then apply the corresponding `command -v jq` guard. The `validate-*-paths.sh` family currently exits 0 on missing jq — that predates this policy. New validators in the same family should exit 2 to match SEC-RESOLVE-001 / SEC-MEND-001 fail-closed classification.
+
+#### ERR Trap Classification Checklist (HOOKS-SEC-003, audit 20260420-171018)
+
+Before choosing `trap 'exit 2' ERR` (fail-closed) vs `_rune_fail_forward` (fail-forward) for a new hook, answer these four questions:
+
+1. **Does the hook enforce a security boundary?** (path isolation, tool restriction, permission check) — YES → SECURITY.
+2. **Does a crash create a reachable attack window?** (e.g., write allowed despite missing validation) — YES → SECURITY.
+3. **Is user-facing productivity blocked if the hook crashes?** — YES → OPERATIONAL.
+4. **Is the hook purely observational?** (telemetry, signal writes, advisory-only) — YES → OPERATIONAL.
+
+A SECURITY hook MUST set `trap 'exit 2' ERR` from line 1 (XVER-SEC-002) — not after `set -euo pipefail` alone, since ERR fires only when the trap is in place. An OPERATIONAL hook MUST source `lib/fail-forward.sh` and install `_rune_fail_forward` via ERR trap. Inconsistency between the in-file comment ("Fail-forward design") and the actual trap (`exit 2`) is the drift signal flagged by HOOKS-SEC-007.
+
 **Trace logging**: Set `RUNE_TRACE=1` to enable append-mode trace output to `/tmp/rune-hook-trace.log`. Applies to event-driven hooks (`on-task-completed.sh`, `on-teammate-idle.sh`). Enforcement hooks (`enforce-readonly.sh`, `enforce-polling.sh`, `enforce-zsh-compat.sh`, `enforce-teams.sh`, `enforce-team-lifecycle.sh`) emit deny/allow decisions directly. Informational hooks (`verify-team-cleanup.sh`, `session-team-hygiene.sh`) emit messages directly to stdout; their output appears in the session transcript. Off by default — zero overhead in production. **Dry-run mode**: Set `RUNE_CLEANUP_DRY_RUN=1` to make cleanup hooks (detect-workflow-complete.sh, on-session-stop.sh, session-team-hygiene.sh) log what they would do without actually killing processes, deleting teams, or modifying state files. Useful for debugging cleanup behavior in production. **Timeout rationale**: PreToolUse 5s (fast-path guard), PostToolUse 5s (fast-path verify), PostToolUse 2s (reset-tool-failure.sh: single jq del + mv), PostToolUseFailure 3s (track-tool-failure.sh: stat + jq read/write), UserPromptSubmit 3s (keyword-detector.sh: stdin parse + regex — fires on every prompt), SubagentStop 5s (verify-agent-deliverables.sh: filesystem checks), SessionStart 5s (startup scan), TaskCompleted 15s (signal I/O + haiku gate + observation recording), TeammateIdle 15s (inscription parse + output validation), PreCompact 10s (team state checkpoint with filesystem discovery), SessionStart:compact 5s (JSON parse + context injection), Stop 30s (arc-phase loop: phase finding + compact eval + zombie cleanup + prompt build) and 15s (arc-batch loop + arc-hierarchy loop + arc-issues loop: git ops + progress file I/O + gh API calls) and 10s (detect-stale-lead.sh: 4-method detection cascade, filesystem-only) and 10s (on-session-stop: workflow state file scan + context-percent-stop-guard.sh: bridge file read — increased from 5s for projects with 50+ state files) and 30s (detect-workflow-complete.sh: 2-stage SIGTERM→SIGKILL escalation + filesystem cleanup), StopFailure 15s (on-stop-failure.sh: error classification + backoff prompt construction).
 
 ### FileChanged / CwdChanged Hooks (v2.1.83 — evaluated, deferred)

@@ -38,7 +38,9 @@ On resume, validate checkpoint integrity before proceeding:
 2. Read "${CWD}/.rune/arc/{id}/checkpoint.json" — extract plan_file for downstream phases
 2b. Validate session_nonce from checkpoint (prevents tampering):
    ```javascript
-   if (!/^[0-9a-f]{12}$/.test(checkpoint.session_nonce)) {
+   // ARC-SEC-004: accepts both legacy 12-hex (pre-2.65) and current 32-hex (2.65+).
+   // Drop the `{12}` branch once all in-flight arcs have rotated (>= 1 major release).
+   if (!/^[0-9a-f]{12}$|^[0-9a-f]{32}$/.test(checkpoint.session_nonce)) {
      throw new Error("Invalid session_nonce in checkpoint — possible tampering")
    }
    ```

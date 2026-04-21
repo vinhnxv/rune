@@ -2,7 +2,7 @@
 
 Multi-agent engineering orchestration for [Claude Code](https://claude.ai/claude-code). Plan features, implement with swarm workers, review code, and ship — all with parallel AI agents that each get their own dedicated context window.
 
-**Current version**: [2.64.3](CHANGELOG.md) — PATH-COPY-001 eliminates `Bash(cp)` permission prompts on plugin cache reads (Read+Write refactor for qa-manifests + doc-packs); PATH-RESOLVE-001 fixes design-sync runtime paths to use `${RUNE_PLUGIN_ROOT}/` prefix for cache-installed plugin compatibility; root README version badge sync (v2.64.3). See [CHANGELOG.md](CHANGELOG.md) for details.
+**Current version**: [2.65.0](CHANGELOG.md) — Audit 20260420-171018 hardening: session nonce upgraded 48→128 bits (ARC-SEC-004) with backward-compatible validator; `_safe_jq` helper added to `lib/platform.sh` for pipefail contexts (ARC-SEC-005); `team-shutdown.sh` trace when `grace_seconds` falls back to legacy 5s default (TEAM-SEC-002); CLAUDE.md gains formal jq-missing policy (HOOKS-SEC-002) and ERR trap classification checklist (HOOKS-SEC-003); comment-vs-behavior drift in `validate-resolve-fixer-paths.sh` resolved (HOOKS-SEC-007). See [CHANGELOG.md](CHANGELOG.md) for details.
 
 ## What Is This?
 
