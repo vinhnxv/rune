@@ -1,5 +1,42 @@
 # Changelog
 
+## [2.65.1] — 2026-04-21
+
+### Fixed — Arc Stop hook context injection regression (CC-STOP-API-OSC-001)
+
+Claude Code 2.1.116 appears to have regressed Stop hook `stderr + exit 2`
+context injection. The rune arc pipeline relied on this PAT-011 contract
+(documented in `plugins/rune/CLAUDE.md`) to pass phase prompts to Claude's
+next turn. When the contract silently fails, the arc halts mid-pipeline
+with Claude responding "anything else?" to an empty next turn — with the
+hook re-firing on the subsequent Stop event in an invisible loop.
+
+Symptoms observed:
+- Arc halts between phases (e.g., after `forge`, before `forge_qa`)
+- State file iteration counter advances (hook IS firing)
+- Trace log shows hook exited 2 with full PHASE_PROMPT on stderr
+- Claude's next turn has no context from the stderr output
+
+#### Fix — Dual-protocol emission
+
+`arc-phase-stop-hook.sh` now emits BOTH context-injection contracts:
+
+1. **Protocol A (modern)**: `hookSpecificOutput.additionalContext` JSON on
+   stdout — mirrors the documented UserPromptSubmit / SessionStart
+   injection contract. Claude Code ≥ 2.1.116 may honor this format for
+   Stop hooks; earlier versions ignore unknown JSON per spec.
+2. **Protocol B (legacy)**: `stderr + exit 2` per PAT-011 — preserved for
+   Claude Code < 2.1.116 compatibility.
+
+Per hook spec, exit 2 causes compliant parsers to ignore stdout — so the
+JSON emission is a no-op on spec-compliant versions and a rescue path on
+versions where stderr re-injection silently fails. Dual emission cannot
+double-inject on any version that obeys the contract.
+
+Only `arc-phase-stop-hook.sh` is patched in this release. If the sibling
+`arc-batch-stop-hook.sh` and `arc-hierarchy-stop-hook.sh` exhibit the same
+symptoms, apply the same patch.
+
 ## [2.65.0] — 2026-04-21
 
 ### Security hardening — audit 20260420-171018 findings resolved

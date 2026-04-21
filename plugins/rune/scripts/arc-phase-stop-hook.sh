@@ -2634,10 +2634,29 @@ _log_phase "hook_execution" "${NEXT_PHASE}" \
   "iteration=${NEW_ITERATION:-${ITERATION}}"
 _trace "TIMING: total hook duration ${_HOOK_DURATION}s"
 
-# ── Output phase prompt to stderr and exit 2 to continue conversation ──
-# Stop hook semantics: exit 0 = allow stop (stdout/stderr discarded).
-# Exit 2 = show stderr to model and continue conversation.
-# BUG FIX (v1.144.14): Previous versions used exit 0 + JSON stdout, which was
-# silently discarded by Claude Code — the root cause of "arc stops after work phase".
+# ── Dual-protocol Stop hook continuation (v2.65.1 CC-STOP-API-OSC-001) ──
+# Stop hook context injection has drifted across Claude Code 2.1.x versions:
+#   - PAT-011 (pre-2.1.116): stderr + exit 2 re-injects stderr as next prompt
+#   - 2.1.116+: stderr may be shown-to-user but NOT re-injected as Claude context,
+#     causing arc pipelines to stall mid-phase with "anything else?" responses
+# Emit BOTH protocols defensively. Claude Code honors whichever it recognizes;
+# per hook spec, exit 2 causes stdout to be ignored by compliant parsers — so the
+# JSON emission is a no-op on versions that obey the contract and a rescue path
+# on versions where stderr re-injection silently fails.
+# BUG FIX (v1.144.14): Previous versions used exit 0 + {decision,reason} JSON only,
+# which was silently discarded — the root cause of "arc stops after work phase".
+# BUG FIX (v2.65.1): Added hookSpecificOutput.additionalContext JSON to survive
+# 2.1.116+ regime where stderr re-injection appears to regress.
+
+# Protocol A: modern hookSpecificOutput.additionalContext JSON on stdout
+# Mirrors the documented UserPromptSubmit / SessionStart injection contract.
+# Claude Code >= 2.1.116 may honor this; earlier versions ignore unknown JSON.
+if command -v jq >/dev/null 2>&1; then
+  printf '%s' "$PHASE_PROMPT" | jq -Rs --arg e "Stop" \
+    '{hookSpecificOutput: {hookEventName: $e, additionalContext: .}}' 2>/dev/null || true
+fi
+
+# Protocol B: legacy stderr + exit 2 (PAT-011)
+# Pre-2.1.116 Claude Code re-injects stderr as Claude's next prompt.
 printf '%s\n' "$PHASE_PROMPT" >&2
 exit 2
