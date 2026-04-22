@@ -1,5 +1,53 @@
 # Changelog
 
+## [2.65.2] — 2026-04-23
+
+### Fixed — Stop hook JSON validation rejected v2.65.1 Protocol A payload (CC-STOP-API-OSC-001 follow-up)
+
+The v2.65.1 dual-protocol Stop hook emission used
+`hookSpecificOutput.additionalContext` on stdout as "Protocol A". Per the
+authoritative Stop hook schema, that field shape is ONLY valid for
+`PreToolUse`, `UserPromptSubmit`, and `PostToolUse` — the Stop event does
+not accept `hookSpecificOutput` at all. Claude Code's JSON output
+validator correctly rejected the payload with:
+
+```
+Stop hook error: Hook JSON output validation failed — (root): Invalid input
+```
+
+Protocol B (stderr + `exit 2`) continued to fire underneath, but the
+visible validation error surfaced on every arc phase boundary and, on
+Claude Code versions where stderr re-injection has regressed, left the
+pipeline stuck with no rescue path — the exact failure mode v2.65.1 set
+out to prevent.
+
+#### Fix — schema-compliant Protocol A
+
+`arc-phase-stop-hook.sh` now emits the documented Stop hook continuation
+shape:
+
+```json
+{"decision": "block", "reason": "<PHASE_PROMPT>"}
+```
+
+`decision: "block"` instructs Claude Code to continue the conversation
+with `reason` as the next-turn context — semantically identical to the
+stderr path in Protocol B. The valid Stop hook top-level fields per the
+schema are `continue`, `suppressOutput`, `stopReason`, `decision`
+(`"approve" | "block"`), `reason`, `systemMessage`, and
+`permissionDecision`. Nothing else — `hookSpecificOutput` belongs to
+other events.
+
+Dual emission is preserved: Protocol A (stdout JSON) is the rescue path
+for Claude Code versions where stderr re-injection regresses; Protocol B
+(`exit 2` + stderr) remains the primary PAT-011 path that compliant
+parsers honor while ignoring stdout.
+
+Only `arc-phase-stop-hook.sh` was affected — v2.65.1 explicitly deferred
+the sibling patches, so `arc-batch-stop-hook.sh`,
+`arc-hierarchy-stop-hook.sh`, and `arc-issues-stop-hook.sh` never carried
+the invalid payload.
+
 ## [2.65.1] — 2026-04-21
 
 ### Fixed — Arc Stop hook context injection regression (CC-STOP-API-OSC-001)

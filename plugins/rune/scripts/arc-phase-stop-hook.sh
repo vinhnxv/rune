@@ -2645,15 +2645,27 @@ _trace "TIMING: total hook duration ${_HOOK_DURATION}s"
 # on versions where stderr re-injection silently fails.
 # BUG FIX (v1.144.14): Previous versions used exit 0 + {decision,reason} JSON only,
 # which was silently discarded — the root cause of "arc stops after work phase".
-# BUG FIX (v2.65.1): Added hookSpecificOutput.additionalContext JSON to survive
-# 2.1.116+ regime where stderr re-injection appears to regress.
+# BUG FIX (v2.65.1): Added JSON emission to survive 2.1.116+ regime where stderr
+# re-injection appears to regress.
+# BUG FIX (v2.65.2): The original v2.65.1 shape used
+# `hookSpecificOutput.additionalContext`, which is NOT a valid Stop hook field
+# (only PreToolUse / UserPromptSubmit / PostToolUse accept hookSpecificOutput).
+# Claude Code's JSON validator rejected the payload with "Hook JSON output
+# validation failed — (root): Invalid input" and the arc phase loop stalled
+# visibly even though exit 2 + stderr still fired. The spec-compliant way for a
+# Stop hook to carry text back into Claude's next turn is
+# {"decision":"block","reason":"<text>"} — same semantics as Protocol B.
 
-# Protocol A: modern hookSpecificOutput.additionalContext JSON on stdout
-# Mirrors the documented UserPromptSubmit / SessionStart injection contract.
-# Claude Code >= 2.1.116 may honor this; earlier versions ignore unknown JSON.
+# Protocol A: schema-compliant Stop hook continuation JSON on stdout.
+# Valid Stop hook top-level fields: continue, suppressOutput, stopReason,
+# decision ("approve"|"block"), reason, systemMessage, permissionDecision.
+# decision=block + reason injects `reason` as Claude's next-turn context.
+# Per hook spec, exit 2 (Protocol B below) causes stdout to be ignored by
+# compliant parsers — so this JSON is a no-op on versions that honor the
+# contract and a rescue path on versions where stderr re-injection regresses.
 if command -v jq >/dev/null 2>&1; then
-  printf '%s' "$PHASE_PROMPT" | jq -Rs --arg e "Stop" \
-    '{hookSpecificOutput: {hookEventName: $e, additionalContext: .}}' 2>/dev/null || true
+  printf '%s' "$PHASE_PROMPT" | jq -Rs \
+    '{decision: "block", reason: .}' 2>/dev/null || true
 fi
 
 # Protocol B: legacy stderr + exit 2 (PAT-011)
