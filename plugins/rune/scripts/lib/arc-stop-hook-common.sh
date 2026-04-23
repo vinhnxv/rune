@@ -18,7 +18,7 @@
 #   arc_init_trace_log               — RUNE_TRACE_LOG with TMPDIR validation (SEC-004)
 #   arc_guard_jq_required            — exit 0 if jq missing
 #   arc_guard_inner_loop_active      — wait for arc-phase-loop lock (outer hooks only)
-#   arc_compact_interlude_phase_a    — set compact_pending flag + exit 2
+#   arc_compact_interlude_phase_a    — set compact_pending flag + arc_stop_continue
 #   arc_compact_interlude_phase_b    — detect + reset compact_pending with F-02 stale recovery
 #   arc_get_hook_session_id          — validated session ID from INPUT
 #   arc_delete_state_file            — 3-tier deletion guard
@@ -217,14 +217,23 @@ arc_guard_inner_loop_active() {
 #   1. Guard: state file must be non-empty (BUG-3 protection)
 #   2. Write compact_pending=true atomically (insert if missing, update if present)
 #   3. Verify write succeeded (F-05 protection)
-#   4. Print COMPACT_PROMPT_TEXT to stderr and exit 2 (continue conversation)
+#   4. Emit COMPACT_PROMPT_TEXT as schema-compliant Stop hook JSON via
+#      arc_stop_continue (exit 0 + {decision:"block", reason}) — continue
+#      conversation so the model responds "Ready for next phase" before the
+#      auto-compaction trigger fires.
 #
 # Sets:  COMPACT_PENDING=true on successful write (in-memory update)
-# Exits: 0 on any failure (fail-open), 2 on success (re-inject prompt)
+# Exits: 0 on any failure (fail-open). On success, arc_stop_continue exits 0
+#        after emitting JSON.
+#
+# CC-STOP-API-OSC-001 (v2.65.3): prior implementation emitted `stderr + exit 2`
+# (PAT-011). Per the official Claude Code hook spec, exit 2 discards stdout
+# JSON; on Claude Code 2.1.116+ stderr is also no longer re-injected. Routes
+# through arc_stop_continue to match the rest of the arc Stop hook contract.
 #
 # Args:
 #   $1 = STATE_FILE          — absolute path to YAML state file
-#   $2 = COMPACT_PROMPT_TEXT — text to emit to stderr for the checkpoint turn
+#   $2 = COMPACT_PROMPT_TEXT — text to re-inject as Claude's next-turn context
 arc_compact_interlude_phase_a() {
   local state_file="$1"
   local compact_prompt="$2"
@@ -252,6 +261,8 @@ arc_compact_interlude_phase_a() {
     # Preserve state file on transient mv failure — deleting it would permanently
     # terminate the batch/hierarchy/issues loop (v1.179.0 fix, BACK-004)
     rm -f "$_state_tmp" 2>/dev/null
+    # BACK-004: leave breadcrumb so silent mv-failure is visible in stop-hook-health.sh
+    declare -f _arc_stop_hook_breadcrumb &>/dev/null && _arc_stop_hook_breadcrumb "empty" 0
     exit 0
   fi
 
@@ -261,14 +272,17 @@ arc_compact_interlude_phase_a() {
       _trace "F-05: compact_pending write verification failed — preserving state file, exiting"
     fi
     # FIX: Don't delete state file on transient sed/write failure — preserve for retry
+    # BACK-004: leave breadcrumb so silent write-verification failure is visible
+    declare -f _arc_stop_hook_breadcrumb &>/dev/null && _arc_stop_hook_breadcrumb "empty" 0
     exit 0
   fi
 
   COMPACT_PENDING="true"
 
-  # Stop hook: exit 2 = show stderr to model and continue conversation
-  printf '%s\n' "$compact_prompt" >&2
-  exit 2
+  # CC-STOP-API-OSC-001 (v2.65.3): schema-compliant Stop hook continuation
+  # (exit 0 + JSON on stdout). arc_stop_continue is defined later in Block K;
+  # callers that source this library also get arc_stop_continue in scope.
+  arc_stop_continue "$compact_prompt"
 }
 
 # ── arc_compact_interlude_phase_b STATE_FILE ──
@@ -396,7 +410,14 @@ arc_delete_state_file() {
   local _tw_caller_script="${BASH_SOURCE[1]##*/}"
   local _tw_caller_line="${BASH_LINENO[0]:-?}"
   local _tw_caller_func="${FUNCNAME[1]:-MAIN}"
-  local _tw_log="${TMPDIR:-/tmp}/rune-state-delete-tripwire.log"
+  # SEC-001: Validate TMPDIR before path construction (matches arc_init_trace_log guard).
+  # Without this, a malicious TMPDIR (e.g., from .claude/settings.local.json env block)
+  # would cause this helper to append log data to an attacker-chosen path.
+  local _tw_safe_tmp="${TMPDIR:-/tmp}"
+  if [[ "$_tw_safe_tmp" == *".."* ]] || [[ "$_tw_safe_tmp" != /* ]]; then
+    _tw_safe_tmp="/tmp"
+  fi
+  local _tw_log="${_tw_safe_tmp}/rune-state-delete-tripwire.log"
   local _tw_verdict="ALLOWED"
   local _tw_reason=""
 
@@ -585,4 +606,132 @@ arc_guard_context_critical_with_stale_bridge() {
     "$_graceful_cb" "${_label}: Context critical at Phase B of compact interlude"
   fi
   return 0
+}
+
+# ─────────────────────────────────────────────────────────────
+# Block K: Spec-compliant Stop hook emission helpers (CC-STOP-API-OSC-001)
+# ─────────────────────────────────────────────────────────────
+#
+# Per the official Claude Code hook spec (code.claude.com/docs/en/hooks):
+#   "Exit 2 means a blocking error. Claude Code ignores stdout and any JSON
+#    in it. Instead, stderr text is fed back to Claude as an error message."
+# Stop hook context re-injection therefore REQUIRES exit 0 + JSON on stdout.
+#
+# Valid Stop hook top-level fields:
+#   continue, suppressOutput, stopReason, decision ("approve"|"block"),
+#   reason, systemMessage.
+#
+# Two emission modes:
+#   arc_stop_continue <prompt>
+#       {"decision":"block","reason":"<prompt>"}
+#       Re-injects <prompt> as Claude's next-turn context → conversation continues.
+#       Use for the "auto-pump" pattern that drives arc phase loops, summary
+#       prompts, retry prompts, and context-exhaustion resume notices (where
+#       we want Claude to present a summary before stopping).
+#
+#   arc_stop_halt <reason>
+#       {"continue":false,"stopReason":"<reason>"}
+#       Stops the session with a user-visible reason. No next turn is scheduled.
+#       Use for intentional pauses where the user must intervene manually
+#       (e.g., --step-groups group boundaries).
+#
+# BOTH helpers call `exit 0` — the EXIT trap at arc-phase-stop-hook.sh:35
+# preserves this. Callers MUST NOT combine these helpers with `exit 2`.
+#
+# jq prerequisite: arc_guard_jq_required is called at the top of each arc
+# Stop hook (arc-phase:43, arc-batch:41, arc-hierarchy:41, arc-issues:41).
+# If jq is missing, the hook exits 0 before reaching these helpers, so we can
+# rely on jq being available here.
+#
+# Runtime canary (VEIL-004): every emission appends a one-line JSONL
+# breadcrumb to ${TMPDIR:-/tmp}/rune-stop-hook-events-${UID}.jsonl via
+# _arc_stop_hook_breadcrumb. Operators can inspect emission history after
+# an arc run using scripts/observability/stop-hook-health.sh to verify the
+# re-injection contract is firing on the running Claude Code version.
+# 5MB rotation by truncation (matches stop-failure-common.sh pattern).
+
+# ── _arc_stop_hook_breadcrumb KIND REASON_LEN ──
+# Append a telemetry breadcrumb to ${TMPDIR}/rune-stop-hook-events-${UID}.jsonl.
+# Silent-fail on any error (OPERATIONAL helper — must never break emission).
+# Args:
+#   $1 = KIND        — "continue" | "halt" | "continue-fallback" | "halt-fallback" | "empty"
+#   $2 = REASON_LEN  — integer byte length of reason/stopReason payload (0 for empty)
+_arc_stop_hook_breadcrumb() {
+  local _kind="${1:-unknown}"
+  local _len="${2:-0}"
+  local _tmp="${TMPDIR:-/tmp}"
+  local _uid="${UID:-$(id -u 2>/dev/null || echo 0)}"
+  local _log="${_tmp}/rune-stop-hook-events-${_uid}.jsonl"
+  # BACK-002: use last element of call stack (top-level hook script) instead of fixed depth [2].
+  # BASH_SOURCE[2] is wrong when called via arc_compact_interlude_phase_a (3 frames deep).
+  # Bash 3.2 does not support negative indexing — use explicit length arithmetic.
+  local _source="${BASH_SOURCE[${#BASH_SOURCE[@]}-1]##*/}"
+  [[ -z "$_source" ]] && _source="unknown"
+  local _ts
+  _ts=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "unknown")
+  # Rotate if >5MB (reject symlinks to prevent log-path hijacking)
+  if [[ -f "$_log" && ! -L "$_log" ]]; then
+    local _sz
+    _sz=$(wc -c <"$_log" 2>/dev/null | tr -d ' ')
+    if [[ "${_sz:-0}" -gt 5242880 ]]; then
+      : > "$_log" 2>/dev/null || true
+    fi
+  fi
+  # Single-line JSON; skip jq since we control all field values.
+  printf '{"ts":"%s","source":"%s","ppid":%d,"kind":"%s","len":%d}\n' \
+    "$_ts" "$_source" "${PPID:-0}" "$_kind" "$_len" \
+    >> "$_log" 2>/dev/null || true
+}
+
+# ── arc_stop_continue PROMPT ──
+# Emit a Stop hook continuation payload on stdout and exit 0.
+# PROMPT is treated as raw text — jq handles all JSON escaping via -Rs.
+arc_stop_continue() {
+  local _prompt="${1:-}"
+  # Empty prompt: nothing to re-inject — end the turn cleanly, leave a
+  # trace breadcrumb so a silent stall is diagnosable (BACK-003 fix).
+  if [[ -z "$_prompt" ]]; then
+    if declare -f _trace &>/dev/null; then
+      _trace "arc_stop_continue: empty prompt — no re-injection, exiting 0"
+    fi
+    _arc_stop_hook_breadcrumb "empty" 0
+    exit 0
+  fi
+  if ! printf '%s' "$_prompt" | jq -Rs '{decision: "block", reason: .}' 2>/dev/null; then
+    # Defensive fallback if jq fails mid-emit (corrupt locale, oom, etc.).
+    # VEIL-005 fix: log the failure so operators can diagnose silent stalls.
+    # Emit a valid non-empty JSON payload that still re-injects SOMETHING
+    # rather than an empty `{}` which has undefined continuation semantics.
+    if declare -f _trace &>/dev/null; then
+      _trace "arc_stop_continue: jq emission failed — emitting fallback payload"
+    fi
+    # Pure-shell JSON escape: backslash first, then double-quote. We cannot
+    # escape all control chars portably without jq, so the fallback message
+    # is static (no $_prompt interpolation) — this keeps it bulletproof.
+    printf '%s\n' '{"decision":"block","reason":"Arc pipeline: Stop hook jq emission failed. Check trace log; proceeding to next turn."}'
+    _arc_stop_hook_breadcrumb "continue-fallback" "${#_prompt}"
+  else
+    _arc_stop_hook_breadcrumb "continue" "${#_prompt}"
+  fi
+  exit 0
+}
+
+# ── arc_stop_halt REASON ──
+# Emit a Stop hook halt payload on stdout and exit 0.
+# REASON is treated as raw text — jq handles all JSON escaping via -Rs.
+arc_stop_halt() {
+  local _reason="${1:-}"
+  if [[ -z "$_reason" ]]; then
+    _reason="Arc pipeline paused."
+  fi
+  if ! printf '%s' "$_reason" | jq -Rs '{continue: false, stopReason: .}' 2>/dev/null; then
+    if declare -f _trace &>/dev/null; then
+      _trace "arc_stop_halt: jq emission failed — emitting fallback halt"
+    fi
+    printf '%s\n' '{"continue":false,"stopReason":"Arc pipeline paused (jq emission failed — check trace log)."}'
+    _arc_stop_hook_breadcrumb "halt-fallback" "${#_reason}"
+  else
+    _arc_stop_hook_breadcrumb "halt" "${#_reason}"
+  fi
+  exit 0
 }

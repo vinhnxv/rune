@@ -18,6 +18,14 @@
 # Timeout: 10s (filesystem-only operations, no process escalation)
 # Position 5 in Stop array: after arc loops, before detect-workflow-complete.sh
 #
+# Exit 0 with no JSON: No wake needed (fast-path exit).
+# Exit 0 with schema-compliant Stop hook JSON on stdout: wake the team lead
+#   by re-injecting the wake message via {decision:"block", reason}. Prior
+#   versions used `stderr + exit 2` which broke on Claude Code 2.1.116+
+#   (CC-STOP-API-OSC-001, v2.65.3). jq emission is inlined (not via the
+#   arc_stop_continue helper) to keep this hook's dependency surface
+#   minimal — this script does NOT source lib/arc-stop-hook-common.sh.
+#
 # STALE-LEAD-001
 
 set -euo pipefail
@@ -493,8 +501,40 @@ for sf in "${STATE_FILES[@]}"; do
       || rm -f "$_marker_tmp" 2>/dev/null
   fi
 
-  # ── WAKE: exit 2 + context-rich stderr ──
+  # ── WAKE: schema-compliant Stop hook JSON on stdout (CC-STOP-API-OSC-001) ──
+  # v2.65.3: per the Claude Code hook spec, exit 2 discards stdout and stderr
+  # is no longer re-injected on 2.1.116+ — so the previous `stderr + exit 2`
+  # wake pattern was dead code. We now emit
+  # {"decision":"block","reason":"<wake-message>"} + exit 0, which re-injects
+  # the wake message as the lead's next-turn context (STALE-LEAD-001 restored).
+  # Inlined jq call (vs sourcing arc-stop-hook-common.sh) to keep this hook's
+  # dependency surface minimal. jq is a plugin prerequisite.
   _trace "WAKE: team=$SF_TEAM mode=$WAKE_MODE completed=$COMPLETED_COUNT total=$TOTAL_TASKS"
+
+  _emit_wake() {
+    # $1 = message text to re-inject
+    if command -v jq >/dev/null 2>&1; then
+      printf '%s' "$1" | jq -Rs '{decision: "block", reason: .}' 2>/dev/null \
+        || printf '%s\n' '{"decision":"block","reason":"STALE-LEAD-001: jq emission failed — wake fallback"}'
+    else
+      # jq missing — fail-forward: emit concrete fallback so Stop hook re-injection
+      # semantics remain defined. Bare {} has undefined behavior (BACK-003/VEIL-003).
+      printf '%s\n' '{"decision":"block","reason":"STALE-LEAD-001: jq not available — wake fallback"}'
+    fi
+    # BACK-003/PATT-002: leave breadcrumb so wake emissions are visible in
+    # stop-hook-health.sh without sourcing the full arc-stop-hook-common lib.
+    {
+      local _bc_tmp="${TMPDIR:-/tmp}"
+      local _bc_uid="${UID:-$(id -u 2>/dev/null || echo 0)}"
+      local _bc_log="${_bc_tmp}/rune-stop-hook-events-${_bc_uid}.jsonl"
+      local _bc_ts
+      _bc_ts=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "unknown")
+      [[ -f "$_bc_log" && ! -L "$_bc_log" ]] && \
+        printf '{"ts":"%s","source":"detect-stale-lead.sh","ppid":%d,"kind":"wake","len":%d}\n' \
+          "$_bc_ts" "${PPID:-0}" "${#1}" >>"$_bc_log" 2>/dev/null || true
+    }
+    exit 0
+  }
 
   if [[ "$WAKE_MODE" == "COMPLETE" ]]; then
     # Build output dir hint
@@ -507,9 +547,9 @@ for sf in "${STATE_FILES[@]}"; do
       _workflow_hint=" (${SF_WORKFLOW} workflow)"
     fi
 
-    printf 'All %s teammates in team "%s"%s have completed their work.%s\nProcess results and continue the workflow. Check TaskList for completed tasks and collect output from teammates.\n' \
-      "$COMPLETED_COUNT" "$SF_TEAM" "$_workflow_hint" "$_output_hint" >&2
-    exit 2
+    _wake_msg=$(printf 'All %s teammates in team "%s"%s have completed their work.%s\nProcess results and continue the workflow. Check TaskList for completed tasks and collect output from teammates.' \
+      "$COMPLETED_COUNT" "$SF_TEAM" "$_workflow_hint" "$_output_hint")
+    _emit_wake "$_wake_msg"
   elif [[ "$WAKE_MODE" == "CRASHED" ]]; then
     _output_hint=""
     if [[ -n "$SF_OUTPUT" && "$SF_OUTPUT" != "null" ]]; then
@@ -520,9 +560,9 @@ for sf in "${STATE_FILES[@]}"; do
       _workflow_hint=" (${SF_WORKFLOW} workflow)"
     fi
 
-    printf 'WARNING: %d task(s) still in_progress but 0 teammate processes found in team "%s"%s. Teammates may have crashed.%s\nProcess any partial results. Check TaskList and decide: retry failed tasks or proceed with available output.\n' \
-      "$IN_PROGRESS_COUNT" "$SF_TEAM" "$_workflow_hint" "$_output_hint" >&2
-    exit 2
+    _wake_msg=$(printf 'WARNING: %d task(s) still in_progress but 0 teammate processes found in team "%s"%s. Teammates may have crashed.%s\nProcess any partial results. Check TaskList and decide: retry failed tasks or proceed with available output.' \
+      "$IN_PROGRESS_COUNT" "$SF_TEAM" "$_workflow_hint" "$_output_hint")
+    _emit_wake "$_wake_msg"
   fi
 done
 

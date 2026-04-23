@@ -1,5 +1,185 @@
 # Changelog
 
+## [2.65.4] — 2026-04-23
+
+### Fixed — Post-#512 mend findings: sibling EXIT trap divergence + SEC/BACK polish
+
+Follow-up mend pass on the v2.65.3 branch review. `/rune:appraise` surfaced
+a P1 convergent finding flagged by 4 of 6 reviewers: arc-batch, arc-hierarchy,
+and arc-issues Stop hooks still used `exit $_rc` in their EXIT traps, while
+arc-phase had been explicitly patched to `exit 0` in v2.65.3. This is the
+same class of bug #512 fixed — any future non-zero exit in a sibling hook
+would silently discard the stdout JSON per the Claude Code Stop hook spec.
+
+**P1 fix — BACK-001/VEIL-001/QUAL-004/PATT-003 (convergent):**
+
+- `arc-batch-stop-hook.sh:36`, `arc-hierarchy-stop-hook.sh:36`,
+  `arc-issues-stop-hook.sh:36` — EXIT traps now hardcode `exit 0` with
+  the same defensive rationale as arc-phase.
+
+**P2 fixes:**
+
+- **SEC-001**: `arc_delete_state_file` now validates `TMPDIR` before
+  constructing the tripwire log path (matches the existing
+  `arc_init_trace_log` guard). Prevents attacker-controlled `TMPDIR` via
+  `.claude/settings.local.json` env block from redirecting audit writes.
+- **DOC-001**: `lib/arc-stop-hook-common.sh:638` now references
+  `scripts/observability/stop-hook-health.sh` (the actual path).
+  Previous `scripts/diagnostics/...` was wrong; CLAUDE.md was already
+  correct.
+- **BACK-002**: `_arc_stop_hook_breadcrumb` now uses
+  `BASH_SOURCE[${#BASH_SOURCE[@]}-1]` (last element) instead of fixed
+  `BASH_SOURCE[2]`. The fixed-depth indexing was wrong when called via
+  `arc_compact_interlude_phase_a` (3 frames deep) — breadcrumbs for
+  compact interlude emissions were misattributed to the library itself.
+  Bash 3.2 compatible (explicit length arithmetic, no negative indexing).
+- **BACK-003/PATT-002/VEIL-003**: `detect-stale-lead.sh` `_emit_wake`
+  now writes an inline breadcrumb (`kind="wake"`) to the stop-hook-events
+  log without sourcing the full `arc-stop-hook-common.sh` library
+  (preserves the intentional dependency-surface isolation). The `{}`
+  fallback for jq failures was replaced with a concrete
+  `{"decision":"block","reason":"..."}` payload — bare `{}` had undefined
+  Stop hook continuation semantics.
+- **BACK-004**: `arc_compact_interlude_phase_a` failure paths (mv-failure,
+  write-verification failure) now emit `kind="empty"` breadcrumbs before
+  `exit 0`. Silent failures are now diagnosable via `stop-hook-health.sh`.
+- **QUAL-001/PATT-001**: The stale comment
+  `# arc_compact_interlude_phase_a exits 2 on success, exits 0 on failure`
+  at three call sites was updated to reflect the v2.65.3 contract
+  (function routes through `arc_stop_continue` → `exit 0`). The old
+  comment was a fossil from the PAT-011 era.
+- **QUAL-002**: `on-session-stop.sh` now provides a symmetric shim for
+  `arc_stop_continue` (matching the existing `arc_delete_state_file`
+  shim). If the shared library is missing (partial install, corruption),
+  the cleanup summary is emitted via the shim instead of silently lost
+  through the ERR trap.
+
+**Ward check**: `bash -n` passes on all 6 edited files; smoke test
+confirms `arc_stop_continue` emits schema-compliant
+`{"decision":"block","reason":"..."}` JSON; breadcrumb attribution
+correctly points to the top-level Stop hook script (BACK-002 verified).
+
+**Deferred to v2.66.0**: VEIL-002 (canary strengthening — requires
+architectural decision between integration test vs CLAUDE.md caveat),
+VEIL-004 (Block K field list spec-version pinning), VEIL-005 (automated
+regression test harness for the `arc_stop_continue` contract).
+
+## [2.65.3] — 2026-04-23
+
+### Fixed — Stop hook dual-protocol `exit 2` invalidated stdout JSON (CC-STOP-API-OSC-001 final, GitHub issue #512)
+
+The v2.65.2 Stop hook emission paired a spec-valid JSON payload
+(`{decision: "block", reason: <prompt>}`) on stdout with a legacy
+`stderr + exit 2`. Per the authoritative Claude Code hook spec
+(<https://code.claude.com/docs/en/hooks>):
+
+> **Exit 2** means a blocking error. Claude Code ignores stdout and any
+> JSON in it. Instead, stderr text is fed back to Claude as an error
+> message.
+
+So every spec-compliant runtime discarded the JSON before parsing it,
+and Claude Code 2.1.116+ (which no longer re-injects stderr as the next
+turn's prompt) was left with nothing. Result: the arc pipeline stalled
+after every phase transition, forcing users to manually type "continue"
+up to 44 times per end-to-end arc run.
+
+#### Fix — drop Protocol B entirely; emit only spec-compliant JSON
+
+All four arc Stop hook drivers now route every re-injection through two
+shared helpers in `scripts/lib/arc-stop-hook-common.sh`:
+
+- `arc_stop_continue <prompt>` — emits
+  `{"decision":"block","reason":"<prompt>"}` on stdout + `exit 0`.
+  Re-injects `<prompt>` as Claude's next-turn context → conversation
+  continues (arc auto-pump).
+- `arc_stop_halt <reason>` — emits
+  `{"continue":false,"stopReason":"<reason>"}` on stdout + `exit 0`.
+  Stops the session cleanly with a user-visible reason (intentional
+  pauses: `--step-groups` group boundaries, stuck-loop detection).
+
+Both helpers rely on jq (already guarded at hook entry by
+`arc_guard_jq_required`), which handles all JSON escaping natively via
+`jq -Rs '{decision:"block", reason:.}'`.
+
+#### Sites converted (27 total across 7 files)
+
+The initial commit covered 23 sites across the 4 arc Stop hooks. Review
+(see `tmp/reviews/8f932861-53edc6ab/TOME.md`) surfaced 4 additional
+broken sibling emissions; all are now fixed in this patch.
+
+- `lib/arc-stop-hook-common.sh` (1 site): `arc_compact_interlude_phase_a`
+  — the compact-interlude acknowledgement prompt shared by all three
+  outer arc Stop hook drivers (batch, hierarchy, issues). Without this
+  fix, plan-to-plan transitions in multi-plan runs would still stall on
+  2.1.116+ even though the initial commit had fixed arc-phase.
+- `arc-phase-stop-hook.sh` (9 sites): terminal phase dispatch, stuck-loop
+  detection (→ halt), arc-complete post-arc steps, compact checkpoint,
+  context-exhaustion resume (2 variants), test batch re-inject,
+  test finalization retry, `--step-groups` group boundary (→ halt).
+- `arc-batch-stop-hook.sh` (4 sites): abort helper, graceful-stop helper,
+  batch summary, main arc dispatch.
+- `arc-hierarchy-stop-hook.sh` (6 sites): abort, graceful stop, partial
+  pause, deadlock, hierarchy complete, child arc dispatch.
+- `arc-issues-stop-hook.sh` (4 sites): abort, graceful stop, issue-batch
+  summary, main arc dispatch.
+- `on-session-stop.sh` (1 site): STOP-001 cleanup summary emission.
+  Prior pattern silently discarded kill/cleanup reports on 2.1.116+.
+- `detect-stale-lead.sh` (2 sites): STALE-LEAD-001 team-lead wake
+  mechanism (both `COMPLETE` and `CRASHED` wake modes). Without this
+  fix, the hook was dead code on 2.1.116+ — teams whose teammates
+  completed but whose lead was idle would hang indefinitely with no
+  user-visible trigger.
+
+Also refactored:
+
+- `_check_test_batches` — heredoc now writes to stdout (captured by
+  caller via command substitution) instead of stderr, enabling the
+  caller to pass the captured prompt to `arc_stop_continue`.
+- Test finalization heredoc (retry branch) — captured into
+  `_FINALIZE_PROMPT` variable, then emitted via `arc_stop_continue`.
+- File-header docstrings in all six Stop hook files (4 arc drivers +
+  `on-session-stop.sh` + `detect-stale-lead.sh`) rewritten to describe
+  the v2.65.3 contract and drop the legacy "Exit 2 with stderr prompt"
+  description (VEIL-007 remediated).
+- `arc-phase-stop-hook.sh:35` EXIT trap simplified to unconditional
+  `exit 0`; post-refactor no code path emits `exit 2`, so preserving
+  `exit 2` from a crash path would actively defeat the fix
+  (BACK-004 / VEIL-008 remediated).
+- Helper observability hardening: `arc_stop_continue` and
+  `arc_stop_halt` now emit `_trace` breadcrumbs on empty-prompt short-
+  circuit and on jq-emission fallback paths. jq fallback now emits a
+  valid non-empty payload instead of bare `{}`, preventing silent
+  session stalls on pathological jq failures.
+- **Runtime canary (VEIL-004)**: every emission writes a JSONL
+  breadcrumb to `${TMPDIR}/rune-stop-hook-events-${UID}.jsonl`
+  (5MB rotation). New diagnostic script
+  `scripts/observability/stop-hook-health.sh` reports rolling summary
+  and `--contract-check` verdict. If arc is active but the breadcrumb
+  log is empty, the Claude Code `{decision:"block", reason}` contract
+  may have regressed.
+- `plugins/rune/CLAUDE.md` "Stop hook output format" section (PAT-011)
+  rewritten to document the new contract and the runtime canary usage.
+  PAT-011 stderr re-injection is marked deprecated with forensic trail.
+- User-scope memory (`MEMORY.md`) Release Tracker updated with a
+  v2.1.116+ entry covering the Stop hook regression and the full
+  v2.65.0 → v2.65.3 adoption trail (VEIL-006 remediated).
+
+#### Compatibility
+
+Pre-2.1.116 Claude Code has been deprecated for ~6 months as of this
+release. Supporting it adds risk without benefit; the new contract
+works on all current releases.
+
+#### Reported by
+
+GitHub issue #512 — thank you for the detailed diagnosis, exact line
+numbers, and verified local patch. The proposed fix shape
+(`jq -Rs '{decision:"block", reason:.}' + exit 0`) is what ships here,
+generalized into shared helpers and applied uniformly to all four
+Stop hook drivers plus the previously-ignored intra-phase Protocol B
+sites (stuck loop, compact checkpoint, context exhaustion, test batch,
+finalization).
+
 ## [2.65.2] — 2026-04-23
 
 ### Fixed — Stop hook JSON validation rejected v2.65.1 Protocol A payload (CC-STOP-API-OSC-001 follow-up)
