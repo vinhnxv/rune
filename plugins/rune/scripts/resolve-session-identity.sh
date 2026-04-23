@@ -118,9 +118,20 @@ if [[ -z "${RUNE_CURRENT_CFG:-}" ]]; then
 fi
 
 # XVER-004 FIX: Resolve session ID as PRIMARY identifier
-# Priority: CLAUDE_SESSION_ID > RUNE_SESSION_ID > empty (fallback to PPID)
+# BACK-IDN-007 (v2.65.6) FIX: Include HOOK_SESSION_ID in priority chain.
+# Priority: CLAUDE_SESSION_ID > HOOK_SESSION_ID > RUNE_SESSION_ID > empty (fallback to PPID)
+#   - CLAUDE_SESSION_ID: native harness env (authoritative when set; usually only
+#                        exposed in the top-level Claude Code process, not hook subprocesses)
+#   - HOOK_SESSION_ID:   parsed from hook stdin JSON by the caller (always fresh per-fire).
+#                        Callers that have already extracted .session_id from INPUT
+#                        must export HOOK_SESSION_ID before sourcing this file for it
+#                        to be picked up. Without this priority tier, hook subprocesses
+#                        logged "source=unknown" even when the authoritative session_id
+#                        was already known from stdin (root cause of log spam in arc runs).
+#   - RUNE_SESSION_ID:   bridged via CLAUDE_ENV_FILE by SessionStart hook; can lag/stale
+#                        across concurrent sessions sharing the same env file.
 if [[ -z "${RUNE_CURRENT_SID:-}" ]]; then
-  RUNE_CURRENT_SID="${CLAUDE_SESSION_ID:-${RUNE_SESSION_ID:-}}"
+  RUNE_CURRENT_SID="${CLAUDE_SESSION_ID:-${HOOK_SESSION_ID:-${RUNE_SESSION_ID:-}}}"
   # Validate format: alphanumeric + hyphens/underscores only, max 64 chars
   if [[ -n "$RUNE_CURRENT_SID" && "$RUNE_CURRENT_SID" =~ ^[a-zA-Z0-9_-]+$ ]]; then
     RUNE_CURRENT_SID="${RUNE_CURRENT_SID:0:64}"
@@ -145,17 +156,38 @@ if [[ -z "${RUNE_CURRENT_SID:-}" ]]; then
   fi
 fi
 
-# OBSERVABILITY (v2.39.1, AC-7): Log session identity resolution result
+# OBSERVABILITY (v2.39.1 AC-7; v2.65.5 BACK-IDN-006): Log session identity
+# resolution result. Per-PID + per-source debounce via marker file — previously
+# every hook subprocess source produced one log line, yielding 30k+ "source=unknown"
+# entries in long sessions. Now we log only when the resolved source transitions
+# (e.g., first fire, or unknown→CLAUDE_SESSION_ID after the bridge populates).
+# Marker lives in $TMPDIR with PID+UID scoping; transient — OS tmpdir rotation cleans it.
 if [[ "${RUNE_TRACE:-}" == "1" ]]; then
   _rune_sid_source="unknown"
   if [[ -n "${CLAUDE_SESSION_ID:-}" ]]; then _rune_sid_source="CLAUDE_SESSION_ID"
+  elif [[ -n "${HOOK_SESSION_ID:-}" ]]; then _rune_sid_source="HOOK_SESSION_ID"
   elif [[ -n "${RUNE_SESSION_ID:-}" ]]; then _rune_sid_source="RUNE_SESSION_ID"
   elif [[ -n "${RUNE_CURRENT_SID:-}" ]]; then _rune_sid_source="cache"
   fi
-  _rune_trace_log="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
-  [[ ! -L "$_rune_trace_log" ]] && \
-    echo "[resolve-session-identity] SESSION-ID: source=${_rune_sid_source} value=${RUNE_CURRENT_SID:0:16}... cache=${_RUNE_IDENTITY_CACHE}" \
-    >> "$_rune_trace_log" 2>/dev/null
+  # Debounce marker — store last-logged source keyed by PID + UID
+  _rune_trace_marker="${TMPDIR:-/tmp}/rune-identity-trace-$(id -u)-${PPID}"
+  _prev_source=""
+  if [[ -f "$_rune_trace_marker" && ! -L "$_rune_trace_marker" ]]; then
+    # Read single-line marker; cap read at 64 chars to defeat pathological content
+    _prev_source=$(head -c 64 "$_rune_trace_marker" 2>/dev/null)
+  fi
+  if [[ "$_rune_sid_source" != "$_prev_source" ]]; then
+    _rune_trace_log="${RUNE_TRACE_LOG:-${TMPDIR:-/tmp}/rune-hook-trace-$(id -u)-${PPID}.log}"
+    [[ ! -L "$_rune_trace_log" ]] && \
+      echo "[resolve-session-identity] SESSION-ID: source=${_rune_sid_source} value=${RUNE_CURRENT_SID:0:16}... cache=${_RUNE_IDENTITY_CACHE}" \
+      >> "$_rune_trace_log" 2>/dev/null
+    # Atomic marker update (tmp+mv) so concurrent sources don't race-tear the file
+    _rune_trace_marker_tmp="${_rune_trace_marker}.$$"
+    (umask 077 && printf '%s' "$_rune_sid_source" > "$_rune_trace_marker_tmp") 2>/dev/null
+    mv "$_rune_trace_marker_tmp" "$_rune_trace_marker" 2>/dev/null || rm -f "$_rune_trace_marker_tmp" 2>/dev/null
+    unset _rune_trace_marker_tmp
+  fi
+  unset _rune_sid_source _rune_trace_marker _prev_source
 fi
 
 # ── Write cache atomically (create OR refresh) ──

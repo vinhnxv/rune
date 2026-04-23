@@ -33,6 +33,15 @@
 #
 # Bash 3.2 compatible (macOS): no associative arrays, no ${var,,} lowercase.
 
+# BACK-IDN-007 (v2.65.6) FIX: Set load sentinel for arc-loop-state.sh soft-guard.
+# arc-loop-state.sh:80 emits a phantom WARN ("arc-stop-hook-common.sh not loaded;
+# arc_delete_state_file will be unavailable") when this sentinel is unset —
+# previously it was referenced in exactly ONE place (the guard) and set in ZERO
+# places, so the WARN fired on every arc-loop-state.sh source regardless of
+# whether this file was actually loaded. Setting it here makes the canary
+# semantically honest: WARN only fires when common.sh is genuinely missing.
+export _RUNE_ARC_STOP_HOOK_COMMON_LOADED=1
+
 # Source rune-state if not already loaded (stop-hook-common.sh may have loaded it)
 [[ -n "${RUNE_STATE:-}" ]] || source "$(dirname "${BASH_SOURCE[0]}")/rune-state.sh"
 
