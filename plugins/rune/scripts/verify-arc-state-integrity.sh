@@ -80,6 +80,23 @@ fi
 _tool_name=$(printf '%s' "$_input" | jq -r '.tool_name // .toolName // ""' 2>/dev/null)
 _file_path=$(printf '%s' "$_input" | jq -r '.tool_input.file_path // .toolInput.file_path // ""' 2>/dev/null)
 
+# BACK-IDN-005 (v2.65.5): extract session_id from the hook INPUT JSON — this is
+# the authoritative, per-fire session identifier. Propagated to rune-arc-init-state.sh
+# via the HOOK_SESSION_ID env var so the writer can stamp the correct session_id
+# even when CLAUDE_SESSION_ID is scrubbed from the subprocess env and RUNE_SESSION_ID
+# is lagging (bridged through CLAUDE_ENV_FILE; session-start.sh skips the update
+# when hook stdin lacks session_id). Validated regex-clean before export.
+_hook_session_id=$(printf '%s' "$_input" | jq -r '.session_id // empty' 2>/dev/null)
+if [ -n "$_hook_session_id" ]; then
+  # SEC-4: allowlist alphanumeric + hyphen/underscore, cap at 128 chars
+  case "$_hook_session_id" in
+    *[!a-zA-Z0-9_-]*) _hook_session_id="" ;;
+  esac
+  if [ -n "$_hook_session_id" ] && [ ${#_hook_session_id} -gt 128 ]; then
+    _hook_session_id=""
+  fi
+fi
+
 # Only react to Write/Edit (MultiEdit/NotebookEdit out of scope)
 case "$_tool_name" in
   Write|Edit) ;;
@@ -148,7 +165,7 @@ else
     /*) _cp_path="$_file_path" ;;
     *)  _cp_path="${CWD}/${_file_path}" ;;
   esac
-  if "$_init" create --source hook --checkpoint "$_cp_path" >/dev/null 2>&1; then
+  if HOOK_SESSION_ID="${_hook_session_id:-}" "$_init" create --source hook --checkpoint "$_cp_path" >/dev/null 2>&1; then
     : # success — init script logs recovery event itself
   else
     arc_state_integrity_log "recovery_failed_no_checkpoint" "posttooluse_auto_create_failed" ""

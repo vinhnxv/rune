@@ -124,11 +124,12 @@ _resolve_newest_checkpoint() {
     local _ckpt_pid _ckpt_sid _cur_sid _ckpt_comm _ownership_ok
     _ckpt_pid=$(jq -r '.owner_pid // empty' "$_newest" 2>/dev/null | tr -d '\r')
     _ckpt_sid=$(jq -r '.session_id // empty' "$_newest" 2>/dev/null | tr -d '\r')
-    # BACK-IDN-004 FIX: CLAUDE_SESSION_ID is the authoritative harness identifier;
-    # RUNE_SESSION_ID is a bridged copy that can lag behind on resume. Reader side
-    # (on-session-stop.sh) uses the harness session_id from hook stdin JSON, so the
-    # writer must prefer the same source. Matches resolve-session-identity.sh:123.
-    _cur_sid="${CLAUDE_SESSION_ID:-${RUNE_SESSION_ID:-}}"
+    # BACK-IDN-004 + BACK-IDN-005 (v2.65.5) FIX: Three-tier session_id priority
+    # matches the writer (cmd_create) at line ~398. HOOK_SESSION_ID is the hook
+    # stdin session_id, parsed by the caller (e.g., verify-arc-state-integrity.sh)
+    # and passed into this subprocess. It is always fresh per-hook-fire and must
+    # rank above the bridged RUNE_SESSION_ID which can lag on resume.
+    _cur_sid="${CLAUDE_SESSION_ID:-${HOOK_SESSION_ID:-${RUNE_SESSION_ID:-}}}"
     _ownership_ok=0
 
     # Priority 1: session_id exact match → definitive (non-empty, equal)
@@ -392,10 +393,21 @@ cmd_create() {
     ''|*[!0-9]*) echo "FATAL (INTEG-INIT-002): ownerPid invalid: $_pid" >&2; return 2 ;;
   esac
 
-  # BACK-IDN-004 FIX: prefer CLAUDE_SESSION_ID (harness authoritative) over the
-  # bridged RUNE_SESSION_ID (can lag on resume — session-start.sh skips update when
-  # hook stdin lacks session_id, leaving the old value stamped into state files).
-  _sid="${CLAUDE_SESSION_ID:-${RUNE_SESSION_ID:-}}"
+  # BACK-IDN-004 + BACK-IDN-005 (v2.65.5) FIX: Three-tier session_id priority.
+  # Priority order (most-authoritative first):
+  #   1. CLAUDE_SESSION_ID — native harness env var (authoritative when set)
+  #   2. HOOK_SESSION_ID   — parsed from hook stdin JSON per-fire (always fresh;
+  #                          passed as env var by verify-arc-state-integrity.sh
+  #                          and other hook-side callers)
+  #   3. RUNE_SESSION_ID   — bridged by SessionStart hook into CLAUDE_ENV_FILE;
+  #                          can lag on resume (session-start.sh skips the update
+  #                          when hook stdin lacks session_id, leaving the old
+  #                          value stamped into state files). Keep as last-resort
+  #                          fallback only — prefer hook-fresh sources above.
+  # When only RUNE_SESSION_ID is set and differs from the checkpoint's own
+  # session_id, we prefer the checkpoint's recorded session_id (same session
+  # that created the checkpoint) to avoid imprinting a stale bridge value.
+  _sid="${CLAUDE_SESSION_ID:-${HOOK_SESSION_ID:-${RUNE_SESSION_ID:-}}}"
   if [ -z "$_sid" ]; then
     _sid=$(_ck_field "$_cp" 'session_id')
   fi
@@ -625,9 +637,11 @@ cmd_resolve_owned_checkpoint() {
 # Report health of the 4 arc loop kinds (phase/batch/hierarchy/issues):
 #   - checkpoint: presence + pending-phase count (for `phase` kind only)
 #   - state_file: presence + size
-#   - ownership:  OWNED (checkpoint session_id matches current session) /
-#                 FOREIGN (different session) / N/A (state file absent) /
-#                 ORPHAN (state file present but its owner_pid is dead)
+#   - ownership:  OWNED (state file session_id matches current subshell) /
+#                 HELD_BY_OTHER (different live session owns it; v2.65.5 — was
+#                 "FOREIGN" pre-v2.65.5 but renamed to make POV explicit) /
+#                 ORPHAN (state file present but its owner_pid is dead) /
+#                 N/A (state file absent) / UNKNOWN (cannot determine)
 #   - integrity:  brief status line
 #
 # Exit 0 when all invariants hold (owned checkpoint + matching state file, OR
@@ -711,8 +725,9 @@ _doctor_report_kind() {
     local _sf_sid _sf_pid _cur_sid
     _sf_sid=$(sed -n 's/^session_id:[[:space:]]*//p' "$_sf" 2>/dev/null | head -1 | tr -d '\r')
     _sf_pid=$(sed -n 's/^owner_pid:[[:space:]]*//p' "$_sf" 2>/dev/null | head -1 | tr -d '\r')
-    # BACK-IDN-004 FIX: match reader priority in on-session-stop.sh (harness first).
-    _cur_sid="${CLAUDE_SESSION_ID:-${RUNE_SESSION_ID:-}}"
+    # BACK-IDN-004 + BACK-IDN-005 (v2.65.5): three-tier priority, matching the
+    # writer (cmd_create) and _resolve_newest_checkpoint above.
+    _cur_sid="${CLAUDE_SESSION_ID:-${HOOK_SESSION_ID:-${RUNE_SESSION_ID:-}}}"
 
     if [ -n "$_sf_sid" ] && [ -n "$_cur_sid" ] && [ "$_sf_sid" = "$_cur_sid" ]; then
       _own_status="OWNED"
@@ -723,8 +738,14 @@ _doctor_report_kind() {
       _issue_count=$((_issue_count + 1))
       [ -z "$_fix_hint" ] && _fix_hint="remove stale state file '$_sf' (dead owner PID $_sf_pid)"
     elif [ -n "$_sf_sid" ] && [ -n "$_cur_sid" ] && [ "$_sf_sid" != "$_cur_sid" ]; then
-      _own_status="FOREIGN"
-      _own_detail="session $_sf_sid owns this state"
+      # v2.65.5 (BACK-IDN-005): rename from "FOREIGN" to "HELD_BY_OTHER".
+      # "FOREIGN" was misleading when the doctor subshell had a stale self-identity
+      # (CLAUDE_SESSION_ID scrubbed + RUNE_SESSION_ID lagging) — it accused the
+      # user's own session of being foreign. The new label makes the POV explicit:
+      # the state file IS held, but not by THIS subshell. Pair with P1 three-tier
+      # session_id priority so false positives become rare.
+      _own_status="HELD_BY_OTHER"
+      _own_detail="held by session ${_sf_sid:0:16}... (pid=${_sf_pid:-?}); this subshell resolves as ${_cur_sid:0:16}..."
     else
       _own_status="UNKNOWN"
       _own_detail="cannot determine ownership"

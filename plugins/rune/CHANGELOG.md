@@ -1,5 +1,70 @@
 # Changelog
 
+## [2.65.5] — 2026-04-24
+
+### Fixed — Session identity stamping in arc state files (BACK-IDN-005 / BACK-IDN-006)
+
+User-reported cascade bug: `rune-arc-init-state.sh doctor` labeled the user's
+own session as "FOREIGN" after a multi-session run. Root cause chain:
+
+1. `verify-arc-state-integrity.sh` (PostToolUse hook) fires on every arc
+   checkpoint write and invokes `rune-arc-init-state.sh create --source hook`
+   to auto-recover a missing phase-loop state file.
+2. The hook receives a fresh per-fire `session_id` in its stdin INPUT JSON
+   but never extracted or forwarded it — `rune-arc-init-state.sh` was left
+   to resolve session identity from env alone.
+3. In hook subprocesses, `CLAUDE_SESSION_ID` can be scrubbed (`CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`)
+   or simply not propagate through chained subprocesses. The fallback
+   `RUNE_SESSION_ID` env var is bridged through `CLAUDE_ENV_FILE` by
+   `session-start.sh`, which skips the update when hook stdin lacks
+   `session_id` — leaving the previous session's value stamped into the
+   new session's state file.
+4. GUARD 5.7 in the Stop hook then compared the stamped (stale) session_id
+   against the fresh per-fire `HOOK_SESSION_ID` — mismatch rejected the
+   stop hook's retry prompt, stalling the pipeline.
+
+**P1 fix — BACK-IDN-005 (three-tier session_id priority):**
+
+- `rune-arc-init-state.sh` — three resolution sites (`cmd_create` writer,
+  `_resolve_newest_checkpoint` reader, `_doctor_report_kind` self-identity)
+  now resolve `_sid` / `_cur_sid` as
+  `CLAUDE_SESSION_ID → HOOK_SESSION_ID → RUNE_SESSION_ID`. `HOOK_SESSION_ID`
+  is set by hook-side callers from the hook's stdin INPUT JSON — always
+  fresh per-fire and never subject to the bridge-lag failure mode.
+- `verify-arc-state-integrity.sh` — now parses `.session_id` from the hook
+  INPUT JSON, validates it against `[a-zA-Z0-9_-]+` (SEC-4) with a 128-char
+  cap, and exports it as `HOOK_SESSION_ID=...` into the `rune-arc-init-state.sh`
+  invocation. Without this wiring the three-tier priority would still fall
+  straight through to the stale `RUNE_SESSION_ID`.
+
+**P2 fix — Doctor label clarity (doctor output POV):**
+
+- `rune-arc-init-state.sh` `_doctor_report_kind` — renamed the `FOREIGN`
+  ownership status to `HELD_BY_OTHER`. The previous label accused the
+  user's own session of being foreign whenever the doctor subshell had
+  a stale self-identity. The new label makes the POV explicit (held by
+  another session; this subshell resolves as a different SID) and the
+  detail line now shows both sides for quick diagnosis. Pairs with P1 —
+  with three-tier priority the mismatch should be rare, but when it
+  happens the diagnostic is now unambiguous.
+
+**P3 fix — Trace log spam (BACK-IDN-006):**
+
+- `resolve-session-identity.sh` — observability log now debounces per
+  (PID, source) tuple via a marker file at
+  `${TMPDIR}/rune-identity-trace-$(id -u)-${PPID}`. Previously every hook
+  subprocess source produced one log line; user reported ~33,600
+  `source=unknown` entries in a single session. The debounce reduces
+  this to one line per source transition (typically 1–3 per session).
+  Marker is written atomically (tmp+mv) so concurrent sources don't race.
+
+### Not fixed — user environment
+
+- Parallel older Claude Code instance (PID 2155211, rune v2.65.2). Not a
+  code bug — recommend killing stale Claude Code sessions before starting
+  new ones. Session isolation via `session_id` + `owner_pid` is designed
+  for this case, and the P1/P2/P3 fixes above make diagnosis easier.
+
 ## [2.65.4] — 2026-04-23
 
 ### Fixed — Post-#512 mend findings: sibling EXIT trap divergence + SEC/BACK polish
