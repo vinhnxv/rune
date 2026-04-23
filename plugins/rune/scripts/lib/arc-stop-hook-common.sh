@@ -586,3 +586,69 @@ arc_guard_context_critical_with_stale_bridge() {
   fi
   return 0
 }
+
+# ─────────────────────────────────────────────────────────────
+# Block K: Spec-compliant Stop hook emission helpers (CC-STOP-API-OSC-001)
+# ─────────────────────────────────────────────────────────────
+#
+# Per the official Claude Code hook spec (code.claude.com/docs/en/hooks):
+#   "Exit 2 means a blocking error. Claude Code ignores stdout and any JSON
+#    in it. Instead, stderr text is fed back to Claude as an error message."
+# Stop hook context re-injection therefore REQUIRES exit 0 + JSON on stdout.
+#
+# Valid Stop hook top-level fields:
+#   continue, suppressOutput, stopReason, decision ("approve"|"block"),
+#   reason, systemMessage.
+#
+# Two emission modes:
+#   arc_stop_continue <prompt>
+#       {"decision":"block","reason":"<prompt>"}
+#       Re-injects <prompt> as Claude's next-turn context → conversation continues.
+#       Use for the "auto-pump" pattern that drives arc phase loops, summary
+#       prompts, retry prompts, and context-exhaustion resume notices (where
+#       we want Claude to present a summary before stopping).
+#
+#   arc_stop_halt <reason>
+#       {"continue":false,"stopReason":"<reason>"}
+#       Stops the session with a user-visible reason. No next turn is scheduled.
+#       Use for intentional pauses where the user must intervene manually
+#       (e.g., --step-groups group boundaries).
+#
+# BOTH helpers call `exit 0` — the EXIT trap at arc-phase-stop-hook.sh:35
+# preserves this. Callers MUST NOT combine these helpers with `exit 2`.
+#
+# jq prerequisite: arc_guard_jq_required is called at the top of each arc
+# Stop hook (arc-phase:43, arc-batch:41, arc-hierarchy:41, arc-issues:41).
+# If jq is missing, the hook exits 0 before reaching these helpers, so we can
+# rely on jq being available here.
+
+# ── arc_stop_continue PROMPT ──
+# Emit a Stop hook continuation payload on stdout and exit 0.
+# PROMPT is treated as raw text — jq handles all JSON escaping via -Rs.
+arc_stop_continue() {
+  local _prompt="${1:-}"
+  # Empty prompt: nothing to re-inject — end the turn cleanly.
+  if [[ -z "$_prompt" ]]; then
+    exit 0
+  fi
+  printf '%s' "$_prompt" | jq -Rs '{decision: "block", reason: .}' 2>/dev/null || {
+    # Defensive fallback if jq fails mid-emit (corrupt locale, oom, etc.).
+    # The empty-object payload is valid JSON; Claude Code treats it as no-op.
+    printf '%s\n' '{}'
+  }
+  exit 0
+}
+
+# ── arc_stop_halt REASON ──
+# Emit a Stop hook halt payload on stdout and exit 0.
+# REASON is treated as raw text — jq handles all JSON escaping via -Rs.
+arc_stop_halt() {
+  local _reason="${1:-}"
+  if [[ -z "$_reason" ]]; then
+    _reason="Arc pipeline paused."
+  fi
+  printf '%s' "$_reason" | jq -Rs '{continue: false, stopReason: .}' 2>/dev/null || {
+    printf '%s\n' '{"continue":false}'
+  }
+  exit 0
+}

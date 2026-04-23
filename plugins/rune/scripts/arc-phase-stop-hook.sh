@@ -644,9 +644,12 @@ _check_test_batches() {
     fix_context="This is a RETRY after fix attempt ${batch_fix_attempts}. Previous run failed — check if the fix resolved the issue."
   fi
 
-  # Build batch-specific re-injection prompt
+  # Build batch-specific re-injection prompt.
+  # CC-STOP-API-OSC-001: prompt is written to STDOUT (captured by caller via
+  # command substitution), not stderr. Caller passes the captured text to
+  # arc_stop_continue which emits schema-compliant Stop hook JSON.
   local _rel_plan="tmp/arc/${arc_id}/testing-plan.json"
-  cat >&2 <<BATCH_EOF
+  cat <<BATCH_EOF
 ANCHOR — Arc Pipeline: Test Batch ${next_batch}/${total_batches} [${batch_label:-${batch_type}}] (${completed_batches}/${total_batches} done)
 ${component_line}
 ${fix_context}
@@ -1499,8 +1502,13 @@ if [[ "$_GROUP_MODE" == "active" && -n "$_IMMEDIATE_PREV" && -n "$NEXT_PHASE" ]]
         # Log phase event
         _log_phase "group_boundary_paused" "$NEXT_PHASE" "completed_group=${_prev_group}"
 
-        # Emit boundary output for user and automation
-        cat >&2 <<GROUPEOF
+        # CC-STOP-API-OSC-001 (v2.65.3): emit Stop hook halt JSON on stdout.
+        # Prior versions used `exit 2` + stderr banner (PAT-011), which broke on
+        # Claude Code 2.1.116+ where stderr is no longer re-injected. The new
+        # contract is {continue:false, stopReason:<banner>} + exit 0, which stops
+        # the session cleanly and shows the banner (including the ARC_STATE
+        # signal line) to the user.
+        _GROUP_PAUSE_BANNER=$(cat <<GROUPEOF
 
 ══════════════════════════════════════════
  ARC GROUP COMPLETE: ${_prev_group}
@@ -1510,12 +1518,8 @@ if [[ "$_GROUP_MODE" == "active" && -n "$_IMMEDIATE_PREV" && -n "$NEXT_PHASE" ]]
 ══════════════════════════════════════════
 ARC_STATE: {"group":"${_prev_group}","next":"${_next_group}","status":"paused"}
 GROUPEOF
-
-        # v2.62.0 (plan AC-10): exit 2 surfaces the stderr banner above to the
-        # user. exit 0 would discard stdout/stderr per Stop hook semantics,
-        # swallowing both the banner AND the ARC_STATE signal line — users
-        # saw a clean session stop with no explanation of why the pipeline paused.
-        exit 2  # pause — session stops, user resumes with --resume
+)
+        arc_stop_halt "$_GROUP_PAUSE_BANNER"
       fi
     else
       _trace "Group boundary detected but mid-convergence (review=${_conv_round}, inspect=${_inspect_round}, browser=${_browser_round}) — skipping pause"
@@ -1688,14 +1692,15 @@ if [[ -n "$NEXT_PHASE" && -n "$_ARC_ID_FOR_LOG" && "$_ARC_ID_FOR_LOG" =~ ^[a-zA-
       fi
     fi
     arc_delete_state_file "$STATE_FILE" 2>/dev/null || true
-    printf 'Arc pipeline STOPPED — stuck loop detected. Phase "%s" has been dispatched %d times (max %d). This indicates an infinite convergence loop. Check the checkpoint at %s for phase status and investigate why "%s" is not completing or being skipped.\n' \
-      "$NEXT_PHASE" "$_new_count" "$MAX_PHASE_DISPATCHES" "$CHECKPOINT_PATH" "$NEXT_PHASE" >&2
-    exit 2
+    # CC-STOP-API-OSC-001: schema-compliant Stop hook halt (exit 0 + JSON stdout).
+    _STUCK_MSG=$(printf 'Arc pipeline STOPPED — stuck loop detected. Phase "%s" has been dispatched %d times (max %d). This indicates an infinite convergence loop. Check the checkpoint at %s for phase status and investigate why "%s" is not completing or being skipped.' \
+      "$NEXT_PHASE" "$_new_count" "$MAX_PHASE_DISPATCHES" "$CHECKPOINT_PATH" "$NEXT_PHASE")
+    arc_stop_halt "$_STUCK_MSG"
   fi
   # BACK-001 FIX: Dispatch count write deferred to injection point (see below).
   # Writing here caused compact interlude turns to consume dispatch budget, triggering
   # premature GUARD 9 false-positive aborts. Counter is persisted only when the phase
-  # is actually dispatched (just before printf/exit 2 at end of script).
+  # is actually dispatched (just before the arc_stop_continue call at end of script).
 fi
 
 # ── Stop hook persistence check (v2.31.0) ──
@@ -1821,8 +1826,10 @@ if [[ -z "$NEXT_PHASE" ]]; then
     exit 0
   fi
 
-  # Stop hook: exit 2 = show stderr to model and continue conversation.
-  # Exit 0 silently discards all output for Stop hooks (stdout/stderr not shown).
+  # CC-STOP-API-OSC-001 (v2.65.3): schema-compliant Stop hook continuation.
+  # exit 0 + {decision:block, reason:<prompt>} on stdout re-injects <prompt>
+  # as Claude's next-turn context. Prior versions used exit 2 + stderr (PAT-011)
+  # which broke on Claude Code 2.1.116+.
   #
   # CRITICAL: The prompt MUST instruct the model to execute post-arc steps:
   # 1. Plan Completion Stamp (writes execution record to plan file)
@@ -1830,27 +1837,25 @@ if [[ -z "$NEXT_PHASE" ]]; then
   # 3. Lock release + ARC-9 sweep
   # Without explicit instructions, the model skips these steps and just summarizes.
   if [[ "$_HAS_OUTER_LOOP" == "true" ]]; then
-    # Outer loop: execute post-arc steps but skip the verbose summary
-    printf '%s\n' "Arc pipeline complete — all phases finished. Checkpoint: ${CHECKPOINT_PATH}
+    _POST_ARC_PROMPT="Arc pipeline complete — all phases finished. Checkpoint: ${CHECKPOINT_PATH}
 
 MANDATORY post-arc steps — execute ALL before stopping:
 1. Read and execute [arc-phase-completion-stamp.md](references/arc-phase-completion-stamp.md) — writes Arc Completion Record to plan file
 2. Read and execute [post-arc.md](references/post-arc.md) — echo persist, state file update, ARC-9 sweep
 3. Release workflow locks
 
-After completing these steps, STOP responding immediately (outer loop will continue)." >&2
+After completing these steps, STOP responding immediately (outer loop will continue)."
   else
-    # Standalone arc: execute post-arc steps then present summary
-    printf '%s\n' "Arc pipeline complete — all phases finished. Checkpoint: ${CHECKPOINT_PATH}
+    _POST_ARC_PROMPT="Arc pipeline complete — all phases finished. Checkpoint: ${CHECKPOINT_PATH}
 
 MANDATORY post-arc steps — execute ALL before presenting summary:
 1. Read and execute [arc-phase-completion-stamp.md](references/arc-phase-completion-stamp.md) — writes Arc Completion Record to plan file
 2. Read and execute [post-arc.md](references/post-arc.md) — echo persist, completion report, ARC-9 sweep
 3. Release workflow locks
 
-After completing these steps, present a brief summary of the arc execution and STOP responding." >&2
+After completing these steps, present a brief summary of the arc execution and STOP responding."
   fi
-  exit 2
+  arc_stop_continue "$_POST_ARC_PROMPT"
 fi
 
 # ── COMPACT INTERLUDE: Force context compaction before heavy phases ──
@@ -1967,15 +1972,14 @@ if [[ "$_needs_compact" == "true" ]] && [[ "$COMPACT_PENDING" != "true" ]] && [[
   fi
   _trace "Compact interlude Phase A [${_compact_reason}] before: ${NEXT_PHASE}"
 
-  # Stop hook: exit 2 = show stderr to model and continue conversation.
-  printf '%s\n' "Arc Pipeline — Context Checkpoint (phase: ${NEXT_PHASE} upcoming)
+  # CC-STOP-API-OSC-001 (v2.65.3): schema-compliant Stop hook continuation.
+  arc_stop_continue "Arc Pipeline — Context Checkpoint (phase: ${NEXT_PHASE} upcoming)
 
 The previous phase has completed. Acknowledge this checkpoint by responding with only:
 
 **Ready for next phase.**
 
-Then STOP responding immediately. Do NOT execute any commands, read any files, or perform any actions." >&2
-  exit 2
+Then STOP responding immediately. Do NOT execute any commands, read any files, or perform any actions."
 fi
 
 # Phase B: Reset compact_pending if it was set
@@ -2023,7 +2027,8 @@ if [[ "$_skip_context_check" == "false" ]] && _check_context_critical 2>/dev/nul
     # This means compaction genuinely didn't free enough space — hopeless state.
     _trace "Context critical after compact interlude (fresh bridge data) — injecting exhaustion notice"
     arc_delete_state_file "$STATE_FILE" 2>/dev/null || true
-    printf '%s\n' "Arc Pipeline — Context Exhaustion
+    # CC-STOP-API-OSC-001 (v2.65.3): schema-compliant Stop hook continuation.
+    arc_stop_continue "Arc Pipeline — Context Exhaustion
 
 The arc pipeline cannot continue. Context compaction was attempted but the context window is still critically low (≤25% remaining).
 
@@ -2036,15 +2041,15 @@ To resume this arc later, run:
 /rune:arc --resume
 \`\`\`
 
-Present a brief summary of what was accomplished and STOP responding." >&2
-    exit 2
+Present a brief summary of what was accomplished and STOP responding."
   fi
-  # Normal context-critical path (not after compact interlude)
-  # BUG FIX (AC-4): Was exit 0 (silent arc death). Now exits 2 with notification
-  # so the user knows WHY the arc stopped and HOW to resume.
+  # Normal context-critical path (not after compact interlude).
+  # BUG FIX (AC-4): Was exit 0 (silent arc death). Now emits notification so the
+  # user knows WHY the arc stopped and HOW to resume.
+  # CC-STOP-API-OSC-001 (v2.65.3): schema-compliant Stop hook continuation.
   _trace "Context critical — removing state file, injecting resume notice"
   arc_delete_state_file "$STATE_FILE" 2>/dev/null || true
-  printf '%s\n' "Arc Pipeline — Context Critical (Pre-Compaction)
+  arc_stop_continue "Arc Pipeline — Context Critical (Pre-Compaction)
 
 The arc pipeline is pausing due to low context (≤25% remaining).
 The checkpoint has been preserved.
@@ -2058,8 +2063,7 @@ To resume this arc, run:
 /rune:arc --resume
 \`\`\`
 
-Present a brief summary of what was accomplished and STOP responding." >&2
-  exit 2
+Present a brief summary of what was accomplished and STOP responding."
 fi
 
 # ── Increment iteration ──
@@ -2256,8 +2260,12 @@ fi
 if [[ "$NEXT_PHASE" == "test" ]]; then
   _cb_cp_path="${CWD}/${CHECKPOINT_PATH}"
   if [[ -f "$_cb_cp_path" && ! -L "$_cb_cp_path" ]]; then
-    if _check_test_batches "$_cb_cp_path"; then
-      exit 2  # Re-inject batch prompt (already written to stderr by _check_test_batches)
+    # CC-STOP-API-OSC-001: _check_test_batches now emits the prompt on stdout
+    # (captured here). Prior versions wrote to stderr + exit 2, which broke on
+    # Claude Code 2.1.116+ where stderr is no longer re-injected.
+    _TEST_BATCH_PROMPT=$(_check_test_batches "$_cb_cp_path")
+    if [[ -n "$_TEST_BATCH_PROMPT" ]]; then
+      arc_stop_continue "$_TEST_BATCH_PROMPT"
     fi
     # No pending batches — check if finalization needed before advancing phase
     _arc_id_for_fin=$(jq -r '.id // empty' "$_cb_cp_path" 2>/dev/null || true)
@@ -2353,7 +2361,9 @@ if [[ "$NEXT_PHASE" == "test" ]]; then
           else
             _rel_fin_plan="tmp/arc/${_arc_id_for_fin}/testing-plan.json"
             _test_team="arc-test-${_arc_id_for_fin}"
-            cat >&2 <<FINALIZE_EOF
+            # CC-STOP-API-OSC-001: capture finalize prompt into variable, emit
+            # via arc_stop_continue (schema-compliant Stop hook JSON on stdout).
+            _FINALIZE_PROMPT=$(cat <<FINALIZE_EOF
 ANCHOR — Arc Pipeline: Test Phase Finalization (attempt ${_fin_retries}/${_MAX_FIN_RETRIES})
 
 All test batches have completed. Execute STEP 9 (report) and STEP 10 (cleanup).
@@ -2401,7 +2411,8 @@ CRITICAL: You MUST complete ALL steps (report + cleanup + checkpoint). If this f
 
 RE-ANCHOR: Execute finalization only. Do NOT skip ahead.
 FINALIZE_EOF
-            exit 2
+)
+            arc_stop_continue "$_FINALIZE_PROMPT"
           fi
         else
           # test_finalized=true — clean up retry counter if present
@@ -2563,8 +2574,8 @@ _log_phase "phase_started" "$NEXT_PHASE" "iteration=${NEW_ITERATION}" "ref_file=
 
 # ── Persist dispatch count (BACK-001 FIX: deferred from GUARD 9 to here) ──
 # Counter is written only at the actual injection point, not at GUARD 9 check time.
-# This ensures compact interlude turns (exit 2 without phase dispatch) do NOT
-# increment the counter, which would cause false GUARD 9 triggers.
+# This ensures compact interlude turns (early arc_stop_continue without phase
+# dispatch) do NOT increment the counter, which would cause false GUARD 9 triggers.
 if [[ -n "${_DISPATCH_COUNT_FILE:-}" && -n "${_new_count:-}" && -n "${NEXT_PHASE:-}" ]]; then
   _dispatch_inject_tmp=$(mktemp "${_DISPATCH_COUNT_FILE}.XXXXXX" 2>/dev/null) || _dispatch_inject_tmp=""
   if [[ -n "$_dispatch_inject_tmp" ]]; then
@@ -2634,41 +2645,29 @@ _log_phase "hook_execution" "${NEXT_PHASE}" \
   "iteration=${NEW_ITERATION:-${ITERATION}}"
 _trace "TIMING: total hook duration ${_HOOK_DURATION}s"
 
-# ── Dual-protocol Stop hook continuation (v2.65.1 CC-STOP-API-OSC-001) ──
-# Stop hook context injection has drifted across Claude Code 2.1.x versions:
-#   - PAT-011 (pre-2.1.116): stderr + exit 2 re-injects stderr as next prompt
-#   - 2.1.116+: stderr may be shown-to-user but NOT re-injected as Claude context,
-#     causing arc pipelines to stall mid-phase with "anything else?" responses
-# Emit BOTH protocols defensively. Claude Code honors whichever it recognizes;
-# per hook spec, exit 2 causes stdout to be ignored by compliant parsers — so the
-# JSON emission is a no-op on versions that obey the contract and a rescue path
-# on versions where stderr re-injection silently fails.
-# BUG FIX (v1.144.14): Previous versions used exit 0 + {decision,reason} JSON only,
-# which was silently discarded — the root cause of "arc stops after work phase".
-# BUG FIX (v2.65.1): Added JSON emission to survive 2.1.116+ regime where stderr
-# re-injection appears to regress.
-# BUG FIX (v2.65.2): The original v2.65.1 shape used
-# `hookSpecificOutput.additionalContext`, which is NOT a valid Stop hook field
-# (only PreToolUse / UserPromptSubmit / PostToolUse accept hookSpecificOutput).
-# Claude Code's JSON validator rejected the payload with "Hook JSON output
-# validation failed — (root): Invalid input" and the arc phase loop stalled
-# visibly even though exit 2 + stderr still fired. The spec-compliant way for a
-# Stop hook to carry text back into Claude's next turn is
-# {"decision":"block","reason":"<text>"} — same semantics as Protocol B.
-
-# Protocol A: schema-compliant Stop hook continuation JSON on stdout.
-# Valid Stop hook top-level fields: continue, suppressOutput, stopReason,
-# decision ("approve"|"block"), reason, systemMessage, permissionDecision.
-# decision=block + reason injects `reason` as Claude's next-turn context.
-# Per hook spec, exit 2 (Protocol B below) causes stdout to be ignored by
-# compliant parsers — so this JSON is a no-op on versions that honor the
-# contract and a rescue path on versions where stderr re-injection regresses.
-if command -v jq >/dev/null 2>&1; then
-  printf '%s' "$PHASE_PROMPT" | jq -Rs \
-    '{decision: "block", reason: .}' 2>/dev/null || true
-fi
-
-# Protocol B: legacy stderr + exit 2 (PAT-011)
-# Pre-2.1.116 Claude Code re-injects stderr as Claude's next prompt.
-printf '%s\n' "$PHASE_PROMPT" >&2
-exit 2
+# ── Stop hook continuation (CC-STOP-API-OSC-001, v2.65.3) ──
+# Per the official Claude Code hook spec (code.claude.com/docs/en/hooks):
+#   "Exit 2 means a blocking error. Claude Code ignores stdout and any JSON in
+#    it. Instead, stderr text is fed back to Claude as an error message."
+# Stop hook context re-injection therefore REQUIRES exit 0 + JSON on stdout —
+# the two protocols cannot coexist in one invocation because exit 2 invalidates
+# the stdout JSON before the runtime ever parses it.
+#
+# History of this block:
+#   v1.144.14: exit 0 + {decision, reason} — correct shape, but relied on the
+#              PAT-011 contract (pre-2.1.116 stderr re-injection on exit 2)
+#              which had silently carried the pipeline on older Claude Code.
+#   v2.65.0:   Broke on 2.1.116+ when stderr re-injection regressed.
+#   v2.65.1:   Added `hookSpecificOutput.additionalContext` on stdout. Invalid
+#              — that field shape is only valid for PreToolUse / UserPromptSubmit /
+#              PostToolUse. Claude Code's JSON validator rejected the payload.
+#   v2.65.2:   Switched payload to {decision:"block", reason} (correct) but kept
+#              exit 2 (wrong) — the runtime discarded the JSON because the exit
+#              code signalled "blocking error, ignore stdout". Net effect: arc
+#              still stalled on 2.1.116+, users manually typed "continue" ~44
+#              times per arc run (see GitHub issue #512).
+#   v2.65.3:   Drop exit 2 entirely. Emit only spec-compliant JSON via
+#              arc_stop_continue (defined in lib/arc-stop-hook-common.sh). Pre-
+#              2.1.116 releases have been deprecated for ~6 months — supporting
+#              them adds risk without benefit.
+arc_stop_continue "$PHASE_PROMPT"

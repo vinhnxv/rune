@@ -383,7 +383,14 @@ Rune uses Claude Code hooks for event-driven agent synchronization, quality gate
 
 **Seal Convention**: Ashes emit `<seal>TAG</seal>` as the last line of output for deterministic completion detection. See `roundtable-circle/references/monitor-utility.md` "Seal Convention" section.
 
-**Stop hook output format** (PAT-011): Stop hooks use `exit 2` with stderr output to continue the conversation. The stderr content becomes Claude's next prompt. This is DIFFERENT from PreToolUse hooks which use JSON on stdout with `hookSpecificOutput`. Stop hooks that `exit 0` have their stdout/stderr silently discarded. PreToolUse hooks use `{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow|deny|ask",...}}`.
+**Stop hook output format** (CC-STOP-API-OSC-001, v2.65.3): Stop hooks use `exit 0` with spec-compliant JSON on stdout to continue the conversation. Per the official Claude Code hook spec (`code.claude.com/docs/en/hooks`), `exit 2` means a blocking error and Claude Code **ignores stdout and any JSON in it** — so the legacy PAT-011 `stderr + exit 2` pattern is no longer supported on Claude Code 2.1.116+. Two emission modes, both via helpers in `scripts/lib/arc-stop-hook-common.sh`:
+
+- `arc_stop_continue "<prompt>"` — emits `{"decision":"block","reason":"<prompt>"}` + exit 0. Re-injects `<prompt>` as Claude's next-turn context → conversation continues (arc auto-pump, retry prompts, summary prompts, context-exhaustion resume notices).
+- `arc_stop_halt "<reason>"` — emits `{"continue":false,"stopReason":"<reason>"}` + exit 0. Stops the session cleanly with a user-visible reason (intentional pauses like `--step-groups` group boundaries or stuck-loop detection).
+
+Valid Stop hook top-level fields: `continue`, `suppressOutput`, `stopReason`, `decision` ("approve"|"block"), `reason`, `systemMessage`. This is DIFFERENT from PreToolUse hooks which use `{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow|deny|ask",...}}`.
+
+**Historical note**: PAT-011 (pre-2.1.116) relied on `stderr + exit 2` being re-injected as Claude's next prompt. Claude Code 2.1.116+ stopped re-injecting stderr; combined with the spec-contract that `exit 2` discards stdout, no legacy pattern continues to work. The v2.65.1 `hookSpecificOutput.additionalContext` fix was invalid (that field is PreToolUse-only); the v2.65.2 dual-protocol fix kept `exit 2` which invalidated its own stdout JSON. See issue #512 for the full forensic trail.
 
 ### Hook Crash Classification (ADR: Fail-Forward)
 

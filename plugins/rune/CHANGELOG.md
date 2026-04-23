@@ -1,5 +1,82 @@
 # Changelog
 
+## [2.65.3] — 2026-04-23
+
+### Fixed — Stop hook dual-protocol `exit 2` invalidated stdout JSON (CC-STOP-API-OSC-001 final, GitHub issue #512)
+
+The v2.65.2 Stop hook emission paired a spec-valid JSON payload
+(`{decision: "block", reason: <prompt>}`) on stdout with a legacy
+`stderr + exit 2`. Per the authoritative Claude Code hook spec
+(<https://code.claude.com/docs/en/hooks>):
+
+> **Exit 2** means a blocking error. Claude Code ignores stdout and any
+> JSON in it. Instead, stderr text is fed back to Claude as an error
+> message.
+
+So every spec-compliant runtime discarded the JSON before parsing it,
+and Claude Code 2.1.116+ (which no longer re-injects stderr as the next
+turn's prompt) was left with nothing. Result: the arc pipeline stalled
+after every phase transition, forcing users to manually type "continue"
+up to 44 times per end-to-end arc run.
+
+#### Fix — drop Protocol B entirely; emit only spec-compliant JSON
+
+All four arc Stop hook drivers now route every re-injection through two
+shared helpers in `scripts/lib/arc-stop-hook-common.sh`:
+
+- `arc_stop_continue <prompt>` — emits
+  `{"decision":"block","reason":"<prompt>"}` on stdout + `exit 0`.
+  Re-injects `<prompt>` as Claude's next-turn context → conversation
+  continues (arc auto-pump).
+- `arc_stop_halt <reason>` — emits
+  `{"continue":false,"stopReason":"<reason>"}` on stdout + `exit 0`.
+  Stops the session cleanly with a user-visible reason (intentional
+  pauses: `--step-groups` group boundaries, stuck-loop detection).
+
+Both helpers rely on jq (already guarded at hook entry by
+`arc_guard_jq_required`), which handles all JSON escaping natively via
+`jq -Rs '{decision:"block", reason:.}'`.
+
+#### Sites converted (20 total across 4 files)
+
+- `arc-phase-stop-hook.sh` (9 sites): terminal phase dispatch, stuck-loop
+  detection (→ halt), arc-complete post-arc steps, compact checkpoint,
+  context-exhaustion resume (2 variants), test batch re-inject,
+  test finalization retry, `--step-groups` group boundary (→ halt).
+- `arc-batch-stop-hook.sh` (4 sites): abort helper, graceful-stop helper,
+  batch summary, main arc dispatch.
+- `arc-hierarchy-stop-hook.sh` (6 sites): abort, graceful stop, partial
+  pause, deadlock, hierarchy complete, child arc dispatch.
+- `arc-issues-stop-hook.sh` (4 sites): abort, graceful stop, issue-batch
+  summary, main arc dispatch.
+
+Also refactored:
+
+- `_check_test_batches` — heredoc now writes to stdout (captured by
+  caller via command substitution) instead of stderr, enabling the
+  caller to pass the captured prompt to `arc_stop_continue`.
+- Test finalization heredoc (retry branch) — captured into
+  `_FINALIZE_PROMPT` variable, then emitted via `arc_stop_continue`.
+- `plugins/rune/CLAUDE.md` "Stop hook output format" section (PAT-011)
+  rewritten to document the new contract. PAT-011 stderr re-injection
+  is marked deprecated with forensic trail.
+
+#### Compatibility
+
+Pre-2.1.116 Claude Code has been deprecated for ~6 months as of this
+release. Supporting it adds risk without benefit; the new contract
+works on all current releases.
+
+#### Reported by
+
+GitHub issue #512 — thank you for the detailed diagnosis, exact line
+numbers, and verified local patch. The proposed fix shape
+(`jq -Rs '{decision:"block", reason:.}' + exit 0`) is what ships here,
+generalized into shared helpers and applied uniformly to all four
+Stop hook drivers plus the previously-ignored intra-phase Protocol B
+sites (stuck loop, compact checkpoint, context exhaustion, test batch,
+finalization).
+
 ## [2.65.2] — 2026-04-23
 
 ### Fixed — Stop hook JSON validation rejected v2.65.1 Protocol A payload (CC-STOP-API-OSC-001 follow-up)
