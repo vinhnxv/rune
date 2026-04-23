@@ -33,7 +33,7 @@ fi
 source "${SCRIPT_DIR}/lib/arc-stop-hook-common.sh"
 arc_setup_err_trap  # standard variant (no verbose arg)
 
-trap '_rc=$?; [[ -n "${SUMMARY_TMP:-}" ]] && rm -f "${SUMMARY_TMP}" 2>/dev/null; [[ -n "${_STATE_TMP:-}" ]] && rm -f "${_STATE_TMP}" 2>/dev/null; exit $_rc' EXIT
+trap '_rc=$?; [[ -n "${SUMMARY_TMP:-}" ]] && rm -f "${SUMMARY_TMP}" 2>/dev/null; [[ -n "${_STATE_TMP:-}" ]] && rm -f "${_STATE_TMP}" 2>/dev/null; exit 0' EXIT  # BACK-001: hardcode 0 — Stop hook spec discards stdout JSON on non-zero exit
 umask 077
 
 # ── Block B: Opt-in trace logging (TOME-011: -${PPID} suffix, SEC-004: TMPDIR validation) ──
@@ -657,7 +657,7 @@ The previous arc iteration has completed. Acknowledge this checkpoint by respond
 **Ready for next iteration.**
 
 Then STOP responding immediately. Do NOT execute any commands, read any files, or perform any actions."
-  # arc_compact_interlude_phase_a exits 2 on success, exits 0 on failure — never returns
+  # arc_compact_interlude_phase_a calls arc_stop_continue → exit 0 on success, or exits 0 directly on failure — never returns either way (v2.65.3 contract)
 fi
 
 # ── GUARD 11: Context-critical check before arc prompt injection (F-13 fix) ──

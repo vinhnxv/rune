@@ -515,13 +515,24 @@ for sf in "${STATE_FILES[@]}"; do
     # $1 = message text to re-inject
     if command -v jq >/dev/null 2>&1; then
       printf '%s' "$1" | jq -Rs '{decision: "block", reason: .}' 2>/dev/null \
-        || printf '%s\n' '{}'
+        || printf '%s\n' '{"decision":"block","reason":"STALE-LEAD-001: jq emission failed — wake fallback"}'
     else
-      # jq missing — fail-forward: emit no-op JSON and exit 0 so the session
-      # can stop cleanly. Without jq we cannot safely construct the JSON
-      # payload with proper escaping.
-      printf '%s\n' '{}'
+      # jq missing — fail-forward: emit concrete fallback so Stop hook re-injection
+      # semantics remain defined. Bare {} has undefined behavior (BACK-003/VEIL-003).
+      printf '%s\n' '{"decision":"block","reason":"STALE-LEAD-001: jq not available — wake fallback"}'
     fi
+    # BACK-003/PATT-002: leave breadcrumb so wake emissions are visible in
+    # stop-hook-health.sh without sourcing the full arc-stop-hook-common lib.
+    {
+      local _bc_tmp="${TMPDIR:-/tmp}"
+      local _bc_uid="${UID:-$(id -u 2>/dev/null || echo 0)}"
+      local _bc_log="${_bc_tmp}/rune-stop-hook-events-${_bc_uid}.jsonl"
+      local _bc_ts
+      _bc_ts=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "unknown")
+      [[ -f "$_bc_log" && ! -L "$_bc_log" ]] && \
+        printf '{"ts":"%s","source":"detect-stale-lead.sh","ppid":%d,"kind":"wake","len":%d}\n' \
+          "$_bc_ts" "${PPID:-0}" "${#1}" >>"$_bc_log" 2>/dev/null || true
+    }
     exit 0
   }
 

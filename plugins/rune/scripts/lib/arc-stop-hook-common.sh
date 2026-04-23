@@ -261,6 +261,8 @@ arc_compact_interlude_phase_a() {
     # Preserve state file on transient mv failure — deleting it would permanently
     # terminate the batch/hierarchy/issues loop (v1.179.0 fix, BACK-004)
     rm -f "$_state_tmp" 2>/dev/null
+    # BACK-004: leave breadcrumb so silent mv-failure is visible in stop-hook-health.sh
+    declare -f _arc_stop_hook_breadcrumb &>/dev/null && _arc_stop_hook_breadcrumb "empty" 0
     exit 0
   fi
 
@@ -270,6 +272,8 @@ arc_compact_interlude_phase_a() {
       _trace "F-05: compact_pending write verification failed — preserving state file, exiting"
     fi
     # FIX: Don't delete state file on transient sed/write failure — preserve for retry
+    # BACK-004: leave breadcrumb so silent write-verification failure is visible
+    declare -f _arc_stop_hook_breadcrumb &>/dev/null && _arc_stop_hook_breadcrumb "empty" 0
     exit 0
   fi
 
@@ -406,7 +410,14 @@ arc_delete_state_file() {
   local _tw_caller_script="${BASH_SOURCE[1]##*/}"
   local _tw_caller_line="${BASH_LINENO[0]:-?}"
   local _tw_caller_func="${FUNCNAME[1]:-MAIN}"
-  local _tw_log="${TMPDIR:-/tmp}/rune-state-delete-tripwire.log"
+  # SEC-001: Validate TMPDIR before path construction (matches arc_init_trace_log guard).
+  # Without this, a malicious TMPDIR (e.g., from .claude/settings.local.json env block)
+  # would cause this helper to append log data to an attacker-chosen path.
+  local _tw_safe_tmp="${TMPDIR:-/tmp}"
+  if [[ "$_tw_safe_tmp" == *".."* ]] || [[ "$_tw_safe_tmp" != /* ]]; then
+    _tw_safe_tmp="/tmp"
+  fi
+  local _tw_log="${_tw_safe_tmp}/rune-state-delete-tripwire.log"
   local _tw_verdict="ALLOWED"
   local _tw_reason=""
 
@@ -635,7 +646,7 @@ arc_guard_context_critical_with_stale_bridge() {
 # Runtime canary (VEIL-004): every emission appends a one-line JSONL
 # breadcrumb to ${TMPDIR:-/tmp}/rune-stop-hook-events-${UID}.jsonl via
 # _arc_stop_hook_breadcrumb. Operators can inspect emission history after
-# an arc run using scripts/diagnostics/stop-hook-health.sh to verify the
+# an arc run using scripts/observability/stop-hook-health.sh to verify the
 # re-injection contract is firing on the running Claude Code version.
 # 5MB rotation by truncation (matches stop-failure-common.sh pattern).
 
@@ -651,7 +662,10 @@ _arc_stop_hook_breadcrumb() {
   local _tmp="${TMPDIR:-/tmp}"
   local _uid="${UID:-$(id -u 2>/dev/null || echo 0)}"
   local _log="${_tmp}/rune-stop-hook-events-${_uid}.jsonl"
-  local _source="${BASH_SOURCE[2]##*/}"  # caller's caller (the Stop hook script)
+  # BACK-002: use last element of call stack (top-level hook script) instead of fixed depth [2].
+  # BASH_SOURCE[2] is wrong when called via arc_compact_interlude_phase_a (3 frames deep).
+  # Bash 3.2 does not support negative indexing — use explicit length arithmetic.
+  local _source="${BASH_SOURCE[${#BASH_SOURCE[@]}-1]##*/}"
   [[ -z "$_source" ]] && _source="unknown"
   local _ts
   _ts=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "unknown")

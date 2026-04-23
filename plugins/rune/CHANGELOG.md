@@ -1,5 +1,69 @@
 # Changelog
 
+## [2.65.4] — 2026-04-23
+
+### Fixed — Post-#512 mend findings: sibling EXIT trap divergence + SEC/BACK polish
+
+Follow-up mend pass on the v2.65.3 branch review. `/rune:appraise` surfaced
+a P1 convergent finding flagged by 4 of 6 reviewers: arc-batch, arc-hierarchy,
+and arc-issues Stop hooks still used `exit $_rc` in their EXIT traps, while
+arc-phase had been explicitly patched to `exit 0` in v2.65.3. This is the
+same class of bug #512 fixed — any future non-zero exit in a sibling hook
+would silently discard the stdout JSON per the Claude Code Stop hook spec.
+
+**P1 fix — BACK-001/VEIL-001/QUAL-004/PATT-003 (convergent):**
+
+- `arc-batch-stop-hook.sh:36`, `arc-hierarchy-stop-hook.sh:36`,
+  `arc-issues-stop-hook.sh:36` — EXIT traps now hardcode `exit 0` with
+  the same defensive rationale as arc-phase.
+
+**P2 fixes:**
+
+- **SEC-001**: `arc_delete_state_file` now validates `TMPDIR` before
+  constructing the tripwire log path (matches the existing
+  `arc_init_trace_log` guard). Prevents attacker-controlled `TMPDIR` via
+  `.claude/settings.local.json` env block from redirecting audit writes.
+- **DOC-001**: `lib/arc-stop-hook-common.sh:638` now references
+  `scripts/observability/stop-hook-health.sh` (the actual path).
+  Previous `scripts/diagnostics/...` was wrong; CLAUDE.md was already
+  correct.
+- **BACK-002**: `_arc_stop_hook_breadcrumb` now uses
+  `BASH_SOURCE[${#BASH_SOURCE[@]}-1]` (last element) instead of fixed
+  `BASH_SOURCE[2]`. The fixed-depth indexing was wrong when called via
+  `arc_compact_interlude_phase_a` (3 frames deep) — breadcrumbs for
+  compact interlude emissions were misattributed to the library itself.
+  Bash 3.2 compatible (explicit length arithmetic, no negative indexing).
+- **BACK-003/PATT-002/VEIL-003**: `detect-stale-lead.sh` `_emit_wake`
+  now writes an inline breadcrumb (`kind="wake"`) to the stop-hook-events
+  log without sourcing the full `arc-stop-hook-common.sh` library
+  (preserves the intentional dependency-surface isolation). The `{}`
+  fallback for jq failures was replaced with a concrete
+  `{"decision":"block","reason":"..."}` payload — bare `{}` had undefined
+  Stop hook continuation semantics.
+- **BACK-004**: `arc_compact_interlude_phase_a` failure paths (mv-failure,
+  write-verification failure) now emit `kind="empty"` breadcrumbs before
+  `exit 0`. Silent failures are now diagnosable via `stop-hook-health.sh`.
+- **QUAL-001/PATT-001**: The stale comment
+  `# arc_compact_interlude_phase_a exits 2 on success, exits 0 on failure`
+  at three call sites was updated to reflect the v2.65.3 contract
+  (function routes through `arc_stop_continue` → `exit 0`). The old
+  comment was a fossil from the PAT-011 era.
+- **QUAL-002**: `on-session-stop.sh` now provides a symmetric shim for
+  `arc_stop_continue` (matching the existing `arc_delete_state_file`
+  shim). If the shared library is missing (partial install, corruption),
+  the cleanup summary is emitted via the shim instead of silently lost
+  through the ERR trap.
+
+**Ward check**: `bash -n` passes on all 6 edited files; smoke test
+confirms `arc_stop_continue` emits schema-compliant
+`{"decision":"block","reason":"..."}` JSON; breadcrumb attribution
+correctly points to the top-level Stop hook script (BACK-002 verified).
+
+**Deferred to v2.66.0**: VEIL-002 (canary strengthening — requires
+architectural decision between integration test vs CLAUDE.md caveat),
+VEIL-004 (Block K field list spec-version pinning), VEIL-005 (automated
+regression test harness for the `arc_stop_continue` contract).
+
 ## [2.65.3] — 2026-04-23
 
 ### Fixed — Stop hook dual-protocol `exit 2` invalidated stdout JSON (CC-STOP-API-OSC-001 final, GitHub issue #512)

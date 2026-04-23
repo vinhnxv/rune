@@ -178,6 +178,23 @@ if ! declare -f arc_delete_state_file &>/dev/null; then
   }
 fi
 
+# QUAL-002: Symmetric shim for arc_stop_continue — without this, if the lib
+# is missing (partial install, corrupt update), the cleanup summary is
+# silently dropped via ERR trap → fail-forward → exit 0. The shim at least
+# emits a best-effort JSON payload so the Stop hook contract is honored.
+if ! declare -f arc_stop_continue &>/dev/null; then
+  arc_stop_continue() {
+    local _p="${1:-}"
+    if [[ -n "$_p" ]] && command -v jq >/dev/null 2>&1; then
+      printf '%s' "$_p" | jq -Rs '{decision:"block",reason:.}' 2>/dev/null || \
+        printf '%s\n' '{"decision":"block","reason":"on-session-stop: jq emission failed"}'
+    else
+      printf '%s\n' '{"decision":"block","reason":"on-session-stop: arc-stop-hook-common.sh missing — shim fallback"}'
+    fi
+    exit 0
+  }
+fi
+
 # Source process tree kill library for centralized 2-stage SIGTERM→SIGKILL
 if [[ -f "${SCRIPT_DIR}/lib/process-tree.sh" ]]; then
   # shellcheck source=lib/process-tree.sh

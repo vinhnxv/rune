@@ -33,7 +33,7 @@ if [[ ! -f "${SCRIPT_DIR}/lib/arc-stop-hook-common.sh" ]]; then
 fi
 source "${SCRIPT_DIR}/lib/arc-stop-hook-common.sh"
 arc_setup_err_trap  # standard variant — installs _rune_fail_forward + ERR trap
-trap '_rc=$?; [[ -n "${_TMPFILE:-}" ]] && rm -f "${_TMPFILE}" 2>/dev/null; [[ -n "${_STATE_TMP:-}" ]] && rm -f "${_STATE_TMP}" 2>/dev/null; exit $_rc' EXIT
+trap '_rc=$?; [[ -n "${_TMPFILE:-}" ]] && rm -f "${_TMPFILE}" 2>/dev/null; [[ -n "${_STATE_TMP:-}" ]] && rm -f "${_STATE_TMP}" 2>/dev/null; exit 0' EXIT  # BACK-001: hardcode 0 — Stop hook spec discards stdout JSON on non-zero exit
 umask 077
 
 # Block B: trace log init (SEC-004 TMPDIR validation + TOME-011 -${PPID} suffix)
@@ -552,7 +552,7 @@ The previous child arc has completed. Acknowledge this checkpoint by responding 
 **Ready for next child.**
 
 Then STOP responding immediately. Do NOT execute any commands, read any files, or perform any actions."
-  # arc_compact_interlude_phase_a exits 2 on success, exits 0 on failure — never returns
+  # arc_compact_interlude_phase_a calls arc_stop_continue → exit 0 on success, or exits 0 directly on failure — never returns either way (v2.65.3 contract)
 fi
 
 # ── GUARD 12: Context-critical check with stale bridge detection (v1.165.0 fix) ──
