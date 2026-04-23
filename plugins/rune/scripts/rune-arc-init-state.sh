@@ -71,6 +71,17 @@ if [ -f "${SCRIPT_DIR}/lib/rune-state.sh" ]; then
   # shellcheck disable=SC1091
   . "${SCRIPT_DIR}/lib/rune-state.sh"
 fi
+# arc-stop-hook-common.sh → sets _RUNE_ARC_STOP_HOOK_COMMON_LOADED sentinel
+# BACK-IDN-007 (v2.65.6) FIX: Source BEFORE arc-loop-state.sh per the documented
+# dependency order in both file headers ("source arc-stop-hook-common.sh before
+# arc-loop-state.sh"). Without this, arc-loop-state.sh:80 emits a phantom WARN
+# on every init subcommand (3+ occurrences per arc run). Sourcing is cheap —
+# common.sh lazily resolves its own deeper deps and does not require
+# stop-hook-common.sh at source-time (only when rapid-iteration functions fire).
+if [ -f "${SCRIPT_DIR}/lib/arc-stop-hook-common.sh" ]; then
+  # shellcheck disable=SC1091
+  . "${SCRIPT_DIR}/lib/arc-stop-hook-common.sh"
+fi
 # arc-loop-state.sh → arc_state_* public functions
 if [ -f "${SCRIPT_DIR}/lib/arc-loop-state.sh" ]; then
   # shellcheck disable=SC1091

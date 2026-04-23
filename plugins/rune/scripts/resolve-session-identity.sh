@@ -118,9 +118,20 @@ if [[ -z "${RUNE_CURRENT_CFG:-}" ]]; then
 fi
 
 # XVER-004 FIX: Resolve session ID as PRIMARY identifier
-# Priority: CLAUDE_SESSION_ID > RUNE_SESSION_ID > empty (fallback to PPID)
+# BACK-IDN-007 (v2.65.6) FIX: Include HOOK_SESSION_ID in priority chain.
+# Priority: CLAUDE_SESSION_ID > HOOK_SESSION_ID > RUNE_SESSION_ID > empty (fallback to PPID)
+#   - CLAUDE_SESSION_ID: native harness env (authoritative when set; usually only
+#                        exposed in the top-level Claude Code process, not hook subprocesses)
+#   - HOOK_SESSION_ID:   parsed from hook stdin JSON by the caller (always fresh per-fire).
+#                        Callers that have already extracted .session_id from INPUT
+#                        must export HOOK_SESSION_ID before sourcing this file for it
+#                        to be picked up. Without this priority tier, hook subprocesses
+#                        logged "source=unknown" even when the authoritative session_id
+#                        was already known from stdin (root cause of log spam in arc runs).
+#   - RUNE_SESSION_ID:   bridged via CLAUDE_ENV_FILE by SessionStart hook; can lag/stale
+#                        across concurrent sessions sharing the same env file.
 if [[ -z "${RUNE_CURRENT_SID:-}" ]]; then
-  RUNE_CURRENT_SID="${CLAUDE_SESSION_ID:-${RUNE_SESSION_ID:-}}"
+  RUNE_CURRENT_SID="${CLAUDE_SESSION_ID:-${HOOK_SESSION_ID:-${RUNE_SESSION_ID:-}}}"
   # Validate format: alphanumeric + hyphens/underscores only, max 64 chars
   if [[ -n "$RUNE_CURRENT_SID" && "$RUNE_CURRENT_SID" =~ ^[a-zA-Z0-9_-]+$ ]]; then
     RUNE_CURRENT_SID="${RUNE_CURRENT_SID:0:64}"
@@ -154,6 +165,7 @@ fi
 if [[ "${RUNE_TRACE:-}" == "1" ]]; then
   _rune_sid_source="unknown"
   if [[ -n "${CLAUDE_SESSION_ID:-}" ]]; then _rune_sid_source="CLAUDE_SESSION_ID"
+  elif [[ -n "${HOOK_SESSION_ID:-}" ]]; then _rune_sid_source="HOOK_SESSION_ID"
   elif [[ -n "${RUNE_SESSION_ID:-}" ]]; then _rune_sid_source="RUNE_SESSION_ID"
   elif [[ -n "${RUNE_CURRENT_SID:-}" ]]; then _rune_sid_source="cache"
   fi

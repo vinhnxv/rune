@@ -1,5 +1,57 @@
 # Changelog
 
+## [2.65.6] — 2026-04-24
+
+### Fixed — Session identity resolver priority + phantom lib-load WARN (BACK-IDN-007)
+
+User-reported log-analysis findings after arc runs on v2.65.4/2.65.5 exposed
+three concrete drift bugs that survived the BACK-IDN-005/006 fixes. Evidence
+lived in `rune-hook-trace-*.log` across dozens of hook fires:
+
+1. **Phantom `arc-stop-hook-common.sh not loaded` WARN** — arc-loop-state.sh:80
+   guarded its canary WARN on `_RUNE_ARC_STOP_HOOK_COMMON_LOADED`, but the
+   sentinel was referenced in exactly ONE place (the guard) and set in ZERO
+   places. The WARN fired on every `arc-loop-state.sh` source regardless of
+   whether common.sh was actually loaded — pure dead-canary noise.
+
+2. **`rune-arc-init-state.sh` missed the documented source order** — both
+   `arc-stop-hook-common.sh` and `arc-loop-state.sh` headers recommend sourcing
+   common.sh first, but init only sourced arc-loop-state.sh. Combined with #1
+   above, this produced the WARN on every arc init subcommand (3+ per arc run
+   in the reported trace log).
+
+3. **`resolve-session-identity.sh` ignored `HOOK_SESSION_ID`** — the resolver's
+   priority chain was `CLAUDE_SESSION_ID > RUNE_SESSION_ID`, missing the
+   authoritative per-fire session_id that hooks parse from stdin JSON. In hook
+   subprocesses where `CLAUDE_SESSION_ID` is scrubbed
+   (`CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`) and `RUNE_SESSION_ID` can lag across
+   concurrent sessions sharing CLAUDE_ENV_FILE, this forced `source=unknown`
+   trace logs and downstream ownership-check skips (AC-13
+   `legacy_ppid_fallback=false`), even when the caller had already extracted
+   the correct sid from hook stdin.
+
+**Fix:**
+
+- `lib/arc-stop-hook-common.sh` — set `_RUNE_ARC_STOP_HOOK_COMMON_LOADED=1`
+  sentinel at top of file so arc-loop-state.sh:80 canary becomes semantically
+  honest (WARN only fires when common.sh is genuinely missing).
+- `rune-arc-init-state.sh` — source `arc-stop-hook-common.sh` before
+  `arc-loop-state.sh` per documented dependency order. Cheap — common.sh
+  lazily resolves deeper deps via `_arc_require_stop_hook_common` and does
+  not require stop-hook-common.sh at source-time.
+- `resolve-session-identity.sh` — add `HOOK_SESSION_ID` to priority chain
+  (`CLAUDE_SESSION_ID > HOOK_SESSION_ID > RUNE_SESSION_ID`) in both the
+  resolution body (L122-133) and the trace-source classification (L154-160).
+  Callers that have already extracted `.session_id` from INPUT must export
+  `HOOK_SESSION_ID` before sourcing for this to take effect — matches the
+  3-tier pattern already used in arc-phase-stop-hook.sh and rune-arc-init-state.sh.
+
+**Not fixed (out of scope):** stale `RUNE_SESSION_ID` contamination via
+concurrent sessions sharing `CLAUDE_ENV_FILE` — requires per-session env
+bridging refactor; BACK-IDN-005/006 three-tier priority already mitigates the
+downstream ownership-check impact for callers that have HOOK_SESSION_ID or
+CLAUDE_SESSION_ID available.
+
 ## [2.65.5] — 2026-04-24
 
 ### Fixed — Session identity stamping in arc state files (BACK-IDN-005 / BACK-IDN-006)
