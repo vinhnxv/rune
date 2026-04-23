@@ -888,6 +888,9 @@ fi
 _log_path="${CWD}/tmp/.rune-stop-cleanup-${PPID}.log"
 [[ ! -L "$_log_path" ]] && echo "[$(date '+%Y-%m-%d %H:%M:%S')] $summary" >> "$_log_path" 2>/dev/null
 
-# Stop hook: exit 2 = show stderr to model and continue conversation
-printf '%s\n' "$summary" >&2
-exit 2
+# CC-STOP-API-OSC-001 (v2.65.3): schema-compliant Stop hook continuation.
+# Prior versions used `stderr + exit 2` which broke on Claude Code 2.1.116+
+# (stderr no longer re-injected; exit 2 discards stdout per spec).
+# Re-injects $summary as Claude's next-turn context so the cleanup report is
+# visible to the model (and user) alongside any workflow continuation.
+arc_stop_continue "$summary"

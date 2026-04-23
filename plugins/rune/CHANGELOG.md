@@ -37,8 +37,17 @@ Both helpers rely on jq (already guarded at hook entry by
 `arc_guard_jq_required`), which handles all JSON escaping natively via
 `jq -Rs '{decision:"block", reason:.}'`.
 
-#### Sites converted (20 total across 4 files)
+#### Sites converted (27 total across 7 files)
 
+The initial commit covered 23 sites across the 4 arc Stop hooks. Review
+(see `tmp/reviews/8f932861-53edc6ab/TOME.md`) surfaced 4 additional
+broken sibling emissions; all are now fixed in this patch.
+
+- `lib/arc-stop-hook-common.sh` (1 site): `arc_compact_interlude_phase_a`
+  — the compact-interlude acknowledgement prompt shared by all three
+  outer arc Stop hook drivers (batch, hierarchy, issues). Without this
+  fix, plan-to-plan transitions in multi-plan runs would still stall on
+  2.1.116+ even though the initial commit had fixed arc-phase.
 - `arc-phase-stop-hook.sh` (9 sites): terminal phase dispatch, stuck-loop
   detection (→ halt), arc-complete post-arc steps, compact checkpoint,
   context-exhaustion resume (2 variants), test batch re-inject,
@@ -49,6 +58,13 @@ Both helpers rely on jq (already guarded at hook entry by
   pause, deadlock, hierarchy complete, child arc dispatch.
 - `arc-issues-stop-hook.sh` (4 sites): abort, graceful stop, issue-batch
   summary, main arc dispatch.
+- `on-session-stop.sh` (1 site): STOP-001 cleanup summary emission.
+  Prior pattern silently discarded kill/cleanup reports on 2.1.116+.
+- `detect-stale-lead.sh` (2 sites): STALE-LEAD-001 team-lead wake
+  mechanism (both `COMPLETE` and `CRASHED` wake modes). Without this
+  fix, the hook was dead code on 2.1.116+ — teams whose teammates
+  completed but whose lead was idle would hang indefinitely with no
+  user-visible trigger.
 
 Also refactored:
 
@@ -57,6 +73,14 @@ Also refactored:
   caller to pass the captured prompt to `arc_stop_continue`.
 - Test finalization heredoc (retry branch) — captured into
   `_FINALIZE_PROMPT` variable, then emitted via `arc_stop_continue`.
+- File-header docstrings in all four arc Stop hook files rewritten to
+  describe the v2.65.3 contract (drop the legacy "Exit 2 with stderr
+  prompt" description).
+- Helper observability hardening: `arc_stop_continue` and
+  `arc_stop_halt` now emit `_trace` breadcrumbs on empty-prompt short-
+  circuit and on jq-emission fallback paths. jq fallback now emits a
+  valid non-empty payload instead of bare `{}`, preventing silent
+  session stalls on pathological jq failures.
 - `plugins/rune/CLAUDE.md` "Stop hook output format" section (PAT-011)
   rewritten to document the new contract. PAT-011 stderr re-injection
   is marked deprecated with forensic trail.

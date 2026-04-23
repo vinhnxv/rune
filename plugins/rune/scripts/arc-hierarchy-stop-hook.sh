@@ -17,8 +17,11 @@
 #
 # Hook event: Stop
 # Timeout: 15s
-# Exit 0 with no output: No active hierarchy — allow stop
-# Exit 2 with stderr prompt: Re-inject next child arc prompt
+# Exit 0 with no JSON: No active hierarchy — allow stop
+# Exit 0 with schema-compliant Stop hook JSON on stdout: re-inject next child
+#   arc prompt via arc_stop_continue ({decision:"block", reason}) to continue
+#   conversation. See lib/arc-stop-hook-common.sh Block K (CC-STOP-API-OSC-001,
+#   v2.65.3).
 
 set -euo pipefail
 trap 'exit 0' ERR  # immediate fail-forward guard — upgraded by arc_setup_err_trap below

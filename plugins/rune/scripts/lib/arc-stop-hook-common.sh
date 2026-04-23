@@ -18,7 +18,7 @@
 #   arc_init_trace_log               — RUNE_TRACE_LOG with TMPDIR validation (SEC-004)
 #   arc_guard_jq_required            — exit 0 if jq missing
 #   arc_guard_inner_loop_active      — wait for arc-phase-loop lock (outer hooks only)
-#   arc_compact_interlude_phase_a    — set compact_pending flag + exit 2
+#   arc_compact_interlude_phase_a    — set compact_pending flag + arc_stop_continue
 #   arc_compact_interlude_phase_b    — detect + reset compact_pending with F-02 stale recovery
 #   arc_get_hook_session_id          — validated session ID from INPUT
 #   arc_delete_state_file            — 3-tier deletion guard
@@ -217,14 +217,23 @@ arc_guard_inner_loop_active() {
 #   1. Guard: state file must be non-empty (BUG-3 protection)
 #   2. Write compact_pending=true atomically (insert if missing, update if present)
 #   3. Verify write succeeded (F-05 protection)
-#   4. Print COMPACT_PROMPT_TEXT to stderr and exit 2 (continue conversation)
+#   4. Emit COMPACT_PROMPT_TEXT as schema-compliant Stop hook JSON via
+#      arc_stop_continue (exit 0 + {decision:"block", reason}) — continue
+#      conversation so the model responds "Ready for next phase" before the
+#      auto-compaction trigger fires.
 #
 # Sets:  COMPACT_PENDING=true on successful write (in-memory update)
-# Exits: 0 on any failure (fail-open), 2 on success (re-inject prompt)
+# Exits: 0 on any failure (fail-open). On success, arc_stop_continue exits 0
+#        after emitting JSON.
+#
+# CC-STOP-API-OSC-001 (v2.65.3): prior implementation emitted `stderr + exit 2`
+# (PAT-011). Per the official Claude Code hook spec, exit 2 discards stdout
+# JSON; on Claude Code 2.1.116+ stderr is also no longer re-injected. Routes
+# through arc_stop_continue to match the rest of the arc Stop hook contract.
 #
 # Args:
 #   $1 = STATE_FILE          — absolute path to YAML state file
-#   $2 = COMPACT_PROMPT_TEXT — text to emit to stderr for the checkpoint turn
+#   $2 = COMPACT_PROMPT_TEXT — text to re-inject as Claude's next-turn context
 arc_compact_interlude_phase_a() {
   local state_file="$1"
   local compact_prompt="$2"
@@ -266,9 +275,10 @@ arc_compact_interlude_phase_a() {
 
   COMPACT_PENDING="true"
 
-  # Stop hook: exit 2 = show stderr to model and continue conversation
-  printf '%s\n' "$compact_prompt" >&2
-  exit 2
+  # CC-STOP-API-OSC-001 (v2.65.3): schema-compliant Stop hook continuation
+  # (exit 0 + JSON on stdout). arc_stop_continue is defined later in Block K;
+  # callers that source this library also get arc_stop_continue in scope.
+  arc_stop_continue "$compact_prompt"
 }
 
 # ── arc_compact_interlude_phase_b STATE_FILE ──
@@ -627,15 +637,27 @@ arc_guard_context_critical_with_stale_bridge() {
 # PROMPT is treated as raw text — jq handles all JSON escaping via -Rs.
 arc_stop_continue() {
   local _prompt="${1:-}"
-  # Empty prompt: nothing to re-inject — end the turn cleanly.
+  # Empty prompt: nothing to re-inject — end the turn cleanly, leave a
+  # trace breadcrumb so a silent stall is diagnosable (BACK-003 fix).
   if [[ -z "$_prompt" ]]; then
+    if declare -f _trace &>/dev/null; then
+      _trace "arc_stop_continue: empty prompt — no re-injection, exiting 0"
+    fi
     exit 0
   fi
-  printf '%s' "$_prompt" | jq -Rs '{decision: "block", reason: .}' 2>/dev/null || {
+  if ! printf '%s' "$_prompt" | jq -Rs '{decision: "block", reason: .}' 2>/dev/null; then
     # Defensive fallback if jq fails mid-emit (corrupt locale, oom, etc.).
-    # The empty-object payload is valid JSON; Claude Code treats it as no-op.
-    printf '%s\n' '{}'
-  }
+    # VEIL-005 fix: log the failure so operators can diagnose silent stalls.
+    # Emit a valid non-empty JSON payload that still re-injects SOMETHING
+    # rather than an empty `{}` which has undefined continuation semantics.
+    if declare -f _trace &>/dev/null; then
+      _trace "arc_stop_continue: jq emission failed — emitting fallback payload"
+    fi
+    # Pure-shell JSON escape: backslash first, then double-quote. We cannot
+    # escape all control chars portably without jq, so the fallback message
+    # is static (no $_prompt interpolation) — this keeps it bulletproof.
+    printf '%s\n' '{"decision":"block","reason":"Arc pipeline: Stop hook jq emission failed. Check trace log; proceeding to next turn."}'
+  fi
   exit 0
 }
 
@@ -647,8 +669,11 @@ arc_stop_halt() {
   if [[ -z "$_reason" ]]; then
     _reason="Arc pipeline paused."
   fi
-  printf '%s' "$_reason" | jq -Rs '{continue: false, stopReason: .}' 2>/dev/null || {
-    printf '%s\n' '{"continue":false}'
-  }
+  if ! printf '%s' "$_reason" | jq -Rs '{continue: false, stopReason: .}' 2>/dev/null; then
+    if declare -f _trace &>/dev/null; then
+      _trace "arc_stop_halt: jq emission failed — emitting fallback halt"
+    fi
+    printf '%s\n' '{"continue":false,"stopReason":"Arc pipeline paused (jq emission failed — check trace log)."}'
+  fi
   exit 0
 }

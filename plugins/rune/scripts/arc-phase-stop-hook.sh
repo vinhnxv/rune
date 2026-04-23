@@ -17,8 +17,12 @@
 # State file: ${RUNE_STATE}/arc-phase-loop.local.md (YAML frontmatter)
 # Hook event: Stop
 # Timeout: 15s
-# Exit 0: No active phase loop — allow stop (batch hook may fire). stdout/stderr discarded.
-# Exit 2 with stderr prompt: Re-inject next phase prompt and continue conversation.
+# Exit 0 with no JSON: No active phase loop — allow stop (batch hook may fire).
+# Exit 0 with schema-compliant Stop hook JSON on stdout: re-inject next phase
+#   prompt via arc_stop_continue ({decision:"block", reason}) to continue
+#   conversation, or halt the session via arc_stop_halt ({continue:false,
+#   stopReason}) for intentional pauses (--step-groups, stuck-loop detection).
+#   See lib/arc-stop-hook-common.sh Block K (CC-STOP-API-OSC-001, v2.65.3).
 
 set -euo pipefail
 trap 'exit 0' ERR  # immediate fail-forward guard — upgraded by arc_setup_err_trap below
