@@ -36,7 +36,13 @@ source "${SCRIPT_DIR}/lib/arc-stop-hook-common.sh"
 # Block A (verbose): _rune_fail_forward with always-on trace log + stderr output
 # Used by arc-phase (inner loop) where silent failures are especially dangerous.
 arc_setup_err_trap verbose
-trap '_rc=$?; [[ -n "${_STATE_TMP:-}" ]] && rm -f "${_STATE_TMP}" 2>/dev/null; [[ $_rc -ne 0 && $_rc -ne 2 ]] && _trace "EXIT trap: converting exit code ${_rc} to 0" 2>/dev/null; [[ $_rc -eq 2 ]] && exit 2 || exit 0' EXIT
+# CC-STOP-API-OSC-001 (v2.65.3): post-refactor, no code path in this hook
+# emits exit 2 — all emissions go through arc_stop_continue / arc_stop_halt
+# which exit 0. The EXIT trap therefore converts any non-zero exit (crash,
+# ERR trap) to exit 0 unconditionally. Stop hooks that exit 2 would have
+# their stdout JSON discarded per the Claude Code spec, so preserving exit 2
+# from a crash path would actively defeat the fix.
+trap '_rc=$?; [[ -n "${_STATE_TMP:-}" ]] && rm -f "${_STATE_TMP}" 2>/dev/null; [[ $_rc -ne 0 ]] && _trace "EXIT trap: converting exit code ${_rc} to 0" 2>/dev/null; exit 0' EXIT
 umask 077
 
 # Block B: trace log init (SEC-004 TMPDIR validation + TOME-011 -${PPID} suffix)

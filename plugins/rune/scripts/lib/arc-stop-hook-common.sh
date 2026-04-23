@@ -631,6 +631,43 @@ arc_guard_context_critical_with_stale_bridge() {
 # Stop hook (arc-phase:43, arc-batch:41, arc-hierarchy:41, arc-issues:41).
 # If jq is missing, the hook exits 0 before reaching these helpers, so we can
 # rely on jq being available here.
+#
+# Runtime canary (VEIL-004): every emission appends a one-line JSONL
+# breadcrumb to ${TMPDIR:-/tmp}/rune-stop-hook-events-${UID}.jsonl via
+# _arc_stop_hook_breadcrumb. Operators can inspect emission history after
+# an arc run using scripts/diagnostics/stop-hook-health.sh to verify the
+# re-injection contract is firing on the running Claude Code version.
+# 5MB rotation by truncation (matches stop-failure-common.sh pattern).
+
+# ── _arc_stop_hook_breadcrumb KIND REASON_LEN ──
+# Append a telemetry breadcrumb to ${TMPDIR}/rune-stop-hook-events-${UID}.jsonl.
+# Silent-fail on any error (OPERATIONAL helper — must never break emission).
+# Args:
+#   $1 = KIND        — "continue" | "halt" | "continue-fallback" | "halt-fallback" | "empty"
+#   $2 = REASON_LEN  — integer byte length of reason/stopReason payload (0 for empty)
+_arc_stop_hook_breadcrumb() {
+  local _kind="${1:-unknown}"
+  local _len="${2:-0}"
+  local _tmp="${TMPDIR:-/tmp}"
+  local _uid="${UID:-$(id -u 2>/dev/null || echo 0)}"
+  local _log="${_tmp}/rune-stop-hook-events-${_uid}.jsonl"
+  local _source="${BASH_SOURCE[2]##*/}"  # caller's caller (the Stop hook script)
+  [[ -z "$_source" ]] && _source="unknown"
+  local _ts
+  _ts=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "unknown")
+  # Rotate if >5MB (reject symlinks to prevent log-path hijacking)
+  if [[ -f "$_log" && ! -L "$_log" ]]; then
+    local _sz
+    _sz=$(wc -c <"$_log" 2>/dev/null | tr -d ' ')
+    if [[ "${_sz:-0}" -gt 5242880 ]]; then
+      : > "$_log" 2>/dev/null || true
+    fi
+  fi
+  # Single-line JSON; skip jq since we control all field values.
+  printf '{"ts":"%s","source":"%s","ppid":%d,"kind":"%s","len":%d}\n' \
+    "$_ts" "$_source" "${PPID:-0}" "$_kind" "$_len" \
+    >> "$_log" 2>/dev/null || true
+}
 
 # ── arc_stop_continue PROMPT ──
 # Emit a Stop hook continuation payload on stdout and exit 0.
@@ -643,6 +680,7 @@ arc_stop_continue() {
     if declare -f _trace &>/dev/null; then
       _trace "arc_stop_continue: empty prompt — no re-injection, exiting 0"
     fi
+    _arc_stop_hook_breadcrumb "empty" 0
     exit 0
   fi
   if ! printf '%s' "$_prompt" | jq -Rs '{decision: "block", reason: .}' 2>/dev/null; then
@@ -657,6 +695,9 @@ arc_stop_continue() {
     # escape all control chars portably without jq, so the fallback message
     # is static (no $_prompt interpolation) — this keeps it bulletproof.
     printf '%s\n' '{"decision":"block","reason":"Arc pipeline: Stop hook jq emission failed. Check trace log; proceeding to next turn."}'
+    _arc_stop_hook_breadcrumb "continue-fallback" "${#_prompt}"
+  else
+    _arc_stop_hook_breadcrumb "continue" "${#_prompt}"
   fi
   exit 0
 }
@@ -674,6 +715,9 @@ arc_stop_halt() {
       _trace "arc_stop_halt: jq emission failed — emitting fallback halt"
     fi
     printf '%s\n' '{"continue":false,"stopReason":"Arc pipeline paused (jq emission failed — check trace log)."}'
+    _arc_stop_hook_breadcrumb "halt-fallback" "${#_reason}"
+  else
+    _arc_stop_hook_breadcrumb "halt" "${#_reason}"
   fi
   exit 0
 }

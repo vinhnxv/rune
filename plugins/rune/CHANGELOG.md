@@ -73,17 +73,32 @@ Also refactored:
   caller to pass the captured prompt to `arc_stop_continue`.
 - Test finalization heredoc (retry branch) — captured into
   `_FINALIZE_PROMPT` variable, then emitted via `arc_stop_continue`.
-- File-header docstrings in all four arc Stop hook files rewritten to
-  describe the v2.65.3 contract (drop the legacy "Exit 2 with stderr
-  prompt" description).
+- File-header docstrings in all six Stop hook files (4 arc drivers +
+  `on-session-stop.sh` + `detect-stale-lead.sh`) rewritten to describe
+  the v2.65.3 contract and drop the legacy "Exit 2 with stderr prompt"
+  description (VEIL-007 remediated).
+- `arc-phase-stop-hook.sh:35` EXIT trap simplified to unconditional
+  `exit 0`; post-refactor no code path emits `exit 2`, so preserving
+  `exit 2` from a crash path would actively defeat the fix
+  (BACK-004 / VEIL-008 remediated).
 - Helper observability hardening: `arc_stop_continue` and
   `arc_stop_halt` now emit `_trace` breadcrumbs on empty-prompt short-
   circuit and on jq-emission fallback paths. jq fallback now emits a
   valid non-empty payload instead of bare `{}`, preventing silent
   session stalls on pathological jq failures.
+- **Runtime canary (VEIL-004)**: every emission writes a JSONL
+  breadcrumb to `${TMPDIR}/rune-stop-hook-events-${UID}.jsonl`
+  (5MB rotation). New diagnostic script
+  `scripts/observability/stop-hook-health.sh` reports rolling summary
+  and `--contract-check` verdict. If arc is active but the breadcrumb
+  log is empty, the Claude Code `{decision:"block", reason}` contract
+  may have regressed.
 - `plugins/rune/CLAUDE.md` "Stop hook output format" section (PAT-011)
-  rewritten to document the new contract. PAT-011 stderr re-injection
-  is marked deprecated with forensic trail.
+  rewritten to document the new contract and the runtime canary usage.
+  PAT-011 stderr re-injection is marked deprecated with forensic trail.
+- User-scope memory (`MEMORY.md`) Release Tracker updated with a
+  v2.1.116+ entry covering the Stop hook regression and the full
+  v2.65.0 → v2.65.3 adoption trail (VEIL-006 remediated).
 
 #### Compatibility
 

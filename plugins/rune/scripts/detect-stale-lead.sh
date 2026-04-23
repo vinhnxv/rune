@@ -18,6 +18,14 @@
 # Timeout: 10s (filesystem-only operations, no process escalation)
 # Position 5 in Stop array: after arc loops, before detect-workflow-complete.sh
 #
+# Exit 0 with no JSON: No wake needed (fast-path exit).
+# Exit 0 with schema-compliant Stop hook JSON on stdout: wake the team lead
+#   by re-injecting the wake message via {decision:"block", reason}. Prior
+#   versions used `stderr + exit 2` which broke on Claude Code 2.1.116+
+#   (CC-STOP-API-OSC-001, v2.65.3). jq emission is inlined (not via the
+#   arc_stop_continue helper) to keep this hook's dependency surface
+#   minimal — this script does NOT source lib/arc-stop-hook-common.sh.
+#
 # STALE-LEAD-001
 
 set -euo pipefail

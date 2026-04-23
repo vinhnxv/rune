@@ -14,13 +14,18 @@
 #   1. Fail-open — if anything goes wrong, allow the stop (exit 0)
 #   2. Loop prevention — check stop_hook_active field to avoid re-entry
 #   3. rune-*/arc-* prefix filter (never touch foreign plugin state)
-#   4. Auto-clean, then report — exit 2 + stderr so Claude sees the cleanup summary
-#   5. Report what was cleaned via stderr (visible to model)
+#   4. Auto-clean, then report — schema-compliant Stop hook JSON on stdout
+#      (CC-STOP-API-OSC-001, v2.65.3) so Claude sees the cleanup summary
+#   5. Re-injection via arc_stop_continue (sourced from
+#      lib/arc-stop-hook-common.sh Block K)
 #
 # Hook event: Stop
 # Timeout: 5s
-# Exit 0 with no output: Allow stop (nothing to clean)
-# Exit 2 with stderr summary: Report what was cleaned (shown to model, continues conversation)
+# Exit 0 with no JSON: Allow stop (nothing to clean)
+# Exit 0 with schema-compliant Stop hook JSON on stdout: re-inject cleanup
+#   summary via arc_stop_continue ({decision:"block", reason}). Prior versions
+#   used `stderr + exit 2` which broke on Claude Code 2.1.116+ (stderr no
+#   longer re-injected; exit 2 discards stdout per spec).
 #
 # QUAL-005: Inline fix markers use format: [AREA]-[NNN] (e.g., SEC-005, BACK-012).
 #   These are audit trail comments referencing the finding that motivated the change.

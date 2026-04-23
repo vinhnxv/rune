@@ -392,6 +392,18 @@ Valid Stop hook top-level fields: `continue`, `suppressOutput`, `stopReason`, `d
 
 **Historical note**: PAT-011 (pre-2.1.116) relied on `stderr + exit 2` being re-injected as Claude's next prompt. Claude Code 2.1.116+ stopped re-injecting stderr; combined with the spec-contract that `exit 2` discards stdout, no legacy pattern continues to work. The v2.65.1 `hookSpecificOutput.additionalContext` fix was invalid (that field is PreToolUse-only); the v2.65.2 dual-protocol fix kept `exit 2` which invalidated its own stdout JSON. See issue #512 for the full forensic trail.
 
+**Runtime canary** (VEIL-004, v2.65.3): every `arc_stop_continue`/`arc_stop_halt` emission writes a breadcrumb to `${TMPDIR}/rune-stop-hook-events-${UID}.jsonl` (5MB rotation). Use `scripts/observability/stop-hook-health.sh` to verify the contract is firing on the running Claude Code version:
+
+```bash
+# Rolling 60-min summary (emission count per source + kind)
+bash plugins/rune/scripts/observability/stop-hook-health.sh
+
+# Contract check: FAIL if arc is active but no emissions in window
+bash plugins/rune/scripts/observability/stop-hook-health.sh --contract-check
+```
+
+After an arc run, the breadcrumb count should roughly match the arc phase count. Zero breadcrumbs during an active arc indicates either a stale plugin binary or a Claude Code regression in the `{decision:"block", reason}` re-injection contract.
+
 ### Hook Crash Classification (ADR: Fail-Forward)
 
 Based on rlm-claude-code ADR-002 "Fail-Forward Behavior". Hooks should guide, not gate.
