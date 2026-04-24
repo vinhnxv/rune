@@ -22,15 +22,16 @@ v2.66.0 landing.
   `kind=crash-converted` breadcrumb with the original exit code to
   `${TMPDIR}/rune-stop-hook-events-${UID}.jsonl`.
 
-- **FIX C — mv-failure retry emissions** (lines 1886, 1974, 2090 and their
-  verification-failure siblings, PLUS the supplemental Phase B sites at
-  2056/2059 caught in the second-pass audit). State-file write failures
-  (`mktemp`/`mv`/`sed`) previously exited 0 with no stdout JSON, so the
-  arc silently stranded when no external event would trigger the next Stop
-  fire. All 7 such paths now call `arc_stop_continue` with a short retry
-  prompt. The state file is still preserved; the next turn retries with
-  fresh filesystem state. Phase A (set compact_pending), Phase B (reset
-  compact_pending), and iteration-increment blocks are all now retry-safe.
+- **FIX C — mv-failure retry emissions** (lines 1925-1933 stale
+  compact_pending reset, 2010-2032 compact Phase A mktemp/mv/verify,
+  2055-2060 compact Phase B mktemp/sed/mv, 2140-2149 iteration increment
+  mktemp/mv/verify). State-file write failures (`mktemp`/`mv`/`sed`)
+  previously exited 0 with no stdout JSON, so the arc silently stranded
+  when no external event would trigger the next Stop fire. All affected
+  paths now call `arc_stop_continue` with a short retry prompt. The state
+  file is still preserved; the next turn retries with fresh filesystem
+  state. Phase A (set compact_pending), Phase B (reset compact_pending),
+  and iteration-increment blocks are all now retry-safe.
 
 - **FIX ZC — Zombie-cleanup non-exiting guards** (lines 2172-2198,
   second-pass audit). Previously, four CHOME-validation failures in the
@@ -53,7 +54,7 @@ v2.66.0 landing.
   `kind=jq-fail` breadcrumbs and preserve CKPT_CONTENT. Same pattern
   applied to the in-progress-guard auto-skip and retry paths (FIX F).
 
-- **FIX B — Layer 1 team-liveness wait DELETED** (lines 1289-1296).
+- **FIX B — Layer 1 team-liveness wait DELETED** (lines 1336-1354).
   Per user directive, zombie teammates are blockers and the pipeline
   must always advance. The previous `kill -0 + exit 0 if alive` path
   stalled arcs indefinitely whenever a teammate PID remained in the
@@ -122,10 +123,21 @@ v2.66.0 landing.
   indefinitely. Not modified this round; the T2 fix at
   arc-batch:462-467 explicitly documents why retry-emit is rejected
   there (risk of silent progress-state corruption).
-- Regression tests: `test-stop-hook-common.sh` 69/69, `test-stop-hook-
-  in-progress-guard.sh` 19/19, `test-stop-hook-persistence.sh` 12/12,
-  `test-stop-hook-fixes.sh` 14/14, `test-stop-hook-self-heal.sh` PASS,
-  `test-stop-hook-cross-session-safety.sh` PASS.
+- Regression tests: `test-stop-hook-common.sh` 69/69, `test-stop-hook-in-progress-guard.sh` 19/19, `test-stop-hook-persistence.sh` 12/12, `test-stop-hook-fixes.sh` 14/14 (located at `plugins/rune/tests/stop-hook/`, peer tests at `plugins/rune/scripts/tests/`), `test-stop-hook-self-heal.sh` PASS, `test-stop-hook-cross-session-safety.sh` PASS.
+
+### Verification
+
+Any reader can re-check the structural claims above with these commands:
+
+- Line growth: `wc -l plugins/rune/scripts/arc-phase-stop-hook.sh` (expects 2746); compare `git show main:plugins/rune/scripts/arc-phase-stop-hook.sh | wc -l` (expects 2683).
+- `exit 0` site audit: `grep -cE "^\s*exit 0\s*(#|$)" plugins/rune/scripts/arc-phase-stop-hook.sh` on HEAD vs `main`. Variance between "31" and `grep -c` outputs is expected — the original audit regex excluded a small number of comment-prefixed exits that this simpler regex includes.
+- FIX C retry sites: `grep -nE "arc_stop_continue \"Arc state write" plugins/rune/scripts/arc-phase-stop-hook.sh` should show 10 lines (1934, 1937, 2015, 2026, 2032, 2057, 2060, 2143, 2146, 2149).
+- FIX ZC bail sites: `grep -cE '_ZOMBIE_BAIL="true"' plugins/rune/scripts/arc-phase-stop-hook.sh` should print 4.
+- FIX F breadcrumbs: `grep -nE "_arc_stop_hook_breadcrumb \"(jq-fail|jq-invalid|ckpt-write-fail|crash-converted)\"" plugins/rune/scripts/arc-phase-stop-hook.sh` should show 9 lines.
+
+### Upgrade notes
+
+- **Orphaned `stuck-counts.json` files**: v2.65.x users may have lingering `tmp/arc/*/stuck-counts.json` files from the previous P2-002 counter-file pattern (now removed by FIX F). These files are no longer read or written — safe to delete with `find tmp/arc -name stuck-counts.json -delete` or ignore (they will be cleaned by `/rune:rest` when their parent arc directory is pruned).
 
 ### Rollback
 

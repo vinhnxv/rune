@@ -48,7 +48,7 @@ arc_setup_err_trap verbose
 # from "hook crashed and got converted to exit 0" — both looked identical
 # to downstream tooling. kind="crash-converted" + the original exit code
 # gives enough signal for stop-hook-health.sh to flag crash loops.
-trap '_rc=$?; [[ -n "${_STATE_TMP:-}" ]] && rm -f "${_STATE_TMP}" 2>/dev/null; if [[ $_rc -ne 0 ]]; then _trace "EXIT trap: converting exit code ${_rc} to 0" 2>/dev/null; declare -f _arc_stop_hook_breadcrumb >/dev/null 2>&1 && _arc_stop_hook_breadcrumb "crash-converted" "$_rc" 2>/dev/null; fi; exit 0' EXIT
+trap '_rc=$?; [[ -n "${_STATE_TMP:-}" ]] && rm -f "${_STATE_TMP}" 2>/dev/null; if [[ $_rc -ne 0 ]]; then declare -f _trace >/dev/null 2>&1 && _trace "EXIT trap: converting exit code ${_rc} to 0" 2>/dev/null; declare -f _arc_stop_hook_breadcrumb >/dev/null 2>&1 && _arc_stop_hook_breadcrumb "crash-converted" "$_rc" 2>/dev/null; fi; exit 0' EXIT
 umask 077
 
 # Block B: trace log init (SEC-004 TMPDIR validation + TOME-011 -${PPID} suffix)
@@ -1294,14 +1294,18 @@ fi
 # code_review, mend, test, gap_analysis, forge, design_verification) had no
 # protection before this guard.
 #
-# 3-layer defense:
-#   Layer 1: Team liveness → if team dir exists + config.json has members +
-#            mtime within grace window (default 300s), exit 0 (wait).
+# 2-layer defense (v2.66.0 FIX B: Layer 1 wait deleted — retained as
+# diagnostic log only; Layer 3 is the sole gate):
+#   Layer 1 (diagnostic): Team liveness CHECK is retained for telemetry
+#            (phase_stuck_retry log with reason=team_alive_noop_wait) but
+#            the `exit 0 (wait)` branch was REMOVED. Flow falls through to
+#            Layer 3 unconditionally. See FIX B block at L1336-1354.
 #   Layer 2: Self-heal already ran above — if a valid artifact landed on disk,
 #            the phase is now `completed`, so no in_progress phase found here.
 #   Layer 3: stuck_count fallback — dead team AND no heal → increment counter;
 #            threshold (default 3 consecutive Stop fires) → auto-skip with
-#            reason `team_dead_no_artifact`.
+#            reason `team_dead_no_artifact`. This is now the SOLE gate for
+#            bounding in_progress phase lifetime.
 _IN_PROGRESS_GUARD_PHASE=""
 _phase_order_json=$(printf '%s\n' "${PHASE_ORDER[@]}" | jq -R -s 'split("\n") | map(select(length > 0))' 2>/dev/null)
 if [[ -n "$_phase_order_json" ]]; then
@@ -1363,7 +1367,7 @@ if [[ -n "$_IN_PROGRESS_GUARD_PHASE" ]]; then
 
   # FIX F (v2.66.0): Checkpoint is the ONLY source of truth for stuck_count.
   # The previous P2-002 pattern maintained a parallel external counter file
-  # (${arc_dir}/stuck-counts.json) as a failsafe for checkpoint jq errors,
+  # (now removed) as a failsafe for checkpoint jq errors,
   # but in practice the two drifted: checkpoint-only readers (e.g., doctor
   # tooling, self-heal audits) saw stale values, and the "take the higher"
   # merge logic was untestable. The new path writes the checkpoint atomically
@@ -1927,10 +1931,10 @@ if [[ "$COMPACT_PENDING" == "true" ]]; then
       # the arc — Claude's turn ended with no re-injection, nothing pumped.
       # Now the state file is preserved AND the pipeline is explicitly told to
       # retry on the next turn, so transient filesystem hiccups self-heal.
-      _STATE_TMP=$(mktemp "${STATE_FILE}.XXXXXX" 2>/dev/null) || { _trace "mktemp failed for compact_pending reset — preserving state, emitting retry"; arc_stop_continue "Arc state write transiently failed (mktemp). Retrying next turn — no action required."; }
+      _STATE_TMP=$(mktemp "${STATE_FILE}.XXXXXX" 2>/dev/null) || { _trace "mktemp failed for compact_pending reset — preserving state, emitting retry"; arc_stop_continue "Arc state write transiently failed (stale compact_pending reset — mktemp). Retrying next turn — no action required."; }
       sed 's/^compact_pending: true$/compact_pending: false/' "$STATE_FILE" > "$_STATE_TMP" 2>/dev/null \
         && mv -f "$_STATE_TMP" "$STATE_FILE" 2>/dev/null \
-        || { rm -f "$_STATE_TMP" 2>/dev/null; _trace "compact_pending sed/mv failed — preserving state, emitting retry"; arc_stop_continue "Arc state write transiently failed (sed/mv). Retrying next turn — no action required."; }
+        || { rm -f "$_STATE_TMP" 2>/dev/null; _trace "compact_pending sed/mv failed — preserving state, emitting retry"; arc_stop_continue "Arc state write transiently failed (stale compact_pending reset — sed/mv). Retrying next turn — no action required."; }
       COMPACT_PENDING="false"
     fi
   fi  # end else (stat succeeded)
