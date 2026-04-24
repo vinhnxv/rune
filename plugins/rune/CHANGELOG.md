@@ -1,5 +1,152 @@
 # Changelog
 
+## [2.66.0] — 2026-04-24
+
+### Fixed — 7 intermittent arc phase-loop stall classes (FIX A/B/C/D/F/G + ZC)
+
+User-reported symptom: `/rune:arc` pipeline cannot run end-to-end; phase loop
+stops sometime and requires manual "continue" to resume. Audit traced the
+intermittent stalls to 7 distinct silent-failure paths in
+`scripts/arc-phase-stop-hook.sh` (originally 31 non-comment `exit 0` paths;
+full classification post-fix: 25 remaining, all confirmed LEGITIMATE —
+corrupt state, arc complete, cross-session mismatch, or "state externally
+deleted; cannot recover"). A second-pass audit requested by the user
+("ensure arc pipeline can loop all phases e2e with non-stop") discovered
+two additional stall classes beyond the original 6 — fixed in the same
+v2.66.0 landing.
+
+- **FIX A — EXIT trap breadcrumb** (line 45). The EXIT trap converts any
+  non-zero exit to `exit 0` (necessary because `exit 2` would discard stdout
+  JSON per the Claude Code Stop hook spec). Previously silent crashes were
+  invisible to `stop-hook-health.sh`. Now every converted crash writes a
+  `kind=crash-converted` breadcrumb with the original exit code to
+  `${TMPDIR}/rune-stop-hook-events-${UID}.jsonl`.
+
+- **FIX C — mv-failure retry emissions** (lines 1925-1933 stale
+  compact_pending reset, 2010-2032 compact Phase A mktemp/mv/verify,
+  2055-2060 compact Phase B mktemp/sed/mv, 2140-2149 iteration increment
+  mktemp/mv/verify). State-file write failures (`mktemp`/`mv`/`sed`)
+  previously exited 0 with no stdout JSON, so the arc silently stranded
+  when no external event would trigger the next Stop fire. All affected
+  paths now call `arc_stop_continue` with a short retry prompt. The state
+  file is still preserved; the next turn retries with fresh filesystem
+  state. Phase A (set compact_pending), Phase B (reset compact_pending),
+  and iteration-increment blocks are all now retry-safe.
+
+- **FIX ZC — Zombie-cleanup non-exiting guards** (lines 2172-2198,
+  second-pass audit). Previously, four CHOME-validation failures in the
+  zombie-team-cleanup block (CHOME not absolute, canonicalization failed,
+  `$CHOME/teams` symlink, `$CHOME/tasks` symlink) called bare `exit 0` —
+  killing the entire hook AFTER the iteration counter had already been
+  incremented, leaving the state file in a valid-but-unpumpable state.
+  The correct behavior is to SKIP the zombie cleanup for this turn and
+  continue to phase-prompt emission. Each failure now sets
+  `_ZOMBIE_BAIL=true` and the subsequent cleanup passes (primary scan,
+  FALLBACK 1, FALLBACK 2) check the flag. Net effect: CHOME edge cases
+  no longer abort a live arc mid-phase.
+
+- **FIX G — jq parse validation** (lines 917-970 and 979-1034). The
+  checkpoint demotion and skip_map passes accepted non-empty jq output
+  without checking parse validity. A concurrent writer could produce a
+  truncated mid-write result that passed the non-empty check and then
+  corrupted the checkpoint. Both sites now add explicit `jq -e '.'`
+  validation before consumption; failures emit `kind=jq-invalid` or
+  `kind=jq-fail` breadcrumbs and preserve CKPT_CONTENT. Same pattern
+  applied to the in-progress-guard auto-skip and retry paths (FIX F).
+
+- **FIX B — Layer 1 team-liveness wait DELETED** (lines 1336-1354).
+  Per user directive, zombie teammates are blockers and the pipeline
+  must always advance. The previous `kill -0 + exit 0 if alive` path
+  stalled arcs indefinitely whenever a teammate PID remained in the
+  process table without producing output (common after Claude Code
+  compaction). The liveness CHECK is retained (so telemetry still logs
+  alive teammates), but the WAIT is gone — flow falls through to Layer 3
+  (stuck_count), which retries up to `stuck_threshold` times (default 3)
+  before auto-skip. Genuinely-slow teammates get enough Stop fires to
+  complete; truly-stuck phases never block the pipeline forever.
+
+- **FIX D — _FAST_PATH crash-loop bound** (lines 60-80). Previously any
+  crash `<60s` old triggered `_FAST_PATH=true` which skipped zombie
+  cleanup — so consecutive crashes re-entered fast path indefinitely.
+  Now crash lines in the signal file are counted; `>=3 crashes in 60s`
+  emits `arc_stop_halt` with a user-visible `stopReason` ("Arc Stop hook
+  crash-looping… inspect trace log, then /rune:arc --resume") instead
+  of silently fast-pathing into oblivion.
+
+- **FIX F — stuck_count single source of truth** (lines 1307-1440).
+  The previous P2-002 pattern maintained a parallel counter file
+  (`stuck-counts.json`) as a failsafe for checkpoint jq errors, but in
+  practice the two drifted — checkpoint-only readers saw stale values,
+  and the "take the higher" merge logic was untestable. FIX F removes
+  the counter file and makes the checkpoint authoritative. Every write
+  now validates with `jq -e '.'` before `mv` and emits
+  `kind=ckpt-write-fail` breadcrumbs on failure. Worst case: a single
+  turn's stuck_count increment doesn't persist → next turn retries with
+  fresh state. Much smaller failure domain than counter drift.
+
+### Not touched
+
+- **Category E** (self-heal scope gap) is already fixed in v2.62.0 —
+  `scripts/lib/arc-phase-self-heal.sh` covers QA phases (JSON verdict
+  validation) AND non-QA phases (existence check for `work`, `code_review`,
+  `mend`, `test`, `gap_analysis`, `forge`, `design_verification`). No
+  change needed.
+
+- **Outer-loop Stop hooks** (`arc-batch`, `arc-hierarchy`, `arc-issues`)
+  use the same shared library (`lib/arc-stop-hook-common.sh`) but have
+  their own state files. The FIX A breadcrumb automatically applies
+  because they source the same library. FIX C-style retry emissions for
+  outer loops are a separate refactor (not required for the reported
+  single-arc stall symptom).
+
+### Validation
+
+- `bash -n scripts/arc-phase-stop-hook.sh` passes (syntax-clean after
+  all 7 fixes).
+- File grew from 2683 → 2746 lines (+63 lines). Net removal of ~35
+  lines from FIX F counter-file removal; net addition from FIX
+  A/C/D/G/ZC breadcrumbs, skip-flag guards, and comment blocks.
+- Expected breadcrumb volume during arc runs: `kind=continue` roughly
+  matches phase count; `kind=crash-converted`/`jq-invalid`/`jq-fail`/
+  `ckpt-write-fail` should remain at 0 on healthy runs — any non-zero
+  count indicates a latent bug worth investigating via
+  `${TMPDIR}/rune-hook-trace-*.log`.
+- Second-pass exit-0 audit (requested by user for e2e non-stop
+  guarantee): classified all 31 original non-comment `exit 0` sites
+  across inner loop; 6 converted to retry-emit or skip-flag, remaining
+  25 confirmed LEGITIMATE (pre-source guards, cross-session safety,
+  corrupt-state termination, arc-complete paths, state-file-externally-
+  deleted recovery). Zero silent-stall paths remain in the inner loop.
+- Outer-loop Stop hooks (`arc-batch`, `arc-hierarchy`, `arc-issues`) use
+  different failure semantics on state-write errors — they intentionally
+  `rm -f "$STATE_FILE"` to fail-fast on corruption rather than retry
+  indefinitely. Not modified this round; the T2 fix at
+  arc-batch:462-467 explicitly documents why retry-emit is rejected
+  there (risk of silent progress-state corruption).
+- Regression tests: `test-stop-hook-common.sh` 69/69, `test-stop-hook-in-progress-guard.sh` 19/19, `test-stop-hook-persistence.sh` 12/12, `test-stop-hook-fixes.sh` 14/14 (located at `plugins/rune/tests/stop-hook/`, peer tests at `plugins/rune/scripts/tests/`), `test-stop-hook-self-heal.sh` PASS, `test-stop-hook-cross-session-safety.sh` PASS.
+
+### Verification
+
+Any reader can re-check the structural claims above with these commands:
+
+- Line growth: `wc -l plugins/rune/scripts/arc-phase-stop-hook.sh` (expects 2746); compare `git show main:plugins/rune/scripts/arc-phase-stop-hook.sh | wc -l` (expects 2683).
+- `exit 0` site audit: `grep -cE "^\s*exit 0\s*(#|$)" plugins/rune/scripts/arc-phase-stop-hook.sh` on HEAD vs `main`. Variance between "31" and `grep -c` outputs is expected — the original audit regex excluded a small number of comment-prefixed exits that this simpler regex includes.
+- FIX C retry sites: `grep -nE "arc_stop_continue \"Arc state write" plugins/rune/scripts/arc-phase-stop-hook.sh` should show 10 lines (1934, 1937, 2015, 2026, 2032, 2057, 2060, 2143, 2146, 2149).
+- FIX ZC bail sites: `grep -cE '_ZOMBIE_BAIL="true"' plugins/rune/scripts/arc-phase-stop-hook.sh` should print 4.
+- FIX F breadcrumbs: `grep -nE "_arc_stop_hook_breadcrumb \"(jq-fail|jq-invalid|ckpt-write-fail|crash-converted)\"" plugins/rune/scripts/arc-phase-stop-hook.sh` should show 9 lines.
+
+### Upgrade notes
+
+- **Orphaned `stuck-counts.json` files**: v2.65.x users may have lingering `tmp/arc/*/stuck-counts.json` files from the previous P2-002 counter-file pattern (now removed by FIX F). These files are no longer read or written — safe to delete with `find tmp/arc -name stuck-counts.json -delete` or ignore (they will be cleaned by `/rune:rest` when their parent arc directory is pruned).
+
+### Rollback
+
+If FIX B regression (workers losing output from premature stuck-skip) is
+observed, bump `talisman.yml` → `arc.stuck_threshold` from 3 to 5 or 6
+to give slow teammates more Stop fires. If that's insufficient, revert
+the single block at `arc-phase-stop-hook.sh:1336-1354` (FIX B) — the
+other fixes are independent and can stay.
+
 ## [2.65.6] — 2026-04-24
 
 ### Fixed — Session identity resolver priority + phantom lib-load WARN (BACK-IDN-007)
