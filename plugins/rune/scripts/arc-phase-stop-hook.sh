@@ -42,7 +42,13 @@ arc_setup_err_trap verbose
 # ERR trap) to exit 0 unconditionally. Stop hooks that exit 2 would have
 # their stdout JSON discarded per the Claude Code spec, so preserving exit 2
 # from a crash path would actively defeat the fix.
-trap '_rc=$?; [[ -n "${_STATE_TMP:-}" ]] && rm -f "${_STATE_TMP}" 2>/dev/null; [[ $_rc -ne 0 ]] && _trace "EXIT trap: converting exit code ${_rc} to 0" 2>/dev/null; exit 0' EXIT
+#
+# FIX A (v2.66.0): Silent crashes now leave a breadcrumb in the VEIL-004
+# JSONL log. Without this, operators cannot distinguish "hook ran cleanly"
+# from "hook crashed and got converted to exit 0" — both looked identical
+# to downstream tooling. kind="crash-converted" + the original exit code
+# gives enough signal for stop-hook-health.sh to flag crash loops.
+trap '_rc=$?; [[ -n "${_STATE_TMP:-}" ]] && rm -f "${_STATE_TMP}" 2>/dev/null; if [[ $_rc -ne 0 ]]; then _trace "EXIT trap: converting exit code ${_rc} to 0" 2>/dev/null; declare -f _arc_stop_hook_breadcrumb >/dev/null 2>&1 && _arc_stop_hook_breadcrumb "crash-converted" "$_rc" 2>/dev/null; fi; exit 0' EXIT
 umask 077
 
 # Block B: trace log init (SEC-004 TMPDIR validation + TOME-011 -${PPID} suffix)
@@ -58,11 +64,29 @@ _HOOK_START_EPOCH=$(date +%s)
 _FAST_PATH=false
 
 # ── CRASH RECOVERY: Detect if previous invocation was killed by timeout ──
-# Signal file written by _rune_fail_forward (ERR trap in arc-stop-hook-common.sh)
+# Signal file written by _rune_fail_forward (ERR trap in arc-stop-hook-common.sh).
+# Each crash appends one line; line count = crash frequency over the last 60s.
+#
+# FIX D (v2.66.0): Bound the fast path. Previously ANY crash <60s old
+# triggered _FAST_PATH=true, which skipped zombie cleanup — so consecutive
+# crashes re-entered fast path indefinitely and the arc never advanced.
+# Now we count crash lines: <3 = fast path OK, >=3 = halt with user-visible
+# message so someone can inspect the trace log and resume manually.
+_CRASH_LOOP_THRESHOLD=3
 _crash_signal="${TMPDIR:-/tmp}/rune-stop-hook-crash-${PPID}.txt"
 if [[ -f "$_crash_signal" && ! -L "$_crash_signal" ]]; then
   _crash_age=$(( $(date +%s) - $(_stat_mtime "$_crash_signal" 2>/dev/null || echo 0) ))
   if [[ "$_crash_age" -lt 60 ]]; then
+    _crash_lines=$(wc -l < "$_crash_signal" 2>/dev/null | tr -d ' ')
+    [[ "$_crash_lines" =~ ^[0-9]+$ ]] || _crash_lines=0
+    if (( _crash_lines >= _CRASH_LOOP_THRESHOLD )); then
+      # Crash loop detected — halt instead of silently fast-pathing forever.
+      # Clean up the signal so a manual /rune:arc --resume doesn't immediately
+      # re-trigger the halt (operator has seen the message and decided to retry).
+      rm -f "$_crash_signal" 2>/dev/null || true
+      _trace "CRASH LOOP DETECTED: ${_crash_lines} crashes in ${_crash_age}s — halting"
+      arc_stop_halt "Arc Stop hook crash-looping (${_crash_lines} crashes in ${_crash_age}s). Inspect ${TMPDIR:-/tmp}/rune-hook-trace-\${UID}-\${PPID}.log and ${TMPDIR:-/tmp}/rune-stop-hook-events-\${UID}.jsonl for the crash cause, then retry with: /rune:arc --resume"
+    fi
     _FAST_PATH=true
     # Fast path: skip zombie cleanup, skip timing telemetry — phase finding always runs
   fi
@@ -936,6 +960,17 @@ _demote_result=$(echo "$CKPT_CONTENT" | jq --arg ts "$_now" '
 if [[ -z "${_demote_result:-}" ]]; then
   _diag "WARNING: Failed to demote checkpoint: jq parse error"
   _trace "WARNING: Failed to demote checkpoint: jq parse error"
+  # FIX G (v2.66.0): Breadcrumb on jq failure so stop-hook-health.sh can flag
+  # repeated parse errors (indicates corrupted checkpoint or concurrent writer).
+  declare -f _arc_stop_hook_breadcrumb >/dev/null 2>&1 && _arc_stop_hook_breadcrumb "jq-fail" 0
+fi
+# FIX G (v2.66.0): Explicit validation — if jq returned non-empty but invalid
+# JSON (truncated mid-write by a concurrent hook), preserve CKPT_CONTENT instead
+# of writing garbage. jq -e exits non-zero on null/invalid; pipe to /dev/null.
+if [[ -n "${_demote_result:-}" ]] && ! printf '%s' "$_demote_result" | jq -e '.' >/dev/null 2>&1; then
+  _trace "WARNING: demotion jq produced invalid JSON — discarding result, preserving CKPT_CONTENT"
+  declare -f _arc_stop_hook_breadcrumb >/dev/null 2>&1 && _arc_stop_hook_breadcrumb "jq-invalid" "${#_demote_result}"
+  _demote_result=""
 fi
 
 _demoted_count=0
@@ -999,6 +1034,15 @@ _skip_result=$(echo "$CKPT_CONTENT" | jq --arg ts "$_now" '
   end
 ' 2>/dev/null)
 
+# FIX G (v2.66.0): Validate jq output BEFORE consumption. Truncated mid-write
+# JSON from a concurrent hook would previously pass the non-empty check and
+# then corrupt the checkpoint downstream. Explicit jq -e parse guards that.
+if [[ -n "${_skip_result:-}" ]] && ! printf '%s' "$_skip_result" | jq -e '.' >/dev/null 2>&1; then
+  _trace "WARNING: skip_map jq produced invalid JSON — discarding result, preserving CKPT_CONTENT"
+  declare -f _arc_stop_hook_breadcrumb >/dev/null 2>&1 && _arc_stop_hook_breadcrumb "jq-invalid" "${#_skip_result}"
+  _skip_result=""
+fi
+
 _auto_skipped=0
 if [[ -n "$_skip_result" ]]; then
   _auto_skipped=$(echo "$_skip_result" | jq -r '.skipped | length' 2>/dev/null || echo "0")
@@ -1031,6 +1075,9 @@ if [[ -n "$_skip_result" ]]; then
   fi
 else
   _trace "WARNING: skip_map jq parse returned empty — proceeding without auto-skip"
+  # FIX G (v2.66.0): Breadcrumb on empty/failed skip_map jq so operators can
+  # correlate silent auto-skip bypass with checkpoint corruption signals.
+  declare -f _arc_stop_hook_breadcrumb >/dev/null 2>&1 && _arc_stop_hook_breadcrumb "jq-fail" 0
 fi
 
 # ── ARC-QA-002: Artifact-mtime self-heal for in_progress phases ──
@@ -1286,14 +1333,24 @@ if [[ -n "$_IN_PROGRESS_GUARD_PHASE" ]]; then
     _IPG_TEAM=""
   fi
 
-  # Layer 1: team liveness — exit 0 if alive (wait for natural completion).
-  # Only runs when we actually know the team name from the checkpoint.
+  # FIX B (v2.66.0): Layer 1 liveness wait DISABLED — per design decision,
+  # zombie teammates are blockers; the pipeline must always advance. The
+  # previous `exit 0 if alive` path stalled arcs indefinitely whenever a
+  # teammate's PID remained in the process table without producing output
+  # (most common failure mode: orphaned teammate after Claude Code compaction).
+  #
+  # The liveness CHECK is retained (not the wait) so we still log when a team
+  # is alive at Stop time — that telemetry is valuable for understanding
+  # intermittent losses. Flow now falls through to Layer 3 (stuck_count),
+  # which retries the same phase up to stuck_threshold times (default 3)
+  # before auto-skipping. This gives genuinely-slow teammates enough Stop
+  # fires to complete, while bounding the worst-case stall.
   if [[ -n "$_IPG_TEAM" ]] \
      && declare -F _arc_team_has_live_members >/dev/null 2>&1 \
      && _arc_team_has_live_members "$_IPG_TEAM"; then
-    _trace "IN-PROGRESS GUARD: ${_IN_PROGRESS_GUARD_PHASE} team '${_IPG_TEAM}' alive — exit 0, wait for completion"
-    _log_phase "phase_wait" "$_IN_PROGRESS_GUARD_PHASE" "reason=team_alive" "team=${_IPG_TEAM}"
-    exit 0
+    _trace "IN-PROGRESS GUARD: ${_IN_PROGRESS_GUARD_PHASE} team '${_IPG_TEAM}' alive — liveness wait disabled, falling through to stuck_count"
+    _log_phase "phase_stuck_retry" "$_IN_PROGRESS_GUARD_PHASE" "reason=team_alive_noop_wait" "team=${_IPG_TEAM}"
+    # no `exit 0` — fall through intentionally
   fi
 
   # Layer 3: team dead + no artifact (Layer 2 self-heal already ran) → stuck logic
@@ -1304,55 +1361,21 @@ if [[ -n "$_IN_PROGRESS_GUARD_PHASE" ]]; then
   # first Stop. LLM-written values are untrusted input per Truthbinding.
   (( _IPG_STUCK_THRESHOLD < 2 )) && _IPG_STUCK_THRESHOLD=3
 
-  # P2-002 FIX: Track stuck_count in an external counter file so it still
-  # advances when the in-checkpoint jq update fails (e.g., checkpoint
-  # corruption). Previously a jq error would leave stuck_count at 0 on disk,
-  # so _IPG_NEW_STUCK reset to 1 every Stop fire and the threshold was never
-  # reached — unbounded retries until MAX_ITERATIONS. Same pattern as
-  # phase-dispatch-counts.json elsewhere in the codebase.
-  _IPG_COUNTER_DIR="${CWD}/tmp/arc/${_ARC_ID_FOR_LOG}"
-  _IPG_COUNTER_FILE="${_IPG_COUNTER_DIR}/stuck-counts.json"
-  mkdir -p "$_IPG_COUNTER_DIR" 2>/dev/null || true
-
-  _IPG_FILE_STUCK=0
-  if [[ -f "$_IPG_COUNTER_FILE" && ! -L "$_IPG_COUNTER_FILE" ]]; then
-    _IPG_FILE_STUCK=$(jq -r --arg p "$_IN_PROGRESS_GUARD_PHASE" \
-      '.[$p] // 0' "$_IPG_COUNTER_FILE" 2>/dev/null || echo "0")
-    [[ "$_IPG_FILE_STUCK" =~ ^[0-9]+$ ]] || _IPG_FILE_STUCK=0
-  fi
-
-  _IPG_CKPT_STUCK=$(echo "$CKPT_CONTENT" | jq -r --arg p "$_IN_PROGRESS_GUARD_PHASE" '.phases[$p].stuck_count // 0' 2>/dev/null || echo "0")
+  # FIX F (v2.66.0): Checkpoint is the ONLY source of truth for stuck_count.
+  # The previous P2-002 pattern maintained a parallel external counter file
+  # (${arc_dir}/stuck-counts.json) as a failsafe for checkpoint jq errors,
+  # but in practice the two drifted: checkpoint-only readers (e.g., doctor
+  # tooling, self-heal audits) saw stale values, and the "take the higher"
+  # merge logic was untestable. The new path writes the checkpoint atomically
+  # with jq -e validation; if the write fails, we breadcrumb and skip the
+  # increment for this turn (the next Stop fire will retry with fresh state).
+  # This is safer than drifting counters because the atomic-write failure
+  # domain is much smaller than the counter-drift failure domain.
+  _IPG_CKPT_STUCK=$(printf '%s' "$CKPT_CONTENT" | jq -r --arg p "$_IN_PROGRESS_GUARD_PHASE" '.phases[$p].stuck_count // 0' 2>/dev/null || echo "0")
   [[ "$_IPG_CKPT_STUCK" =~ ^[0-9]+$ ]] || _IPG_CKPT_STUCK=0
-
-  # Use the HIGHER of the two — external file is authoritative when checkpoint
-  # update previously failed; checkpoint is authoritative on a fresh phase.
-  if (( _IPG_FILE_STUCK > _IPG_CKPT_STUCK )); then
-    _IPG_CUR_STUCK=$_IPG_FILE_STUCK
-  else
-    _IPG_CUR_STUCK=$_IPG_CKPT_STUCK
-  fi
+  _IPG_CUR_STUCK=$_IPG_CKPT_STUCK
   _IPG_NEW_STUCK=$((_IPG_CUR_STUCK + 1))
   _IPG_NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "unknown")
-
-  # Persist to external counter file FIRST (atomic write), so the count
-  # survives even if the checkpoint jq update below fails.
-  _IPG_COUNTER_TMP=$(mktemp "${_IPG_COUNTER_FILE}.XXXXXX" 2>/dev/null || echo "")
-  if [[ -n "$_IPG_COUNTER_TMP" ]]; then
-    if [[ -f "$_IPG_COUNTER_FILE" && ! -L "$_IPG_COUNTER_FILE" ]]; then
-      _IPG_NEW_COUNTER=$(jq --arg p "$_IN_PROGRESS_GUARD_PHASE" --argjson n "$_IPG_NEW_STUCK" \
-        '. + {($p): $n}' "$_IPG_COUNTER_FILE" 2>/dev/null || true)
-    else
-      _IPG_NEW_COUNTER=$(jq -n --arg p "$_IN_PROGRESS_GUARD_PHASE" --argjson n "$_IPG_NEW_STUCK" \
-        '{($p): $n}' 2>/dev/null || true)
-    fi
-    if [[ -n "$_IPG_NEW_COUNTER" ]]; then
-      printf '%s\n' "$_IPG_NEW_COUNTER" > "$_IPG_COUNTER_TMP" 2>/dev/null \
-        && mv -f "$_IPG_COUNTER_TMP" "$_IPG_COUNTER_FILE" 2>/dev/null \
-        || rm -f "$_IPG_COUNTER_TMP" 2>/dev/null || true
-    else
-      rm -f "$_IPG_COUNTER_TMP" 2>/dev/null || true
-    fi
-  fi
 
   if (( _IPG_NEW_STUCK >= _IPG_STUCK_THRESHOLD )); then
     # Auto-skip with evidence
@@ -1370,6 +1393,15 @@ if [[ -n "$_IN_PROGRESS_GUARD_PHASE" ]]; then
       }]
     ' 2>/dev/null || true)
 
+    # FIX F/G (v2.66.0): Validate _IPG_NEW_CKPT parses before trusting it.
+    # A partial jq write (process signalled, OOM, broken pipe) can produce
+    # non-empty but invalid output. Without this guard, we'd overwrite a good
+    # checkpoint with garbage on disk.
+    if [[ -n "$_IPG_NEW_CKPT" ]] && ! printf '%s' "$_IPG_NEW_CKPT" | jq -e '.' >/dev/null 2>&1; then
+      _trace "IN-PROGRESS GUARD: auto-skip jq produced invalid JSON — discarding"
+      declare -f _arc_stop_hook_breadcrumb >/dev/null 2>&1 && _arc_stop_hook_breadcrumb "jq-invalid" "${#_IPG_NEW_CKPT}"
+      _IPG_NEW_CKPT=""
+    fi
     if [[ -n "$_IPG_NEW_CKPT" ]]; then
       CKPT_CONTENT="$_IPG_NEW_CKPT"
       # Atomic write to disk
@@ -1381,6 +1413,7 @@ if [[ -n "$_IN_PROGRESS_GUARD_PHASE" ]]; then
         else
           rm -f "$_IPG_TMP" 2>/dev/null || true
           _trace "IN-PROGRESS GUARD: WARNING — checkpoint atomic write failed, in-memory only"
+          declare -f _arc_stop_hook_breadcrumb >/dev/null 2>&1 && _arc_stop_hook_breadcrumb "ckpt-write-fail" 0
         fi
       fi
 
@@ -1403,6 +1436,12 @@ STUCKEOF
       .phases[$p].last_stuck_at = $ts
     ' 2>/dev/null || true)
 
+    # FIX F/G (v2.66.0): Validate before write — same guard as auto-skip path.
+    if [[ -n "$_IPG_NEW_CKPT" ]] && ! printf '%s' "$_IPG_NEW_CKPT" | jq -e '.' >/dev/null 2>&1; then
+      _trace "IN-PROGRESS GUARD: retry jq produced invalid JSON — discarding (stuck_count not persisted this turn)"
+      declare -f _arc_stop_hook_breadcrumb >/dev/null 2>&1 && _arc_stop_hook_breadcrumb "jq-invalid" "${#_IPG_NEW_CKPT}"
+      _IPG_NEW_CKPT=""
+    fi
     if [[ -n "$_IPG_NEW_CKPT" ]]; then
       CKPT_CONTENT="$_IPG_NEW_CKPT"
       _IPG_TMP=$(mktemp "${CWD}/${CHECKPOINT_PATH}.XXXXXX" 2>/dev/null || echo "")
@@ -1412,6 +1451,7 @@ STUCKEOF
           _trace "IN-PROGRESS GUARD: stuck_count persisted"
         else
           rm -f "$_IPG_TMP" 2>/dev/null || true
+          declare -f _arc_stop_hook_breadcrumb >/dev/null 2>&1 && _arc_stop_hook_breadcrumb "ckpt-write-fail" 0
         fi
       fi
     fi
@@ -1882,11 +1922,15 @@ if [[ "$COMPACT_PENDING" == "true" ]]; then
     _sf_age=$(( _sf_now - _sf_mtime ))
     if [[ "$_sf_age" -gt 300 ]]; then
       _trace "Stale compact_pending (${_sf_age}s > 300s) — resetting"
-      # FLAW-009 FIX: Preserve STATE_FILE on mktemp failure (match arc_compact_interlude_phase_b)
-      _STATE_TMP=$(mktemp "${STATE_FILE}.XXXXXX" 2>/dev/null) || { _trace "mktemp failed for compact_pending reset — preserving state"; exit 0; }
+      # FIX C (v2.66.0): On mv/mktemp failure, re-inject a retry prompt instead
+      # of bare exit 0. Previously a transient I/O failure here silently ended
+      # the arc — Claude's turn ended with no re-injection, nothing pumped.
+      # Now the state file is preserved AND the pipeline is explicitly told to
+      # retry on the next turn, so transient filesystem hiccups self-heal.
+      _STATE_TMP=$(mktemp "${STATE_FILE}.XXXXXX" 2>/dev/null) || { _trace "mktemp failed for compact_pending reset — preserving state, emitting retry"; arc_stop_continue "Arc state write transiently failed (mktemp). Retrying next turn — no action required."; }
       sed 's/^compact_pending: true$/compact_pending: false/' "$STATE_FILE" > "$_STATE_TMP" 2>/dev/null \
         && mv -f "$_STATE_TMP" "$STATE_FILE" 2>/dev/null \
-        || { rm -f "$_STATE_TMP" 2>/dev/null; _trace "compact_pending sed/mv failed — preserving state"; exit 0; }
+        || { rm -f "$_STATE_TMP" 2>/dev/null; _trace "compact_pending sed/mv failed — preserving state, emitting retry"; arc_stop_continue "Arc state write transiently failed (sed/mv). Retrying next turn — no action required."; }
       COMPACT_PENDING="false"
     fi
   fi  # end else (stat succeeded)
@@ -1963,7 +2007,12 @@ if [[ "$_needs_compact" == "true" ]] && [[ "$COMPACT_PENDING" != "true" ]] && [[
     _trace "State file empty before compact Phase A — aborting"
     exit 0
   fi
-  _STATE_TMP=$(mktemp "${STATE_FILE}.XXXXXX" 2>/dev/null) || { arc_delete_state_file "$STATE_FILE" 2>/dev/null || true; exit 0; }
+  # FIX C (v2.66.0): Transient I/O failures now emit retry prompts instead of
+  # bare exit 0. The previous pattern silently ended the arc on any mktemp/mv
+  # error — no re-injection, no user notification. Now each failure path
+  # preserves the state file AND re-injects a short retry message so the
+  # hook can re-enter with fresh filesystem state on the next turn.
+  _STATE_TMP=$(mktemp "${STATE_FILE}.XXXXXX" 2>/dev/null) || { arc_delete_state_file "$STATE_FILE" 2>/dev/null || true; arc_stop_continue "Arc state write transiently failed (compact Phase A mktemp). Retrying next turn — no action required."; }
   if grep -q '^compact_pending:' "$STATE_FILE" 2>/dev/null; then
     # AC-8: Use awk for safer YAML field replacement (handles trailing whitespace, missing newline)
     awk '/^compact_pending:/ { print "compact_pending: true"; next } { print }' "$STATE_FILE" > "$_STATE_TMP" 2>/dev/null
@@ -1971,14 +2020,16 @@ if [[ "$_needs_compact" == "true" ]] && [[ "$COMPACT_PENDING" != "true" ]] && [[
     awk 'BEGIN{found=0} /^---$/{if(found && !done){print "compact_pending: true"; done=1} found=1} {print}' "$STATE_FILE" > "$_STATE_TMP" 2>/dev/null
   fi
   if ! mv -f "$_STATE_TMP" "$STATE_FILE" 2>/dev/null; then
-    rm -f "$_STATE_TMP" 2>/dev/null; exit 0  # BACK-004: preserve STATE_FILE on transient mv failure
+    # BACK-004: preserve STATE_FILE on transient mv failure.
+    # FIX C: re-inject retry prompt so loop continues.
+    rm -f "$_STATE_TMP" 2>/dev/null
+    arc_stop_continue "Arc state write transiently failed (compact Phase A mv). Retrying next turn — no action required."
   fi
   if ! grep -q '^compact_pending: true' "$STATE_FILE" 2>/dev/null; then
     _trace "compact_pending write verification failed — preserving state file for retry"
     # RC-1 FIX: Do not delete STATE_FILE on transient verification failure.
-    # Matches lib/arc-stop-hook-common.sh:248-251 hardened pattern. Deleting
-    # the live state file permanently terminates the loop on transient I/O failure.
-    exit 0
+    # FIX C (v2.66.0): retry-emit instead of silent exit to keep loop pumping.
+    arc_stop_continue "Arc state write verification failed (compact Phase A). Retrying next turn — no action required."
   fi
   _trace "Compact interlude Phase A [${_compact_reason}] before: ${NEXT_PHASE}"
 
@@ -2001,11 +2052,12 @@ if [[ "$COMPACT_PENDING" == "true" ]]; then
     exit 0
   fi
   # RC-1 FIX: Do not delete STATE_FILE on transient mktemp/mv failure.
-  # Matches lib/arc-stop-hook-common.sh:325-328 hardened pattern.
-  _STATE_TMP=$(mktemp "${STATE_FILE}.XXXXXX" 2>/dev/null) || { _trace "Phase B mktemp failed — preserving state file for retry"; exit 0; }
+  # FIX C (v2.66.0): retry-emit instead of silent exit. Matches arc-phase-common
+  # shutdown pattern — bare exit 0 stranded arcs when mid-run I/O hiccupped.
+  _STATE_TMP=$(mktemp "${STATE_FILE}.XXXXXX" 2>/dev/null) || { _trace "Phase B mktemp failed — preserving state file for retry, emitting retry"; arc_stop_continue "Arc state write transiently failed (compact Phase B mktemp). Retrying next turn — no action required."; }
   sed 's/^compact_pending: true$/compact_pending: false/' "$STATE_FILE" > "$_STATE_TMP" 2>/dev/null \
     && mv -f "$_STATE_TMP" "$STATE_FILE" 2>/dev/null \
-    || { rm -f "$_STATE_TMP" 2>/dev/null; _trace "Phase B sed/mv failed — preserving state file for retry"; exit 0; }
+    || { rm -f "$_STATE_TMP" 2>/dev/null; _trace "Phase B sed/mv failed — preserving state file for retry, emitting retry"; arc_stop_continue "Arc state write transiently failed (compact Phase B sed/mv). Retrying next turn — no action required."; }
   _trace "Compact interlude Phase B: proceeding to ${NEXT_PHASE}"
   _JUST_COMPLETED_COMPACT="true"
 fi
@@ -2084,16 +2136,17 @@ if [[ ! -s "$STATE_FILE" ]]; then
 fi
 # BUG FIX (v2.39.2): On mv failure, preserve STATE_FILE instead of deleting it.
 # Previously, a transient mv failure (disk full, permissions) would delete the state
-# file, permanently killing the arc loop with no user notification. Now the state file
-# is preserved and the hook exits 0 — the next Stop hook invocation will retry with
-# the old iteration count (idempotent, since the phase hasn't changed).
-_STATE_TMP=$(mktemp "${STATE_FILE}.XXXXXX" 2>/dev/null) || { _trace "mktemp failed for iteration increment — preserving state file"; exit 0; }
+# file, permanently killing the arc loop with no user notification.
+# FIX C (v2.66.0): Now the state file is preserved AND we re-inject a retry
+# prompt via arc_stop_continue so the loop keeps pumping. Bare exit 0 left
+# the arc stranded when no external event would trigger the next Stop fire.
+_STATE_TMP=$(mktemp "${STATE_FILE}.XXXXXX" 2>/dev/null) || { _trace "mktemp failed for iteration increment — preserving state file, emitting retry"; arc_stop_continue "Arc state write transiently failed (iteration increment mktemp). Retrying next turn — no action required."; }
 sed "s/^iteration: ${ITERATION}$/iteration: ${NEW_ITERATION}/" "$STATE_FILE" > "$_STATE_TMP" 2>/dev/null \
   && mv -f "$_STATE_TMP" "$STATE_FILE" 2>/dev/null \
-  || { rm -f "$_STATE_TMP" 2>/dev/null; _trace "iteration increment mv failed — preserving state file, will retry"; exit 0; }
+  || { rm -f "$_STATE_TMP" 2>/dev/null; _trace "iteration increment mv failed — preserving state file, emitting retry"; arc_stop_continue "Arc state write transiently failed (iteration increment mv). Retrying next turn — no action required."; }
 if ! grep -q "^iteration: ${NEW_ITERATION}$" "$STATE_FILE" 2>/dev/null; then
-  _trace "iteration increment verification failed — preserving state file, will retry"
-  exit 0
+  _trace "iteration increment verification failed — preserving state file, emitting retry"
+  arc_stop_continue "Arc state write verification failed (iteration increment). Retrying next turn — no action required."
 fi
 
 # ── Zombie team verification: clean up prior phase's team if still present ──
@@ -2114,34 +2167,44 @@ else
 # FALLBACK: scan $CHOME/teams/ for dirs matching arc-*-{id} to catch such orphans.
 CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 
+# FIX (v2.66.0): Zombie cleanup guards previously used bare `exit 0` on CHOME
+# validation failures — silently stalling the arc mid-turn. The correct
+# behavior is to SKIP the zombie cleanup block and continue to phase prompt
+# building. _ZOMBIE_BAIL flag bails out of the cleanup without exiting.
+_ZOMBIE_BAIL="false"
+
 # XVER-001: Symlink-based path traversal prevention
 # Canonicalize CHOME to prevent symlink traversal attacks.
 # Reject symlinked intermediate roots before any rm -rf operations.
 if [[ -z "$CHOME" || "$CHOME" != /* ]]; then
-  _trace "EXIT: CHOME is not absolute — skipping zombie cleanup"
-  exit 0
+  _trace "Zombie cleanup: CHOME is not absolute — skipping cleanup, continuing to phase prompt"
+  _ZOMBIE_BAIL="true"
 fi
 
 # Canonicalize CHOME via pwd -P (resolves symlinks in path)
-CHOME_CANON=$(cd "$CHOME" 2>/dev/null && pwd -P) || {
-  _trace "EXIT: CHOME canonicalization failed — skipping zombie cleanup"
-  exit 0
-}
-
-TEAMS_CANON="$CHOME_CANON/teams"
-TASKS_CANON="$CHOME_CANON/tasks"
-
-# Reject symlinked intermediate roots (defense in depth)
-if [[ -L "$TEAMS_CANON" ]]; then
-  _trace "EXIT: \$CHOME/teams is a symlink — rejecting for security (XVER-001)"
-  exit 0
-fi
-if [[ -L "$TASKS_CANON" ]]; then
-  _trace "EXIT: \$CHOME/tasks is a symlink — rejecting for security (XVER-001)"
-  exit 0
+if [[ "$_ZOMBIE_BAIL" != "true" ]]; then
+  CHOME_CANON=$(cd "$CHOME" 2>/dev/null && pwd -P) || {
+    _trace "Zombie cleanup: CHOME canonicalization failed — skipping cleanup, continuing"
+    _ZOMBIE_BAIL="true"
+  }
 fi
 
-if [[ -d "$TEAMS_CANON/" ]]; then
+if [[ "$_ZOMBIE_BAIL" != "true" ]]; then
+  TEAMS_CANON="$CHOME_CANON/teams"
+  TASKS_CANON="$CHOME_CANON/tasks"
+
+  # Reject symlinked intermediate roots (defense in depth)
+  if [[ -L "$TEAMS_CANON" ]]; then
+    _trace "Zombie cleanup: \$CHOME/teams is a symlink — skipping cleanup for security (XVER-001)"
+    _ZOMBIE_BAIL="true"
+  fi
+fi
+if [[ "$_ZOMBIE_BAIL" != "true" ]] && [[ -L "$TASKS_CANON" ]]; then
+  _trace "Zombie cleanup: \$CHOME/tasks is a symlink — skipping cleanup for security (XVER-001)"
+  _ZOMBIE_BAIL="true"
+fi
+
+if [[ "$_ZOMBIE_BAIL" != "true" ]] && [[ -d "$TEAMS_CANON/" ]]; then
   # BUG FIX (v1.163.2): Walk ALL completed phases before NEXT_PHASE, not just the
   # most recent one. Previously used `break` after the first match, leaving zombie
   # teams from earlier phases (e.g., arc-plan-review from Phase 2 surviving into
