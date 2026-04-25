@@ -663,8 +663,16 @@ arc_guard_context_critical_with_stale_bridge() {
 # Append a telemetry breadcrumb to ${TMPDIR}/rune-stop-hook-events-${UID}.jsonl.
 # Silent-fail on any error (OPERATIONAL helper — must never break emission).
 # Args:
-#   $1 = KIND        — "continue" | "halt" | "continue-fallback" | "halt-fallback" | "empty"
+#   $1 = KIND        — see taxonomy below
 #   $2 = REASON_LEN  — integer byte length of reason/stopReason payload (0 for empty)
+#
+# KIND taxonomy (current as of v2.66.2):
+#   Stop hook contract:    "continue" | "halt" | "continue-fallback" | "halt-fallback" | "empty"
+#   Arc hook diagnostics:  "jq-fail" | "jq-invalid" | "crash-converted" | "demotion-loop-halted"
+#
+# Runtime accepts any string — no validation. Bumping this docstring is the only
+# place to keep the taxonomy discoverable for stop-hook-health.sh filters and
+# operator queries. When adding a new kind, append to the appropriate group.
 _arc_stop_hook_breadcrumb() {
   local _kind="${1:-unknown}"
   local _len="${2:-0}"
