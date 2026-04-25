@@ -58,6 +58,34 @@ Fix: Stop demotion-revert infinite loop in `arc-phase-stop-hook.sh:952` via 3-st
   (LLM-driven seed). Tarnished-approved deviation; full rationale in
   `tmp/work/20260426-051847/tasks/task-3.md` DEVIATION RECORD.
 
+### Mend follow-ups (post-review hardening)
+
+After `/rune:appraise` on this shard, four findings were resolved as
+in-PR follow-ups:
+
+- **BACK-001** (P2): test extraction now anchors on explicit
+  `# BEGIN_DEMOTION_JQ` / `# END_DEMOTION_JQ` markers (jq comments inside
+  the filter body, inert at runtime). Replaces a fragile shell-syntax regex
+  that could match the skip_map block closer at L1092 and silently extract
+  a partially-valid filter. Failure path now reports "missing markers" with
+  the v2.66.2 reference.
+- **BACK-002** (P3): defensive type coercion via new `_safe_count` jq helper.
+  Normalizes corrupted `demotion_revert_count` values (string `"3"`, float
+  `2.5`, array `[3]`) to integer 0 at all 5 read sites in the two-pass
+  filter. Floors floats. Prevents the array case from aborting the entire
+  jq filter via `[3] < 3` throw.
+- **BACK-003** (P3): added 19 multi-phase test assertions covering both
+  Pass 1 dual-demotion (two phases eligible in same fire) and mixed
+  Pass 1 + Pass 2 (one demoted, one auto-filled). Earlier fixtures only
+  exercised the degenerate N=1 case of the array machinery.
+- **BACK-004** (P3): updated `_arc_stop_hook_breadcrumb` docstring in
+  `lib/arc-stop-hook-common.sh` to include the full current KIND taxonomy
+  (`jq-fail`, `jq-invalid`, `crash-converted`, `demotion-loop-halted` —
+  added across v2.66.0 and this shard but not previously documented).
+
+Final test count after mend: 68 PASS, 0 FAIL (was 41 after T-1.3).
+Resolution report: `tmp/mend/a501bb45-051847/resolution-report.md`.
+
 Reference: shard 1 of `plans/2026-04-26-feat-arc-unified-retry-heal-plan.md`.
 
 ## [2.66.1] — 2026-04-26
