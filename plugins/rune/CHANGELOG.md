@@ -1,5 +1,54 @@
 # Changelog
 
+## [2.66.2] — 2026-04-26
+
+Fix: Stop demotion-revert infinite loop in `arc-phase-stop-hook.sh:952` via 3-strike budget gate.
+
+### Added
+
+- `demotion_revert_count` field on every phase block (default 0). Schema seed
+  added to the canonical phase template at
+  `plugins/rune/skills/arc/references/arc-checkpoint-init.md:495-542` (44
+  phase entries; purely additive).
+- Two-pass demotion `jq` filter at `arc-phase-stop-hook.sh:952`. Pass 1
+  selects phases with `(demotion_revert_count // 0) < 3` and demotes them
+  back to `pending` while incrementing the counter. Pass 2 selects phases
+  with `(demotion_revert_count // 0) >= 3` and auto-fills `skip_reason` to
+  `"auto_filled_after_3_demotion_reverts"` so the filter excludes them on
+  subsequent Stop fires — this is the loop terminator.
+- `demotion-loop-halted` breadcrumb (kind value) emitted via
+  `_arc_stop_hook_breadcrumb` whenever the auto-fill path triggers, so
+  `stop-hook-health.sh` can surface terminations for post-hoc audit.
+- `phase_skip_log` `count` field on both `demoted_to_pending` and
+  `demotion_loop_terminated` events. Demoted entries record the new count
+  (orig+1); terminated entries record the existing count (>= 3).
+
+### Fixed
+
+- bug #1 — plan_refine demotion-revert infinite loop with `work` auto-skip
+  side-effect. Reproduction: plan_refine completes → some downstream
+  condition marks it `skipped` with empty `skip_reason` → demotion loop
+  reverts to `pending` → re-runs → re-marks `skipped` empty → loop forever.
+  Root cause: the demotion loop had no retry tally. Fix: 3-strike budget
+  + auto-fill terminator.
+
+### Backward compatibility
+
+- In-flight v2.66.1 checkpoints (no `demotion_revert_count` field) upgrade
+  transparently via `jq // 0` default. Every read site of the new field in
+  the two-pass filter uses `(.value.demotion_revert_count // 0)` (5 sites).
+  First demotion creates the field with value 1.
+
+### Tests
+
+- New `tests/test_arc_demotion_gate.sh` (plain bash, executable) covering
+  AC-1.1 through AC-1.4 — 41 assertions, all PASS. Mirrored as
+  `tests/bats/test_arc_demotion_gate.bats` matching the existing repo bats
+  convention. Test extracts the live `jq` filter from
+  `arc-phase-stop-hook.sh` so it auto-validates against future changes.
+
+Reference: shard 1 of `plans/2026-04-26-feat-arc-unified-retry-heal-plan.md`.
+
 ## [2.66.1] — 2026-04-26
 
 ### Fixed — FLAW-008: `_check_test_batches` ERR-trap stall on missing testing-plan.json
