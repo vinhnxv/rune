@@ -213,6 +213,45 @@ _assert "AC-1.4: phase status flipped to pending"         "echo '$RESULT_AC14' |
 _assert "AC-1.4: log entry recorded with count=1"         "echo '$RESULT_AC14' | jq -e '.checkpoint.phase_skip_log[0].count == 1'"
 
 # ---------------------------------------------------------------------------
+# BACK-003 — multi-phase demotion path (covers AC-1.2 / AC-1.3 array machinery)
+# ---------------------------------------------------------------------------
+# Plan reproduction (lines 43-50) explicitly mentions BOTH plan_refine and work
+# being affected. Single-phase fixtures only exercise the degenerate N=1 case.
+# These cases verify (a) the [.phases | to_entries[] | select(...)] collection
+# and (b) the reduce-over-multiple-phases mutation path.
+
+_section "BACK-003: multi-phase Pass 1 (both phases demoted in one fire)"
+
+CKPT_MULTI='{"phases":{"plan_refine":{"status":"skipped","skip_reason":"","started_at":"2026-04-26T10:00:00Z","completed_at":"2026-04-26T10:01:00Z","demotion_revert_count":0},"work":{"status":"skipped","skip_reason":"","started_at":"2026-04-26T10:02:00Z","completed_at":"2026-04-26T10:03:00Z","demotion_revert_count":1}},"phase_skip_log":[]}'
+RESULT_MULTI=$(run_demotion "$CKPT_MULTI")
+
+_assert "BACK-003: demoted has 2 entries"                  "echo '$RESULT_MULTI' | jq -e '(.demoted | length) == 2'"
+_assert "BACK-003: demoted contains plan_refine"           "echo '$RESULT_MULTI' | jq -e '.demoted | index(\"plan_refine\") != null'"
+_assert "BACK-003: demoted contains work"                  "echo '$RESULT_MULTI' | jq -e '.demoted | index(\"work\") != null'"
+_assert "BACK-003: auto_filled is empty"                   "echo '$RESULT_MULTI' | jq -e '.auto_filled == []'"
+_assert "BACK-003: plan_refine counter incremented to 1"   "echo '$RESULT_MULTI' | jq -e '.checkpoint.phases.plan_refine.demotion_revert_count == 1'"
+_assert "BACK-003: work counter incremented to 2"          "echo '$RESULT_MULTI' | jq -e '.checkpoint.phases.work.demotion_revert_count == 2'"
+_assert "BACK-003: plan_refine status flipped to pending"  "echo '$RESULT_MULTI' | jq -e '.checkpoint.phases.plan_refine.status == \"pending\"'"
+_assert "BACK-003: work status flipped to pending"         "echo '$RESULT_MULTI' | jq -e '.checkpoint.phases.work.status == \"pending\"'"
+_assert "BACK-003: phase_skip_log has 2 entries"           "echo '$RESULT_MULTI' | jq -e '(.checkpoint.phase_skip_log | length) == 2'"
+
+_section "BACK-003: mixed Pass 1 + Pass 2 (one demoted, one auto-filled in same fire)"
+
+CKPT_MIXED='{"phases":{"plan_refine":{"status":"skipped","skip_reason":"","started_at":"2026-04-26T10:00:00Z","completed_at":"2026-04-26T10:01:00Z","demotion_revert_count":2},"work":{"status":"skipped","skip_reason":"","started_at":"2026-04-26T10:02:00Z","completed_at":"2026-04-26T10:03:00Z","demotion_revert_count":4}},"phase_skip_log":[]}'
+RESULT_MIXED=$(run_demotion "$CKPT_MIXED")
+
+_assert "BACK-003: mixed — demoted has plan_refine only"   "echo '$RESULT_MIXED' | jq -e '.demoted == [\"plan_refine\"]'"
+_assert "BACK-003: mixed — auto_filled has work only"      "echo '$RESULT_MIXED' | jq -e '.auto_filled == [\"work\"]'"
+_assert "BACK-003: mixed — plan_refine counter == 3"       "echo '$RESULT_MIXED' | jq -e '.checkpoint.phases.plan_refine.demotion_revert_count == 3'"
+_assert "BACK-003: mixed — work counter unchanged at 4"    "echo '$RESULT_MIXED' | jq -e '.checkpoint.phases.work.demotion_revert_count == 4'"
+_assert "BACK-003: mixed — plan_refine status pending"     "echo '$RESULT_MIXED' | jq -e '.checkpoint.phases.plan_refine.status == \"pending\"'"
+_assert "BACK-003: mixed — work status STAYS skipped"      "echo '$RESULT_MIXED' | jq -e '.checkpoint.phases.work.status == \"skipped\"'"
+_assert "BACK-003: mixed — work skip_reason auto-filled"   "echo '$RESULT_MIXED' | jq -e '.checkpoint.phases.work.skip_reason == \"auto_filled_after_3_demotion_reverts\"'"
+_assert "BACK-003: mixed — log has 2 entries"              "echo '$RESULT_MIXED' | jq -e '(.checkpoint.phase_skip_log | length) == 2'"
+_assert "BACK-003: mixed — log has demoted_to_pending event" "echo '$RESULT_MIXED' | jq -e '[.checkpoint.phase_skip_log[].event] | index(\"demoted_to_pending\") != null'"
+_assert "BACK-003: mixed — log has demotion_loop_terminated event" "echo '$RESULT_MIXED' | jq -e '[.checkpoint.phase_skip_log[].event] | index(\"demotion_loop_terminated\") != null'"
+
+# ---------------------------------------------------------------------------
 # Negative tests
 # ---------------------------------------------------------------------------
 
