@@ -952,11 +952,19 @@ _trace "TIMING: demotion check start at +$(( $(date +%s) - _HOOK_START_EPOCH ))s
 _demote_result=$(echo "$CKPT_CONTENT" | jq --arg ts "$_now" '
   # BEGIN_DEMOTION_JQ — extraction marker for tests/test_arc_demotion_gate.sh (BACK-001 fix)
   # T-1.2 (v2.66.2): Two-pass demotion with budget gate (AC-1.2 / AC-1.3 / AC-1.4).
+  #
+  # BACK-002 (v2.66.2): defensive type coercion — `// 0` only substitutes null, NOT
+  # corrupted scalar types. A checkpoint with `demotion_revert_count: "3"` (string)
+  # would skip Pass 1 (`"3" < 3` is false) and immediately auto-fill on Pass 2,
+  # bypassing the 3-strike grace period. Floats would propagate non-integer arithmetic
+  # (`2.5 + 1 = 3.5`). Arrays/objects would throw on comparison and abort the entire
+  # filter. `_safe_count` normalizes ALL non-number types to 0 and floors floats.
+  def _safe_count: if type == "number" then floor else 0 end;
   # Pass 1 — demote phases that have not exhausted the budget (count < 3).
   [.phases | to_entries[] | select(
     .value.status == "skipped"
     and (.value.skip_reason == null or .value.skip_reason == "")
-    and ((.value.demotion_revert_count // 0) < 3)
+    and ((.value.demotion_revert_count | _safe_count) < 3)
   )] as $to_demote |
   # Pass 2 — auto-fill skip_reason for phases past the budget (count >= 3).
   # The auto-filled skip_reason makes the filter exclude these phases on the next
@@ -964,7 +972,7 @@ _demote_result=$(echo "$CKPT_CONTENT" | jq --arg ts "$_now" '
   [.phases | to_entries[] | select(
     .value.status == "skipped"
     and (.value.skip_reason == null or .value.skip_reason == "")
-    and ((.value.demotion_revert_count // 0) >= 3)
+    and ((.value.demotion_revert_count | _safe_count) >= 3)
   )] as $to_fill |
   if (($to_demote | length) > 0) or (($to_fill | length) > 0) then
     {
@@ -975,7 +983,7 @@ _demote_result=$(echo "$CKPT_CONTENT" | jq --arg ts "$_now" '
           .phases[$d.key].status = "pending" |
           .phases[$d.key].started_at = null |
           .phases[$d.key].completed_at = null |
-          .phases[$d.key].demotion_revert_count = ((.phases[$d.key].demotion_revert_count // 0) + 1)
+          .phases[$d.key].demotion_revert_count = ((.phases[$d.key].demotion_revert_count | _safe_count) + 1)
         ) |
         reduce $to_fill[] as $f (.;
           .phases[$f.key].skip_reason = "auto_filled_after_3_demotion_reverts"
@@ -984,13 +992,13 @@ _demote_result=$(echo "$CKPT_CONTENT" | jq --arg ts "$_now" '
           [$to_demote[] | {
             phase: .key, event: "demoted_to_pending",
             reason: "missing_skip_reason",
-            count: ((.value.demotion_revert_count // 0) + 1),
+            count: ((.value.demotion_revert_count | _safe_count) + 1),
             timestamp: $ts
           }] +
           [$to_fill[] | {
             phase: .key, event: "demotion_loop_terminated",
             reason: "auto_filled_after_3_demotion_reverts",
-            count: (.value.demotion_revert_count // 0),
+            count: (.value.demotion_revert_count | _safe_count),
             timestamp: $ts
           }]
         )

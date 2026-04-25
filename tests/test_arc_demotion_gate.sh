@@ -252,6 +252,40 @@ _assert "BACK-003: mixed — log has demoted_to_pending event" "echo '$RESULT_MI
 _assert "BACK-003: mixed — log has demotion_loop_terminated event" "echo '$RESULT_MIXED' | jq -e '[.checkpoint.phase_skip_log[].event] | index(\"demotion_loop_terminated\") != null'"
 
 # ---------------------------------------------------------------------------
+# BACK-002 — type integrity (defensive `_safe_count` coercion)
+# ---------------------------------------------------------------------------
+# `// 0` only substitutes null/missing — corrupted scalar types (string, float,
+# array, object) bypass it. The new `_safe_count` helper normalizes everything
+# non-numeric to 0 and floors floats. These cases lock in that contract.
+
+_section "BACK-002: corrupted demotion_revert_count types"
+
+# String "3" — old behavior would skip Pass 1 ("3" < 3 false) and Pass 2 select
+# (since `"3" >= 3` is also false in jq — strings sort AFTER numbers but the
+# comparison itself is well-defined; old buggy claim was that strings would
+# match >= 3, but `_safe_count` makes it moot). With the fix, "3" -> 0 -> Pass 1
+# selects, demotes, sets count to integer 1.
+CKPT_CORRUPT_STR='{"phases":{"plan_refine":{"status":"skipped","skip_reason":"","started_at":"2026-04-26T10:00:00Z","completed_at":"2026-04-26T10:01:00Z","demotion_revert_count":"3"}},"phase_skip_log":[]}'
+RESULT_CORRUPT_STR=$(run_demotion "$CKPT_CORRUPT_STR")
+_assert "BACK-002 string: demoted (string coerced to 0)"   "echo '$RESULT_CORRUPT_STR' | jq -e '.demoted == [\"plan_refine\"]'"
+_assert "BACK-002 string: counter normalized to integer 1"  "echo '$RESULT_CORRUPT_STR' | jq -e '.checkpoint.phases.plan_refine.demotion_revert_count == 1'"
+
+# Float 2.5 — old behavior: 2.5 + 1 = 3.5 (non-integer counter). New: 2.5 -> 2 (floor) -> 3.
+CKPT_CORRUPT_FLOAT='{"phases":{"plan_refine":{"status":"skipped","skip_reason":"","started_at":"2026-04-26T10:00:00Z","completed_at":"2026-04-26T10:01:00Z","demotion_revert_count":2.5}},"phase_skip_log":[]}'
+RESULT_CORRUPT_FLOAT=$(run_demotion "$CKPT_CORRUPT_FLOAT")
+_assert "BACK-002 float: demoted (2.5 floored to 2, < 3)"   "echo '$RESULT_CORRUPT_FLOAT' | jq -e '.demoted == [\"plan_refine\"]'"
+_assert "BACK-002 float: counter is integer 3 (floor+1)"    "echo '$RESULT_CORRUPT_FLOAT' | jq -e '.checkpoint.phases.plan_refine.demotion_revert_count == 3'"
+_assert "BACK-002 float: counter type is integer (not float)" "echo '$RESULT_CORRUPT_FLOAT' | jq -e '.checkpoint.phases.plan_refine.demotion_revert_count == (.checkpoint.phases.plan_refine.demotion_revert_count | floor)'"
+
+# Array [3] — old behavior: throws on `[3] < 3` -> entire filter aborts -> empty result.
+# New: [3] -> 0 -> Pass 1 selects, demotes, counter becomes integer 1.
+CKPT_CORRUPT_ARR='{"phases":{"plan_refine":{"status":"skipped","skip_reason":"","started_at":"2026-04-26T10:00:00Z","completed_at":"2026-04-26T10:01:00Z","demotion_revert_count":[3]}},"phase_skip_log":[]}'
+RESULT_CORRUPT_ARR=$(run_demotion "$CKPT_CORRUPT_ARR")
+_assert "BACK-002 array: filter does not abort (well-formed JSON returned)" "echo '$RESULT_CORRUPT_ARR' | jq -e '. != null'"
+_assert "BACK-002 array: demoted (array coerced to 0)"      "echo '$RESULT_CORRUPT_ARR' | jq -e '.demoted == [\"plan_refine\"]'"
+_assert "BACK-002 array: counter normalized to integer 1"   "echo '$RESULT_CORRUPT_ARR' | jq -e '.checkpoint.phases.plan_refine.demotion_revert_count == 1'"
+
+# ---------------------------------------------------------------------------
 # Negative tests
 # ---------------------------------------------------------------------------
 
