@@ -91,12 +91,19 @@ fi
 # ---------------------------------------------------------------------------
 # Setup: extract the demotion jq filter from the hook script
 # ---------------------------------------------------------------------------
+# BACK-001: anchor extraction on explicit BEGIN_DEMOTION_JQ / END_DEMOTION_JQ
+# markers (added v2.66.2) instead of fragile shell-syntax regex. The markers are
+# jq comments inside the filter body, so they're inert at runtime but unambiguous
+# for awk. If the markers are missing or zero lines extracted, the test fails
+# fast with a clear "extraction failed" error rather than a confusing jq syntax
+# error from a partially-extracted filter.
 
-awk '/^_demote_result=\$\(echo "\$CKPT_CONTENT" \| jq --arg ts "\$_now" / {flag=1; next} /^. 2>\/dev\/null/ {flag=0} flag' \
+awk '/# BEGIN_DEMOTION_JQ/ {flag=1; next} /# END_DEMOTION_JQ/ {flag=0} flag' \
   "$HOOK_SCRIPT" > "$DEMOTION_JQ"
 
 if ! [ -s "$DEMOTION_JQ" ]; then
   echo "FATAL: failed to extract demotion jq filter from $HOOK_SCRIPT"
+  echo "       (expected BEGIN_DEMOTION_JQ / END_DEMOTION_JQ markers — added in v2.66.2)"
   exit 2
 fi
 

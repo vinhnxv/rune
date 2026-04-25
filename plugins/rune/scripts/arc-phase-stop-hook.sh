@@ -950,6 +950,7 @@ _now=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%SZ")
 # The empty-check on the next line handles the failure gracefully.
 _trace "TIMING: demotion check start at +$(( $(date +%s) - _HOOK_START_EPOCH ))s"
 _demote_result=$(echo "$CKPT_CONTENT" | jq --arg ts "$_now" '
+  # BEGIN_DEMOTION_JQ — extraction marker for tests/test_arc_demotion_gate.sh (BACK-001 fix)
   # T-1.2 (v2.66.2): Two-pass demotion with budget gate (AC-1.2 / AC-1.3 / AC-1.4).
   # Pass 1 — demote phases that have not exhausted the budget (count < 3).
   [.phases | to_entries[] | select(
@@ -998,6 +999,7 @@ _demote_result=$(echo "$CKPT_CONTENT" | jq --arg ts "$_now" '
   else
     { demoted: [], auto_filled: [], checkpoint: . }
   end
+  # END_DEMOTION_JQ — extraction marker for tests/test_arc_demotion_gate.sh (BACK-001 fix)
 ' 2>/dev/null || true)
 
 if [[ -z "${_demote_result:-}" ]]; then

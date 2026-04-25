@@ -32,11 +32,13 @@ setup() {
   setup_project_dir
   setup_config_dir
 
-  # Extract the new two-pass demotion jq filter from the hook script.
-  # The filter is delimited by the `_demote_result=$(echo "$CKPT_CONTENT" | jq --arg ts "$_now" '` opener
-  # and the `' 2>/dev/null || true)` closer — extract everything between.
+  # BACK-001 (v2.66.2): anchor extraction on explicit BEGIN_DEMOTION_JQ /
+  # END_DEMOTION_JQ markers (jq comments inside the filter body — inert at runtime,
+  # unambiguous for awk). Replaces a fragile shell-syntax regex that could match
+  # the skip_map block closer at L1092 if a future edit reordered or expanded the
+  # demotion block.
   mkdir -p "$(dirname "$DEMOTION_JQ")"
-  awk '/^_demote_result=\$\(echo "\$CKPT_CONTENT" \| jq --arg ts "\$_now" / {flag=1; next} /^. 2>\/dev\/null/ {flag=0} flag' "$HOOK_SCRIPT" > "$DEMOTION_JQ"
+  awk '/# BEGIN_DEMOTION_JQ/ {flag=1; next} /# END_DEMOTION_JQ/ {flag=0} flag' "$HOOK_SCRIPT" > "$DEMOTION_JQ"
 }
 
 teardown() {
