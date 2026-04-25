@@ -567,18 +567,29 @@ _phase_section_hint() {
 # Pattern: mirrors arc-batch-stop-hook.sh iteration style.
 # Safety cap: max_batch_iterations from testing-plan.json config.
 _check_test_batches() {
+  # FLAW-008 CONTRACT (v2.66.1): Sibling to FLAW-001/003/004. The "no batch
+  # to dispatch" paths below MUST `return 0`, not `return 1`. The caller uses
+  # command substitution (`_TEST_BATCH_PROMPT=$(_check_test_batches ...)`),
+  # which under `set -euo pipefail` + `_rune_fail_forward` ERR trap treats a
+  # non-zero return as a script-fatal error and exits the hook before any
+  # `arc_stop_continue` JSON is emitted. The empty-stdout signal already
+  # means "no batch — fall through to next phase" to the caller. Reserve
+  # non-zero return for genuine internal errors (today: none — every jq site
+  # is already swallowed with `|| true` / `|| echo`).
   local checkpoint_path="$1"
   local arc_id
   # FLAW-004 FIX: Append `|| true` to prevent ERR trap firing under `set -o pipefail`
   # when jq fails (corrupt checkpoint, malformed JSON). Without it, a bare assignment
   # propagates the failure and silently aborts the batch loop via _rune_fail_forward.
   arc_id=$(jq -r '.id // empty' "$checkpoint_path" 2>/dev/null || true)
-  [[ -z "$arc_id" ]] && return 1
+  [[ -z "$arc_id" ]] && return 0  # FLAW-008: no arc_id → no batch (fall through)
   # SEC: validate arc_id format before use in path construction
-  [[ "$arc_id" =~ ^[a-zA-Z0-9_-]+$ ]] || return 1
+  [[ "$arc_id" =~ ^[a-zA-Z0-9_-]+$ ]] || return 0  # FLAW-008: bad id → no batch
 
   local plan_path="${CWD}/tmp/arc/${arc_id}/testing-plan.json"
-  [[ ! -f "$plan_path" || -L "$plan_path" ]] && return 1
+  # FLAW-008: missing testing-plan.json (e.g., work phase skipped) → no batch.
+  # This is the exact path that caused the post-work skip stall reported in v2.66.0.
+  [[ ! -f "$plan_path" || -L "$plan_path" ]] && return 0
 
   # ── Edge Case 1: Recover orphaned "running" or "fixing" batches ──
   # If the lead crashed mid-batch, the batch stays "running" in testing-plan.json.
@@ -617,7 +628,7 @@ _check_test_batches() {
   # when the pipeline fails (corrupt plan, jq parse error). Sibling to FLAW-001 —
   # same root cause, different call site. Without it, test batches silently abandoned.
   next_batch=$(jq -r '.batches[] | select(.status == "pending") | .id' "$plan_path" 2>/dev/null | head -1 || true)
-  [[ -z "$next_batch" ]] && return 1  # No pending batches → normal phase advance
+  [[ -z "$next_batch" ]] && return 0  # FLAW-008: no pending batches → fall through to next phase
 
   # Safety cap check
   local max_iterations executed
@@ -628,7 +639,7 @@ _check_test_batches() {
   # not trip the ERR trap (`set -euo pipefail` + `_rune_fail_forward`) and
   # silently abandon remaining test batches. Mirrors the max_iterations fallback above.
   executed=$(jq '[.batches[] | select(.status == "passed" or .status == "failed" or .status == "fixing")] | length' "$plan_path" 2>/dev/null || echo 0)
-  [[ "$executed" -ge "$max_iterations" ]] && return 1  # Safety cap hit
+  [[ "$executed" -ge "$max_iterations" ]] && return 0  # FLAW-008: safety cap hit → no batch
 
   # Read batch details (single jq call for all fields — avoids 4 separate forks)
   local batch_type batch_files batch_component batch_label total_batches completed_batches
@@ -2340,7 +2351,13 @@ if [[ "$NEXT_PHASE" == "test" ]]; then
     # CC-STOP-API-OSC-001: _check_test_batches now emits the prompt on stdout
     # (captured here). Prior versions wrote to stderr + exit 2, which broke on
     # Claude Code 2.1.116+ where stderr is no longer re-injected.
-    _TEST_BATCH_PROMPT=$(_check_test_batches "$_cb_cp_path")
+    # FLAW-008 FIX (v2.66.1): Append `|| true` to neutralize the ERR trap if the
+    # function ever returns non-zero. Today the function returns 0 even on
+    # "no batch" paths (see FLAW-008 contract comment in _check_test_batches),
+    # but this defensive guard mirrors the FLAW-001/003/004 style at every
+    # internal jq site and protects against future regressions where someone
+    # reintroduces a `return 1` semantically.
+    _TEST_BATCH_PROMPT=$(_check_test_batches "$_cb_cp_path") || true
     if [[ -n "$_TEST_BATCH_PROMPT" ]]; then
       arc_stop_continue "$_TEST_BATCH_PROMPT"
     fi

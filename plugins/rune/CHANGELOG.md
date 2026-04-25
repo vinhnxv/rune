@@ -1,5 +1,50 @@
 # Changelog
 
+## [2.66.1] — 2026-04-26
+
+### Fixed — FLAW-008: `_check_test_batches` ERR-trap stall on missing testing-plan.json
+
+User-reported symptom (post-v2.66.0): arc pipeline stalled in an infinite
+Context Checkpoint Phase A ↔ Phase B loop after iteration 28+ when the work
+phase was skipped (no `testing-plan.json` produced). Trace log confirmed:
+
+```
+arc-phase-stop: Compact interlude Phase B: proceeding to test
+arc-phase-stop: ERR trap — fail-forward at arc-phase-stop-hook.sh:2343
+                (cmd=_TEST_BATCH_PROMPT=$(_check_test_batches "$_cb_cp_path"))
+```
+
+Root cause was a return-contract mismatch the FLAW-001/003/004 fixes did not
+cover. The function used `return 1` in five paths to signal "no batch — let
+phase advance normally" (no arc_id, bad arc_id format, missing/symlink
+testing-plan.json, no pending batches, safety cap hit). All five are valid
+states, not errors. But the call site at `arc-phase-stop-hook.sh:2343` is a
+command substitution under `set -euo pipefail` + `_rune_fail_forward` ERR
+trap — the non-zero return propagated to the assignment, triggered the trap,
+and exited the hook before any `arc_stop_continue` JSON could be emitted.
+With no `{decision:"block", reason}` envelope, Claude Code received nothing
+to re-inject; the next Stop hook re-entered Phase A from scratch and the
+loop ran forever.
+
+- **Function contract change**: All five `return 1` paths in
+  `_check_test_batches` now `return 0`. Empty stdout already meant "no batch
+  — fall through" to the caller (`if [[ -n "$_TEST_BATCH_PROMPT" ]]`); the
+  contract is now consistent with that signal. Non-zero return is reserved
+  for genuine internal errors (today: none — every internal jq site is
+  already swallowed with `|| true` / `|| echo`).
+
+- **Defensive call site**: Added `|| true` to
+  `_TEST_BATCH_PROMPT=$(_check_test_batches "$_cb_cp_path") || true` at
+  arc-phase-stop-hook.sh:2343. Belt-and-suspenders against future regression
+  if a contributor reintroduces `return 1` semantically. Mirrors the
+  defensive style used at every internal jq site (FLAW-001/003/004).
+
+- **Why the existing FLAW-001/003/004 fixes did not catch this**: Those
+  fixes hardened *individual jq calls* inside the function with `|| true`
+  so jq parse failures could not trip ERR. They did not address the
+  function's *return contract* with its caller, so an explicit `return 1`
+  for "valid empty result" still propagated through command substitution.
+
 ## [2.66.0] — 2026-04-24
 
 ### Fixed — 7 intermittent arc phase-loop stall classes (FIX A/B/C/D/F/G + ZC)
