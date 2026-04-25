@@ -47,6 +47,17 @@ Fix: Stop demotion-revert infinite loop in `arc-phase-stop-hook.sh:952` via 3-st
   convention. Test extracts the live `jq` filter from
   `arc-phase-stop-hook.sh` so it auto-validates against future changes.
 
+### Notes
+
+- T-1.1 wiring corrected from `rune-arc-init-state.sh` to
+  `arc-checkpoint-init.md` (plan defect). The plan named
+  `plugins/rune/scripts/rune-arc-init-state.sh` as the schema-seed location,
+  but that script writes the YAML state-file frontmatter — it does NOT seed
+  per-phase blocks in `checkpoint.json`. The canonical phase template lives
+  in `plugins/rune/skills/arc/references/arc-checkpoint-init.md:495-542`
+  (LLM-driven seed). Tarnished-approved deviation; full rationale in
+  `tmp/work/20260426-051847/tasks/task-3.md` DEVIATION RECORD.
+
 Reference: shard 1 of `plans/2026-04-26-feat-arc-unified-retry-heal-plan.md`.
 
 ## [2.66.1] — 2026-04-26
