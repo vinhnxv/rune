@@ -664,6 +664,172 @@ assert_eq "Symlink signal file rejected" "1" "$rc"
 rm -rf "$ARC_CWD"
 
 # ═══════════════════════════════════════════════════════════════
+# 13. INTEG-016 (SESSION-ID-001): banner-confusion guard
+# ═══════════════════════════════════════════════════════════════
+printf "\n=== INTEG-016: state session_id vs RUNE_SESSION_ID/hook-input ===\n"
+
+# Source library again in a clean subshell so platform helpers are loaded
+INTEG_DIR=$(mktemp -d)
+trap 'rm -rf "$TMP_DIR" "$INTEG_DIR"' EXIT
+
+# 13a. Match — state session_id == RUNE_SESSION_ID → no INTEG-016 warning
+result=$(bash -c '
+  set -uo pipefail
+  source "'"$LIB_DIR"'/platform.sh"
+  source "'"$LIB_DIR"'/stop-hook-common.sh"
+  cat > "'"$INTEG_DIR"'/state-good.md" <<EOF
+---
+active: true
+iteration: 0
+max_iterations: 66
+checkpoint_path: .rune/arc/arc-12345/checkpoint.json
+plan_file: plans/dummy.md
+branch: main
+arc_flags:
+config_dir: '"$CLAUDE_CONFIG_DIR"'
+owner_pid: 99999
+session_id: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+---
+EOF
+  mkdir -p "'"$INTEG_DIR"'/.rune/arc/arc-12345"
+  echo "{\"id\":\"arc-12345\"}" > "'"$INTEG_DIR"'/.rune/arc/arc-12345/checkpoint.json"
+  cd "'"$INTEG_DIR"'"
+  parse_frontmatter "'"$INTEG_DIR"'/state-good.md"
+  RUNE_SESSION_ID="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" \
+  RUNE_TRACE=1 \
+  validate_state_file_integrity "'"$INTEG_DIR"'/state-good.md" "'"$INTEG_DIR"'" 2>&1 | grep "INTEG-016" || echo "no-warn"
+' 2>&1)
+assert_eq "INTEG-016: matching session_id emits no warning" "no-warn" "$result"
+
+# 13b. Mismatch — state session_id != RUNE_SESSION_ID → INTEG-016 warning
+result=$(bash -c '
+  set -uo pipefail
+  source "'"$LIB_DIR"'/platform.sh"
+  source "'"$LIB_DIR"'/stop-hook-common.sh"
+  cat > "'"$INTEG_DIR"'/state-bad.md" <<EOF
+---
+active: true
+iteration: 0
+max_iterations: 66
+checkpoint_path: .rune/arc/arc-12345/checkpoint.json
+plan_file: plans/dummy.md
+branch: main
+arc_flags:
+config_dir: '"$CLAUDE_CONFIG_DIR"'
+owner_pid: 99999
+session_id: 53edc6ab-c096-44bd-be56-3750a0526911
+---
+EOF
+  cd "'"$INTEG_DIR"'"
+  parse_frontmatter "'"$INTEG_DIR"'/state-bad.md"
+  RUNE_SESSION_ID="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" \
+  RUNE_TRACE=1 \
+  validate_state_file_integrity "'"$INTEG_DIR"'/state-bad.md" "'"$INTEG_DIR"'" 2>&1
+' 2>&1)
+assert_contains "INTEG-016: mismatched session_id emits warning" "INTEG-016" "$result"
+assert_contains "INTEG-016: warning mentions banner-confusion" "banner-confusion" "$result"
+
+# 13c. Unknown sentinel — state session_id == "unknown" → no INTEG-016 (fresh-write case)
+result=$(bash -c '
+  set -uo pipefail
+  source "'"$LIB_DIR"'/platform.sh"
+  source "'"$LIB_DIR"'/stop-hook-common.sh"
+  cat > "'"$INTEG_DIR"'/state-unknown.md" <<EOF
+---
+active: true
+iteration: 0
+max_iterations: 66
+checkpoint_path: .rune/arc/arc-12345/checkpoint.json
+plan_file: plans/dummy.md
+branch: main
+arc_flags:
+config_dir: '"$CLAUDE_CONFIG_DIR"'
+owner_pid: 99999
+session_id: unknown
+---
+EOF
+  cd "'"$INTEG_DIR"'"
+  parse_frontmatter "'"$INTEG_DIR"'/state-unknown.md"
+  RUNE_SESSION_ID="aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" \
+  RUNE_TRACE=1 \
+  validate_state_file_integrity "'"$INTEG_DIR"'/state-unknown.md" "'"$INTEG_DIR"'" 2>&1 | grep "INTEG-016" || echo "no-warn"
+' 2>&1)
+assert_eq "INTEG-016: unknown session_id is exempt (claim-on-first-touch path)" "no-warn" "$result"
+
+# ═══════════════════════════════════════════════════════════════
+# 14. _arc_write_ownership_rejection_diag — diagnostic file
+# ═══════════════════════════════════════════════════════════════
+printf "\n=== _arc_write_ownership_rejection_diag ===\n"
+
+DIAG_DIR=$(mktemp -d)
+trap 'rm -rf "$TMP_DIR" "$INTEG_DIR" "$DIAG_DIR"' EXIT
+mkdir -p "$DIAG_DIR/.rune"
+touch "$DIAG_DIR/.rune/arc-phase-loop.local.md"
+
+# 14a. Writes diagnostic line on call
+bash -c '
+  source "'"$LIB_DIR"'/platform.sh"
+  source "'"$LIB_DIR"'/stop-hook-common.sh"
+  _arc_write_ownership_rejection_diag "'"$DIAG_DIR"'/.rune/arc-phase-loop.local.md" \
+    "session_id_mismatch" "stored=53edc6ab… hook=5fc44a6c… stored_pid=66847"
+'
+[[ -f "$DIAG_DIR/.rune/arc-ownership-rejection.log" ]]
+assert_eq "diag log file created" "0" "$?"
+
+content=$(cat "$DIAG_DIR/.rune/arc-ownership-rejection.log")
+assert_contains "diag line includes reason code" "session_id_mismatch" "$content"
+assert_contains "diag line includes detail" "stored=53edc6ab" "$content"
+assert_contains "diag line includes GUARD identifier" "GUARD 5.7" "$content"
+
+# 14b. Append-only — second call adds a new line
+bash -c '
+  source "'"$LIB_DIR"'/platform.sh"
+  source "'"$LIB_DIR"'/stop-hook-common.sh"
+  _arc_write_ownership_rejection_diag "'"$DIAG_DIR"'/.rune/arc-phase-loop.local.md" \
+    "config_dir_mismatch" "stored=/wrong/path"
+'
+line_count=$(wc -l < "$DIAG_DIR/.rune/arc-ownership-rejection.log" | tr -d ' ')
+assert_eq "diag log appends (2 lines after 2 writes)" "2" "$line_count"
+
+# 14c. Control-char sanitization
+bash -c '
+  source "'"$LIB_DIR"'/platform.sh"
+  source "'"$LIB_DIR"'/stop-hook-common.sh"
+  # Embed a literal newline + tab in the detail string (should be stripped)
+  _arc_write_ownership_rejection_diag "'"$DIAG_DIR"'/.rune/arc-phase-loop.local.md" \
+    "test_sanitize" "$(printf "line1\nline2\there")"
+'
+# Should still have exactly 3 lines (one new line, no embedded newline leaked through)
+line_count=$(wc -l < "$DIAG_DIR/.rune/arc-ownership-rejection.log" | tr -d ' ')
+assert_eq "diag log sanitizes control chars (still 3 lines)" "3" "$line_count"
+
+# 14d. Size cap at 16 KB
+# Write a large file, then trigger truncation. Use single-command write (no pipeline)
+# to avoid SIGPIPE → pipefail killing the test script under `set -euo pipefail`.
+head -c 20000 /dev/zero > "$DIAG_DIR/.rune/arc-ownership-rejection.log"
+bash -c '
+  source "'"$LIB_DIR"'/platform.sh"
+  source "'"$LIB_DIR"'/stop-hook-common.sh"
+  _arc_write_ownership_rejection_diag "'"$DIAG_DIR"'/.rune/arc-phase-loop.local.md" \
+    "size_test" "post-truncation"
+'
+final_size=$(wc -c < "$DIAG_DIR/.rune/arc-ownership-rejection.log" | tr -d ' ')
+[[ "$final_size" -lt 16384 ]]
+assert_eq "diag log truncated when over 16 KB cap" "0" "$?"
+
+# 14e. Non-existent state-file dir — silently no-ops
+result=$(bash -c '
+  source "'"$LIB_DIR"'/platform.sh"
+  source "'"$LIB_DIR"'/stop-hook-common.sh"
+  _arc_write_ownership_rejection_diag "/nonexistent/path/state.md" "test" "detail"
+  echo "ok"
+' 2>&1)
+assert_contains "diag log silently no-ops on bad path" "ok" "$result"
+
+# Clean up
+rm -rf "$DIAG_DIR" "$INTEG_DIR"
+
+# ═══════════════════════════════════════════════════════════════
 # Results
 # ═══════════════════════════════════════════════════════════════
 printf "\n═══════════════════════════════════════════════════\n"

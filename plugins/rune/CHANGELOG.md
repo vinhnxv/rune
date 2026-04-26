@@ -50,6 +50,30 @@ stop-hook retry counters yet. All deferred to Shard 3 (v2.67.0 GA).
   - `arc.retry.heal_enabled` (talisman) → gate for Shard 3 heal action library →
     mirrored to `config.heal_actions_enabled`
 
+- **SESSION-ID-001 — Banner-confusion bug prevention** (caught by user during Shard 2
+  arc resume on 2026-04-26): The arc pipeline silently stalled at GUARD 5.7 strict-mode
+  ownership check because the LLM substituted a tmux/Greater-Will wrapper's "session"
+  banner ID into the state file's `session_id` field instead of Claude Code's actual
+  session ID. The Stop hook compared hook-input `session_id` against the stored value,
+  found a mismatch, and `exit 0`'d with no breadcrumb — invisible failure mode.
+  Three-layer fix:
+  1. **Skill-side** (root cause): Removed the `${CLAUDE_SESSION_ID}` literal pattern
+     from `arc-resume.md` and `arc-checkpoint-init.md` (4 sites). Session ID now
+     resolves ONLY via `Bash('echo "${RUNE_SESSION_ID:-}"').trim()` — RUNE_SESSION_ID
+     is the SessionStart-hook-exported authoritative ID. The literal placeholder was
+     the LLM hook for substituting wrapper banners.
+  2. **Hook-side defense** (INTEG-016): New banner-confusion guard in
+     `validate_state_file_integrity` compares state `session_id` against
+     `RUNE_SESSION_ID` env var or hook-input JSON `session_id`. Emits an integrity
+     warning with diagnostic phrase `banner-confusion bug` when they diverge.
+     Surfaces the cause when GUARD 5.7 is bypassed (RUNE_SKIP_OWNERSHIP=1) or in
+     self-heal contexts.
+  3. **Observability** (`_arc_write_ownership_rejection_diag`): GUARD 5.7's silent
+     `return 1` on session_id mismatch now writes a one-line diagnostic to
+     `.rune/arc-ownership-rejection.log` (16 KB cap, control-char sanitized,
+     append-only). Operators see `ls .rune/` and immediately know the arc was
+     rejected — no need to enable RUNE_TRACE=1.
+
 ### Backward Compatibility
 
 - All schema field reads use jq `// default` (e.g., `.config.retry_enabled // false`,
