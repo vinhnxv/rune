@@ -531,6 +531,16 @@ arc:
     skip_freshness: false        # Bypass plan freshness check (CLI: --skip-freshness)
     confirm: false               # Pause for confirmation between phases (CLI: --confirm)
 
+  # ── Per-phase retry counter (Shard 2 — v2.67.0-rc1) ──
+  # Unifies stuck_count and demotion-revert tracking under one primitive.
+  # rc1 default: enabled=false (opt-in canary). Shard 3 GA flips default to true.
+  # When enabled=false, the function is a no-op fast path — existing v2.66.x
+  # stuck_count + demotion paths run unchanged.
+  retry:
+    enabled: false               # Master gate — set true to canary-test the new counter
+    threshold: 3                 # Max strikes before terminal signal (>= 1)
+    heal_enabled: true           # Gate for heal action library (Shard 3 consumer; not used in rc1)
+
   # ── Shard Execution (v1.66.0+) ─────────────
   # Controls shard-aware behavior in arc and arc-batch.
   # Shard plans are detected via -shard-N- filename regex.
