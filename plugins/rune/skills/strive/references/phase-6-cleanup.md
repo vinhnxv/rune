@@ -22,6 +22,15 @@ allMembers = [
 
 Follow standard shutdown from [engines.md](../../team-sdk/references/engines.md#shutdown).
 
+**Compliance markers** (inherited from engines.md `shutdown()` — canonical implementation):
+- **SEC-4** — Member name validation `/^[a-zA-Z0-9_-]+$/.test(name)` before every `SendMessage()` and shell-string interpolation. Filters out injected names from team config.
+- **QUAL-012** — Filesystem fallback (Step 5) is gated behind `!cleanupTeamDeleteSucceeded` so we don't `rm -rf` when `TeamDelete()` already cleared the team.
+- **MCP-PROTECT-003** — Process-level kill uses `_rune_kill_tree` from [`scripts/lib/process-tree.sh`](../../../scripts/lib/process-tree.sh) (not inline `pgrep | kill` loops). Library applies the full classifier: 40+ MCP server binaries, transport markers (`--stdio`, `--lsp`, `--sse`), connector patterns. Required by Iron Law PROC-001 (Read Before Kill).
+- **CHOME pattern** — All shell paths use `CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"` rather than hardcoded `~/.claude/`.
+- **`lib/team-shutdown.sh`** — When the orchestrator is invoked from a Stop hook, the inline-pseudocode shutdown is replaced by sourcing [`lib/team-shutdown.sh`](../../../scripts/lib/team-shutdown.sh) and calling `_rune_team_shutdown_full`. This skill's worker-orchestrator path performs the same steps via `Agent`/`SendMessage`/`TeamDelete` SDK calls; engines.md is the single source of truth.
+
+If you change the cleanup pattern here, update engines.md `shutdown()` first — this file inherits, never forks.
+
 **Pre-shutdown note:** Cache `const allTasks = TaskList()` BEFORE team cleanup (TaskList() requires active team).
 
 **Mid-protocol (step 2.7):** After grace period, finalize per-worker artifacts before TeamDelete:

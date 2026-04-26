@@ -250,7 +250,10 @@ try {
   // behind TeamDelete failure. Safe: kills only child claude/node processes.
   const arcOwnerPid = Bash(`echo $PPID`).trim()
   if (arcOwnerPid && /^\d+$/.test(arcOwnerPid)) {
-    Bash(`for pid in $(pgrep -P ${arcOwnerPid} 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio && continue; kill -TERM "$pid" 2>/dev/null ;; esac; done`)
+    // MCP-PROTECT-003: Canonical _rune_kill_tree applies full MCP/LSP/connector classification.
+    // Empty team_name → "teammates" filter falls back to claude+MCP-skip filter (correct for
+    // bare agents that have no team registration).
+    Bash(`source "${RUNE_PLUGIN_ROOT}/scripts/lib/process-tree.sh" && _rune_kill_tree "${arcOwnerPid}" "term" "0" "teammates" ""`)
   }
 
   // ── Step 2: Send ALL shutdown_requests at once (no sleep between) ──
@@ -275,10 +278,10 @@ try {
 
   // ── Step 5: Filesystem fallback — only if TeamDelete never succeeded (QUAL-012) ──
   if (!sweepCleared) {
-    // Process-level kill — terminate lingering teammates before filesystem cleanup
-    Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio && continue; kill -TERM "$pid" 2>/dev/null ;; esac; done`)
-    Bash(`sleep 5`, { run_in_background: true })
-    Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio && continue; kill -KILL "$pid" 2>/dev/null ;; esac; done`)
+    // Process-level kill — terminate lingering teammates before filesystem cleanup.
+    // MCP-PROTECT-003: Canonical _rune_kill_tree with empty team_name falls back to
+    // claude+MCP-skip filter (correct here since multiple teams are being swept).
+    Bash(`source "${RUNE_PLUGIN_ROOT}/scripts/lib/process-tree.sh" && _rune_kill_tree "$PPID" "2stage" "5" "teammates" ""`)
     // Filesystem cleanup for all checkpoint-recorded teams
     if (allTeamNames.length > 0) {
       const rmCommands = allTeamNames.map(tn =>
