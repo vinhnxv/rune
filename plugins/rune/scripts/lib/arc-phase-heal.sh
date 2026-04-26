@@ -36,6 +36,9 @@ _RUNE_ARC_PHASE_HEAL_LOADED=1
 _arc_heal_strike_1() { :; }
 
 # _arc_heal_clean_state — strike-2 heal: clean stale state without destroying artifacts
+# When:    Invoked by _arc_increment_retry (arc-phase-retry.sh strike==2 case branch)
+#          AFTER strike persistence + retry-strike breadcrumb emission, BEFORE the next
+#          Stop hook re-inject. Heal failures are non-fatal — retry proceeds regardless.
 # Args:    $1 = phase name, $2 = arc id
 # Reads:   ${SCRIPT_DIR}/lib/process-tree.sh (optional — loaded if present)
 #          ${CWD}/tmp/arc/{arc_id}/ (filesystem)
@@ -78,6 +81,10 @@ _arc_heal_clean_state() {
 }
 
 # _arc_heal_rebuild — strike-3 heal: rebuild from clean slate
+# When:    Invoked by _arc_increment_retry (arc-phase-retry.sh strike==3 case branch)
+#          AFTER strike persistence + retry-strike breadcrumb emission, BEFORE the next
+#          Stop hook re-inject. Last heal before terminal_cascade fires at threshold+1.
+#          Heal failures are non-fatal — retry proceeds regardless.
 # Args:    $1 = phase name, $2 = arc id
 # Reads:   ${SCRIPT_DIR}/lib/process-tree.sh (via _arc_heal_clean_state)
 #          ${CHOME}/teams/{team_name}/ (filesystem)
