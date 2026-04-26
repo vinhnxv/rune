@@ -533,13 +533,15 @@ arc:
 
   # ── Per-phase retry counter (Shard 2 — v2.67.0-rc1) ──
   # Unifies stuck_count and demotion-revert tracking under one primitive.
-  # rc1 default: enabled=false (opt-in canary). Shard 3 GA flips default to true.
+  # GA default v2.67.0: enabled=true (heal+cascade architecture active by default).
+  # Set to false to roll back to v2.66.x stuck_count + demotion behavior.
   # When enabled=false, the function is a no-op fast path — existing v2.66.x
-  # stuck_count + demotion paths run unchanged.
+  # stuck_count + demotion paths run unchanged. Migration: if you canary-tested
+  # rc1 with explicit `enabled: true`, you can remove that line — it's now the default.
   retry:
-    enabled: false               # Master gate — set true to canary-test the new counter
+    enabled: true                # GA default v2.67.0 — heal+cascade active. Set false to roll back.
     threshold: 3                 # Max strikes before terminal signal (>= 1)
-    heal_enabled: true           # Gate for heal action library (Shard 3 consumer; not used in rc1)
+    heal_enabled: true           # Gate for heal action library — strike-2 clean-state, strike-3 rebuild
 
   # ── Shard Execution (v1.66.0+) ─────────────
   # Controls shard-aware behavior in arc and arc-batch.

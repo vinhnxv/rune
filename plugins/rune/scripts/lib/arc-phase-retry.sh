@@ -94,9 +94,85 @@ _arc_increment_retry() {
   fi
   CKPT_CONTENT="$_new_ckpt"
 
-  # Emit breadcrumb (Shard 3 will add retry-heal/retry-terminal/retry-cascade-skip namespace)
+  # Emit retry-strike breadcrumb
   declare -f _arc_stop_hook_breadcrumb >/dev/null 2>&1 && \
     _arc_stop_hook_breadcrumb "retry-strike" "$new"
+
+  # ── Shard 3 (AC-3.1, AC-3.2): apply heal action between strike and re-inject ──
+  # Heal-2 fires at strike 2 (clean-state), heal-3 fires at strike 3 (rebuild).
+  # Heal-1 is no-op (handled implicitly — no case branch needed).
+  # Reads arc_id from checkpoint to construct team_name (arc-{phase}-{arc_id}).
+  # Heal failures are non-fatal — best-effort cleanup, retry proceeds regardless.
+  local arc_id
+  arc_id=$(printf '%s' "$CKPT_CONTENT" | jq -r '.id // ""' 2>/dev/null || echo "")
+  [[ "$arc_id" =~ ^[a-zA-Z0-9_-]+$ ]] || arc_id=""
+
+  case "$new" in
+    2)
+      if [[ -n "$arc_id" && -f "${SCRIPT_DIR:-}/lib/arc-phase-heal.sh" ]]; then
+        # shellcheck disable=SC1091
+        source "${SCRIPT_DIR}/lib/arc-phase-heal.sh"
+        declare -f _arc_heal_clean_state >/dev/null 2>&1 && \
+          _arc_heal_clean_state "$phase" "$arc_id" || true
+
+        # Reset started_at + api_error_retries via jq (atomic mutation, FIX G validated)
+        local _new_ckpt
+        _new_ckpt=$(printf '%s' "$CKPT_CONTENT" | jq --arg p "$phase" --arg ts "$now" '
+          .phases[$p].started_at            = $ts |
+          .phases[$p].api_error_retries     = 0   |
+          .phases[$p].server_error_retries  = 0
+        ' 2>/dev/null)
+        if [[ -n "$_new_ckpt" ]] && printf '%s' "$_new_ckpt" | jq -e '.' >/dev/null 2>&1; then
+          CKPT_CONTENT="$_new_ckpt"
+        fi
+
+        # Update last strike record with heal_action and team killed
+        _new_ckpt=$(printf '%s' "$CKPT_CONTENT" | jq --arg p "$phase" --arg t "arc-${phase}-${arc_id}" '
+          .phases[$p].retry_strikes[-1].heal_action      = "clean-state" |
+          .phases[$p].retry_strikes[-1].heal_team_killed = $t
+        ' 2>/dev/null)
+        if [[ -n "$_new_ckpt" ]] && printf '%s' "$_new_ckpt" | jq -e '.' >/dev/null 2>&1; then
+          CKPT_CONTENT="$_new_ckpt"
+        fi
+
+        declare -f _arc_stop_hook_breadcrumb >/dev/null 2>&1 && \
+          _arc_stop_hook_breadcrumb "retry-strike-heal" "2"
+      fi
+      ;;
+    3)
+      if [[ -n "$arc_id" && -f "${SCRIPT_DIR:-}/lib/arc-phase-heal.sh" ]]; then
+        # shellcheck disable=SC1091
+        source "${SCRIPT_DIR}/lib/arc-phase-heal.sh"
+        declare -f _arc_heal_rebuild >/dev/null 2>&1 && \
+          _arc_heal_rebuild "$phase" "$arc_id" || true
+
+        # Reset compact_pending in state file (atomic sed+mv)
+        # STATE_FILE is provided by the calling context (arc-phase-stop-hook.sh)
+        if [[ -n "${STATE_FILE:-}" && -f "$STATE_FILE" ]]; then
+          local _st_tmp
+          _st_tmp=$(mktemp "${STATE_FILE}.XXXXXX" 2>/dev/null) || _st_tmp=""
+          if [[ -n "$_st_tmp" ]]; then
+            sed 's/^compact_pending: .*/compact_pending: false/' "$STATE_FILE" > "$_st_tmp" 2>/dev/null \
+              && mv -f "$_st_tmp" "$STATE_FILE" 2>/dev/null \
+              || rm -f "$_st_tmp" 2>/dev/null || true
+          fi
+        fi
+
+        # Update last strike record with heal_action
+        local _new_ckpt
+        _new_ckpt=$(printf '%s' "$CKPT_CONTENT" | jq --arg p "$phase" --arg t "arc-${phase}-${arc_id}" '
+          .phases[$p].retry_strikes[-1].heal_action      = "rebuild" |
+          .phases[$p].retry_strikes[-1].heal_team_killed = $t
+        ' 2>/dev/null)
+        if [[ -n "$_new_ckpt" ]] && printf '%s' "$_new_ckpt" | jq -e '.' >/dev/null 2>&1; then
+          CKPT_CONTENT="$_new_ckpt"
+        fi
+
+        declare -f _arc_stop_hook_breadcrumb >/dev/null 2>&1 && \
+          _arc_stop_hook_breadcrumb "retry-strike-heal" "3"
+      fi
+      ;;
+  esac
 
   # Terminal signal — strike threshold+1 consumed
   if [[ "$new" -gt "$threshold" ]]; then
@@ -107,6 +183,88 @@ _arc_increment_retry() {
       CKPT_CONTENT="$_term_ckpt"
     fi
     return 1
+  fi
+
+  return 0
+}
+
+# _arc_terminal_cascade — terminal-skip phase + cascade-skip dependents (AC-3.3)
+# Args:    $1 = phase name
+# Reads:   CKPT_CONTENT (must contain .config.skip_map_dependents.{phase} array)
+# Writes:  CKPT_CONTENT (atomically replaced with terminal+cascade markings)
+# Returns: 0 always (best-effort — jq failure preserves CKPT_CONTENT unchanged)
+#
+# Side effects:
+#   - .phases[$phase] gets status="skipped", retry_terminal=true, force_advanced=true,
+#     skip_reason="retry_exhausted_after_heal", completed_at=now
+#   - For each dependent in .config.skip_map_dependents[$phase] with status=="pending":
+#     - dependent.status = "skipped"
+#     - dependent.skip_reason = "upstream_terminal_skip_<phase>"
+#     - dependent.completed_at = now
+#   - .phase_skip_log gets one terminal_auto_skip event + one cascade_skip event per dependent
+#   - Dependents already complete/skipped/in_progress are NOT modified (safe to re-run)
+#   - Emits "retry-terminal-cascade" breadcrumb with cascade-skipped dependent count
+#
+# Invariants:
+#   - jq mutation is atomic (single jq invocation; if it fails, CKPT_CONTENT is preserved)
+#   - Skip event log is append-only (never truncates existing entries)
+#   - Dependent loop only modifies pending phases (won't override active in_progress work)
+_arc_terminal_cascade() {
+  local phase="$1"
+
+  # SEC validation — silent no-op on bad input
+  [[ "$phase" =~ ^[a-zA-Z0-9_-]+$ ]] || return 0
+  [[ -n "${CKPT_CONTENT:-}" ]] || return 0
+
+  local now
+  now=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%SZ")
+
+  # Atomic mutation: terminal-skip phase + cascade-skip eligible dependents + log events
+  local _new_ckpt
+  _new_ckpt=$(printf '%s' "$CKPT_CONTENT" | jq --arg p "$phase" --arg ts "$now" '
+    (.config.skip_map_dependents[$p] // []) as $deps |
+    .phases[$p].status         = "skipped"                       |
+    .phases[$p].skip_reason    = "retry_exhausted_after_heal"    |
+    .phases[$p].retry_terminal = true                            |
+    .phases[$p].force_advanced = true                            |
+    .phases[$p].completed_at   = $ts                             |
+    .phase_skip_log = (.phase_skip_log // []) + [{
+      phase: $p,
+      event: "terminal_auto_skip",
+      reason: "retry_exhausted_after_heal",
+      timestamp: $ts
+    }] |
+    reduce $deps[] as $d (.;
+      if .phases[$d] != null and .phases[$d].status == "pending" then
+        .phases[$d].status       = "skipped"                                |
+        .phases[$d].skip_reason  = ("upstream_terminal_skip_" + $p)         |
+        .phases[$d].completed_at = $ts                                      |
+        .phase_skip_log = (.phase_skip_log // []) + [{
+          phase: $d,
+          event: "cascade_skip",
+          reason: ("upstream_terminal_skip_" + $p),
+          timestamp: $ts
+        }]
+      else . end
+    )
+  ' 2>/dev/null)
+
+  # FIX G validation — discard invalid mutation, preserve original CKPT_CONTENT
+  if [[ -n "$_new_ckpt" ]] && printf '%s' "$_new_ckpt" | jq -e '.' >/dev/null 2>&1; then
+    CKPT_CONTENT="$_new_ckpt"
+
+    # Compute dependent skip count for breadcrumb (informational)
+    local _dep_count
+    _dep_count=$(printf '%s' "$CKPT_CONTENT" | jq -r --arg p "$phase" '
+      [.phase_skip_log[] | select(.event == "cascade_skip" and .reason == ("upstream_terminal_skip_" + $p))] | length
+    ' 2>/dev/null || echo "0")
+
+    declare -f _arc_stop_hook_breadcrumb >/dev/null 2>&1 && \
+      _arc_stop_hook_breadcrumb "retry-terminal-cascade" "$_dep_count"
+  else
+    # jq mutation failed — emit failure breadcrumb but don't touch CKPT_CONTENT
+    declare -f _arc_stop_hook_breadcrumb >/dev/null 2>&1 && \
+      _arc_stop_hook_breadcrumb "retry-jq-fail" "cascade"
   fi
 
   return 0
