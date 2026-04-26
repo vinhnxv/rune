@@ -1,5 +1,27 @@
 # Changelog
 
+## [2.67.1] — 2026-04-27
+
+Fix (audit 20260427-032216, 5 mendable findings — direct main-thread mend due to 1M-context entitlement gate blocking Agent spawning):
+
+**P1 — CLEAN-001**: 17 phase reference files in `plugins/rune/skills/arc/references/` migrated from inline `for pid in $(pgrep -P $PPID 2>/dev/null); do ... grep -q -- --stdio && continue; kill -TERM/-KILL ...` to the canonical `_rune_kill_tree` library call (`scripts/lib/process-tree.sh:309`). The inline pattern only filtered `--stdio`; the library applies the full MCP-PROTECT-003 classifier — 40+ MCP server binaries (`context7`, `figma-developer-mcp`, all `@anthropic-ai/*`, all `@modelcontextprotocol/*`, all `@upstash/*`), transport markers (`--stdio`, `--lsp`, `--sse`, `--transport`), and connector patterns (`@anthropic*connector`, `claude-connector`). 36 inline call sites collapsed to 17 single-line library calls (53% line reduction in security-critical code). Special-cased `post-arc.md`: Step 1.5 bare-agent kill uses `"term"` mode + empty `team_name` (falls back to `claude+MCP-skip` filter); Step 5 multi-team sweep uses empty `team_name` for the same reason. Risk closed: SSE-transport MCP servers (e.g., `@upstash/context7-mcp`) and `--lsp` LSP servers were reachable for SIGTERM/SIGKILL during arc cleanup under the inline pattern. Iron Law PROC-001 (Read Before Kill) is now fully delegated to the canonical library. Affected files: `arc-phase-design-prototype.md`, `arc-phase-inspect.md`, `arc-phase-test.md`, `arc-phase-design-iteration.md`, `post-arc.md`, `arc-phase-ux-verification.md`, `arc-phase-pre-ship-validation.md`, `arc-phase-test-coverage-critique.md`, `arc-codex-phases.md`, `arc-phase-storybook-verification.md`, `gap-analysis.md`, `arc-phase-deploy-verify.md`, `arc-phase-plan-review.md`, `arc-phase-design-extraction.md`, `arc-phase-inspect-fix.md`, `arc-phase-task-decomposition.md`, `arc-phase-design-verification.md`.
+
+**P2 — WORKFLOW-002**: Renamed `plugins/rune/skills/arc/references/arc-phase-pre-ship-validator.md` → `arc-phase-pre-ship-validation.md` (snake→kebab convention match for PHASE_ORDER key `pre_ship_validation`). Updated `plugins/rune/scripts/arc-phase-stop-hook.sh` dispatcher case statements (lines 534, 535) and shared-files comment (line 550) to reference the new filename. Closes the maintenance debt where the dispatcher needed to special-case the verbal mismatch forever.
+
+**P2 — TEAM-001b** (strive scope only — forge sub-finding was FALSE_POSITIVE per VERIFY.md): Added a "Compliance markers" subsection to `plugins/rune/skills/strive/references/phase-6-cleanup.md` enumerating the canonical patterns the file inherits from `team-sdk/references/engines.md` `shutdown()` — SEC-4 member-name validation, QUAL-012 fallback gating, MCP-PROTECT-003 via `_rune_kill_tree`, CHOME pattern, `lib/team-shutdown.sh` integration. Closes the audit-recurrence loop where strive cleanup was repeatedly flagged for not surfacing its compliance markers explicitly.
+
+**P3 — WORKFLOW-003** (downgraded from P2 per VERIFY.md): Added a "Documented exceptions" sub-section under "Phase Name Patterns" in `plugins/rune/skills/arc/references/arc-naming-conventions.md`. Lists the 5 unprefixed phase reference files (`verify-inspect.md`, `verify-mend.md`, `verification-gate.md`, `gap-analysis.md`, `gap-remediation.md`) with their PHASE_ORDER keys and rationale, plus a closing rule for new phase references. Functionality unchanged — dispatcher already special-cases each.
+
+**P3 — DEAD-001** (informational): Prepended `<!-- EVAL-ARTIFACT: captured LLM response from skill eval. Not canonical pattern — do not grep here for production code patterns. -->` to 18 eval-workspace response files that contained the now-deprecated inline-pgrep pattern. Local filesystem only — `*-workspace/` is in `.gitignore`. Future grep audits can filter via `rg --files-without-match 'EVAL-ARTIFACT'`.
+
+**Findings deferred (FALSE_POSITIVE / NEEDS_CONTEXT — no action)**:
+- **WORKFLOW-001** (P2 → FALSE_POSITIVE): `release_quality_check` is intentionally fileless — it's a Codex-delegated phase that shares `arc-phase-pre-ship-validation.md` via the dispatcher's section-hint mechanism.
+- **WORKFLOW-004** (P3 → FALSE_POSITIVE): The CI guard `scripts/tests/test-phase-groups.sh` already enforces PHASE_GROUPS sync between JS and bash definitions.
+- **HOOK-001** (P3 → FALSE_POSITIVE): Methodological grep error in the original audit; Python-parsed `hooks.json` shows ≥4 Stop handlers, all with `_rationale` documentation.
+- **SPAWN-001** (P3 → NEEDS_CONTEXT): Architectural suggestion deferred until a recurrence is observed.
+
+**Net diff**: 20 tracked files changed, +79 / −72 lines. Ward checks: `validate-shutdown-pattern.sh` PASS; `validate-plugin-wiring.sh` zero regressions (10 violations both pre- and post-mend, all pre-existing — bisected via `git stash`).
+
 ## [2.67.0] — 2026-04-26
 
 Feature (Shard 3 of unified retry/heal — GA): Heal action library + terminal cascade

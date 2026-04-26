@@ -244,9 +244,8 @@ for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
 
 // 5. Filesystem fallback (QUAL-012)
 if (!cleanupTeamDeleteSucceeded) {
-  Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio && continue; kill -TERM "$pid" 2>/dev/null ;; esac; done`)
-  Bash(`sleep 5`, { run_in_background: true })
-  Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio && continue; kill -KILL "$pid" 2>/dev/null ;; esac; done`)
+  // MCP-PROTECT-003: Canonical _rune_kill_tree applies full MCP/LSP/connector classification.
+  Bash(`source "${RUNE_PLUGIN_ROOT}/scripts/lib/process-tree.sh" && _rune_kill_tree "$PPID" "2stage" "5" "teammates" "arc-design-iter-${id}"`)
   Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/arc-design-iter-${id}/" "$CHOME/tasks/arc-design-iter-${id}/" 2>/dev/null`)
   try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }
 }

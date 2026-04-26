@@ -1034,11 +1034,10 @@ for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
 if (!cleanupTeamDeleteSucceeded) {
   // CLEAN-003 FIX: Process-level kill before filesystem rm-rf, so that
   // live batch-runner/fixer agents with dynamically-computed names are
-  // terminated even when config.json is gone. MCP-PROTECT-003 guard via
-  // --stdio filter. Pair of SIGTERM then SIGKILL matches other phase files.
-  Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio && continue; kill -TERM "$pid" 2>/dev/null ;; esac; done`)
-  Bash(`sleep 5`, { run_in_background: true })
-  Bash(`for pid in $(pgrep -P $PPID 2>/dev/null); do case "$(ps -p "$pid" -o comm= 2>/dev/null)" in node|claude|claude-*) ps -p "$pid" -o args= 2>/dev/null | grep -q -- --stdio && continue; kill -KILL "$pid" 2>/dev/null ;; esac; done`)
+  // terminated even when config.json is gone. Canonical _rune_kill_tree
+  // applies full MCP-PROTECT-003 classification (40+ MCP binaries,
+  // --stdio/--lsp/--sse transport markers, connector patterns).
+  Bash(`source "${RUNE_PLUGIN_ROOT}/scripts/lib/process-tree.sh" && _rune_kill_tree "$PPID" "2stage" "5" "teammates" "${testTeamName}"`)
   Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${testTeamName}/" "$CHOME/tasks/${testTeamName}/" 2>/dev/null`)
   // QUAL-005 FIX: standardize trailing TeamDelete comment
   try { TeamDelete() } catch (e) { /* best effort — clear SDK leadership state */ }

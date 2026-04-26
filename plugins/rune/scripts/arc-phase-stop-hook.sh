@@ -531,8 +531,8 @@ _phase_ref() {
     verify_browser_test)      echo "${base}/arc-phase-verify-browser-test.md" ;;
     test_coverage_critique)   echo "${base}/arc-phase-test-coverage-critique.md" ;;
     deploy_verify)            echo "${base}/arc-phase-deploy-verify.md" ;;
-    pre_ship_validation)      echo "${base}/arc-phase-pre-ship-validator.md" ;;
-    release_quality_check)    echo "${base}/arc-phase-pre-ship-validator.md" ;;
+    pre_ship_validation)      echo "${base}/arc-phase-pre-ship-validation.md" ;;
+    release_quality_check)    echo "${base}/arc-phase-pre-ship-validation.md" ;;
     ship)                     echo "${base}/arc-phase-ship.md" ;;
     bot_review_wait)          echo "${base}/arc-phase-bot-review-wait.md" ;;
     pr_comment_resolution)    echo "${base}/arc-phase-pr-comment-resolution.md" ;;
@@ -547,7 +547,7 @@ _phase_ref() {
 # Required when multiple phases share the same reference file. Without hints,
 # Claude reads the full file and may execute multiple phases in one turn,
 # preventing the Stop hook from firing between them.
-# Shared files: arc-codex-phases.md, arc-phase-pre-ship-validator.md
+# Shared files: arc-codex-phases.md, arc-phase-pre-ship-validation.md
 _phase_section_hint() {
   local phase="$1"
   case "$phase" in

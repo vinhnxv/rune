@@ -21,6 +21,20 @@ Canonical taxonomy for arc pipeline terminology. Ensures consistent naming acros
 | `arc-{utility}.md` | Cross-phase utility | `arc-checkpoint-init.md`, `arc-resume.md` |
 | `{concept}.md` | Standalone algorithm | `stagnation-sentinel.md`, `verify-mend.md` |
 
+### Documented exceptions (unprefixed phase reference files)
+
+The phases below are full-fledged arc phases (registered in `PHASE_ORDER`) but their reference files **drop the `arc-phase-` prefix**. The dispatcher case statement in [`scripts/arc-phase-stop-hook.sh`](../../../scripts/arc-phase-stop-hook.sh) handles each as an explicit special-case, so behaviour is unaffected — but a `grep arc-phase-*` search will not surface them. Do not add new phases under this exception; new phases should follow the `arc-phase-{name}.md` standard.
+
+| File | PHASE_ORDER key | Why unprefixed |
+|------|-----------------|----------------|
+| `verify-inspect.md` | `verify_inspect` | "Verify" family is a standalone correctness algorithm; predates the `arc-phase-` standard |
+| `verify-mend.md` | `verify_mend` | Same as above — sibling to `verify-inspect.md` |
+| `verification-gate.md` | `verification` | Phase **2.7** Verification Gate — gating algorithm reused by other phases, not a phase-specific handler |
+| `gap-analysis.md` | `gap_analysis` | "Gap" family is a standalone delta-detection algorithm; reused by `gap-remediation.md` |
+| `gap-remediation.md` | `gap_remediation` | Same as above — sibling to `gap-analysis.md` |
+
+**Rule for new phase reference files**: prefer `arc-phase-{name}.md`. Only drop the prefix if the file represents a reusable algorithm that is invoked from more than one phase, AND register the file in this table.
+
 ## Checkpoint Phase Keys
 
 Phase keys in `checkpoint.phases` use snake_case and match PHASE_ORDER entries:
