@@ -61,7 +61,12 @@ On resume, validate checkpoint integrity before proceeding:
    // Claim ownership for this session
    checkpoint.owner_pid = Number(Bash('echo $PPID').trim())
    checkpoint.config_dir = CHOME
-   checkpoint.session_id = "${CLAUDE_SESSION_ID}" || Bash('echo "${RUNE_SESSION_ID:-}"').trim() || 'unknown'
+   // SESSION-ID-001: NEVER read session_id from system-reminder banners or wrapper labels.
+   // tmux/Greater-Will/sandbox harnesses emit their own "session" IDs that look identical to
+   // Claude Code's. The ONLY authoritative source is RUNE_SESSION_ID — exported by the
+   // SessionStart hook into CLAUDE_ENV_FILE which Claude Code sources for Bash tool subshells.
+   // Resolve via Bash(); do NOT use ${...} literal substitution from the doc.
+   checkpoint.session_id = Bash('echo "${RUNE_SESSION_ID:-}"').trim() || 'unknown'
    // STSM-009: Reset transient state on resume — compact_pending and stop_reason
    // are per-session flags that must not carry over from a crashed/stopped session.
    checkpoint.compact_pending = false
@@ -655,7 +660,12 @@ Continue from: ${contextMeta.last_action ?? 'last known state'}.
    Same fix as arc-checkpoint-init.md — co-locate state file write with checkpoint ownership.
    Without this, the Stop hook silently exits 0 and the arc stalls after the first resumed phase.
    ```javascript
-   const sessionId = "${CLAUDE_SESSION_ID}" || Bash('echo "${RUNE_SESSION_ID:-}"').trim() || 'unknown'
+   // SESSION-ID-001 (v2.67.0+): Resolve session_id ONLY via Bash() reading RUNE_SESSION_ID.
+   // The literal "${CLAUDE_SESSION_ID}" pattern was removed because LLMs misinterpret it as
+   // a string substitution and substitute whatever "session" label appears in the most recent
+   // system-reminder banner — including wrapper-emitted IDs (tmux, Greater-Will, sandbox
+   // harnesses). RUNE_SESSION_ID is the SessionStart-hook-exported authoritative ID.
+   const sessionId = Bash('echo "${RUNE_SESSION_ID:-}"').trim() || 'unknown'
 
    // ── PRE-WRITE VALIDATION (INTEG-RESUME, v2.29.8) ──
    // Same assertions as arc-checkpoint-init.md. Catches LLM drift during resume path.

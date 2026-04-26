@@ -458,7 +458,11 @@ const checkpointPath = `.rune/arc/${id}/checkpoint.json`
 Bash(`mkdir -p ".rune/arc/${id}"`)
 Write(checkpointPath, {
   id, schema_version: 30, plan_file: planFile,
-  config_dir: configDir, owner_pid: ownerPid, session_id: "${CLAUDE_SESSION_ID}" || Bash(`echo "\${RUNE_SESSION_ID:-}"`).trim(),
+  // SESSION-ID-001: session_id MUST resolve via Bash() reading RUNE_SESSION_ID — never via
+  // ${CLAUDE_SESSION_ID} literal. LLMs substitute the latter from system-reminder banners,
+  // including wrapper-emitted IDs (tmux, Greater-Will). RUNE_SESSION_ID is the authoritative
+  // ID written by the SessionStart hook into CLAUDE_ENV_FILE.
+  config_dir: configDir, owner_pid: ownerPid, session_id: Bash(`echo "\${RUNE_SESSION_ID:-unknown}"`).trim(),
   // RUIN-003 FIX: Remove redundant ?? guards — Layer 2 resolveArcConfig() already guarantees all values are defined
   flags: { approve: arcConfig.approve, no_forge: arcConfig.no_forge, skip_freshness: arcConfig.skip_freshness, confirm: arcConfig.confirm, no_test: arcConfig.no_test, no_browser_test: arcConfig.no_browser_test, accept_external_changes: arcConfig.accept_external_changes, bot_review: arcConfig.bot_review, no_bot_review: arcConfig.no_bot_review, step_groups: arcConfig.step_groups },
   arc_config: arcConfig,
@@ -706,10 +710,15 @@ if (!planFile || planFile === 'null' || planFile === 'unknown') {
 // the phase loop state file under context pressure or step-shortcutting.
 // Previously this was a separate section in SKILL.md that could be skipped.
 // See arc-phase-loop-state.md for the state file schema.
-const sessionId = "${CLAUDE_SESSION_ID}" || Bash('echo "${RUNE_SESSION_ID:-}"').trim() || 'unknown'
-// INTEG-INIT-006: sessionId must not be 'unknown' (both sources failed)
+// SESSION-ID-001 (v2.67.0+): Resolve session_id ONLY via Bash() reading RUNE_SESSION_ID.
+// The "${CLAUDE_SESSION_ID}" literal pattern was removed because LLMs misinterpret it as a
+// string substitution placeholder and inline whatever "session" label appears in the most
+// recent system-reminder banner — including wrapper-emitted IDs (tmux, Greater-Will, sandbox
+// harnesses). RUNE_SESSION_ID is the only authoritative ID for the live Claude Code session.
+const sessionId = Bash('echo "${RUNE_SESSION_ID:-}"').trim() || 'unknown'
+// INTEG-INIT-006: sessionId must not be 'unknown' (RUNE_SESSION_ID env var unavailable)
 if (sessionId === 'unknown') {
-  throw new Error(`FATAL (INTEG-INIT-006): sessionId is 'unknown' — neither CLAUDE_SESSION_ID nor RUNE_SESSION_ID is available.`)
+  throw new Error(`FATAL (INTEG-INIT-006): sessionId is 'unknown' — RUNE_SESSION_ID env var not available. The SessionStart hook must run before /rune:arc.`)
 }
 const branch = Bash("git branch --show-current 2>/dev/null").trim() || 'main'
 const stateContent = `---

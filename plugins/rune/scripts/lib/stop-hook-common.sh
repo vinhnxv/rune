@@ -168,6 +168,52 @@ get_field() {
   return 0
 }
 
+# ── _arc_write_ownership_rejection_diag(): Write a diagnostic file when GUARD 5.7 rejects ──
+# Surfaces ownership rejections that would otherwise silently kill the arc (exit 0 or
+# return 1 in strict mode). Writes to {repo}/.rune/arc-ownership-rejection.log so an
+# operator can detect stuck arcs without enabling RUNE_TRACE=1.
+#
+# Append-only with a 16 KB cap to prevent unbounded growth from misbehaving sessions.
+# Atomic via redirect — failures are silently swallowed (best-effort observability).
+#
+# Args:
+#   $1 = state file path (absolute) — used to derive the .rune/ directory
+#   $2 = reason code (e.g., session_id_mismatch, config_dir_mismatch, claim_too_old)
+#   $3 = free-form details string (already truncated by caller; will be sanitized)
+# Returns: 0 always (best-effort)
+_arc_write_ownership_rejection_diag() {
+  local state_file="${1:-}"
+  local reason="${2:-unspecified}"
+  local detail="${3:-}"
+  [[ -z "$state_file" ]] && return 0
+
+  # Resolve the .rune/ directory from the state file path (state file lives in .rune/)
+  local rune_dir
+  rune_dir="$(cd "$(dirname "$state_file")" 2>/dev/null && pwd)" || return 0
+  [[ -d "$rune_dir" ]] || return 0
+
+  local diag_log="${rune_dir}/arc-ownership-rejection.log"
+  local ts
+  ts=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "?")
+
+  # Sanitize: strip CR/LF and control chars from reason+detail to keep the log line-oriented
+  reason=$(printf '%s' "$reason" | tr -d '\000-\037' | head -c 64)
+  detail=$(printf '%s' "$detail" | tr -d '\000-\037' | head -c 256)
+
+  # Cap log size at 16 KB (truncate by tail-keep when above cap)
+  # `wc -c` is POSIX and portable across BSD (macOS) and GNU.
+  if [[ -f "$diag_log" ]]; then
+    local sz
+    sz=$(wc -c < "$diag_log" 2>/dev/null | tr -d ' ' || echo "0")
+    if [[ "$sz" =~ ^[0-9]+$ ]] && [[ "$sz" -gt 16384 ]]; then
+      tail -c 8192 "$diag_log" > "${diag_log}.tmp" 2>/dev/null && mv -f "${diag_log}.tmp" "$diag_log" 2>/dev/null
+    fi
+  fi
+
+  printf '%s GUARD 5.7 rejected | reason=%s | %s\n' "$ts" "$reason" "$detail" >> "$diag_log" 2>/dev/null || true
+  return 0
+}
+
 # ── _validate_session_ownership_core(): Shared session isolation logic ──
 # Internal core for validate_session_ownership() and validate_session_ownership_strict().
 # DO NOT call directly — use the public wrappers.
@@ -429,6 +475,12 @@ _validate_session_ownership_core() {
       if [[ "${RUNE_TRACE:-}" == "1" ]] && declare -f _trace &>/dev/null; then
         _trace "${_tp}: REJECTED — different session_id (no orphan cleanup)"
       fi
+      # SESSION-ID-001 (v2.67.0+): write a visible diagnostic so silent ownership
+      # rejections don't kill the arc invisibly. Captures the most common cause
+      # (banner-confusion) so an operator running `ls .rune/` immediately sees the
+      # rejection without needing RUNE_TRACE=1.
+      _arc_write_ownership_rejection_diag "$state_file" "session_id_mismatch" \
+        "stored=${stored_session_id:0:8}… hook=${hook_session_id:0:8}… stored_pid=${stored_pid:-unknown}" 2>/dev/null || true
       return 1
     fi
   fi
@@ -720,6 +772,27 @@ validate_state_file_integrity() {
   _cancel_reason=$(get_field "cancel_reason" 2>/dev/null || true)
   if [[ -n "$_cancel_reason" ]] && [[ "$_cancel_reason" != "null" ]] && [[ "$_user_cancelled" != "true" ]]; then
     _integ_warn "INTEG-015" "cancel_reason='${_cancel_reason}' but user_cancelled is not true — inconsistent"
+  fi
+
+  # ── INTEG-016 (SESSION-ID-001, v2.67.0+): banner-confusion guard ──
+  # Catches the bug where an LLM writes a wrapper's tracking ID (tmux, Greater-Will,
+  # sandbox harness) into session_id instead of the authoritative Claude Code session ID.
+  # Comparison sources, in priority order:
+  #   1. RUNE_SESSION_ID env var (set by SessionStart hook into CLAUDE_ENV_FILE)
+  #   2. hook-input session_id (from $INPUT JSON, written by Claude Code at hook fire)
+  # Both should agree. If either is set and the state file's session_id differs,
+  # raise an integrity warning (not a hard fail — GUARD 5.7 already rejects on
+  # mismatch via session ownership; INTEG-016 surfaces the cause when GUARD 5.7
+  # was bypassed via RUNE_SKIP_OWNERSHIP=1 or in self-heal contexts).
+  if [[ -n "$_session_id" ]] && [[ "$_session_id" != "unknown" ]] && [[ "$_session_id" != "null" ]]; then
+    local _hook_sid_for_integ=""
+    if [[ -n "${INPUT:-}" ]]; then
+      _hook_sid_for_integ=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null || true)
+    fi
+    local _ref_sid="${RUNE_SESSION_ID:-${_hook_sid_for_integ}}"
+    if [[ -n "$_ref_sid" ]] && [[ "$_ref_sid" != "$_session_id" ]]; then
+      _integ_warn "INTEG-016" "state session_id '${_session_id:0:8}…' does not match authoritative ID '${_ref_sid:0:8}…' (RUNE_SESSION_ID/hook-input) — likely banner-confusion bug; the LLM substituted a wrapper's session label instead of the real Claude Code session ID"
+    fi
   fi
 
   # ── Summary ──

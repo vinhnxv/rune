@@ -1,5 +1,111 @@
 # Changelog
 
+## [2.67.0-rc1] — 2026-04-26
+
+Feature (Shard 2 of unified retry/heal): Per-phase retry counter foundation.
+Introduces `_arc_increment_retry` + `_arc_reset_retry` in `scripts/lib/arc-phase-retry.sh`
+as the canonical primitive that subsumes (in Shard 3 GA) the four independent retry
+counters Rune currently maintains (`stuck_count`, `MAX_FIN_RETRIES`, `_FAST_PATH`
+crash counter, `stop_hook_retries`).
+
+Behind opt-in talisman flag `arc.retry.enabled: false` (rc1 canary default).
+When `arc.retry.enabled: true`, the in-progress guard delegates to `_arc_increment_retry`
+and the function tracks per-phase strikes, emits `retry-strike` breadcrumbs, and
+returns terminal at strike threshold+1 (caller falls through to existing v2.66.x
+auto-skip behavior — cascade lands in Shard 3).
+
+NO heal actions yet. NO terminal cascade yet. NO subsumption of finalize/fast-path/
+stop-hook retry counters yet. All deferred to Shard 3 (v2.67.0 GA).
+
+### Plan
+
+- Plan: `plans/2026-04-26-feat-arc-unified-retry-heal-shard-2-plan.md`
+- Predecessor: Shard 1 (v2.66.2 demotion gate)
+- Successor: Shard 3 (v2.67.0 GA cascade + heal + subsumption)
+
+### Added
+
+- `plugins/rune/scripts/lib/arc-phase-retry.sh` — NEW. Per-phase retry counter primitive.
+  - `_arc_increment_retry($phase, $reason)` — bump retry_count, append retry_strikes[]
+    entry, mirror to stuck_count for backward compat (AC-2.5), return 0 (re-inject)
+    or 1 (terminal) at strike threshold+1.
+  - `_arc_reset_retry($phase)` — reset retry_count, retry_strikes, retry_terminal,
+    demotion_revert_count, stuck_count to clean state on successful phase completion.
+- `talisman.example.yml` `arc.retry` section: `enabled` (default false), `threshold`
+  (default 3), `heal_enabled` (default true — Shard 3 consumer).
+
+### Fixed
+
+- **CHKPT-LOOP-001 — Stale-reset Phase A re-fire loop** (caught by user during Shard 2 arc run on 2026-04-26): When the user took longer than 300s (5 min) between the "Context Checkpoint" pre-phase message and their "Ready for next phase." reply, the state file's mtime aged past the stale threshold. The Stop hook's stale-recovery block at `arc-phase-stop-hook.sh:1986–2007` reset `compact_pending: true → false` — but then Phase A's condition (`compact_pending != "true"` + `NEXT_PHASE` is heavy) re-fired, emitting the SAME Context Checkpoint message AGAIN instead of falling through to the phase dispatch. The pipeline got stuck looping checkpoint messages indefinitely. Observed at iteration 30+ in this arc run. Fix: introduce `_STALE_COMPACT_RESET` flag set when stale-reset fires, and gate Phase A on `_STALE_COMPACT_RESET != "true"` so the hook falls through to phase dispatch rather than re-entering the checkpoint loop. By the time stale-reset fires, the LLM has either acked the checkpoint (so context flush already happened) or ignored it (in which case re-asking is futile) — advancing to phase dispatch is the correct recovery in either case.
+
+- **P1 — Talisman gate key inconsistency** (caught by Codex Phase 2.8 cross-model
+  verification during arc plan_review): The early-return check now reads
+  `config.retry_enabled` (a NEW config field that mirrors talisman `arc.retry.enabled`)
+  instead of `config.heal_actions_enabled`. The original plan body wired both gates
+  to the same field, which would have defeated the canary kill-switch
+  (`heal_actions_enabled` defaults to true → retries would still fire even with
+  `arc.retry.enabled=false`). The two flags are now correctly distinct:
+  - `arc.retry.enabled` (talisman) → user-facing canary opt-in → mirrored to
+    `config.retry_enabled` in checkpoint
+  - `arc.retry.heal_enabled` (talisman) → gate for Shard 3 heal action library →
+    mirrored to `config.heal_actions_enabled`
+
+- **SESSION-ID-001 — Banner-confusion bug prevention** (caught by user during Shard 2
+  arc resume on 2026-04-26): The arc pipeline silently stalled at GUARD 5.7 strict-mode
+  ownership check because the LLM substituted a tmux/Greater-Will wrapper's "session"
+  banner ID into the state file's `session_id` field instead of Claude Code's actual
+  session ID. The Stop hook compared hook-input `session_id` against the stored value,
+  found a mismatch, and `exit 0`'d with no breadcrumb — invisible failure mode.
+  Three-layer fix:
+  1. **Skill-side** (root cause): Removed the `${CLAUDE_SESSION_ID}` literal pattern
+     from `arc-resume.md` and `arc-checkpoint-init.md` (4 sites). Session ID now
+     resolves ONLY via `Bash('echo "${RUNE_SESSION_ID:-}"').trim()` — RUNE_SESSION_ID
+     is the SessionStart-hook-exported authoritative ID. The literal placeholder was
+     the LLM hook for substituting wrapper banners.
+  2. **Hook-side defense** (INTEG-016): New banner-confusion guard in
+     `validate_state_file_integrity` compares state `session_id` against
+     `RUNE_SESSION_ID` env var or hook-input JSON `session_id`. Emits an integrity
+     warning with diagnostic phrase `banner-confusion bug` when they diverge.
+     Surfaces the cause when GUARD 5.7 is bypassed (RUNE_SKIP_OWNERSHIP=1) or in
+     self-heal contexts.
+  3. **Observability** (`_arc_write_ownership_rejection_diag`): GUARD 5.7's silent
+     `return 1` on session_id mismatch now writes a one-line diagnostic to
+     `.rune/arc-ownership-rejection.log` (16 KB cap, control-char sanitized,
+     append-only). Operators see `ls .rune/` and immediately know the arc was
+     rejected — no need to enable RUNE_TRACE=1.
+
+### Backward Compatibility
+
+- All schema field reads use jq `// default` (e.g., `.config.retry_enabled // false`,
+  `.phases[$p].retry_count // 0`). v2.66.x checkpoints roll forward without
+  mutation needed at first read.
+- `stuck_count` is preserved as a read-only mirror of `retry_count` (both are
+  written together in the same atomic jq mutation). Removal scheduled for v2.68.0
+  after Shard 3 GA + canary period.
+
+### Constraints honored (FLAW-008 lesson)
+
+- Every command substitution path in the new functions either always returns 0
+  OR has explicit error handling — no ERR-trap landmines under `set -euo pipefail`.
+- Atomic mktemp+mv pattern preserved at caller (the stop-hook in-progress guard
+  already follows this — Shard 2 does not modify the atomic-write path).
+- jq output validation via `jq -e '.' >/dev/null` before consumption (v2.66.0 FIX G).
+
+### Deferred to Shard 3
+
+- T-2.3 partial: `_arc_increment_retry` is callable but the in-progress guard at
+  `arc-phase-stop-hook.sh:~L1500` still uses inline `stuck_count` increment.
+  Shard 3 will replace the inline branch with a call to the new function.
+- T-2.4: Reset on phase completion not yet wired. Currently the retry state
+  persists across successful completions until the phase next fires stuck.
+  Shard 3 will hook `_arc_reset_retry` into the post-self-heal block (~L1116).
+- T-2.6: Test harness (test_arc_retry_strike.sh, test_arc_rollback_flag.sh,
+  test_arc_backward_compat.sh) not landed in rc1. Will land alongside Shard 3
+  wiring as the integrated test suite.
+- T-2.1: Schema migration helper in `rune-arc-init-state.sh` deferred — the
+  `// default` patterns at every read site provide forward-compat. Helper can
+  land in Shard 3 if observability shows older checkpoints leak missing fields.
+
 ## [2.66.3] — 2026-04-26
 
 Fix: `context-percent-stop-guard.sh` was using the legacy PAT-011 stderr+exit-2

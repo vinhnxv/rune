@@ -1982,6 +1982,23 @@ fi
 # ── COMPACT INTERLUDE: Force context compaction before heavy phases ──
 COMPACT_PENDING=$(get_field "compact_pending")
 
+# CHKPT-LOOP-001 FIX (v2.67.0-rc1): Stale-reset-induced Phase A re-fire loop.
+# When the user takes > 300s between the Context Checkpoint message and their
+# "Ready for next phase." reply, this stale-reset block fires and flips
+# compact_pending back to false. The PRIOR behaviour then re-entered Phase A
+# (because compact_pending != "true" + NEXT_PHASE is heavy), emitting the SAME
+# Context Checkpoint message again instead of advancing to the phase dispatch.
+# Result: indefinite Context Checkpoint loop, observed at iteration 30+ in the
+# Shard 2 arc run on 2026-04-26 (see goldmask-correlation.md audit trail).
+#
+# Fix: when stale-reset fires, set _STALE_COMPACT_RESET=true. Phase A's
+# condition gate then treats this as "Phase B already ran" — skip Phase A,
+# fall through to phase dispatch. The LLM receives the actual phase prompt
+# instead of another checkpoint. Acceptable because: by the time stale-reset
+# fires, the LLM has either acked the checkpoint (so context flush already
+# happened) or ignored it (in which case re-asking is futile).
+_STALE_COMPACT_RESET="false"
+
 # Stale compact_pending recovery (same pattern as arc-batch F-02)
 if [[ "$COMPACT_PENDING" == "true" ]]; then
   # PAT-002 FIX: Apply :-0 default consistent with stop-hook-common.sh pattern
@@ -1992,7 +2009,7 @@ if [[ "$COMPACT_PENDING" == "true" ]]; then
     _sf_now=$(date +%s)
     _sf_age=$(( _sf_now - _sf_mtime ))
     if [[ "$_sf_age" -gt 300 ]]; then
-      _trace "Stale compact_pending (${_sf_age}s > 300s) — resetting"
+      _trace "Stale compact_pending (${_sf_age}s > 300s) — resetting + setting _STALE_COMPACT_RESET to skip Phase A"
       # FIX C (v2.66.0): On mv/mktemp failure, re-inject a retry prompt instead
       # of bare exit 0. Previously a transient I/O failure here silently ended
       # the arc — Claude's turn ended with no re-injection, nothing pumped.
@@ -2003,6 +2020,7 @@ if [[ "$COMPACT_PENDING" == "true" ]]; then
         && mv -f "$_STATE_TMP" "$STATE_FILE" 2>/dev/null \
         || { rm -f "$_STATE_TMP" 2>/dev/null; _trace "compact_pending sed/mv failed — preserving state, emitting retry"; arc_stop_continue "Arc state write transiently failed (stale compact_pending reset — sed/mv). Retrying next turn — no action required."; }
       COMPACT_PENDING="false"
+      _STALE_COMPACT_RESET="true"  # CHKPT-LOOP-001: signal Phase A to skip this iteration
     fi
   fi  # end else (stat succeeded)
 fi
@@ -2072,8 +2090,10 @@ if [[ "$_needs_compact" == "false" ]] && [[ "$ITERATION" -gt 0 ]]; then
   fi
 fi
 
-if [[ "$_needs_compact" == "true" ]] && [[ "$COMPACT_PENDING" != "true" ]] && [[ "$ITERATION" -gt 0 ]]; then
+if [[ "$_needs_compact" == "true" ]] && [[ "$COMPACT_PENDING" != "true" ]] && [[ "$ITERATION" -gt 0 ]] && [[ "$_STALE_COMPACT_RESET" != "true" ]]; then
   # Phase A: Set compact_pending and inject compaction trigger
+  # CHKPT-LOOP-001 (v2.67.0-rc1): Skip when stale-reset just fired — fall
+  # through to phase dispatch instead of looping the checkpoint message.
   if [[ ! -s "$STATE_FILE" ]]; then
     _trace "State file empty before compact Phase A — aborting"
     exit 0
