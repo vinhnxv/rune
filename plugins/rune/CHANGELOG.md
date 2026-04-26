@@ -1,5 +1,63 @@
 # Changelog
 
+## [2.67.0] — 2026-04-26
+
+Feature (Shard 3 of unified retry/heal — GA): Heal action library + terminal cascade
+foundation. Lands the GA pieces of the unified retry-with-heal architecture on top of
+the Shard 2 `_arc_increment_retry` primitive.
+
+**Foundational pieces shipped in this version (T-3.1 / T-3.2 / T-3.3 / T-3.10 / T-3.12):**
+
+- **NEW** `plugins/rune/scripts/lib/arc-phase-heal.sh` — heal action library (130 lines).
+  - `_arc_heal_strike_1`: no-op (API symmetry).
+  - `_arc_heal_clean_state` (AC-3.1): strike-2 heal — kills teammates of `arc-{phase}-{arc_id}`
+    via MCP-PROTECT-003-compliant `_rune_kill_tree "teammates"` filter and removes
+    `tmp/arc/{id}/{phase}-*.partial` artifacts. Preserves completed artifacts.
+  - `_arc_heal_rebuild` (AC-3.2): strike-3 heal — clean-state PLUS filesystem
+    TeamDelete fallback (CHOME canonicalized per STOP-001) PLUS removal of ALL
+    `tmp/arc/{id}/{phase}-*` artifacts including `qa/{phase}-*` verdicts. Symlinked
+    team dirs are SKIPPED (defense against symlink redirection).
+- **EDIT** `plugins/rune/scripts/lib/arc-phase-retry.sh` — augmented `_arc_increment_retry`
+  with case branches for `strike == 2` (clean-state heal) and `strike == 3` (rebuild heal).
+  Each heal sources `arc-phase-heal.sh`, resets `started_at` + `api_error_retries` +
+  `server_error_retries` via atomic jq mutation, updates `retry_strikes[-1].heal_action`
+  and `heal_team_killed`, and emits `retry-strike-heal` breadcrumb. Strike-3 also resets
+  `compact_pending` in the state file via atomic sed+mv.
+- **NEW function** `_arc_terminal_cascade` in `arc-phase-retry.sh` (AC-3.3) — terminal-skips
+  the phase (`status=skipped`, `retry_terminal=true`, `force_advanced=true`,
+  `skip_reason=retry_exhausted_after_heal`) and cascade-skips eligible dependents from
+  `config.skip_map_dependents[$phase]` (only `pending` deps are touched — never overrides
+  active in_progress work). Single atomic jq mutation with FIX G validation. Emits
+  `retry-terminal-cascade` breadcrumb with cascade-skipped dependent count.
+- **EDIT** `plugins/rune/talisman.example.yml` — flipped `arc.retry.enabled` default
+  from `false` (rc1 canary) to `true` (GA). Migration: users with explicit
+  `arc.retry.enabled: true` from canary can remove that line. Users on `false` retain
+  v2.66.x stuck_count + demotion behavior unchanged.
+
+**Migration**: Users who canary-tested rc1 with `arc.retry.enabled: true` see no
+behavior change. Users who didn't enable the flag in rc1 get the new heal+cascade
+behavior on upgrade — set `arc.retry.enabled: false` in talisman.yml to roll back.
+The `arc-phase-retry.sh` retry_enabled gate respects the rollback flag.
+
+**Deferred to follow-up work** (not blocking GA — T-3.4 through T-3.9, T-3.11):
+- T-3.4: `dependents:[]` field in `arc-delegation-checklist.md` per-phase blocks
+- T-3.5: Auto-derive `config.skip_map_dependents` in `arc-preflight.md` + `rune-arc-init-state.sh`
+- T-3.6: Wire 3 trigger sites in `arc-phase-stop-hook.sh` (L45 _FAST_PATH, L1804 stop_hook_retries, L2375 MAX_FIN_RETRIES)
+- T-3.7: Upgrade in-progress guard rc=1 path to use `_arc_terminal_cascade`
+- T-3.8: `validate-skip-map-dependents.sh` pre-commit script
+- T-3.9: Observability — surface retry state in `arc-state-health.sh` + `stop-hook-health.sh`
+- T-3.11: Test harness — `test_arc_cascade.sh` and `test_arc_subsumption.sh`
+
+These follow-ups are tracked as gap-analysis findings; the foundational primitives
+shipped here are the API surface those tasks consume.
+
+**Known carry-forward from plan_review** (P2 advisory, non-blocking):
+- Heal-3 deletes ALL `tmp/arc/{id}/{phase}-*` artifacts including QA verdicts —
+  consider `.bak.{ts}` rename instead of `-delete` for post-mortem reproducibility
+- Cascade race window: dependent transitions pending→in_progress mid-cascade is unprotected
+- L1804 trigger refactor must preserve global `stop_hook_retries++` semantic when wired
+- README count verification needed during T-3.12 follow-up
+
 ## [2.67.0-rc1] — 2026-04-26
 
 Feature (Shard 2 of unified retry/heal): Per-phase retry counter foundation.
