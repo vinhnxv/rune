@@ -14,9 +14,13 @@
 # written by rune-statusline.sh on Notification:statusline events — same source
 # as guard-context-critical.sh (PreToolUse). Avoids transcript parsing.
 #
-# Stop hook output format (PAT-011): exit 2 + stderr (NOT JSON stdout).
-# stderr content becomes Claude's next prompt turn.
-# exit 0 = allow stop silently (stdout/stderr discarded).
+# Stop hook output format (CC-STOP-API-OSC-001, v2.65.3): exit 0 with
+# spec-compliant JSON on stdout via arc_stop_continue helper. The legacy
+# PAT-011 pattern (stderr + exit 2) was deprecated when Claude Code 2.1.116
+# stopped re-injecting stderr — exit 2 is now treated as a blocking error
+# that discards stdout. Per the official spec (code.claude.com/docs/en/hooks),
+# only exit 0 + {"decision":"block","reason":"..."} JSON re-injects context.
+# exit 0 with no stdout = allow stop silently (the script's default path).
 
 set -euo pipefail
 trap 'exit 0' ERR  # immediate fail-forward guard — upgraded below
@@ -73,6 +77,15 @@ source "${SCRIPT_DIR}/lib/rune-state.sh"
 if [[ -f "${SCRIPT_DIR}/lib/stop-hook-common.sh" ]]; then
   # shellcheck source=lib/stop-hook-common.sh
   source "${SCRIPT_DIR}/lib/stop-hook-common.sh"
+fi
+# CTX-STOP-002 (v2.66.3 fix): source the v2.65.3 helpers so this advisory uses the
+# same schema-compliant emission path (arc_stop_continue) as the arc Stop hooks.
+# Replaces the legacy PAT-011 stderr+exit-2 pattern that silently fails on
+# Claude Code 2.1.116+ (where stderr is no longer re-injected and exit 2 discards
+# stdout per the official spec). See lib/arc-stop-hook-common.sh Block K.
+if [[ -f "${SCRIPT_DIR}/lib/arc-stop-hook-common.sh" ]]; then
+  # shellcheck source=lib/arc-stop-hook-common.sh
+  source "${SCRIPT_DIR}/lib/arc-stop-hook-common.sh"
 fi
 if declare -f resolve_cwd &>/dev/null; then
   resolve_cwd "$INPUT" || true
@@ -173,9 +186,16 @@ if (( USED_PCT >= HIGH_THRESHOLD )); then
   else
     jq -n --argjson c "$(( BLOCK_COUNT + 1 ))" '{ block_count: $c }' > "$GUARD_FILE" 2>/dev/null || true
   fi
-  # exit 2 + stderr = Stop hook "block" (PAT-011)
-  printf '%s\n' "$ADVICE" >&2 2>/dev/null || true
-  exit 2
+  # CTX-STOP-002 (v2.66.3 fix): emit via v2.65.3 schema-compliant helper.
+  # arc_stop_continue prints {"decision":"block","reason":"$ADVICE"} on stdout
+  # and exits 0 — Claude Code 2.1.116+ re-injects $ADVICE as next-turn context.
+  # Falls back to legacy PAT-011 stderr if the helper isn't loaded (older builds).
+  if declare -f arc_stop_continue >/dev/null 2>&1; then
+    arc_stop_continue "$ADVICE"
+  else
+    printf '%s\n' "$ADVICE" >&2 2>/dev/null || true
+    exit 0  # spec-compliant fallback (was exit 2 — discarded stdout on 2.1.116+)
+  fi
 
 elif (( USED_PCT >= WARNING_THRESHOLD )); then
   ADVICE="[CTX-STOP-001] Context usage at ${USED_PCT}% (${REMAINING_PCT}% remaining). Consider compacting soon to maintain quality. Run /compact when convenient."
@@ -186,8 +206,12 @@ elif (( USED_PCT >= WARNING_THRESHOLD )); then
   else
     jq -n --argjson c "$(( BLOCK_COUNT + 1 ))" '{ block_count: $c }' > "$GUARD_FILE" 2>/dev/null || true
   fi
-  printf '%s\n' "$ADVICE" >&2 2>/dev/null || true
-  exit 2
+  if declare -f arc_stop_continue >/dev/null 2>&1; then
+    arc_stop_continue "$ADVICE"
+  else
+    printf '%s\n' "$ADVICE" >&2 2>/dev/null || true
+    exit 0  # spec-compliant fallback
+  fi
 fi
 
 # Below threshold — allow stop silently

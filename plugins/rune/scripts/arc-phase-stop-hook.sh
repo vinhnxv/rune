@@ -950,22 +950,64 @@ _now=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date +"%Y-%m-%dT%H:%M:%SZ")
 # The empty-check on the next line handles the failure gracefully.
 _trace "TIMING: demotion check start at +$(( $(date +%s) - _HOOK_START_EPOCH ))s"
 _demote_result=$(echo "$CKPT_CONTENT" | jq --arg ts "$_now" '
-  [.phases | to_entries[] | select(.value.status == "skipped" and (.value.skip_reason == null or .value.skip_reason == ""))] as $to_demote |
-  if ($to_demote | length) > 0 then
+  # BEGIN_DEMOTION_JQ — extraction marker for tests/test_arc_demotion_gate.sh (BACK-001 fix)
+  # T-1.2 (v2.66.2): Two-pass demotion with budget gate (AC-1.2 / AC-1.3 / AC-1.4).
+  #
+  # BACK-002 (v2.66.2): defensive type coercion — `// 0` only substitutes null, NOT
+  # corrupted scalar types. A checkpoint with `demotion_revert_count: "3"` (string)
+  # would skip Pass 1 (`"3" < 3` is false) and immediately auto-fill on Pass 2,
+  # bypassing the 3-strike grace period. Floats would propagate non-integer arithmetic
+  # (`2.5 + 1 = 3.5`). Arrays/objects would throw on comparison and abort the entire
+  # filter. `_safe_count` normalizes ALL non-number types to 0 and floors floats.
+  def _safe_count: if type == "number" then floor else 0 end;
+  # Pass 1 — demote phases that have not exhausted the budget (count < 3).
+  [.phases | to_entries[] | select(
+    .value.status == "skipped"
+    and (.value.skip_reason == null or .value.skip_reason == "")
+    and ((.value.demotion_revert_count | _safe_count) < 3)
+  )] as $to_demote |
+  # Pass 2 — auto-fill skip_reason for phases past the budget (count >= 3).
+  # The auto-filled skip_reason makes the filter exclude these phases on the next
+  # Stop fire (skip_reason no longer empty), so the loop terminates.
+  [.phases | to_entries[] | select(
+    .value.status == "skipped"
+    and (.value.skip_reason == null or .value.skip_reason == "")
+    and ((.value.demotion_revert_count | _safe_count) >= 3)
+  )] as $to_fill |
+  if (($to_demote | length) > 0) or (($to_fill | length) > 0) then
     {
       demoted: [$to_demote[].key],
+      auto_filled: [$to_fill[].key],
       checkpoint: (
         reduce $to_demote[] as $d (.;
           .phases[$d.key].status = "pending" |
           .phases[$d.key].started_at = null |
-          .phases[$d.key].completed_at = null
+          .phases[$d.key].completed_at = null |
+          .phases[$d.key].demotion_revert_count = ((.phases[$d.key].demotion_revert_count | _safe_count) + 1)
         ) |
-        .phase_skip_log = (.phase_skip_log // []) + [$to_demote[] | {phase: .key, event: "demoted_to_pending", reason: "missing_skip_reason", timestamp: $ts}]
+        reduce $to_fill[] as $f (.;
+          .phases[$f.key].skip_reason = "auto_filled_after_3_demotion_reverts"
+        ) |
+        .phase_skip_log = (.phase_skip_log // []) + (
+          [$to_demote[] | {
+            phase: .key, event: "demoted_to_pending",
+            reason: "missing_skip_reason",
+            count: ((.value.demotion_revert_count | _safe_count) + 1),
+            timestamp: $ts
+          }] +
+          [$to_fill[] | {
+            phase: .key, event: "demotion_loop_terminated",
+            reason: "auto_filled_after_3_demotion_reverts",
+            count: (.value.demotion_revert_count | _safe_count),
+            timestamp: $ts
+          }]
+        )
       )
     }
   else
-    { demoted: [], checkpoint: . }
+    { demoted: [], auto_filled: [], checkpoint: . }
   end
+  # END_DEMOTION_JQ — extraction marker for tests/test_arc_demotion_gate.sh (BACK-001 fix)
 ' 2>/dev/null || true)
 
 if [[ -z "${_demote_result:-}" ]]; then
@@ -985,18 +1027,32 @@ if [[ -n "${_demote_result:-}" ]] && ! printf '%s' "$_demote_result" | jq -e '.'
 fi
 
 _demoted_count=0
+_auto_filled_count=0
 if [[ -n "$_demote_result" ]]; then
   _demoted_count=$(echo "$_demote_result" | jq -r '.demoted | length' 2>/dev/null || echo "0")
-  if [[ "$_demoted_count" -gt 0 ]]; then
+  # T-1.2 (v2.66.2): Pass 2 result — phases past the demotion budget that got
+  # their skip_reason auto-filled. Triggers the demotion-loop-halted breadcrumb
+  # and forces a checkpoint write so the auto-filled skip_reason persists.
+  _auto_filled_count=$(echo "$_demote_result" | jq -r '.auto_filled | length' 2>/dev/null || echo "0")
+  if [[ "$_demoted_count" -gt 0 || "$_auto_filled_count" -gt 0 ]]; then
     _demoted_ckpt=$(echo "$_demote_result" | jq -c '.checkpoint' 2>/dev/null || true)
     if [[ -n "$_demoted_ckpt" && "$_demoted_ckpt" != "null" ]]; then
       CKPT_CONTENT="$_demoted_ckpt"
-      _trace "Demoted ${_demoted_count} illegitimately skipped phase(s) — writing checkpoint"
+      _trace "Demoted ${_demoted_count} phase(s); auto-filled ${_auto_filled_count} phase(s) — writing checkpoint"
       # Log each demoted phase
-      _demoted_phases=$(echo "$_demote_result" | jq -r '.demoted[]' 2>/dev/null || true)
-      while IFS= read -r _dp; do
-        [[ -n "$_dp" ]] && _log_phase "phase_demoted" "$_dp" "reason=missing_skip_reason"
-      done <<< "$_demoted_phases"
+      if [[ "$_demoted_count" -gt 0 ]]; then
+        _demoted_phases=$(echo "$_demote_result" | jq -r '.demoted[]' 2>/dev/null || true)
+        while IFS= read -r _dp; do
+          [[ -n "$_dp" ]] && _log_phase "phase_demoted" "$_dp" "reason=missing_skip_reason"
+        done <<< "$_demoted_phases"
+      fi
+      # T-1.2 (v2.66.2): Breadcrumb on auto-fill (loop terminator). Plan AC-1.3
+      # — "demotion-loop-halted" + auto_filled count so stop-hook-health.sh can
+      # surface terminations for post-hoc audit.
+      if [[ "$_auto_filled_count" -gt 0 ]]; then
+        declare -f _arc_stop_hook_breadcrumb >/dev/null 2>&1 \
+          && _arc_stop_hook_breadcrumb "demotion-loop-halted" "$_auto_filled_count"
+      fi
       # Validate JSON before writing (prevent corrupted checkpoint from killing the loop)
       # CDX-007 FIX: Use mktemp for unique temp file to avoid concurrent hook race
       # BUG FIX: was `continue` which is invalid outside a loop → ERR trap → silent arc death

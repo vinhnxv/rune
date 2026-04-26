@@ -1,5 +1,134 @@
 # Changelog
 
+## [2.66.3] — 2026-04-26
+
+Fix: `context-percent-stop-guard.sh` was using the legacy PAT-011 stderr+exit-2
+pattern, missed by the v2.65.3 Stop hook contract migration (issue #512).
+On Claude Code 2.1.116+, the 70%/85% context-usage warnings silently failed
+to inject — exit 2 is treated as a blocking error that discards stdout per
+the official spec, and stderr is no longer re-injected as next-turn context.
+
+### Fixed
+
+- **CTX-STOP-002**: `context-percent-stop-guard.sh` now emits via the v2.65.3
+  `arc_stop_continue` helper (sourced from `lib/arc-stop-hook-common.sh`),
+  matching the contract used by all four arc Stop hooks. Both threshold
+  branches (HIGH 85% and WARNING 70%) updated.
+- Header documentation updated to reference the v2.65.3 contract instead
+  of the deprecated PAT-011 pattern.
+- Defensive fallback added: if `arc_stop_continue` is not defined (older
+  builds, missing lib), the script falls back to `exit 0` with stderr
+  output instead of `exit 2` — graceful degradation that at minimum
+  remains spec-compliant.
+
+### Verification
+
+End-to-end simulation with synthetic bridge file at 88% used:
+- exit code: 0 (was 2)
+- stdout: valid `{"decision":"block","reason":"..."}` JSON
+- `jq -e '.decision == "block"'` returns true
+- Below-threshold path remains `exit 0` silent (no behavior change)
+
+### Impact
+
+Users on Claude Code 2.1.116+ now receive context-usage warnings as
+intended at 70% and 85% thresholds. The advisory text re-injects as
+next-turn context, prompting consideration of `/compact` or session
+restart before quality degrades.
+
+Audit completion: this resolves the LAST occurrence of `exit 2` in any
+Stop-class hook script across the plugin. Verified via:
+`grep -rE '^[[:space:]]*exit[[:space:]]+2' plugins/rune/scripts/*-stop-hook.sh`
+returns zero matches in arc Stop hooks AND `context-percent-stop-guard.sh`.
+
+## [2.66.2] — 2026-04-26
+
+Fix: Stop demotion-revert infinite loop in `arc-phase-stop-hook.sh:952` via 3-strike budget gate.
+
+### Added
+
+- `demotion_revert_count` field on every phase block (default 0). Schema seed
+  added to the canonical phase template at
+  `plugins/rune/skills/arc/references/arc-checkpoint-init.md:495-542` (44
+  phase entries; purely additive).
+- Two-pass demotion `jq` filter at `arc-phase-stop-hook.sh:952`. Pass 1
+  selects phases with `(demotion_revert_count // 0) < 3` and demotes them
+  back to `pending` while incrementing the counter. Pass 2 selects phases
+  with `(demotion_revert_count // 0) >= 3` and auto-fills `skip_reason` to
+  `"auto_filled_after_3_demotion_reverts"` so the filter excludes them on
+  subsequent Stop fires — this is the loop terminator.
+- `demotion-loop-halted` breadcrumb (kind value) emitted via
+  `_arc_stop_hook_breadcrumb` whenever the auto-fill path triggers, so
+  `stop-hook-health.sh` can surface terminations for post-hoc audit.
+- `phase_skip_log` `count` field on both `demoted_to_pending` and
+  `demotion_loop_terminated` events. Demoted entries record the new count
+  (orig+1); terminated entries record the existing count (>= 3).
+
+### Fixed
+
+- bug #1 — plan_refine demotion-revert infinite loop with `work` auto-skip
+  side-effect. Reproduction: plan_refine completes → some downstream
+  condition marks it `skipped` with empty `skip_reason` → demotion loop
+  reverts to `pending` → re-runs → re-marks `skipped` empty → loop forever.
+  Root cause: the demotion loop had no retry tally. Fix: 3-strike budget
+  + auto-fill terminator.
+
+### Backward compatibility
+
+- In-flight v2.66.1 checkpoints (no `demotion_revert_count` field) upgrade
+  transparently via `jq // 0` default. Every read site of the new field in
+  the two-pass filter uses `(.value.demotion_revert_count // 0)` (5 sites).
+  First demotion creates the field with value 1.
+
+### Tests
+
+- New `tests/test_arc_demotion_gate.sh` (plain bash, executable) covering
+  AC-1.1 through AC-1.4 — 41 assertions, all PASS. Mirrored as
+  `tests/bats/test_arc_demotion_gate.bats` matching the existing repo bats
+  convention. Test extracts the live `jq` filter from
+  `arc-phase-stop-hook.sh` so it auto-validates against future changes.
+
+### Notes
+
+- T-1.1 wiring corrected from `rune-arc-init-state.sh` to
+  `arc-checkpoint-init.md` (plan defect). The plan named
+  `plugins/rune/scripts/rune-arc-init-state.sh` as the schema-seed location,
+  but that script writes the YAML state-file frontmatter — it does NOT seed
+  per-phase blocks in `checkpoint.json`. The canonical phase template lives
+  in `plugins/rune/skills/arc/references/arc-checkpoint-init.md:495-542`
+  (LLM-driven seed). Tarnished-approved deviation; full rationale in
+  `tmp/work/20260426-051847/tasks/task-3.md` DEVIATION RECORD.
+
+### Mend follow-ups (post-review hardening)
+
+After `/rune:appraise` on this shard, four findings were resolved as
+in-PR follow-ups:
+
+- **BACK-001** (P2): test extraction now anchors on explicit
+  `# BEGIN_DEMOTION_JQ` / `# END_DEMOTION_JQ` markers (jq comments inside
+  the filter body, inert at runtime). Replaces a fragile shell-syntax regex
+  that could match the skip_map block closer at L1092 and silently extract
+  a partially-valid filter. Failure path now reports "missing markers" with
+  the v2.66.2 reference.
+- **BACK-002** (P3): defensive type coercion via new `_safe_count` jq helper.
+  Normalizes corrupted `demotion_revert_count` values (string `"3"`, float
+  `2.5`, array `[3]`) to integer 0 at all 5 read sites in the two-pass
+  filter. Floors floats. Prevents the array case from aborting the entire
+  jq filter via `[3] < 3` throw.
+- **BACK-003** (P3): added 19 multi-phase test assertions covering both
+  Pass 1 dual-demotion (two phases eligible in same fire) and mixed
+  Pass 1 + Pass 2 (one demoted, one auto-filled). Earlier fixtures only
+  exercised the degenerate N=1 case of the array machinery.
+- **BACK-004** (P3): updated `_arc_stop_hook_breadcrumb` docstring in
+  `lib/arc-stop-hook-common.sh` to include the full current KIND taxonomy
+  (`jq-fail`, `jq-invalid`, `crash-converted`, `demotion-loop-halted` —
+  added across v2.66.0 and this shard but not previously documented).
+
+Final test count after mend: 68 PASS, 0 FAIL (was 41 after T-1.3).
+Resolution report: `tmp/mend/a501bb45-051847/resolution-report.md`.
+
+Reference: shard 1 of `plans/2026-04-26-feat-arc-unified-retry-heal-plan.md`.
+
 ## [2.66.1] — 2026-04-26
 
 ### Fixed — FLAW-008: `_check_test_batches` ERR-trap stall on missing testing-plan.json
