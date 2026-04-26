@@ -1,5 +1,46 @@
 # Changelog
 
+## [2.66.3] — 2026-04-26
+
+Fix: `context-percent-stop-guard.sh` was using the legacy PAT-011 stderr+exit-2
+pattern, missed by the v2.65.3 Stop hook contract migration (issue #512).
+On Claude Code 2.1.116+, the 70%/85% context-usage warnings silently failed
+to inject — exit 2 is treated as a blocking error that discards stdout per
+the official spec, and stderr is no longer re-injected as next-turn context.
+
+### Fixed
+
+- **CTX-STOP-002**: `context-percent-stop-guard.sh` now emits via the v2.65.3
+  `arc_stop_continue` helper (sourced from `lib/arc-stop-hook-common.sh`),
+  matching the contract used by all four arc Stop hooks. Both threshold
+  branches (HIGH 85% and WARNING 70%) updated.
+- Header documentation updated to reference the v2.65.3 contract instead
+  of the deprecated PAT-011 pattern.
+- Defensive fallback added: if `arc_stop_continue` is not defined (older
+  builds, missing lib), the script falls back to `exit 0` with stderr
+  output instead of `exit 2` — graceful degradation that at minimum
+  remains spec-compliant.
+
+### Verification
+
+End-to-end simulation with synthetic bridge file at 88% used:
+- exit code: 0 (was 2)
+- stdout: valid `{"decision":"block","reason":"..."}` JSON
+- `jq -e '.decision == "block"'` returns true
+- Below-threshold path remains `exit 0` silent (no behavior change)
+
+### Impact
+
+Users on Claude Code 2.1.116+ now receive context-usage warnings as
+intended at 70% and 85% thresholds. The advisory text re-injects as
+next-turn context, prompting consideration of `/compact` or session
+restart before quality degrades.
+
+Audit completion: this resolves the LAST occurrence of `exit 2` in any
+Stop-class hook script across the plugin. Verified via:
+`grep -rE '^[[:space:]]*exit[[:space:]]+2' plugins/rune/scripts/*-stop-hook.sh`
+returns zero matches in arc Stop hooks AND `context-percent-stop-guard.sh`.
+
 ## [2.66.2] — 2026-04-26
 
 Fix: Stop demotion-revert infinite loop in `arc-phase-stop-hook.sh:952` via 3-strike budget gate.
