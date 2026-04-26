@@ -36,6 +36,8 @@ stop-hook retry counters yet. All deferred to Shard 3 (v2.67.0 GA).
 
 ### Fixed
 
+- **CHKPT-LOOP-001 — Stale-reset Phase A re-fire loop** (caught by user during Shard 2 arc run on 2026-04-26): When the user took longer than 300s (5 min) between the "Context Checkpoint" pre-phase message and their "Ready for next phase." reply, the state file's mtime aged past the stale threshold. The Stop hook's stale-recovery block at `arc-phase-stop-hook.sh:1986–2007` reset `compact_pending: true → false` — but then Phase A's condition (`compact_pending != "true"` + `NEXT_PHASE` is heavy) re-fired, emitting the SAME Context Checkpoint message AGAIN instead of falling through to the phase dispatch. The pipeline got stuck looping checkpoint messages indefinitely. Observed at iteration 30+ in this arc run. Fix: introduce `_STALE_COMPACT_RESET` flag set when stale-reset fires, and gate Phase A on `_STALE_COMPACT_RESET != "true"` so the hook falls through to phase dispatch rather than re-entering the checkpoint loop. By the time stale-reset fires, the LLM has either acked the checkpoint (so context flush already happened) or ignored it (in which case re-asking is futile) — advancing to phase dispatch is the correct recovery in either case.
+
 - **P1 — Talisman gate key inconsistency** (caught by Codex Phase 2.8 cross-model
   verification during arc plan_review): The early-return check now reads
   `config.retry_enabled` (a NEW config field that mirrors talisman `arc.retry.enabled`)
