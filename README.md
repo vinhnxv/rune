@@ -11,6 +11,7 @@ Plan, implement, review, test, and audit your codebase using coordinated Agent T
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Agents](https://img.shields.io/badge/agents-152-purple)](#agents)
 [![Skills](https://img.shields.io/badge/skills-69-orange)](#skills)
+[![SafeSkill 30/100](https://img.shields.io/badge/SafeSkill-30%2F100_Blocked-red)](https://safeskill.dev/scan/vinhnxv-rune)
 
 ---
 
