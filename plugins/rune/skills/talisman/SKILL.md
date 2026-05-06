@@ -1,44 +1,11 @@
 ---
 name: talisman
 description: |
-  Deep talisman.yml configuration expertise. Initialize, audit, update, and guide
-  talisman configuration for any project. Scaffolds project-specific talisman.yml
-  from the canonical example template, detects missing sections, and provides
-  expert guidance on every configuration key.
-
-  Use when the user says "init talisman", "setup talisman", "create talisman",
-  "talisman audit", "check talisman", "talisman guide", "explain talisman",
-  "update talisman", "talisman status", "what's in talisman", "configure rune",
-  "rune config", "rune setup".
-
-  Subcommands:
-    /rune:talisman init          — Scaffold new talisman.yml for current project
-    /rune:talisman audit         — Compare existing talisman against latest template
-    /rune:talisman update        — Add missing sections to existing talisman
-    /rune:talisman guide [topic] — Explain talisman sections and best practices
-    /rune:talisman status        — Show current talisman summary
-    /rune:talisman split         — Split single talisman.yml into 3 companion files
-    /rune:talisman merge         — Merge companion files back into single talisman.yml
-
-  Keywords: talisman, config, configuration, setup, init, initialize, scaffold,
-  customize, rune config, rune setup, talisman audit, talisman gap, mcp,
-  mcp integration, mcp setup, untitledui, untitled-ui, mcp tools, integrations,
-  split, merge, companion, ashes, integrations file.
-
-  <example>
-  user: "/rune:talisman init"
-  assistant: "Detects project stack, scaffolds talisman.yml..."
-  </example>
-
-  <example>
-  user: "/rune:talisman audit"
-  assistant: "Comparing project talisman against latest template..."
-  </example>
-
-  <example>
-  user: "/rune:talisman guide codex"
-  assistant: "Explains Codex configuration keys..."
-  </example>
+  Deep talisman.yml configuration expertise — init, audit, update, guide, status,
+  split, merge. Scaffolds project-specific talisman.yml from canonical template,
+  detects missing sections, explains every config key.
+  Use for: "init/setup/create talisman", "talisman audit/check/guide/status",
+  "configure rune", "mcp integration", "untitledui setup".
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[init|audit|update|guide|status|split|merge]"

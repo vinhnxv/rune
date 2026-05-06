@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.67.2] — 2026-05-07
+
+Chore: Trim oversized skill descriptions in `talisman`, `tarnished`, and `test-browser` SKILL.md frontmatter to fix `/doctor` "descriptions exceed the per-entry cap" warning. Removed verbose `<example>` blocks and redundant subcommand listings that duplicated `argument-hint`. Each description shrunk ~70-73% while preserving core triggers, keywords (including VN+EN for `tarnished`), and intent-routing hooks. No functional changes — skill bodies, references, and execution flow untouched. Reduces token cost of skill listing under default `skillListingBudgetFraction: 0.01`.
+
 ## [2.67.1] — 2026-04-27
 
 Fix (audit 20260427-032216, 5 mendable findings — direct main-thread mend due to 1M-context entitlement gate blocking Agent spawning):

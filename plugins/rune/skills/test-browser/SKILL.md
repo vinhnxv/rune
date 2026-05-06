@@ -1,64 +1,13 @@
 ---
 name: test-browser
 description: |
-  Standalone browser E2E testing skill. Runs agent-browser tests against changed routes
-  from a PR, branch, or current HEAD — without spawning an agent team.
-
-  Supports both frontend AND backend changes: when only backend/API/database files
-  change, traces impact forward to discover consuming frontend routes and tests them.
-  Pipeline: backend file → API endpoint → frontend consumer → page → route.
-
-  Use when the user says "test browser", "run browser tests", "E2E test my changes",
-  "test routes", "browser test PR", "test-browser", "test API changes",
-  "test backend impact", "test plan file", or invokes /rune:test-browser.
-
-  Scope input (optional first argument):
-    - PR number (e.g., "42") → fetches changed files from gh pr view
-    - Branch name (e.g., "feature/login") → diffs against default branch
-    - Empty → diffs current HEAD against default branch
-
-  Plan file (optional .md argument):
-    - Path to a plan file (e.g., "plans/my-feature.md") → extracts acceptance criteria
-      and UI-relevant routes for targeted testing. Can combine with scope input.
-
-  Flags:
-    --headed      Show browser window (requires display server)
-    --deep        Enable deep testing: interaction, data persistence, visual/layout, UX, workflow continuity
-    --max-routes  Cap route count (default 5, auto-capped to 3 with --deep)
-
-  Keywords: browser test, E2E test, agent-browser, standalone test, route test,
-  PR test, frontend test, backend test, API test, data flow test, UI verify,
-  screenshot, browser automation, backend impact, user flow.
-
-  <example>
-  user: "/rune:test-browser 42"
-  assistant: "Fetching changed files from PR #42, mapping to routes, running browser tests..."
-  </example>
-
-  <example>
-  user: "/rune:test-browser feature/auth --headed"
-  assistant: "Diffing feature/auth vs main, running headed browser tests on changed routes..."
-  </example>
-
-  <example>
-  user: "/rune:test-browser --max-routes 3"
-  assistant: "Testing current branch changes (capped at 3 routes)..."
-  </example>
-
-  <example>
-  user: "/rune:test-browser 55"
-  assistant: "PR #55 has only backend changes (API controllers, models). Tracing impact to frontend... Found 3 consuming routes: /users, /dashboard, /settings. Running browser tests..."
-  </example>
-
-  <example>
-  user: "/rune:test-browser plans/my-feature.md --deep"
-  assistant: "Loading plan file plans/my-feature.md for acceptance criteria... Running deep browser tests on UI routes from plan..."
-  </example>
-
-  <example>
-  user: "/rune:test-browser 42 plans/my-feature.md"
-  assistant: "Fetching changed files from PR #42, using plan plans/my-feature.md for targeted acceptance criteria..."
-  </example>
+  Standalone browser E2E testing — runs agent-browser tests against changed routes
+  from a PR, branch, or current HEAD without spawning an agent team. Supports both
+  frontend AND backend changes (traces backend → API → frontend → route).
+  Optional plan file extracts acceptance criteria for targeted testing.
+  Flags: --headed, --deep (interaction/persistence/visual/UX), --max-routes N.
+  Use for: "test browser", "E2E test my changes", "test routes", "browser test PR",
+  "test API changes", "test backend impact".
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[PR# | branch-name] [plan-file.md] [--headed] [--deep] [--max-routes N]"

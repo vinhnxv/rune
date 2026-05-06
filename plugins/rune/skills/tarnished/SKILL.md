@@ -1,60 +1,12 @@
 ---
 name: tarnished
 description: |
-  Intelligent master command for all Rune workflows. Parses natural language
-  to route to the correct /rune:* skill, chains multi-step workflows, and
-  checks prerequisites automatically. The Tarnished's unified entry point.
-
-  Use when the user says "/tarnished plan ...", "/tarnished work ...",
-  "/tarnished review ...", or any natural language describing what they
-  want Rune to do. Handles Vietnamese and English input.
-
-  Common usage:
-    /rune:tarnished plan add user authentication
-    /rune:tarnished work plans/my-plan.md
-    /rune:tarnished review
-    /rune:tarnished review and fix
-    /rune:tarnished arc plans/my-plan.md
-    /rune:tarnished arc-batch plans/*.md
-    /rune:tarnished arc-issues --label "rune:ready"
-    /rune:tarnished thảo luận rồi tạo plan cho feature X
-
-  Also serves as a Rune expert — can explain how Rune works, recommend
-  workflows, teach best practices, and guide developers through complex
-  scenarios. Ask "/rune:tarnished help" or "/rune:tarnished what should I do?"
-
-  Keywords: tarnished, master command, route, guide, what should I do,
-  figure it out, do everything, help me, which command, rune help,
-  how does rune work, explain, teach, recommend, best practice,
-  brainstorm, explore idea, khám phá, thảo luận, mcp, mcp integration,
-  untitledui, setup mcp, tích hợp mcp, cài đặt mcp, add agent,
-  custom reviewer, which agents, force agent, always use agent,
-  custom ash, agent list, thêm agent, danh sách agent.
-
-  <example>
-  user: "/rune:tarnished plan add dark mode"
-  assistant: "The Tarnished heeds your call. Routing to /rune:devise..."
-  </example>
-
-  <example>
-  user: "/rune:tarnished arc plans/feat-auth-plan.md"
-  assistant: "The Tarnished heeds your call. Routing to /rune:arc..."
-  </example>
-
-  <example>
-  user: "/rune:tarnished arc-batch plans/*.md"
-  assistant: "The Tarnished heeds your call. Routing to /rune:arc-batch..."
-  </example>
-
-  <example>
-  user: "/rune:tarnished review and fix"
-  assistant: "The Tarnished charts a two-step path: appraise → mend..."
-  </example>
-
-  <example>
-  user: "/rune:tarnished"
-  assistant: "The Tarnished awaits your command. What would you have me do?"
-  </example>
+  Master command — natural-language router for all Rune workflows. Parses VN+EN
+  input, chains multi-step workflows, checks prerequisites. Also a Rune expert
+  for guidance and education ("how does rune work", "what should I do").
+  Use for: "/tarnished plan|work|review|arc|arc-batch ...", "rune help",
+  "which command", "do everything", "thảo luận", "khám phá", master command,
+  routing, mcp integration, custom agent, agent list.
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[plan|work|review|arc|arc-batch|...] [args]"
