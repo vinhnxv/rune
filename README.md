@@ -822,29 +822,6 @@ See the [Troubleshooting guide](docs/guides/rune-troubleshooting-and-optimizatio
 
 ---
 
-## Torrent — Tmux Arc Orchestrator
-
-[Torrent](torrent/README.md) is a standalone Rust TUI tool that manages `rune:arc` execution across multiple Claude Code sessions using tmux:
-
-- **Multi-config support** — use different `CLAUDE_CONFIG_DIR` accounts
-- **tmux isolation** — each arc gets its own Claude Code instance with clean context
-- **Crash resilience** — tmux sessions survive if torrent exits
-- **Channels bridge** (`--channels`) — bidirectional communication with Claude Code via Channels API. Bridge View (`[b]` key) provides full-screen chat with message history and persistence
-
-### Install
-
-```bash
-# Install to ~/.local/bin (recommended)
-curl -fsSL https://raw.githubusercontent.com/vinhnxv/rune/main/torrent/install.sh | bash
-
-# Or install system-wide
-curl -fsSL https://raw.githubusercontent.com/vinhnxv/rune/main/torrent/install.sh | bash -s -- --system
-```
-
-See [torrent/README.md](torrent/README.md) for full documentation.
-
----
-
 ## Requirements & Compatibility
 
 | Requirement | Minimum | Recommended |
@@ -873,7 +850,6 @@ See [torrent/README.md](torrent/README.md) for full documentation.
 | [Troubleshooting](docs/guides/rune-troubleshooting-and-optimization-guide.en.md) | Debugging, cost optimization, common issues |
 | [Documentation Hub](docs/README.md) | All guides, English + Vietnamese |
 | [State Machines](docs/state-machine.md) | Mermaid diagrams of all 10 workflow state machines |
-| [Torrent TUI](torrent/README.md) | Tmux-based multi-session arc orchestrator |
 | [Changelog](plugins/rune/CHANGELOG.md) | Release history |
 
 ---
@@ -881,7 +857,6 @@ See [torrent/README.md](torrent/README.md) for full documentation.
 ## Links
 
 - [Detailed component reference](plugins/rune/README.md) — all agents, skills, commands, hooks
-- [Torrent TUI](torrent/README.md) — tmux-based arc orchestrator for multi-session execution
 - [Documentation hub](docs/README.md) — start here to choose the right user guide
 - [GLM-5 setup guide](docs/glm-5-setup.md) — use GLM-5 with Rune for budget-friendly agent teams
 - [Rune user guide (English): arc + arc-batch](docs/guides/rune-arc-and-batch-guide.en.md) — operational guide with greenfield/brownfield use cases

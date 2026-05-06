@@ -1,4 +1,0 @@
-dist/
-bridge/node_modules/
-bridge/package-lock.json
-.torrent/sessions/

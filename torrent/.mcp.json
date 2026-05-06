@@ -1,9 +1,0 @@
-{
-  "mcpServers": {
-    "torrent-bridge": {
-      "type": "stdio",
-      "command": "bun",
-      "args": ["./bridge/server.ts"]
-    }
-  }
-}
