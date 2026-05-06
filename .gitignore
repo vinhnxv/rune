@@ -67,3 +67,4 @@ todos/
 .torrent/
 dist/
 .gw/
+.claude/settings.local.json
