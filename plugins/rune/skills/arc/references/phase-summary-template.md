@@ -8,7 +8,7 @@ Arc phase summaries are written by the orchestrator at the end of each **phase g
 |-------|---------------|---------------|
 | `forge` | Phases 1–2.7 (FORGE, PLAN REVIEW, PLAN REFINEMENT, VERIFICATION) | Phase 2.7 completes |
 | `verify` | Phases 2.8–4.5 (SEMANTIC VERIFICATION, TASK DECOMPOSITION) | Phase 4.5 completes |
-| `work` | Phases 5–5.8 (WORK, GAP ANALYSIS, CODEX GAP ANALYSIS, GAP REMEDIATION, GOLDMASK VERIFICATION) | Phase 5.7 completes |
+| `work` | Phases 5–5.8 (WORK, GAP ANALYSIS, GAP REMEDIATION, GOLDMASK VERIFICATION) | Phase 5.7 completes |
 | `review` | Phases 6–7.5 (CODE REVIEW, GOLDMASK CORRELATION, MEND, VERIFY MEND, convergence cycles) | Phase 7.5 concludes (convergence converged or halted) |
 | `ship` | Phases 7.7–9.5 (TEST, TEST COVERAGE CRITIQUE, PRE-SHIP VALIDATION, RELEASE QUALITY CHECK, BOT REVIEW WAIT, PR COMMENT RESOLUTION, SHIP, MERGE) | Phase 9.5 completes (or last executed phase) |
 

@@ -201,7 +201,6 @@ function buildCompletionRecord(checkpoint, newStatus, content) {
     ['5.2',  'DESIGN VERIFICATION',    'design_verification'],
     ['5.3',  'UX VERIFICATION',        'ux_verification'],
     ['5.5',  'GAP ANALYSIS',           'gap_analysis'],
-    ['5.6',  'CODEX GAP ANALYSIS',     'codex_gap_analysis'],
     ['5.8',  'GAP REMEDIATION',        'gap_remediation'],
     ['5.9',  'INSPECT',                'inspect'],
     ['5.95', 'INSPECT FIX',            'inspect_fix'],

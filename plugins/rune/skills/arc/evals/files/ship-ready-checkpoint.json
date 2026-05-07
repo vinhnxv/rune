@@ -14,19 +14,26 @@
     "name": "api-endpoints",
     "feature": "user-authentication",
     "parent": "plans/2026-03-07-feat-user-auth-plan.md",
-    "dependencies": [1]
+    "dependencies": [
+      1
+    ]
   },
   "arc_config": {
     "ship": {
       "auto_pr": true,
       "auto_merge": true,
       "draft": false,
-      "labels": ["arc-generated", "shard-2"],
+      "labels": [
+        "arc-generated",
+        "shard-2"
+      ],
       "merge_strategy": "squash",
       "rebase_before_merge": true,
       "wait_ci": true,
       "pr_monitoring": true,
-      "co_authors": ["Alice Dev <alice@example.com>"]
+      "co_authors": [
+        "Alice Dev <alice@example.com>"
+      ]
     },
     "pre_merge_checks": {
       "migration_conflict": true,
@@ -41,7 +48,11 @@
   },
   "convergence": {
     "round": 2,
-    "tier": { "name": "STANDARD", "minCycles": 2, "maxCycles": 4 },
+    "tier": {
+      "name": "STANDARD",
+      "minCycles": 2,
+      "maxCycles": 4
+    },
     "history": [
       {
         "round": 1,
@@ -62,34 +73,123 @@
     ]
   },
   "phases": {
-    "forge": { "status": "completed", "phase_sequence": 1 },
-    "plan_review": { "status": "completed", "phase_sequence": 2 },
-    "plan_refine": { "status": "completed", "phase_sequence": 2.5 },
-    "verification": { "status": "completed", "phase_sequence": 2.7 },
-    "semantic_verification": { "status": "completed", "phase_sequence": 2.8 },
-    "design_extraction": { "status": "skipped", "phase_sequence": 3, "skip_reason": "design_sync not enabled" },
-    "task_decomposition": { "status": "completed", "phase_sequence": 4.5 },
-    "work": { "status": "completed", "phase_sequence": 5, "team_name": "rune-work-1709856123", "branch": "feat/user-auth-shard-2" },
-    "storybook_verification": { "status": "skipped", "phase_sequence": 3.3, "skip_reason": "storybook not enabled" },
-    "design_verification": { "status": "skipped", "phase_sequence": 3.5, "skip_reason": "design_sync not enabled" },
-    "ux_verification": { "status": "skipped", "phase_sequence": 3.7, "skip_reason": "ux not enabled" },
-    "gap_analysis": { "status": "completed", "phase_sequence": 5.3 },
-    "codex_gap_analysis": { "status": "skipped", "phase_sequence": 5.5, "skip_reason": "codex not available" },
-    "gap_remediation": { "status": "completed", "phase_sequence": 5.6 },
-    "goldmask_verification": { "status": "completed", "phase_sequence": 5.7 },
-    "code_review": { "status": "completed", "phase_sequence": 6, "team_name": null },
-    "goldmask_correlation": { "status": "completed", "phase_sequence": 6.5 },
-    "mend": { "status": "completed", "phase_sequence": 7, "team_name": null },
-    "verify_mend": { "status": "completed", "phase_sequence": 7.5 },
-    "design_iteration": { "status": "skipped", "phase_sequence": 7.6, "skip_reason": "design_sync not enabled" },
-    "test": { "status": "completed", "phase_sequence": 7.7 },
-    "test_coverage_critique": { "status": "completed", "phase_sequence": 7.8 },
-    "pre_ship_validation": { "status": "completed", "phase_sequence": 8 },
-    "release_quality_check": { "status": "completed", "phase_sequence": 8.5 },
-    "ship": { "status": "pending", "phase_sequence": 9 },
-    "bot_review_wait": { "status": "pending", "phase_sequence": 9.1 },
-    "pr_comment_resolution": { "status": "pending", "phase_sequence": 9.2 },
-    "merge": { "status": "pending", "phase_sequence": 9.5 }
+    "forge": {
+      "status": "completed",
+      "phase_sequence": 1
+    },
+    "plan_review": {
+      "status": "completed",
+      "phase_sequence": 2
+    },
+    "plan_refine": {
+      "status": "completed",
+      "phase_sequence": 2.5
+    },
+    "verification": {
+      "status": "completed",
+      "phase_sequence": 2.7
+    },
+    "semantic_verification": {
+      "status": "completed",
+      "phase_sequence": 2.8
+    },
+    "design_extraction": {
+      "status": "skipped",
+      "phase_sequence": 3,
+      "skip_reason": "design_sync not enabled"
+    },
+    "task_decomposition": {
+      "status": "completed",
+      "phase_sequence": 4.5
+    },
+    "work": {
+      "status": "completed",
+      "phase_sequence": 5,
+      "team_name": "rune-work-1709856123",
+      "branch": "feat/user-auth-shard-2"
+    },
+    "storybook_verification": {
+      "status": "skipped",
+      "phase_sequence": 3.3,
+      "skip_reason": "storybook not enabled"
+    },
+    "design_verification": {
+      "status": "skipped",
+      "phase_sequence": 3.5,
+      "skip_reason": "design_sync not enabled"
+    },
+    "ux_verification": {
+      "status": "skipped",
+      "phase_sequence": 3.7,
+      "skip_reason": "ux not enabled"
+    },
+    "gap_analysis": {
+      "status": "completed",
+      "phase_sequence": 5.3
+    },
+    "gap_remediation": {
+      "status": "completed",
+      "phase_sequence": 5.6
+    },
+    "goldmask_verification": {
+      "status": "completed",
+      "phase_sequence": 5.7
+    },
+    "code_review": {
+      "status": "completed",
+      "phase_sequence": 6,
+      "team_name": null
+    },
+    "goldmask_correlation": {
+      "status": "completed",
+      "phase_sequence": 6.5
+    },
+    "mend": {
+      "status": "completed",
+      "phase_sequence": 7,
+      "team_name": null
+    },
+    "verify_mend": {
+      "status": "completed",
+      "phase_sequence": 7.5
+    },
+    "design_iteration": {
+      "status": "skipped",
+      "phase_sequence": 7.6,
+      "skip_reason": "design_sync not enabled"
+    },
+    "test": {
+      "status": "completed",
+      "phase_sequence": 7.7
+    },
+    "test_coverage_critique": {
+      "status": "completed",
+      "phase_sequence": 7.8
+    },
+    "pre_ship_validation": {
+      "status": "completed",
+      "phase_sequence": 8
+    },
+    "release_quality_check": {
+      "status": "completed",
+      "phase_sequence": 8.5
+    },
+    "ship": {
+      "status": "pending",
+      "phase_sequence": 9
+    },
+    "bot_review_wait": {
+      "status": "pending",
+      "phase_sequence": 9.1
+    },
+    "pr_comment_resolution": {
+      "status": "pending",
+      "phase_sequence": 9.2
+    },
+    "merge": {
+      "status": "pending",
+      "phase_sequence": 9.5
+    }
   },
   "pr_url": null
 }

@@ -19,7 +19,7 @@
     {
       "id": 2,
       "prompt": "I had an arc run that crashed midway. The checkpoint file is at plugins/rune/skills/arc/evals/files/sample-checkpoint.json. Analyze this checkpoint and tell me: (1) What phases completed successfully? (2) What phases were skipped and why? (3) What is the next phase that would execute on --resume? (4) What validation would the resume logic perform before continuing? (5) Are there any concerns about the checkpoint state (e.g., schema version, session ownership, convergence config)?",
-      "expected_output": "Analysis showing: 8 phases completed (forge through gap_remediation), 6 phases skipped (design_extraction, storybook_verification, design_verification, ux_verification, codex_gap_analysis, design_iteration — all due to disabled features), next phase is goldmask_verification (first pending in PHASE_ORDER), resume validation includes session_nonce format check, config_dir comparison, owner_pid liveness check, and schema version migration if needed. Should note the owner_pid 99999 is likely dead and would be claimed by the new session.",
+      "expected_output": "Analysis showing: 8 phases completed (forge through gap_remediation), 5 phases skipped (design_extraction, storybook_verification, design_verification, ux_verification, design_iteration — all due to disabled features), next phase is goldmask_verification (first pending in PHASE_ORDER), resume validation includes session_nonce format check, config_dir comparison, owner_pid liveness check, and schema version migration if needed. Should note the owner_pid 99999 is likely dead and would be claimed by the new session.",
       "files": ["evals/files/sample-checkpoint.json"],
       "expectations": [
         "Correctly identifies 8 completed phases (forge, plan_review, plan_refine, verification, semantic_verification, task_decomposition, work, gap_analysis, gap_remediation)",
@@ -45,7 +45,7 @@
         "Explains that bot_review_wait polls for external bot comments after ship (PR creation)",
         "Explains that pr_comment_resolution resolves bot comments before merge",
         "Notes that --draft and --bot-review interact with ship/merge phases but don't skip them",
-        "Mentions that conditional phases (design_*, storybook_*, ux_*, codex_*) are gated by talisman config, not flags"
+        "Mentions that conditional phases (design_*, storybook_*, ux_*) are gated by talisman config, not flags"
       ]
     },
     {
