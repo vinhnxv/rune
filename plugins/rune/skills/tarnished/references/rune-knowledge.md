@@ -244,7 +244,6 @@ adjust thresholds, and configure review behavior. Use `/rune:talisman` for deep
 configuration management:
 - `/rune:talisman init` — scaffold a new talisman.yml for your project
 - `/rune:talisman audit` — find missing or outdated configuration keys
-- `/rune:talisman guide codex` — learn about specific configuration sections
 - `/rune:talisman update` — add missing sections to existing talisman
 
 ## Advanced Workflows

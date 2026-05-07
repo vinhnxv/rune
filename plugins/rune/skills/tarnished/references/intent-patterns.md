@@ -38,7 +38,6 @@ These keywords at the START of `$ARGUMENTS` trigger immediate routing (no classi
 | `mcp` | `/rune:talisman guide integrations` | Yes — MCP integration guidance |
 | `mcp setup` / `setup mcp` / `add mcp` | `/rune:talisman guide integrations` | MCP integration setup walkthrough |
 | `untitledui` / `untitled-ui` | `/rune:talisman guide integrations` | UntitledUI MCP integration guidance |
-| `codex review` / `cross-model review` / `second opinion` / `codex check` | `/rune:codex-review` | Cross-model code review with Codex |
 | `design-sync` / `figma-sync` | `/rune:design-sync` | Yes |
 | `elevate` / `promote echoes` | `/rune:elevate` | Yes |
 | `file-todos` / `todos` | `/rune:file-todos` | Yes |

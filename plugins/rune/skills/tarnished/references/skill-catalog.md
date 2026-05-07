@@ -26,7 +26,6 @@ Complete reference for `/rune:tarnished` routing decisions.
 | `rest` | `/rune:rest` | — | None | Cleans tmp/ |
 | `echoes` | `/rune:echoes` | — | Subcommand | Echo management |
 | `talisman` | `/rune:talisman` | — | Subcommand (init/audit/update/guide/status) | Talisman config |
-| `codex-review` | `/rune:codex-review` | — | Git diff (auto) | `tmp/codex-reviews/*/TOME.md` |
 | `design-sync` | `/rune:design-sync` | — | Figma URL | Design specs + implementation |
 | `elevate` | `/rune:elevate` | — | None (scans echoes) | Promoted global echoes |
 | `file-todos` | `/rune:file-todos` | — | Subcommand | TODO files in `tmp/` |
@@ -99,7 +98,6 @@ MCP integration is configured via `talisman.yml` → `integrations.mcp_tools`. U
 | `goldmask` | 8 tracers | 5-10 min |
 | `elicit` | None | 2-5 min |
 | `talisman` | None | 1-3 min |
-| `codex-review` | Up to 4 | 5-15 min |
 | `design-sync` | Per phase | 10-30 min |
 | `elevate` | None | 1-2 min |
 | `file-todos` | None | < 1 min |

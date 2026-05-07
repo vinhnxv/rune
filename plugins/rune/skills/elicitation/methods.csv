@@ -1,25 +1,25 @@
-num,category,method_name,description,output_pattern,tier,phases,agents,topics,auto_suggest,codex_role
-1,collaboration,Stakeholder Round Table,Multi-perspective requirements gathering,perspectives->synthesis->alignment,1,"plan:0","","requirements,stakeholders,users,personas",true,
-3,collaboration,Debate Club Showdown,Thesis-antithesis-synthesis for approach selection,thesis->antithesis->synthesis,1,"plan:0,forge:3","","approaches,comparison,trade-offs,alternatives",true,
-6,collaboration,Cross-Functional War Room,Product-eng-design trade-off analysis,perspectives->constraints->trade-offs,1,"plan:0","","product,design,engineering,constraints",true,
-7,collaboration,Mentor and Apprentice,Naive questions surface hidden assumptions,questions->insights->clarifications,1,"plan:0,work:5","","assumptions,domain,complexity,hidden",true,
-11,advanced,Tree of Thoughts,Multiple reasoning paths evaluate and select,paths->evaluation->selection,1,"forge:3,work:5,plan:1.8","decree-arbiter","architecture,design,complex,multiple-approaches,decisions",true,
-14,advanced,Self-Consistency Validation,Multiple approaches compare for consistency,approaches->comparison->consensus,1,"plan:4,arc:7.5","scroll-reviewer","validation,consistency,verification,cross-check",true,
-17,competitive,Red Team vs Blue Team,Adversarial security analysis,defense->attack->hardening,1,"review:6","ward-sentinel,flaw-hunter","security,auth,injection,api,secrets,vulnerability",true,red_team
-20,technical,Architecture Decision Records,Explicit trade-off documentation,options->trade-offs->decision->rationale,1,"forge:3,plan:2,plan:1.8","decree-arbiter,rune-architect","architecture,design,trade-offs,decisions,ADR",true,
-33,research,Comparative Analysis Matrix,Weighted criteria evaluation,options->criteria->scores->recommendation,1,"plan:1,forge:3,plan:1.8","","approach,comparison,evaluation,selection,criteria",true,
-34,risk,Pre-mortem Analysis,Imagine failure work backwards,failure->causes->prevention,1,"plan:2.5,arc:5.5,plan:1.8","","risk,deployment,migration,breaking-change,failure",true,failure
-36,risk,Challenge from Critical Perspective,Devil's advocate stress-test,assumptions->challenges->strengthening,1,"plan:4,review:6","scroll-reviewer","assumptions,review,challenge,devil-advocate",true,critic
-39,core,First Principles Analysis,Strip assumptions rebuild from truths,assumptions->truths->new-approach,1,"plan:0,forge:3","","novel,assumptions,first-principles,fundamentals",true,
-40,core,5 Whys Deep Dive,Root cause drill-down,why-chain->root-cause->solution,1,"arc:7,work:5","mend-fixer","root-cause,debugging,recurring,systemic,why",true,
-42,core,Critique and Refine,Systematic strengths-weaknesses-improve,strengths/weaknesses->improvements->refined,1,"plan:4,review:6,arc:7.5","scroll-reviewer","quality,review,strengths,weaknesses,improvement",true,
-4,collaboration,User Persona Focus Group,Multi-persona requirements elicitation,personas->needs->requirements,2,"plan:0","","ux,users,personas,frontend,interface",false,
-8,collaboration,Good Cop Bad Cop,Balanced criticism for controversial decisions,praise->critique->balanced-assessment,2,"forge:3","","controversy,balanced,criticism,design-decisions",false,
-19,competitive,Code Review Gauntlet,Structured multi-perspective code review,perspectives->findings->recommendations,2,"review:6","","code-review,perspectives,thoroughness",false,
-23,technical,Security Audit Personas,Hacker-defender-auditor role-play,attack->defend->audit,2,"review:6","ward-sentinel","security,audit,penetration,hacker,defender",false,
-26,creative,Reverse Engineering,Work backwards from desired outcome,outcome->steps->requirements,2,"plan:2","","outcome,goal,backwards,reverse",false,
-27,creative,What If Scenarios,Contingency planning for alternatives,scenarios->impacts->contingencies,2,"plan:2.5","","contingency,what-if,scenarios,alternatives",false,
-38,risk,Chaos Monkey Scenarios,Deliberate failure injection analysis,failures->impacts->resilience,2,"review:6","flaw-hunter","chaos,failure,resilience,robustness",false,
-47,philosophical,Occam's Razor Application,Simplicity check for over-engineering,complexity->simplification->minimal,2,"forge:3,review:6","simplicity-warden","simplicity,over-engineering,minimal,YAGNI",false,
-50,risk,Horizon Scanning,"Forward-looking risk and opportunity analysis — identifies trends that affect plan longevity",trends->impacts->adaptations,1,"plan:4,forge:3","horizon-sage","future,trends,evolution,sustainability,longevity,tech-debt",true,
-51,technical,Root Cause Depth Analysis,"Evaluates whether a plan addresses symptoms or root causes — traces problem to deepest contributing factor",symptom->investigation->root-cause->verification,1,"plan:4,forge:3","horizon-sage","root-cause,symptoms,depth,investigation,why,underlying",true,
+num,category,method_name,description,output_pattern,tier,phases,agents,topics,auto_suggest
+1,collaboration,Stakeholder Round Table,Multi-perspective requirements gathering,perspectives->synthesis->alignment,1,plan:0,,"requirements,stakeholders,users,personas",true
+3,collaboration,Debate Club Showdown,Thesis-antithesis-synthesis for approach selection,thesis->antithesis->synthesis,1,"plan:0,forge:3",,"approaches,comparison,trade-offs,alternatives",true
+6,collaboration,Cross-Functional War Room,Product-eng-design trade-off analysis,perspectives->constraints->trade-offs,1,plan:0,,"product,design,engineering,constraints",true
+7,collaboration,Mentor and Apprentice,Naive questions surface hidden assumptions,questions->insights->clarifications,1,"plan:0,work:5",,"assumptions,domain,complexity,hidden",true
+11,advanced,Tree of Thoughts,Multiple reasoning paths evaluate and select,paths->evaluation->selection,1,"forge:3,work:5,plan:1.8",decree-arbiter,"architecture,design,complex,multiple-approaches,decisions",true
+14,advanced,Self-Consistency Validation,Multiple approaches compare for consistency,approaches->comparison->consensus,1,"plan:4,arc:7.5",scroll-reviewer,"validation,consistency,verification,cross-check",true
+17,competitive,Red Team vs Blue Team,Adversarial security analysis,defense->attack->hardening,1,review:6,"ward-sentinel,flaw-hunter","security,auth,injection,api,secrets,vulnerability",true
+20,technical,Architecture Decision Records,Explicit trade-off documentation,options->trade-offs->decision->rationale,1,"forge:3,plan:2,plan:1.8","decree-arbiter,rune-architect","architecture,design,trade-offs,decisions,ADR",true
+33,research,Comparative Analysis Matrix,Weighted criteria evaluation,options->criteria->scores->recommendation,1,"plan:1,forge:3,plan:1.8",,"approach,comparison,evaluation,selection,criteria",true
+34,risk,Pre-mortem Analysis,Imagine failure work backwards,failure->causes->prevention,1,"plan:2.5,arc:5.5,plan:1.8",,"risk,deployment,migration,breaking-change,failure",true
+36,risk,Challenge from Critical Perspective,Devil's advocate stress-test,assumptions->challenges->strengthening,1,"plan:4,review:6",scroll-reviewer,"assumptions,review,challenge,devil-advocate",true
+39,core,First Principles Analysis,Strip assumptions rebuild from truths,assumptions->truths->new-approach,1,"plan:0,forge:3",,"novel,assumptions,first-principles,fundamentals",true
+40,core,5 Whys Deep Dive,Root cause drill-down,why-chain->root-cause->solution,1,"arc:7,work:5",mend-fixer,"root-cause,debugging,recurring,systemic,why",true
+42,core,Critique and Refine,Systematic strengths-weaknesses-improve,strengths/weaknesses->improvements->refined,1,"plan:4,review:6,arc:7.5",scroll-reviewer,"quality,review,strengths,weaknesses,improvement",true
+4,collaboration,User Persona Focus Group,Multi-persona requirements elicitation,personas->needs->requirements,2,plan:0,,"ux,users,personas,frontend,interface",false
+8,collaboration,Good Cop Bad Cop,Balanced criticism for controversial decisions,praise->critique->balanced-assessment,2,forge:3,,"controversy,balanced,criticism,design-decisions",false
+19,competitive,Code Review Gauntlet,Structured multi-perspective code review,perspectives->findings->recommendations,2,review:6,,"code-review,perspectives,thoroughness",false
+23,technical,Security Audit Personas,Hacker-defender-auditor role-play,attack->defend->audit,2,review:6,ward-sentinel,"security,audit,penetration,hacker,defender",false
+26,creative,Reverse Engineering,Work backwards from desired outcome,outcome->steps->requirements,2,plan:2,,"outcome,goal,backwards,reverse",false
+27,creative,What If Scenarios,Contingency planning for alternatives,scenarios->impacts->contingencies,2,plan:2.5,,"contingency,what-if,scenarios,alternatives",false
+38,risk,Chaos Monkey Scenarios,Deliberate failure injection analysis,failures->impacts->resilience,2,review:6,flaw-hunter,"chaos,failure,resilience,robustness",false
+47,philosophical,Occam's Razor Application,Simplicity check for over-engineering,complexity->simplification->minimal,2,"forge:3,review:6",simplicity-warden,"simplicity,over-engineering,minimal,YAGNI",false
+50,risk,Horizon Scanning,Forward-looking risk and opportunity analysis — identifies trends that affect plan longevity,trends->impacts->adaptations,1,"plan:4,forge:3",horizon-sage,"future,trends,evolution,sustainability,longevity,tech-debt",true
+51,technical,Root Cause Depth Analysis,Evaluates whether a plan addresses symptoms or root causes — traces problem to deepest contributing factor,symptom->investigation->root-cause->verification,1,"plan:4,forge:3",horizon-sage,"root-cause,symptoms,depth,investigation,why,underlying",true

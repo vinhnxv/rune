@@ -52,8 +52,6 @@ External tool configurations — only relevant to power users:
 
 | Section | Purpose |
 |---------|---------|
-| `codex` | Cross-model verification |
-| `codex_review` | Codex review workflow settings |
 | `elicitation` | Reasoning method configuration |
 | `horizon` | Strategic assessment |
 | `evidence` | Evidence verification |
@@ -65,7 +63,7 @@ External tool configurations — only relevant to power users:
 
 ```
 ASHES_SECTIONS = ["ashes", "user_agents", "extra_agent_dirs", "doubt_seer"]
-INTEGRATIONS_SECTIONS = ["codex", "codex_review", "elicitation", "horizon",
+INTEGRATIONS_SECTIONS = ["elicitation", "horizon",
                          "evidence", "echoes", "state_weaver", "file_todos"]
 ```
 

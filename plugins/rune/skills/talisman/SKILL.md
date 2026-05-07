@@ -116,7 +116,6 @@ Parse remaining args after "guide":
 
 ```
 /rune:talisman guide              → Overview of all sections
-/rune:talisman guide codex        → Codex integration keys
 /rune:talisman guide arc          → Arc pipeline configuration
 /rune:talisman guide review       → Review/sharding/convergence
 /rune:talisman guide work         → Work/strive settings
@@ -168,7 +167,6 @@ For each top-level section present:
 
 Also report:
   - Total sections: N/[schema total]
-  - Codex workflows enabled: [list]
   - Cost tier: [tier]
   - Custom Ashes: [count]
   - Ward commands: [list]
@@ -198,7 +196,6 @@ If integrations.mcp_tools exists:
 
 ```
 Quick health indicators:
-  ✓ codex.workflows includes arc
   ✓ file_todos uses schema v2 (no deprecated keys)
   ✓ dedup_hierarchy has stack-appropriate prefixes
   ✓ arc.timeouts defined
@@ -285,5 +282,4 @@ The Tarnished studies the Talisman...
 A new Talisman is forged for this project.
   Stack detected: Python + FastAPI
   Ward commands: pytest, mypy --strict
-  Codex enabled for: review, audit, plan, forge, work, arc
 ```
