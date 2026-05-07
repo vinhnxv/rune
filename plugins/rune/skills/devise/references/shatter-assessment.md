@@ -17,7 +17,6 @@ Skipped when `--quick` is passed. After synthesis produces a plan, assesses its 
 
 Complexity score >= 0.65: Offer shatter. Score < 0.65: Skip, proceed to forge.
 
-**Codex cross-model scoring** (optional): When Codex available, blends Claude + Codex scores (default weight: 0.3). Controlled via `talisman.codex.shatter.enabled`.
 
 ## Shatter Decision
 

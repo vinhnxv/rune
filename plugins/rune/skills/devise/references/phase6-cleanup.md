@@ -17,20 +17,20 @@ allMembers = [
   "repo-surveyor", "echo-reader", "git-miner",
   "wiring-cartographer", "activation-pathfinder",
   // Phase 1C: External Research (conditional)
-  "practice-seeker", "lore-scholar", "codex-researcher",
+  "practice-seeker", "lore-scholar",
   // Phase 1C.5: Research Verification (conditional)
   "research-verifier",
   // Phase 1D: Spec Validation
   "flow-seer",
   // Phase 1.8: Solution Arena (conditional)
-  "devils-advocate", "innovation-scout", "codex-arena-judge",
+  "devils-advocate", "innovation-scout",
   // Phase 2.3: Predictive Goldmask (conditional, 2-8 agents)
   "devise-lore", "devise-wisdom", "devise-business", "devise-data", "devise-api", "devise-coordinator",
   // Phase 4A: Scroll Review
   "scroll-reviewer",
   // Phase 4C: Technical Review (conditional)
   "decree-arbiter", "knowledge-keeper", "veil-piercer-plan",
-  "horizon-sage", "evidence-verifier", "state-weaver", "doubt-seer", "codex-plan-reviewer",
+  "horizon-sage", "evidence-verifier", "state-weaver", "doubt-seer",
   "elicitation-sage-review-1", "elicitation-sage-review-2", "elicitation-sage-review-3",
   // Phase 4D: Grounding Gate (ALWAYS — even with --quick)
   "grounding-evidence-verifier", "grounding-assumption-slayer",

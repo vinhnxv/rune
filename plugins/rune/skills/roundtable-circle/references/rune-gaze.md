@@ -313,17 +313,12 @@ ash_selections.add("veil-piercer")    # Truth: always
 
 # CLI-gated Ash (always-on when available, conditional on CLI, not file type)
 # Check talisman first (user may have disabled)
-if talisman.codex.disabled is not true:
-  if Bash("command -v \"codex\" >/dev/null 2>&1 && echo 'yes' || echo 'no'") == "yes":
-    ash_selections.add("codex-oracle")  # Cross-model: when codex CLI available
 
 # External model CLI-backed Ashes (multi-model adversarial review, v1.57.0+)
 # Iterate ashes.custom[] entries where cli: is present (discriminated union — see custom-ashes.md).
-# Uses detectAllCLIAshes() from codex-detection.md which:
 #   1. Applies max_cli_ashes limit BEFORE detection (default: 2)
 #   2. Runs detectExternalModel(config) for each candidate
 #   3. Returns validated entries only
-# Codex Oracle is separately gated above — NOT counted toward max_cli_ashes.
 cli_ashes = detectAllCLIAshes(talisman, current_workflow)
 for each cli_ash in cli_ashes:
   ash_selections.add(cli_ash.name)
@@ -517,7 +512,6 @@ Gemfile.lock, pnpm-lock.yaml, go.sum, composer.lock
 
 <!-- NOTE: This hardcoded selection is the BASELINE. MCP-First Discovery (below) adds registry/user agents. -->
 
-| Changed Files | Forge Warden | Ward Sentinel | Pattern Weaver | Veil Piercer | Glyph Scribe | Knowledge Keeper | Codex Oracle |
 |--------------|:------------:|:-------------:|:--------------:|:------------:|:------------:|:-----------:|:------------:|
 | Only backend | Selected | **Always** | **Always** | **Always** | - | - | **CLI-gated** |
 | Only frontend | - | **Always** | **Always** | **Always** | Selected | - | **CLI-gated** |
@@ -533,9 +527,9 @@ Gemfile.lock, pnpm-lock.yaml, go.sum, composer.lock
 
 **Note:** The "Only `.claude/` files" row assumes `.claude/**/*.md`. Non-md files in `.claude/` (e.g., `.rune/talisman.yml`) follow standard classification rules and may also select Forge Warden via CONFIG_EXTENSIONS.
 
-**CLI-gated:** Codex Oracle is selected when `codex` CLI is available (`command -v codex` returns 0) AND `talisman.codex.disabled` is not true. It reviews all file types from a cross-model perspective.
 
-**External CLI-backed Ashes (v1.57.0+):** Custom Ashes with `cli:` field are detected via `detectAllCLIAshes()`. Each validated CLI-backed Ash is added to `ash_selections`. Subject to `max_cli_ashes` sub-partition (default: 2) within `max_ashes`. Codex Oracle is separately gated and NOT counted toward `max_cli_ashes`.
+
+**External CLI-backed Ashes (v1.57.0+):** Custom Ashes with `cli:` field are detected via `detectAllCLIAshes()`. Each validated CLI-backed Ash is added to `ash_selections`. Subject to `max_cli_ashes` sub-partition (default: 2) within `max_ashes`.
 
 **Max built-in Ash:** 7. With custom Ashes (via `talisman.yml`), total can reach 9 (`settings.max_ashes`). CLI-backed Ashes are capped at `max_cli_ashes` (default: 2) within that total. Plus 1 Runebinder (utility) for aggregation.
 

@@ -3,8 +3,8 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "I want to run /rune:devise for a new feature: 'Add OAuth2 authentication with Google and GitHub providers'. Walk me through what happens in Phase -1 (Team Bootstrap) and Phase 0 (Gather Input). Explain: (1) What the teamTransition protocol does, (2) How ATE-1 enforcement is enabled, (3) What happens if brainstorm-context is NOT provided vs if it IS provided, (4) How design signal detection works for Figma URLs. Don't actually execute anything — just explain the decision tree.",
-      "expected_output": "A detailed walkthrough of: (1) Team Bootstrap — the 6-step teamTransition protocol (validate → TeamDelete with retry → filesystem fallback → TeamCreate with 'Already leading' recovery → post-create verification → state file write with config_dir, owner_pid, session_id). (2) ATE-1 enforcement — enabled by team creation BEFORE any Agent() calls, all subsequent Agent() calls must include team_name. (3) Phase 0 paths — default: delegate to brainstorm protocol with devise-specific overrides (advisors join existing team, workspace co-located, skips handoff); --brainstorm-context PATH: read existing workspace, skip brainstorm, inject context; --quick: skip brainstorm, ask for feature description via AskUserQuestion. (4) Design signal detection — FIGMA_URL_PATTERN scan, set designAware flag, conditionally spawn design-pipeline-agent with figma_list_components MCP.",
+      "prompt": "I want to run /rune:devise for a new feature: 'Add OAuth2 authentication with Google and GitHub providers'. Walk me through what happens in Phase -1 (Team Bootstrap) and Phase 0 (Gather Input). Explain: (1) What the teamTransition protocol does, (2) How ATE-1 enforcement is enabled, (3) What happens if brainstorm-context is NOT provided vs if it IS provided, (4) How design signal detection works for Figma URLs. Don't actually execute anything \u2014 just explain the decision tree.",
+      "expected_output": "A detailed walkthrough of: (1) Team Bootstrap \u2014 the 6-step teamTransition protocol (validate \u2192 TeamDelete with retry \u2192 filesystem fallback \u2192 TeamCreate with 'Already leading' recovery \u2192 post-create verification \u2192 state file write with config_dir, owner_pid, session_id). (2) ATE-1 enforcement \u2014 enabled by team creation BEFORE any Agent() calls, all subsequent Agent() calls must include team_name. (3) Phase 0 paths \u2014 default: delegate to brainstorm protocol with devise-specific overrides (advisors join existing team, workspace co-located, skips handoff); --brainstorm-context PATH: read existing workspace, skip brainstorm, inject context; --quick: skip brainstorm, ask for feature description via AskUserQuestion. (4) Design signal detection \u2014 FIGMA_URL_PATTERN scan, set designAware flag, conditionally spawn design-pipeline-agent with figma_list_components MCP.",
       "files": [],
       "expectations": [
         "Describes the 6-step teamTransition protocol in Phase -1",
@@ -36,7 +36,7 @@
     {
       "id": 3,
       "prompt": "I'm running /rune:devise --quick for a bug fix. Explain what phases are skipped and why. Then explain what happens if I also pass --no-arena but don't pass --quick. Also explain the --exhaustive flag for forge mode and when it auto-triggers.",
-      "expected_output": "Flag impact analysis: --quick skips: Phase 0 brainstorm (asks for description directly), Phase 1.8 Solution Arena, Phase 2.3 Predictive Goldmask, Phase 2.5 Shatter Assessment, Phase 3 Forge. These are skipped because --quick is designed for straightforward tasks that don't need competitive evaluation or deep enrichment. --no-arena alone skips only Phase 1.8 Solution Arena — useful when you want forge enrichment but know there's only one viable approach. --exhaustive forge mode: threshold 0.15 (vs 0.30 default), max 5 agents/section (vs 3), max 12 total (vs 8), includes research-budget agents, two-tier aggregation, cost warning before summoning. Auto-triggers when user message contains ULTRATHINK, DEEP, or ARCHITECT keywords.",
+      "expected_output": "Flag impact analysis: --quick skips: Phase 0 brainstorm (asks for description directly), Phase 1.8 Solution Arena, Phase 2.3 Predictive Goldmask, Phase 2.5 Shatter Assessment, Phase 3 Forge. These are skipped because --quick is designed for straightforward tasks that don't need competitive evaluation or deep enrichment. --no-arena alone skips only Phase 1.8 Solution Arena \u2014 useful when you want forge enrichment but know there's only one viable approach. --exhaustive forge mode: threshold 0.15 (vs 0.30 default), max 5 agents/section (vs 3), max 12 total (vs 8), includes research-budget agents, two-tier aggregation, cost warning before summoning. Auto-triggers when user message contains ULTRATHINK, DEEP, or ARCHITECT keywords.",
       "files": [],
       "expectations": [
         "Lists phases skipped by --quick: brainstorm, arena, predictive goldmask, shatter, forge",
@@ -52,7 +52,7 @@
     {
       "id": 4,
       "prompt": "Explain the Solution Arena phase (1.8) in detail. When does it run vs skip? What are the 4 sub-steps (1.8A through 1.8D)? How does the recovery protocol work if all solutions are killed? What is the complexity gate?",
-      "expected_output": "Solution Arena analysis: Skip conditions: --quick, --no-arena, bug fixes, high-confidence refactors (confidence >= 0.9), sparse research (<2 viable approaches). 4 sub-steps: 1.8A COMPLEXITY GATE + GENERATE — check skip conditions, then create 2-5 competing solutions from research; 1.8B CHALLENGE — adversarial agents (Devil's Advocate, Innovation Scout) attack solutions; 1.8C CONSOLIDATE & SCORE — build weighted evaluation matrix on 6 dimensions; 1.8D SELECT — present decision matrix for user approach selection. Recovery protocol: if all solutions killed, offer (a) proceed with least-flawed, (b) return to research (max 1 retry), or (c) abandon feature. Complexity gate: evaluated at start of 1.8A to determine if Arena should run based on skip conditions. Output: arena-selection.md with winning solution and rationale.",
+      "expected_output": "Solution Arena analysis: Skip conditions: --quick, --no-arena, bug fixes, high-confidence refactors (confidence >= 0.9), sparse research (<2 viable approaches). 4 sub-steps: 1.8A COMPLEXITY GATE + GENERATE \u2014 check skip conditions, then create 2-5 competing solutions from research; 1.8B CHALLENGE \u2014 adversarial agents (Devil's Advocate, Innovation Scout) attack solutions; 1.8C CONSOLIDATE & SCORE \u2014 build weighted evaluation matrix on 6 dimensions; 1.8D SELECT \u2014 present decision matrix for user approach selection. Recovery protocol: if all solutions killed, offer (a) proceed with least-flawed, (b) return to research (max 1 retry), or (c) abandon feature. Complexity gate: evaluated at start of 1.8A to determine if Arena should run based on skip conditions. Output: arena-selection.md with winning solution and rationale.",
       "files": [],
       "expectations": [
         "Lists skip conditions: --quick, --no-arena, bug fixes, high-confidence refactors, sparse research",
@@ -85,7 +85,7 @@
     {
       "id": 6,
       "prompt": "Walk me through Phase 6 Cleanup for devise. What are the 5 components of the standard cleanup pattern? What is the fallback array and why does it need to be complete? How does SEC-4 validation work? What is QUAL-012?",
-      "expected_output": "Phase 6 Cleanup breakdown: 5 components: (1) Dynamic member discovery — read team config for all teammates; (2) shutdown_request to all members via SendMessage; (3) Grace period — let teammates deregister (20s); (4) TeamDelete with retry-with-backoff (4 attempts: 0s, 3s, 6s, 10s); (5) Filesystem fallback — only if TeamDelete never succeeded. Fallback array: hardcoded list of ALL possible teammates for the workflow, covers conditional phases, safe to send shutdown_request to absent members. SEC-4 validation: filter member names with /^[a-zA-Z0-9_-]+$/ before use in SendMessage (prevents injection). QUAL-012: gate filesystem fallback behind !cleanupTeamDeleteSucceeded — avoid unnecessary rm -rf when TeamDelete already succeeded. Also includes workflow lock release.",
+      "expected_output": "Phase 6 Cleanup breakdown: 5 components: (1) Dynamic member discovery \u2014 read team config for all teammates; (2) shutdown_request to all members via SendMessage; (3) Grace period \u2014 let teammates deregister (20s); (4) TeamDelete with retry-with-backoff (4 attempts: 0s, 3s, 6s, 10s); (5) Filesystem fallback \u2014 only if TeamDelete never succeeded. Fallback array: hardcoded list of ALL possible teammates for the workflow, covers conditional phases, safe to send shutdown_request to absent members. SEC-4 validation: filter member names with /^[a-zA-Z0-9_-]+$/ before use in SendMessage (prevents injection). QUAL-012: gate filesystem fallback behind !cleanupTeamDeleteSucceeded \u2014 avoid unnecessary rm -rf when TeamDelete already succeeded. Also includes workflow lock release.",
       "files": [],
       "expectations": [
         "Lists 5 cleanup components in order: discovery, shutdown_request, grace period, TeamDelete retry, filesystem fallback",
@@ -101,8 +101,10 @@
     {
       "id": 7,
       "prompt": "I have a brainstorm workspace at tmp/brainstorm-20260307/ with workspace-meta.json showing quality_score: 0.85. I want to run /rune:devise --brainstorm-context tmp/brainstorm-20260307/. What happens differently compared to running devise without this flag? How does the quality score affect the workflow? What context gets injected into Phase 1 research agents?",
-      "expected_output": "Brainstorm-context flow: Skips Phase 0 brainstorm entirely (no advisor summoning). Reads workspace-meta.json for quality_score (0.85 >= 0.70 = high-confidence). Injects into Phase 1 research agents: advisor research outputs, brainstorm decisions, constraint classification, success criteria. Quality score 0.85 means high-confidence mode — research agents proceed with stronger priors, less exploration needed. If score was < 0.70, would flag as 'exploratory' and suggest additional validation. The brainstorm-decisions.md sections (Non-Goals, Constraint Classification, Success Criteria, Scope Boundary) become inputs to synthesis. Design-aware flags and Figma URLs from brainstorm are also passed through.",
-      "files": ["evals/files/workspace-meta.json"],
+      "expected_output": "Brainstorm-context flow: Skips Phase 0 brainstorm entirely (no advisor summoning). Reads workspace-meta.json for quality_score (0.85 >= 0.70 = high-confidence). Injects into Phase 1 research agents: advisor research outputs, brainstorm decisions, constraint classification, success criteria. Quality score 0.85 means high-confidence mode \u2014 research agents proceed with stronger priors, less exploration needed. If score was < 0.70, would flag as 'exploratory' and suggest additional validation. The brainstorm-decisions.md sections (Non-Goals, Constraint Classification, Success Criteria, Scope Boundary) become inputs to synthesis. Design-aware flags and Figma URLs from brainstorm are also passed through.",
+      "files": [
+        "evals/files/workspace-meta.json"
+      ],
       "expectations": [
         "Notes Phase 0 brainstorm is skipped entirely",
         "Explains quality_score 0.85 >= 0.70 triggers high-confidence mode",
@@ -115,7 +117,7 @@
     {
       "id": 8,
       "prompt": "Explain the Forge phase (Phase 3) in detail. What is Forge Gaze? How does topic-aware agent matching work? What is the truthbinding pattern with ANCHOR/RE-ANCHOR blocks? How does the fallback work when no agent scores above threshold?",
-      "expected_output": "Forge phase analysis: Forge Gaze is topic-aware agent matching — parses plan sections, matches topics to specialized Ashes. Topic matching: registry maps keywords/topics to agent capabilities, threshold 0.30 for default mode, max 3 agents per section. Truthbinding: ANCHOR block at start of prompt (original plan content), RE-ANCHOR blocks during iteration (reference back to anchor), plan content sanitized (strip HTML comments, code fences, headings, entities, zero-width chars) before injection to prevent prompt injection. Fallback: if no agent scores above threshold, use inline generic Task prompt for standard enrichment. Elicitation sages: up to MAX_FORGE_SAGES=6 per eligible section with keyword pre-filter. Summon throttle: max 5 concurrent, max 8 total agents.",
+      "expected_output": "Forge phase analysis: Forge Gaze is topic-aware agent matching \u2014 parses plan sections, matches topics to specialized Ashes. Topic matching: registry maps keywords/topics to agent capabilities, threshold 0.30 for default mode, max 3 agents per section. Truthbinding: ANCHOR block at start of prompt (original plan content), RE-ANCHOR blocks during iteration (reference back to anchor), plan content sanitized (strip HTML comments, code fences, headings, entities, zero-width chars) before injection to prevent prompt injection. Fallback: if no agent scores above threshold, use inline generic Task prompt for standard enrichment. Elicitation sages: up to MAX_FORGE_SAGES=6 per eligible section with keyword pre-filter. Summon throttle: max 5 concurrent, max 8 total agents.",
       "files": [],
       "expectations": [
         "Describes Forge Gaze: topic-aware agent matching for plan sections",
@@ -132,7 +134,7 @@
     {
       "id": 9,
       "prompt": "What error handling exists in the devise workflow? Explain what happens when: (1) A research agent times out (>5 min), (2) Solution Arena has sparse research (<2 approaches), (3) Forge agent times out, (4) TeamCreate fails with 'Already leading', (5) Plan review returns BLOCK verdict.",
-      "expected_output": "Error handling matrix: (1) Research timeout: proceed with partial research, log gap, continue to synthesis with available data. (2) Sparse research (<2 approaches): skip Arena entirely, proceed directly to Phase 2 synthesize with available research. (3) Forge timeout (>5 min): proceed with partial enrichment, use what completed, don't block pipeline. (4) TeamCreate 'Already leading': catch-and-recover via teamTransition protocol — check for existing team, validate ownership, either join existing or force cleanup. (5) Plan review BLOCK: address blocking issues before presenting plan, max 2 refinement passes for HIGH severity issues. All errors are non-blocking where possible — devise prefers partial output over abort.",
+      "expected_output": "Error handling matrix: (1) Research timeout: proceed with partial research, log gap, continue to synthesis with available data. (2) Sparse research (<2 approaches): skip Arena entirely, proceed directly to Phase 2 synthesize with available research. (3) Forge timeout (>5 min): proceed with partial enrichment, use what completed, don't block pipeline. (4) TeamCreate 'Already leading': catch-and-recover via teamTransition protocol \u2014 check for existing team, validate ownership, either join existing or force cleanup. (5) Plan review BLOCK: address blocking issues before presenting plan, max 2 refinement passes for HIGH severity issues. All errors are non-blocking where possible \u2014 devise prefers partial output over abort.",
       "files": [],
       "expectations": [
         "Research timeout: proceed with partial research",
@@ -142,21 +144,6 @@
         "Plan review BLOCK: address issues before presenting, max 2 refinement passes",
         "Notes devise prefers partial output over abort",
         "Mentions research verification timeout proceeds with unverified + warning"
-      ]
-    },
-    {
-      "id": 10,
-      "prompt": "Explain Phase 4 Plan Review in detail. What checks does scroll-reviewer perform? What is the automated verification gate? When does Phase 4.5 Technical Review run and what agents does it summon? What happens with BLOCK vs CONCERN verdicts?",
-      "expected_output": "Plan Review breakdown: Scroll-reviewer checks: document structure, clarity, completeness, actionability, ambiguous language, cross-references. Automated verification gate: deterministic checks including talisman pattern compliance, universal checks, CommonMark compliance, measurability (specific metrics), filler detection. Phase 4.5 Technical Review: optional, summons decree-arbiter (architecture fit, feasibility, security/performance risks), knowledge-keeper (documentation coverage), codex-plan-reviewer (cross-model verification). BLOCK verdict: address before presenting plan, iterative refinement. CONCERN verdicts: include as warnings, non-blocking. Max 2 refinement passes for HIGH severity. Outputs: scroll-review.md, decree-review.md, knowledge-review.md, codex-plan-review.md.",
-      "files": [],
-      "expectations": [
-        "Describes scroll-reviewer checks: structure, clarity, completeness, actionability",
-        "Lists automated gate checks: talisman patterns, CommonMark, measurability, filler detection",
-        "Explains Phase 4.5 is optional",
-        "Lists Phase 4.5 agents: decree-arbiter, knowledge-keeper, codex-plan-reviewer",
-        "Explains BLOCK verdict: address before presenting",
-        "Explains CONCERN verdicts: include as warnings, non-blocking",
-        "Notes max 2 refinement passes for HIGH severity"
       ]
     },
     {
@@ -177,7 +164,7 @@
     {
       "id": 12,
       "prompt": "How does the Predictive Goldmask phase (2.3) work? What are the 3 depth modes? What talisman config controls it? When is it skipped?",
-      "expected_output": "Predictive Goldmask analysis: Depth modes: basic (2 agents, default), enhanced (6 agents), full (8 agents). Controlled via talisman.goldmask.devise.depth. Skip conditions: --quick mode, goldmask.enabled === false, goldmask.devise.enabled === false, non-git repo. Purpose: runs predictive risk analysis on files likely affected by the plan before implementation. Outputs risk scores and wisdom advisories that get injected into the plan. Non-blocking on failure — proceeds with partial data or skips injection.",
+      "expected_output": "Predictive Goldmask analysis: Depth modes: basic (2 agents, default), enhanced (6 agents), full (8 agents). Controlled via talisman.goldmask.devise.depth. Skip conditions: --quick mode, goldmask.enabled === false, goldmask.devise.enabled === false, non-git repo. Purpose: runs predictive risk analysis on files likely affected by the plan before implementation. Outputs risk scores and wisdom advisories that get injected into the plan. Non-blocking on failure \u2014 proceeds with partial data or skips injection.",
       "files": [],
       "expectations": [
         "Lists 3 depth modes: basic (2 agents), enhanced (6 agents), full (8 agents)",
@@ -186,20 +173,6 @@
         "Lists skip conditions: --quick, goldmask.enabled === false, goldmask.devise.enabled === false, non-git repo",
         "Notes non-blocking behavior on failure",
         "Mentions risk scores and wisdom advisories are outputs"
-      ]
-    },
-    {
-      "id": 13,
-      "prompt": "Explain Phase 2.3.5 Research Conflict Tiebreaker. When does it trigger? What is the Codex integration pattern? How does it resolve conflicting research recommendations?",
-      "expected_output": "Research Conflict Tiebreaker: CONDITIONAL — only runs when research agents produce conflicting recommendations (~20% trigger rate). Codex integration: spawns codex-tiebreaker agent with cross-model verification. Resolution process: (1) Detect conflicts between research agent outputs, (2) Present conflicting viewpoints to Codex, (3) Codex provides independent analysis, (4) Tarnished makes final decision with Codex input as additional signal. See conflict-tiebreaker.md for full protocol. Skipped when no conflicts detected.",
-      "files": [],
-      "expectations": [
-        "Notes this is CONDITIONAL with ~20% trigger rate",
-        "Explains it runs when research agents produce conflicting recommendations",
-        "Mentions codex-tiebreaker agent for cross-model verification",
-        "Describes the 4-step resolution process",
-        "References conflict-tiebreaker.md for full protocol",
-        "Notes it's skipped when no conflicts detected"
       ]
     },
     {

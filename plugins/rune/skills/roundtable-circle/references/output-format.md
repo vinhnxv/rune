@@ -34,7 +34,6 @@ Each finding follows this template:
 | Pattern Weaver | `QUAL` | `QUAL-001` |
 | Glyph Scribe | `FRONT` | `FRONT-001` |
 | Knowledge Keeper | `DOC` | `DOC-001` |
-| Codex Oracle | `CDX` | `CDX-001` |
 | Doubt Seer | `DOUBT` | `DOUBT-001` |
 
 ### Rune Trace Requirements

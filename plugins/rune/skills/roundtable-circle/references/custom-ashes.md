@@ -72,14 +72,13 @@ When `cli:` is present, the entry is a **CLI-backed Ash** that invokes an extern
 | `detection_steps` | N/A | Optional |
 | `model_pattern` | N/A | Optional (default: MODEL_NAME_PATTERN) |
 
-CLI-backed Ashes use `detectExternalModel()` (see [codex-detection.md](codex-detection.md)) instead of agent resolution. Their prompt is generated from the [external-model-template.md](external-model-template.md) template.
+CLI-backed Ashes use `detectExternalModel()` instead of agent resolution. Their prompt is generated from the [external-model-template.md](external-model-template.md) template.
 
 ### `settings` Fields
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `max_ashes` | int | 9 | Hard cap on total Ash (built-in + custom) |
-| `max_cli_ashes` | int | 2 | Sub-cap on CLI-backed Ashes. Must be <= `max_ashes`. Codex Oracle is NOT counted toward this limit (it has its own gate) |
 | `dedup_hierarchy` | list | Built-in order | Priority order for dedup. Higher position = wins on conflict |
 | `verification.layer_2_custom_agents` | bool | true | Whether Truthsight verifier checks custom outputs |
 
@@ -87,7 +86,6 @@ CLI-backed Ashes use `detectExternalModel()` (see [codex-detection.md](codex-det
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `disable_ashes` | list | `[]` | Names of built-in Ashes to skip. Valid: `forge-warden`, `ward-sentinel`, `veil-piercer`, `pattern-weaver`, `glyph-scribe`, `knowledge-keeper`, `codex-oracle` |
 
 ## Agent Resolution
 
@@ -108,7 +106,6 @@ The Tarnished resolves the `agent` field based on `source`:
       - Validate cli against CLI_BINARY_PATTERN (/^[a-zA-Z0-9_-]+$/)
       - Validate model against model_pattern (default: MODEL_NAME_PATTERN)
       - Validate output_format is in OUTPUT_FORMAT_ALLOWLIST
-      - Run detectExternalModel(config) — see codex-detection.md
       - If detection fails → skip this Ash, log warning
       - Skip steps b-d entirely
    b. Validate agent name: must match /^[a-zA-Z0-9_:-]+$/
@@ -240,7 +237,6 @@ Run these checks at Phase 0 before summoning any agents:
 | CLI path safe | When `cli:` present: resolved binary path must NOT be within project directory | "CLI binary '{cli}' resolves to project directory — rejected for safety" |
 | CLI count cap | Total CLI-backed Ashes ≤ `settings.max_cli_ashes` (default: 2) | "Too many CLI-backed Ashes ({count}). Max: {max}" |
 | Valid workflows | Each entry is `review`, `audit`, or `forge` | "Invalid workflow '{value}' in Ash '{name}'. Must be 'review', 'audit', or 'forge'" |
-| Reserved prefixes | Custom prefix doesn't collide with built-ins: SEC, BACK, VEIL, QUAL, FRONT, DOC, CDX, DOUBT, FLOW, PY, TSR, RST, PHP, FAPI, DJG, LARV, SQLA, TDD, DDD, DI. Also reserved in deep-audit mode (`/rune:audit --deep`): DEBT, INTG, BIZL, EDGE | "Prefix '{prefix}' is reserved for built-in/deep-audit Ash '{name}'" |
 | Agent name safe | `agent` field matches `^[a-zA-Z0-9_:-]+$` (no path separators or `..`) | "Invalid agent name '{agent}': must contain only alphanumeric, hyphen, underscore, or colon characters" |
 | Forge fields | If `forge` in workflows: `trigger.topics` (≥2), `forge.subsection`, `forge.perspective`, `forge.budget` required | "Ash '{name}' has 'forge' workflow but missing required forge fields" |
 | Forge budget value | `forge.budget` must be `enrichment` or `research` | "Invalid forge budget '{value}' in Ash '{name}'. Must be 'enrichment' or 'research'" |
