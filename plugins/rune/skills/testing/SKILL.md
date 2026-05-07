@@ -1,20 +1,14 @@
 ---
 name: testing
 description: |
-  Test orchestration pipeline for arc Phase 7.7. Provides 4-tier testing
-  (unit, property-based, integration, E2E/browser) with diff-scoped discovery,
-  service startup, and structured reporting. Tier 1.5 property-based testing
-  detects roundtrip/validator/idempotent patterns and generates invariant tests
-  with fast-check, hypothesis, proptest, or rapid. Includes extended tier with
-  checkpoint/resume, contract validation, visual regression, design token
-  compliance, accessibility checks, test history persistence, regression
-  detection, and flaky test identification. Auto-loaded by arc orchestrator
-  during test phase.
-  Trigger keywords: testing, test pipeline, unit test, integration test, E2E test,
-  test discovery, test report, QA, quality assurance, scenario schema, checkpoint,
-  fixture, visual regression, design token, accessibility, test history,
-  regression detection, flaky test, extended tier, contract validation,
-  property-based testing, PBT, fast-check, hypothesis, proptest, invariant.
+  Test orchestration pipeline for arc Phase 7.7 — 4-tier testing (unit,
+  property-based, integration, E2E/browser) with diff-scoped discovery and
+  structured reporting. Extended tier covers contract validation, visual
+  regression, design tokens, a11y, test history, and flaky detection.
+  Auto-loaded by the arc orchestrator during the test phase.
+  Keywords: testing, test pipeline, unit test, integration, E2E, PBT,
+  property-based, fast-check, hypothesis, proptest, visual regression,
+  design token, accessibility, flaky test, contract validation.
 user-invocable: false
 disable-model-invocation: false
 ---

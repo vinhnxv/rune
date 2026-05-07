@@ -4,16 +4,6 @@ description: |
   Verify TOME findings before mend resolution. Classifies each finding as
   TRUE_POSITIVE, FALSE_POSITIVE, or NEEDS_CONTEXT with evidence chains.
   Prevents wasted mend-fixer effort on false positives.
-
-  <example>
-  user: "/rune:verify tmp/reviews/abc123/TOME.md"
-  assistant: "The Tarnished verifies each finding against the actual code..."
-  </example>
-
-  <example>
-  user: "/rune:verify"
-  assistant: "No TOME specified. Looking for recent TOME files..."
-  </example>
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[tome-path] [--output-dir <path>] [--timeout <ms>]"

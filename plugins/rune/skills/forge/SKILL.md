@@ -4,16 +4,6 @@ description: |
   Deepen an existing plan with Forge Gaze topic-aware enrichment.
   Summons specialized Ashes to enrich each section with expert perspectives.
   Can target a specific plan or auto-detect the most recent one.
-
-  <example>
-  user: "/rune:forge plans/2026-02-13-feat-user-auth-plan.md"
-  assistant: "The Tarnished ignites the forge to deepen the plan..."
-  </example>
-
-  <example>
-  user: "/rune:forge"
-  assistant: "No plan specified. Looking for recent plans..."
-  </example>
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[plan-path] [--exhaustive]"

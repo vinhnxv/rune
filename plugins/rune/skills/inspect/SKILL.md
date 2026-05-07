@@ -5,16 +5,6 @@ description: |
   extracts requirements, and summons 4 Inspector Ashes to measure implementation completeness,
   quality across 11 dimensions, and gaps across 9 categories. Produces a VERDICT.md with
   requirement matrix, dimension scores, gap analysis, and actionable recommendations.
-
-  <example>
-  user: "/rune:inspect plans/feat-user-auth-plan.md"
-  assistant: "The Tarnished gazes upon the land, measuring what has been forged against what was decreed..."
-  </example>
-
-  <example>
-  user: "/rune:inspect Add user authentication with JWT tokens and rate limiting"
-  assistant: "The Tarnished inspects the codebase against the inline plan..."
-  </example>
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[plan-file.md | inline description] [--mode plan|implementation] [--focus <dimension>] [--dry-run] [--fix]"

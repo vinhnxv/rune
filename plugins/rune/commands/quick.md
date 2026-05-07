@@ -5,17 +5,8 @@ description: |
   Use when the user says "quick", "fast", "nhanh", "quick run",
   "plan build review mend", or wants the simplified pipeline.
   Forwards all arguments to /rune:arc-quick.
-
-  <example>
-  user: "/rune:quick add a settings page"
-  assistant: "Starting quick pipeline: plan -> work -> review..."
-  </example>
-
-  <example>
-  user: "/rune:quick plans/my-plan.md"
-  assistant: "Running quick pipeline on existing plan..."
-  </example>
 user-invocable: true
+disable-model-invocation: true
 allowed-tools:
   - Agent
   - TaskCreate

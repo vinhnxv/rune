@@ -6,12 +6,8 @@ description: |
   does not proceed. The currently-executing child arc (if any) will finish normally.
 
   Delegates to /rune:cancel-arc with --variant=hierarchy for all logic.
-
-  <example>
-  user: "/rune:cancel-arc-hierarchy"
-  assistant: "Arc hierarchy loop cancelled. Currently executing child [03] will finish normally."
-  </example>
 user-invocable: true
+disable-model-invocation: true
 allowed-tools:
   - Read
   - Write

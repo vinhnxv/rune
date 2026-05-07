@@ -6,18 +6,6 @@ description: |
   Provides 24 reasoning methods (Tree of Thoughts, Pre-mortem, Red Team, 5 Whys, ADR).
   Auto-loaded by plan, forge, and review commands for eligible sections.
   Keywords: structured reasoning, trade-off, decision, compare approaches, risk analysis.
-
-  <example>
-  Context: During plan brainstorm, user needs structured approach selection
-  user: "Help me evaluate these 3 architecture approaches"
-  assistant: "Loading elicitation skill for Tree of Thoughts structured evaluation"
-  </example>
-
-  <example>
-  Context: During forge enrichment with security-sensitive section
-  user: "/rune:forge plans/security-plan.md"
-  assistant: "Elicitation skill loaded — Red Team vs Blue Team method available for security sections"
-  </example>
 user-invocable: false
 disable-model-invocation: false
 allowed-tools:

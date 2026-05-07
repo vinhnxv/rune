@@ -9,22 +9,8 @@ description: |
   Use --status to inspect arc pipeline health without cancelling (runs rune-status.sh).
   Use --list-active to list all active arc-related state files without cancelling anything.
   Use --variant=batch|hierarchy|issues to cancel only a specific loop type (thin alias support).
-
-  <example>
-  user: "/rune:cancel-arc"
-  assistant: "The Tarnished halts the arc..."
-  </example>
-
-  <example>
-  user: "/rune:cancel-arc --status"
-  assistant: "Displays arc pipeline status report without cancelling."
-  </example>
-
-  <example>
-  user: "/rune:cancel-arc --list-active"
-  assistant: "Lists all active arc-related state files owned by this session."
-  </example>
 user-invocable: true
+disable-model-invocation: true
 allowed-tools:
   - TaskList
   - TaskUpdate

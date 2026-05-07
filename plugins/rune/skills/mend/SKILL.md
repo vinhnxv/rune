@@ -4,16 +4,6 @@ description: |
   Parallel finding resolution from TOME. Parses structured findings, groups by file,
   summons mend-fixer teammates to apply targeted fixes, runs ward check once after all
   fixers complete, and produces a resolution report.
-
-  <example>
-  user: "/rune:mend tmp/reviews/abc123/TOME.md"
-  assistant: "The Tarnished reads the TOME and dispatches mend-fixers..."
-  </example>
-
-  <example>
-  user: "/rune:mend"
-  assistant: "No TOME specified. Looking for recent TOME files..."
-  </example>
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[tome-path] [--output-dir <path>] [--timeout <ms>]"

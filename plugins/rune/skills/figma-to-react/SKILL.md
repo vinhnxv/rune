@@ -1,20 +1,13 @@
 ---
 name: figma-to-react
 description: |
-  Figma visual intent extractor — MCP server knowledge for the 4 Figma tools.
-  figma_to_react() produces REFERENCE CODE (~50-60% match), NOT production code.
-  Its primary role in the design-sync pipeline is as a search input: the generated
-  code is analyzed for component intent, which drives library MCP searches when a
-  UI builder is available. Without a builder, it serves as a starting point for
-  direct implementation.
-  Builder protocol role: figma-to-react provides baseline visual extraction;
-  builder MCPs (UntitledUI, shadcn/ui, custom) enhance with library-specific
-  component matching via Phase 1.5 Component Match in design-sync. When a builder
-  is active, figma_to_react() output is consumed as search input — not applied directly.
+  Figma visual intent extractor — MCP server knowledge for 4 Figma tools.
+  Generates REFERENCE CODE (~50-60% match) used as search input for library
+  MCP matching in the design-sync pipeline (UntitledUI, shadcn/ui, custom).
   Use when agents need to fetch Figma designs, inspect node properties,
   list components, or extract visual intent from design files.
-  Trigger keywords: figma, design, react, component, tailwind, MCP,
-  design-to-code, figma URL, figma API, component extraction, visual intent.
+  Keywords: figma, design, react, component, tailwind, MCP, design-to-code,
+  figma URL, figma API, component extraction, visual intent.
 user-invocable: false
 disable-model-invocation: false
 ---

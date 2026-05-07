@@ -6,21 +6,6 @@ description: |
   review findings, work tasks, PR comments, tech debt, and audit findings.
   Session-scoped: todos live in tmp/{workflow}/{timestamp}/todos/, cleaned by /rune:rest.
   Use when creating, triaging, resolving, or querying todos from any Rune workflow.
-
-  <example>
-  user: "/rune:file-todos status"
-  assistant: "Scanning session todos for current state..."
-  </example>
-
-  <example>
-  user: "/rune:file-todos create"
-  assistant: "Creating new todo with source-aware template..."
-  </example>
-
-  <example>
-  user: "/rune:file-todos manifest build"
-  assistant: "Building per-source manifests with DAG ordering..."
-  </example>
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[create|triage|status|list|next|search|resolve|dedup|manifest] [--status=pending] [--priority=p1] [--source=review]"

@@ -5,20 +5,6 @@ description: |
   verification, or troubleshooting Codex integration errors. Covers detection, execution,
   error handling, sandbox modes, talisman config, and .codexignore prerequisites.
   Keywords: codex, cross-model, GPT, oracle, codex exec, codexignore.
-
-  <example>
-  Context: A Rune command needs to run Codex for cross-model review.
-  user: "Run code review with Codex"
-  assistant: "I'll detect Codex availability, verify .codexignore, then run codex exec with read-only sandbox."
-  <commentary>Load codex-cli skill for detection + execution patterns.</commentary>
-  </example>
-
-  <example>
-  Context: Arc Phase 6 needs to check if Codex Oracle should be summoned.
-  user: "/rune:arc plans/my-plan.md"
-  assistant: "Detecting Codex Oracle per codex-detection.md before summoning Ashes..."
-  <commentary>Codex detection is a prerequisite step before Ash selection in review/audit/forge phases.</commentary>
-  </example>
 user-invocable: false
 disable-model-invocation: false
 allowed-tools:

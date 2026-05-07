@@ -5,18 +5,6 @@ description: |
   exceed 50 messages, or when context feels degraded. Prevents overflow before agent
   summoning, compresses long sessions, and offloads verbose content to filesystem.
   Keywords: context overflow, prompt too long, glyph budget, compression, long session.
-
-  <example>
-  Context: About to launch 4 review agents
-  user: "Review this PR with multiple agents"
-  assistant: "I'll use context-weaving to enforce Glyph Budgets and plan agent orchestration"
-  </example>
-
-  <example>
-  Context: Long coding session
-  user: "Context is getting long, I'm losing track"
-  assistant: "Loading context-weaving for session compression"
-  </example>
 user-invocable: false
 disable-model-invocation: false
 allowed-tools:

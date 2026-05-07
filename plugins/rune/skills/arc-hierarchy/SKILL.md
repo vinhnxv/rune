@@ -9,18 +9,6 @@ description: |
   and per-child feature branch management.
   Keywords: hierarchical, parent plan, child plan, decomposition, DAG, dependency,
   shatter, children_dir, requires, provides, contract matrix, arc-hierarchy.
-
-  <example>
-  Context: User has a parent plan with child plans decomposed
-  user: "/rune:arc-hierarchy plans/2026-02-23-feature-auth-plan.md"
-  assistant: "The Tarnished reads the execution table and begins executing child plans in topological order..."
-  </example>
-
-  <example>
-  Context: User wants to resume after a child plan failure
-  user: "/rune:arc-hierarchy plans/parent.md --resume"
-  assistant: "Resuming hierarchy execution. Found 2/5 children completed. Next executable: 03-permissions..."
-  </example>
 user-invocable: true
 allowed-tools:
   - Read

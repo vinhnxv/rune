@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.67.3] — 2026-05-07
+
+Chore: Listing-budget optimization pass + new lint rule for permanent regression protection.
+
+**Pass #1 — skill description trimming**: Stripped 87 `<example>` blocks from frontmatter description fields across 40 SKILL.md files in `plugins/rune/skills/`. Examples were duplicating the body's "use when" content while inflating the per-session listing budget. Saved ~3,880 tokens (~25% of skill description weight).
+
+**Pass #2 — command frontmatter cleanup + alias hiding**: Stripped 28 `<example>` blocks from 16 command files in `plugins/rune/commands/`. Set `disable-model-invocation: true` on 15 alias/utility commands (plan, work, review, quick, cancel-arc + 3 variants, cancel-audit, cancel-codex-review, cancel-review, rest, plan-review, echoes, elicit). User-typed slash commands still work; descriptions no longer ship in every session's listing budget. Saved an additional ~2,565 tokens. The `using-rune` skill already routes intent to these aliases, so removing model-invocation is redundancy elimination, not a behavior change.
+
+**Pass #3 — DESC-001/002/003 lint rule**: New `plugins/rune/scripts/validate-skill-descriptions.sh` enforces three rules across 69 skills + 16 commands:
+- **DESC-001**: No `<example>` blocks inside YAML frontmatter description (move to body).
+- **DESC-002**: Description length ≤ 800 chars (configurable via `DESC_MAX_LEN` env).
+- **DESC-003**: Alias skills/commands MUST set `disable-model-invocation: true`.
+
+Also trimmed three legitimately-bloated descriptions (arc, figma-to-react, testing) that exceeded the 800-char cap with phase enumerations and architecture docs better suited to the body. Wired the validator into `plugins/rune/CLAUDE.md` Pre-Commit Checklist. Honors the existing `# SDMT-IGNORE: <reason>` exemption pattern.
+
+Cumulative effect: listing budget reduced from ~25,800 tokens to ~10,300 tokens (−60%). 59 files changed (655 deletions, 36 insertions). Resolves the `/doctor` "Skill listing will be truncated — 62 descriptions dropped" warning at the default `skillListingBudgetFraction: 0.02`.
+
 ## [2.67.2] — 2026-05-07
 
 Chore: Trim oversized skill descriptions in `talisman`, `tarnished`, and `test-browser` SKILL.md frontmatter to fix `/doctor` "descriptions exceed the per-entry cap" warning. Removed verbose `<example>` blocks and redundant subcommand listings that duplicated `argument-hint`. Each description shrunk ~70-73% while preserving core triggers, keywords (including VN+EN for `tarnished`), and intent-routing hooks. No functional changes — skill bodies, references, and execution flow untouched. Reduces token cost of skill listing under default `skillListingBudgetFraction: 0.01`.

@@ -12,25 +12,6 @@ description: |
 
   Keywords: arc-issues, github issues, issue queue, issue backlog, batch from issues,
   label-driven, rune:ready, --label, --all, --resume, --cleanup-labels, issue-to-plan.
-
-  <example>
-  Context: User has GitHub issues labeled "rune:ready" to implement
-  user: "/rune:arc-issues --label \"rune:ready\""
-  assistant: "Fetching issues with label rune:ready..."
-  </example>
-
-  <example>
-  Context: User has a file with issue numbers
-  user: "/rune:arc-issues issues-queue.txt"
-  assistant: "Reading issue queue from issues-queue.txt..."
-  </example>
-
-  <example>
-  Context: User wants to process specific issues
-  user: "/rune:arc-issues 42 55 78"
-  assistant: "Processing issues #42, #55, #78..."
-  </example>
-
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 argument-hint: "[--label LABEL | issues-queue.txt | #N ...] [--resume] [--dry-run] [--all] [--force]"

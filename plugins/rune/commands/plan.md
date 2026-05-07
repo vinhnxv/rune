@@ -5,17 +5,8 @@ description: |
   Use when the user says "plan", "plan this feature", "plan a task",
   "help me plan", or wants to create a plan for implementation.
   Forwards all arguments to /rune:devise.
-
-  <example>
-  user: "/rune:plan add user authentication"
-  assistant: "Starting the planning workflow..."
-  </example>
-
-  <example>
-  user: "/rune:plan --quick fix the search bug"
-  assistant: "Starting a quick planning workflow..."
-  </example>
 user-invocable: true
+disable-model-invocation: true
 allowed-tools:
   - Agent
   - TaskCreate

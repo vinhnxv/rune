@@ -5,17 +5,8 @@ description: |
   Use when the user says "work on this", "implement", "build it",
   "execute the plan", "start working", or wants to implement a plan file.
   Forwards all arguments to /rune:strive.
-
-  <example>
-  user: "/rune:work plans/2026-02-24-feat-auth-plan.md"
-  assistant: "Starting implementation with swarm workers..."
-  </example>
-
-  <example>
-  user: "/rune:work"
-  assistant: "Looking for recent plans to implement..."
-  </example>
 user-invocable: true
+disable-model-invocation: true
 allowed-tools:
   - Agent
   - TaskCreate

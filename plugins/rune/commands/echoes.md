@@ -4,17 +4,8 @@ description: |
   Manage Rune Echoes — project-level agent memory stored in .rune/echoes/.
   View memory state, prune stale entries, reset all echoes, manage doc packs,
   or audit global echoes.
-
-  <example>
-  user: "/rune:echoes show"
-  assistant: "Displaying echo state across all roles..."
-  </example>
-
-  <example>
-  user: "/rune:echoes prune"
-  assistant: "Calculating Echo Scores and pruning stale entries..."
-  </example>
 user-invocable: true
+disable-model-invocation: true
 allowed-tools:
   - Read
   - Write

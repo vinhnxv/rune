@@ -5,17 +5,6 @@ description: |
   List recent runs, show agent inputs/outputs, view timing statistics,
   and find failed agents for retry.
   Trigger keywords: runs, artifacts, agent history, workflow runs.
-
-  <example>
-  user: "/rune:runs list"
-  assistant: "Scanning tmp/ for workflow run artifacts..."
-  </example>
-
-  <example>
-  user: "/rune:runs failures"
-  assistant: "Searching for failed/crashed agents across all runs..."
-  </example>
-
 user-invocable: true
 allowed-tools: Read, Glob, Grep, Bash
 argument-hint: "[list|show <agent>|stats|failures]"

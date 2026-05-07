@@ -3,21 +3,6 @@ name: rune:team-delegate
 description: |
   [EXPERIMENTAL] Task delegation dashboard for managing team workload, assignments, and messaging.
   Works with workflow-spawned teams (from /rune:strive, /rune:arc, etc.).
-
-  <example>
-  user: "/rune:team-delegate"
-  assistant: "Delegation Dashboard: 2 unassigned tasks, 1 idle member..."
-  </example>
-
-  <example>
-  user: "/rune:team-delegate --assign 3=ward-sentinel"
-  assistant: "Task #3 assigned to ward-sentinel."
-  </example>
-
-  <example>
-  user: "/rune:team-delegate --message ward-sentinel 'Focus on auth module security'"
-  assistant: "Message sent to ward-sentinel."
-  </example>
 user-invocable: true
 disable-model-invocation: true
 argument-hint: "[--assign id=member] [--message member 'text'] [--create 'subject']"

@@ -289,6 +289,7 @@ Every change to this plugin MUST include updates to all four files:
 - [ ] No bare `codex-exec.sh` without `${RUNE_PLUGIN_ROOT}` path
 - [ ] Run `bash scripts/validate-plugin-wiring.sh` — no SDMT-* violations
 - [ ] Run `bash scripts/validate-task-contract.sh` — no TEAM-002 violations (TaskCreate before Agent, TaskUpdate in agent tools)
+- [ ] Run `bash scripts/validate-skill-descriptions.sh` — no DESC-* violations (no `<example>` in description, length under 800 chars, alias skills/commands set `disable-model-invocation: true`)
 - [ ] New agents have >=1 spawn site in skills/ (SDMT-001)
 - [ ] New user-invocable skills are in using-rune AND tarnished routing tables (SDMT-005)
 - [ ] New talisman config sections have >=1 consumer in skills/ or scripts/ (SDMT-002)

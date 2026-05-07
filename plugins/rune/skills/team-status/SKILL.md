@@ -5,17 +5,6 @@ description: |
   task progress, completion percentage, and health indicators.
   Use when you want to check what's running or diagnose stuck workflows.
   Keywords: team status, team dashboard, check progress, team management, monitor.
-
-  <example>
-  user: "/rune:team-status"
-  assistant: "Scanning for active Rune teams..."
-  </example>
-
-  <example>
-  user: "/rune:team-status rune-review-abc1234"
-  assistant: "Checking status for team rune-review-abc1234..."
-  </example>
-
 user-invocable: true
 allowed-tools: Read, Glob, Grep, Bash, TaskList, TaskGet
 argument-hint: "[team-name]"

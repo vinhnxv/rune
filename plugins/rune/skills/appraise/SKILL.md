@@ -8,11 +8,6 @@ description: |
   Phase 1.5 adds UX reviewers when `talisman.ux.enabled` + frontend files detected.
   Phase 1.6 adds design fidelity reviewer (DES prefix) when `talisman.design_review.enabled` + frontend files detected.
   Phase 1.7 adds data flow integrity reviewer (FLOW prefix) when 2+ stack layers detected in diff.
-
-  <example>
-  user: "/rune:appraise"
-  assistant: "The Tarnished convenes the Roundtable Circle for review..."
-  </example>
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[--deep | --partial | --dry-run | --max-agents <N> | --no-chunk | --chunk-size <N> | --no-converge | --cycles <N> | --scope-file <path> | --no-lore | --auto-mend]"

@@ -8,21 +8,6 @@ description: |
 
   Use when: "brainstorm", "explore idea", "what should we build", "discuss feature",
   "thao luan", "kham pha y tuong", "brainstorm this", "let's think about".
-
-  <example>
-  user: "/rune:brainstorm add real-time notifications"
-  assistant: "The Tarnished opens the roundtable — how would you like to brainstorm?"
-  </example>
-
-  <example>
-  user: "/rune:brainstorm --quick improve auth"
-  assistant: "Solo mode — let's explore the auth improvements together..."
-  </example>
-
-  <example>
-  user: "/rune:brainstorm --deep redesign the API layer"
-  assistant: "Deep analysis mode — summoning advisors and elicitation sages..."
-  </example>
 user-invocable: true
 argument-hint: "[--quick] [--deep] [feature idea or problem to explore]"
 allowed-tools:

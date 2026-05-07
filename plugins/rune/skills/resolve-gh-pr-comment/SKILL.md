@@ -8,16 +8,6 @@ description: |
   before applying fixes. Can be used standalone or invoked from arc
   Phase 9.2 for individual comment resolution.
   Keywords: resolve, PR comment, review, bot feedback, GitHub.
-
-  <example>
-  user: "/rune:resolve-gh-pr-comment https://github.com/org/repo/pull/42#discussion_r12345"
-  assistant: "Fetching comment details and verifying against actual code..."
-  </example>
-
-  <example>
-  user: "/rune:resolve-gh-pr-comment 12345 --resolve"
-  assistant: "Resolving comment #12345 and marking thread as resolved..."
-  </example>
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "<comment_id_or_url> [--resolve] [--pr <number>]"

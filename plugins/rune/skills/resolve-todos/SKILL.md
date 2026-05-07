@@ -5,16 +5,6 @@ description: |
   Each TODO is reviewed before any fix is applied, preventing hallucinated fixes.
   Uses parallel batch processing with file ownership enforcement.
   Keywords: resolve, todos, fix, batch, parallel, verify, file-todos.
-
-  <example>
-  user: "/rune:resolve-todos"
-  assistant: "Discovering pending TODOs from active workflow..."
-  </example>
-
-  <example>
-  user: "/rune:resolve-todos review --dry-run"
-  assistant: "Dry run: analyzing review TODOs without applying fixes..."
-  </example>
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[source] [--dry-run] [--batch-size N]"

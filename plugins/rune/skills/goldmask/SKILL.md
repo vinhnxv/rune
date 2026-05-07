@@ -6,18 +6,6 @@ description: |
   side effects. Traces WHAT changes, WHY it exists (git archaeology), and HOW RISKY
   the area is (churn + ownership metrics). Keywords: impact analysis, blast radius,
   risk assessment, code archaeology, why was this written.
-
-  <example>
-  Context: Running standalone impact analysis
-  user: "/rune:goldmask HEAD~3..HEAD"
-  assistant: "Loading goldmask for cross-layer impact analysis"
-  </example>
-
-  <example>
-  Context: Checking blast radius before a refactor
-  user: "/rune:goldmask src/auth/ src/payment/"
-  assistant: "Loading goldmask for impact + wisdom + lore analysis on specified files"
-  </example>
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[diff-spec or file list]"

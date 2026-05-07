@@ -10,18 +10,6 @@ description: |
   conflict resolution patterns, direct commit vs patch generation.
   Keywords: worktree, isolation, wave, merge broker, branch merge, conflict,
   parallel isolation, --worktree, direct commit.
-
-  <example>
-  Context: Orchestrator activating worktree mode for /rune:strive
-  user: "/rune:strive plans/feat-api-plan.md --worktree"
-  assistant: "Worktree mode active. Workers will operate in isolated worktrees with direct commit."
-  </example>
-
-  <example>
-  Context: Merge conflict during wave merge
-  user: (internal — merge broker detects conflict)
-  assistant: "Conflict detected in src/api.ts during Wave 1 merge. Escalating to user."
-  </example>
 user-invocable: false
 disable-model-invocation: false  # Intentional: model loads this skill when worktree mode detected
 allowed-tools:

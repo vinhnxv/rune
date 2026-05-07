@@ -9,20 +9,6 @@ description: |
   silently targets wrong directory when CLAUDE_CONFIG_DIR is set.
   Keywords: CLAUDE_CONFIG_DIR, CHOME, ~/.claude, multi-account, config directory,
   path not found, team cleanup, hardcoded path.
-
-  <example>
-  Context: A command needs to rm-rf team directories after cleanup.
-  user: "Add cleanup logic for team dirs"
-  assistant: "I'll use the CHOME pattern for the rm-rf call — SDK calls like Read() auto-resolve, but Bash commands need explicit CHOME."
-  <commentary>Load chome-pattern skill for correct Bash path resolution.</commentary>
-  </example>
-
-  <example>
-  Context: Auditing a new command for hardcoded ~/.claude/ references.
-  user: "Check if this command works with custom config dirs"
-  assistant: "I'll classify each ~/.claude/ reference as SDK (safe) or Bash (needs CHOME)..."
-  <commentary>CHOME skill provides the classification framework.</commentary>
-  </example>
 user-invocable: false
 disable-model-invocation: false
 allowed-tools:

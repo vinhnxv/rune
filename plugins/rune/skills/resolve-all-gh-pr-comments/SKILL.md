@@ -6,16 +6,6 @@ description: |
   outdated, groups related comments, and batches fixes into a single commit.
   Handles all known review bots with hallucination checking.
   Keywords: resolve all, PR comments, batch, review, bot, GitHub.
-
-  <example>
-  user: "/rune:resolve-all-gh-pr-comments 42"
-  assistant: "Fetching all unresolved comments for PR #42..."
-  </example>
-
-  <example>
-  user: "/rune:resolve-all-gh-pr-comments"
-  assistant: "Detecting current PR from branch..."
-  </example>
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "<pr_number>"

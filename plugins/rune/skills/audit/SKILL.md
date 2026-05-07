@@ -9,21 +9,6 @@ description: |
   vulnerability hunting (auto for deep, configurable via talisman). Supports `--focus`
   for targeted audits. Supports `--incremental` for stateful, prioritized batch auditing
   with 3-tier coverage tracking (file, workflow, API) and session-persistent audit history.
-
-  <example>
-  user: "/rune:audit"
-  assistant: "The Tarnished convenes the Roundtable Circle for audit..."
-  </example>
-
-  <example>
-  user: "/rune:audit --incremental"
-  assistant: "The Tarnished initiates incremental audit — scanning manifest, scoring priorities..."
-  </example>
-
-  <example>
-  user: "/rune:audit --incremental --status"
-  assistant: "Incremental Audit Coverage Report: 55.3% file coverage..."
-  </example>
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[--deep] [--focus <area>] [--max-agents <N>] [--dry-run] [--no-lore] [--deep-lore] [--standard] [--incremental] [--resume] [--status] [--reset] [--tier <file|workflow|api|all>] [--force-files <glob>] [--dirs <path,...>] [--exclude-dirs <path,...>] [--prompt <text>] [--prompt-file <path>]"

@@ -7,26 +7,6 @@ description: |
 
   Triggers on "pr guardian", "auto merge loop", "watch my PR", "shepherd PR",
   "auto merge", "monitor PR", "drive PR to merge".
-
-  <example>
-  user: "/rune:pr-guardian"
-  assistant: "Detecting current PR from branch, scheduling guardian loop..."
-  </example>
-
-  <example>
-  user: "/rune:pr-guardian 42"
-  assistant: "PR Guardian activated for PR #42. Checking every 5 minutes..."
-  </example>
-
-  <example>
-  user: "/rune:pr-guardian --disable-auto-merge"
-  assistant: "PR Guardian activated for PR #N (monitor-only mode). Auto-merge disabled..."
-  </example>
-
-  <example>
-  user: "/rune:pr-guardian 42 --disable-auto-merge"
-  assistant: "PR Guardian activated for PR #42 (monitor-only mode). Auto-merge disabled..."
-  </example>
 user-invocable: true
 disable-model-invocation: false
 ---

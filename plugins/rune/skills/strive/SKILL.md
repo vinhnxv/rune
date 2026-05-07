@@ -4,16 +4,6 @@ description: |
   Multi-agent work execution using Agent Teams. Parses a plan into tasks,
   summons swarm workers that claim and complete tasks independently,
   and runs quality gates before completion.
-
-  <example>
-  user: "/rune:strive plans/feat-user-auth-plan.md"
-  assistant: "The Tarnished marshals the Ash to forge the plan..."
-  </example>
-
-  <example>
-  user: "/rune:strive"
-  assistant: "No plan specified. Looking for recent plans..."
-  </example>
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[plan-path] [--approve] [--worktree] [--background|-bg] [--collect] [--resume]"

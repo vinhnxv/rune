@@ -7,11 +7,6 @@ description: |
   Also triggers when test-failure-analyst returns LOW confidence during arc Phase 7.7.
   Keywords: debug, investigate, hypothesis, root cause, parallel debugging, ACH,
   competing hypotheses, falsify, evidence, multi-agent debug.
-
-  <example>
-  user: "/rune:debug test suite fails intermittently on auth module"
-  assistant: "The Tarnished initiates the ACH Protocol — triaging, generating hypotheses, and summoning investigators..."
-  </example>
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[bug description or test command]"

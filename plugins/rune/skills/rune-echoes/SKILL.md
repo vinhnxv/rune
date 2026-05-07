@@ -6,12 +6,6 @@ description: |
   remember something explicitly, or when a pattern keeps recurring across sessions.
   Stores knowledge in .rune/echoes/ with 5-tier lifecycle
   (Etched/Notes/Inscribed/Observations/Traced) and multi-factor pruning.
-
-  <example>
-  Context: After a review, Ash persist patterns to echoes
-  user: "Review found repeated N+1 query pattern"
-  assistant: "Pattern persisted to .rune/echoes/reviewer/MEMORY.md as Inscribed entry"
-  </example>
 user-invocable: false
 disable-model-invocation: false
 allowed-tools:

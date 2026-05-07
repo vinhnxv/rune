@@ -6,20 +6,6 @@ description: |
   into actual polling calls. Covers correct TaskList-based monitoring, per-command
   poll intervals, and anti-patterns that bypass task visibility.
   Keywords: waitForCompletion, polling loop, TaskList, sleep+echo, POLL-001.
-
-  <example>
-  Context: Orchestrator entering monitoring phase of a review workflow.
-  user: (internal — poll loop about to start)
-  assistant: "Following the canonical monitoring loop: TaskList every cycle, sleep 30 between checks."
-  <commentary>Load polling-guard to ensure correct monitoring pattern.</commentary>
-  </example>
-
-  <example>
-  Context: POLL-001 deny fired during arc workflow.
-  user: (internal — hook denied sleep+echo)
-  assistant: "Hook blocked the sleep+echo pattern. Switching to TaskList-based monitoring loop."
-  <commentary>polling-guard skill explains why POLL-001 fires and the correct alternative.</commentary>
-  </example>
 user-invocable: false
 disable-model-invocation: false
 allowed-tools:

@@ -10,12 +10,6 @@ description: |
   roundtable phases need to be re-entered after session resume.
   Keywords: roundtable, appraise, audit, TOME aggregation, inscription, Ash,
   team lifecycle, TeammateIdle, 7-phase, 8 reviewers, SEAL marker.
-
-  <example>
-  Context: Running a code review
-  user: "/rune:appraise"
-  assistant: "Loading roundtable-circle for Agent Teams review orchestration"
-  </example>
 user-invocable: false
 disable-model-invocation: false
 allowed-tools:

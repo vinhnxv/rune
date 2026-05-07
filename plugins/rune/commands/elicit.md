@@ -5,22 +5,8 @@ description: |
   Provides structured reasoning techniques from the curated 24-method registry.
   Methods include Tree of Thoughts, Pre-mortem Analysis, Red Team vs Blue Team,
   5 Whys Deep Dive, and more.
-
-  <example>
-  user: "/rune:elicit"
-  assistant: "The Tarnished consults the elicitation grimoire..."
-  </example>
-
-  <example>
-  user: "/rune:elicit --method 11"
-  assistant: "Applying Tree of Thoughts to current context..."
-  </example>
-
-  <example>
-  user: "/rune:elicit --phase plan:0"
-  assistant: "Showing methods available for planning brainstorm phase..."
-  </example>
 user-invocable: true
+disable-model-invocation: true
 allowed-tools:
   - Read
   - Glob

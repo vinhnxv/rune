@@ -5,16 +5,6 @@ description: |
   creates Visual Spec Maps (VSM), guides implementation workers, and reviews
   fidelity between design and code. 3-phase pipeline: PLAN (extraction) ->
   WORK (implementation) -> REVIEW (fidelity check).
-
-  <example>
-  user: "/rune:design-sync https://www.figma.com/design/abc123/MyApp?node-id=1-3"
-  assistant: "Initiating design sync — extracting Figma specs and creating VSM..."
-  </example>
-
-  <example>
-  user: "/rune:design-sync --review-only"
-  assistant: "Running design fidelity review against existing VSM..."
-  </example>
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "<url1> [<url2> ...] [--plan-only] [--resume-work] [--review-only] [--urls <file>]"

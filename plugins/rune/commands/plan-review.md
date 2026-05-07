@@ -5,17 +5,8 @@ description: |
   Thin wrapper around /rune:inspect --mode plan. Combines inspect agents
   (grace-warden, ruin-prophet, sight-oracle, vigil-keeper) to review proposed code
   samples for bugs, pattern violations, and security issues.
-
-  <example>
-  user: "/rune:plan-review plans/feat-auth-plan.md"
-  assistant: "Running plan review with inspect agents..."
-  </example>
-
-  <example>
-  user: "/rune:plan-review --focus security plans/feat-x.md"
-  assistant: "Running security-focused plan review..."
-  </example>
 user-invocable: true
+disable-model-invocation: true
 allowed-tools:
   - Agent
   - TaskCreate

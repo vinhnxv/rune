@@ -8,26 +8,6 @@ description: |
 
   Trigger keywords: learn, session learning, persist patterns, corrections, recurrences,
   self-learning, extract patterns from sessions, cli corrections.
-
-  <example>
-  user: "/rune:learn"
-  assistant: "Scanning last 7 days... Found 3 CLI corrections, 2 review recurrences. Write 5 patterns? [y/N]"
-  </example>
-
-  <example>
-  user: "/rune:learn --since 14 --detector review"
-  assistant: "Running review-recurrence detector only... Found 4 recurring findings. Write 4 patterns? [y/N]"
-  </example>
-
-  <example>
-  user: "/rune:learn --detector meta-qa"
-  assistant: "Scanning last 7 days of arc checkpoints... Found 2 meta-QA patterns (code_review retried in 3/4 arcs, high convergence in 2/4 arcs). Write 2 patterns? [y/N]"
-  </example>
-
-  <example>
-  user: "/rune:learn --dry-run"
-  assistant: "Dry run: 5 patterns found. No entries written."
-  </example>
 user-invocable: true
 argument-hint: "[--since DAYS] [--detector cli|review|arc|hook|meta-qa|skill-promotion|all] [--dry-run]"
 allowed-tools:

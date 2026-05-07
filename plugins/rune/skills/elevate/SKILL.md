@@ -8,16 +8,6 @@ description: |
 
   Trigger keywords: elevate, promote to global, cross-project, share echo,
   global echo, elevate echo.
-
-  <example>
-  user: "/rune:elevate --scope backend"
-  assistant: "Scanning project echoes... Found 12 entries. Select entries to elevate."
-  </example>
-
-  <example>
-  user: "/rune:elevate --scope frontend"
-  assistant: "Elevated 3 entries to global scope (domain: frontend)"
-  </example>
 user-invocable: true
 argument-hint: "--scope <domain>"
 allowed-tools:

@@ -1,30 +1,14 @@
 ---
 name: arc
 description: |
-  Use when running the full plan-to-merged-PR pipeline, when resuming an
-  interrupted arc with --resume, or when any named phase fails (forge,
-  plan-review, plan-refinement, verification, semantic-verification,
-  design-extraction, design-prototype, design-verification, design-iteration, work,
-  gap-analysis, codex-gap-analysis, gap-remediation, goldmask-verification,
-  code-review, goldmask-correlation, verify, mend, verify-mend, test,
-  browser-test, browser-test-fix, verify-browser-test,
-  pre-ship-validation, bot-review-wait, pr-comment-resolution, ship, merge).
-  Use when checkpoint resume is needed after a crash or session end.
-  45-phase pipeline with convergence loops, Goldmask risk analysis,
-  pre-ship validation, bot review integration, cross-model verification,
-  and conditional design sync (Figma VSM extraction, prototype generation, fidelity verification, iteration).
+  Full plan-to-merged-PR pipeline — 45 phases with convergence loops, Goldmask
+  risk analysis, pre-ship validation, bot review integration, cross-model
+  verification, and conditional design sync. Use when running end-to-end from
+  plan to merge, resuming an interrupted arc with --resume after a crash or
+  session end, or when any named phase fails (forge, work, code-review, mend,
+  test, ship, merge, etc. — see body for full phase list).
   Keywords: arc, pipeline, --resume, checkpoint, convergence, forge, mend,
-  bot review, PR comments, ship, merge, design sync, Figma, VSM, 45 phases.
-
-  <example>
-  user: "/rune:arc plans/feat-user-auth-plan.md"
-  assistant: "The Tarnished begins the arc — 45 phases of forge, review, design sync, goldmask, test, browser test convergence, mend, convergence, pre-ship validation, bot review, ship, and merge..."
-  </example>
-
-  <example>
-  user: "/rune:arc --resume"
-  assistant: "Resuming arc from Phase 5 (WORK) — validating checkpoint integrity..."
-  </example>
+  bot review, PR comments, ship, merge, design sync, Figma, VSM.
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[plan-file-path | --resume]"

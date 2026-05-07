@@ -3,12 +3,8 @@ name: rune:cancel-codex-review
 description: |
   Cancel an active Codex Review workflow and gracefully shutdown all Ash teammates.
   Partial results remain in tmp/reviews/ for manual inspection.
-
-  <example>
-  user: "/rune:cancel-codex-review"
-  assistant: "The Tarnished halts the Codex Review..."
-  </example>
 user-invocable: true
+disable-model-invocation: true
 allowed-tools:
   - TaskList
   - TaskUpdate

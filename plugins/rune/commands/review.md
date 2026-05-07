@@ -5,17 +5,8 @@ description: |
   Use when the user says "review my code", "check my changes",
   "code review", "review this PR", or wants a multi-agent code review.
   Forwards all arguments to /rune:appraise.
-
-  <example>
-  user: "/rune:review"
-  assistant: "Starting multi-agent code review..."
-  </example>
-
-  <example>
-  user: "/rune:review --deep"
-  assistant: "Starting deep multi-wave code review..."
-  </example>
 user-invocable: true
+disable-model-invocation: true
 allowed-tools:
   - Agent
   - TaskCreate

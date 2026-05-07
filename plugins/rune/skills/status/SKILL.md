@@ -5,17 +5,6 @@ description: |
   --background (-bg) flag and you want to see dispatch progress, pending questions, and
   worker health without blocking the main session. Also use to detect stale dispatches
   (>2h) and orphaned workers.
-
-  <example>
-  user: "/rune:status"
-  assistant: "Reading dispatch state file for active background dispatch..."
-  </example>
-
-  <example>
-  user: "/rune:status 20260226-014500"
-  assistant: "Checking dispatch state for timestamp 20260226-014500..."
-  </example>
-
 user-invocable: true
 allowed-tools: Read, Glob, Grep, Bash, TaskList
 argument-hint: "[timestamp]"

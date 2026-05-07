@@ -4,12 +4,8 @@ description: |
   Remove tmp/ output directories from completed Rune workflows (reviews, audits, plans, work, mend, inspect, arc).
   Preserves Rune Echoes (.rune/echoes/) and active workflow state files.
   Renamed from /rune:cleanup in v1.5.0 — "rest" as in a resting place for completed artifacts.
-
-  <example>
-  user: "/rune:rest"
-  assistant: "Scanning for completed workflow artifacts in tmp/..."
-  </example>
 user-invocable: true
+disable-model-invocation: true
 allowed-tools:
   - Read
   - Write

@@ -11,21 +11,6 @@ description: |
   Use when: "quick run", "fast pipeline", "plan and build", "nhanh",
   "chay nhanh", "quick arc", "simple pipeline", "4 steps",
   "plan work review mend", "quick", "arc-quick".
-
-  <example>
-  user: "/rune:arc-quick add a health check endpoint"
-  assistant: "Starting quick pipeline: plan -> work -> review..."
-  </example>
-
-  <example>
-  user: "/rune:arc-quick plans/my-plan.md"
-  assistant: "Running quick pipeline on existing plan..."
-  </example>
-
-  <example>
-  user: "/rune:arc-quick plans/complex-plan.md --force"
-  assistant: "Force-running quick pipeline (skipping complexity warning)..."
-  </example>
 user-invocable: true
 argument-hint: "[prompt or plan-path] [--force]"
 ---

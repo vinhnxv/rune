@@ -9,18 +9,6 @@ description: |
   detecting which Ash type to use for a given review dimension.
   Keywords: orchestration, conflict detection, TOME aggregation, inscription,
   output format mismatch, file-based handoff, supervisor, swarm, pipeline.
-
-  <example>
-  Context: Running multi-agent code review
-  user: "Review this PR with multiple agents"
-  assistant: "I'll use rune-orchestration for context isolation and file-based handoff"
-  </example>
-
-  <example>
-  Context: Coordinating a codebase audit
-  user: "Run an audit with security and performance focus"
-  assistant: "I'll use rune-orchestration for audit agent coordination and output format"
-  </example>
 user-invocable: false
 disable-model-invocation: false
 allowed-tools:

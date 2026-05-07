@@ -9,18 +9,6 @@ description: |
   tracking via .rune/arc-batch-loop.local.md, --dry-run preview, --no-merge.
   Keywords: arc-batch, batch, queue file, overnight, --resume, crash recovery,
   progress tracking, sequential plans.
-
-  <example>
-  Context: User has multiple plans to implement
-  user: "/rune:arc-batch plans/*.md"
-  assistant: "The Tarnished begins the batch arc pipeline..."
-  </example>
-
-  <example>
-  Context: User has a queue file
-  user: "/rune:arc-batch batch-queue.txt"
-  assistant: "Reading plan queue from batch-queue.txt..."
-  </example>
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion, Skill
 argument-hint: "[plans/*.md | queue-file.txt] [--resume] [--dry-run] [--no-merge] [--no-shard-sort] [--no-smart-sort] [--smart-sort] [--no-forge] [--no-test] [--draft] [--bot-review] [--no-bot-review] [--no-pr]"

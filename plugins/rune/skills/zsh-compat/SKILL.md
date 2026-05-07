@@ -11,20 +11,6 @@ description: |
   Keywords: zsh, NOMATCH, status variable, read-only, nullglob, glob, ZSH-001,
   history expansion, command not found, date, %N, nanosecond, millisecond,
   gdate, bad math expression.
-
-  <example>
-  Context: LLM generating a Bash command with a loop over glob pattern.
-  user: (internal — about to write shell code)
-  assistant: "Using (N) qualifier on the glob for zsh safety."
-  <commentary>zsh-compat ensures safe glob patterns in generated code.</commentary>
-  </example>
-
-  <example>
-  Context: ZSH-001 hook denied a command.
-  user: (internal — hook denied status= assignment)
-  assistant: "Renaming to task_status per zsh-compat guidance."
-  <commentary>zsh-compat explains why ZSH-001 fires and the correct alternative.</commentary>
-  </example>
 user-invocable: false
 disable-model-invocation: false
 allowed-tools:

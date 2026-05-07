@@ -12,32 +12,6 @@ description: |
 
   Keywords: codex, cross-model, review, dual-model, cross-verify, code review,
   security audit, dead code, quality check, GPT, openai, multi-model.
-
-  <example>
-  user: "/rune:codex-review"
-  assistant: "Spawning Claude + Codex agents for cross-model review of current changes..."
-  </example>
-
-  <example>
-  user: "/rune:codex-review src/api/ --focus security"
-  assistant: "Cross-model security review of src/api/ directory..."
-  </example>
-
-  <example>
-  user: "/rune:codex-review PR#42"
-  assistant: "Fetching PR #42 diff for cross-model review..."
-  </example>
-
-  <example>
-  user: "/rune:codex-review --staged --focus bugs,quality"
-  assistant: "Cross-model review of staged changes focused on bugs and quality..."
-  </example>
-
-  <example>
-  user: "/rune:codex-review --adversarial"
-  assistant: "[EXPERIMENTAL] Adversarial cross-model review — challenging design decisions..."
-  </example>
-
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[<path|PR#N> | --staged | --commits <range> | --prompt <text>] [--focus <areas>] [--max-agents <N>] [--claude-only | --codex-only] [--no-cross-verify] [--reasoning <level>] [--adversarial]"

@@ -8,16 +8,6 @@ description: |
   Use when you want to preview design implementation before coding.
   Trigger keywords: prototype, figma prototype, storybook from figma, design preview,
   generate components from figma, preview design.
-
-  <example>
-  user: "/rune:design-prototype https://www.figma.com/design/abc123/MyApp?node-id=1-3"
-  assistant: "Generating prototypes from Figma design..."
-  </example>
-
-  <example>
-  user: "/rune:design-prototype --describe 'login form with email and social login'"
-  assistant: "Generating prototype from description..."
-  </example>
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "<figma-url> [--components N] [--no-storybook] [--describe 'text'] [--no-team]"

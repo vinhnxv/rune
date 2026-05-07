@@ -4,16 +4,6 @@ description: |
   Multi-agent planning workflow using Agent Teams. Combines brainstorm, research,
   validation, synthesis, shatter assessment, forge enrichment, and review into a
   single orchestrated pipeline with dependency-aware task scheduling.
-
-  <example>
-  user: "/rune:devise"
-  assistant: "The Tarnished begins the planning ritual — full pipeline with brainstorm, forge, and review..."
-  </example>
-
-  <example>
-  user: "/rune:devise --quick"
-  assistant: "The Tarnished begins a quick planning ritual — research, synthesize, review only..."
-  </example>
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[--quick] [--brainstorm-context PATH] [--no-brainstorm] [--no-forge] [--no-arena] [--no-verify-research] [--exhaustive]"

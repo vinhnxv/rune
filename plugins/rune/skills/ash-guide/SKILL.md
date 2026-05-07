@@ -5,12 +5,6 @@ description: |
   selecting which review agents to use, or when checking agent capabilities and tools.
   Quick reference for all 109 agents across 6 categories (66 core + 43 extended in
   review, research, work, utility, investigation, testing). Keywords: agent list, Ash, subagent type, agent not found.
-
-  <example>
-  Context: User wants to know which agents are available
-  user: "What review agents does Rune have?"
-  assistant: "Loading ash-guide for the agent reference table"
-  </example>
 user-invocable: false
 disable-model-invocation: false
 allowed-tools:

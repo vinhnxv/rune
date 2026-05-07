@@ -6,12 +6,8 @@ description: |
   the current arc completes.
 
   Delegates to /rune:cancel-arc with --variant=issues for all logic.
-
-  <example>
-  user: "/rune:cancel-arc-issues"
-  assistant: "Arc issues loop cancelled at iteration 2/4."
-  </example>
 user-invocable: true
+disable-model-invocation: true
 allowed-tools:
   - Read
   - Write
