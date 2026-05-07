@@ -231,7 +231,6 @@ Spawn nhiều agent hypothesis-investigator điều tra giả thuyết cạnh tr
 | `/rune:devise` | 3-7 agents | 3-5x | 5-15 phút |
 | `/rune:devise --quick` | 2-3 agents | 1.5-2x | 2-5 phút |
 | `/rune:strive` | 2-4 workers | 2-4x | 10-30 phút |
-| `/rune:codex-review` | 4-8 agents | 5-8x | 5-15 phút |
 | `/rune:debug` | 2-5 investigators | 3-5x | 5-10 phút |
 | `/rune:arc` (đầy đủ) | thay đổi | 10-30x | 30-90 phút |
 
@@ -260,7 +259,6 @@ Spawn nhiều agent hypothesis-investigator điều tra giả thuyết cạnh tr
 | `--no-forge` | Bỏ forge enrichment | Tiết kiệm 15 phút + agents |
 | `--no-test` | Bỏ test phase | Tiết kiệm test |
 | Convergence nhẹ | `arc_convergence_tier_override: "light"` | Max 2 review-mend cycles |
-| Tắt Codex | `codex.disabled: true` | Không cross-model verification |
 
 ### 3.5 Tối ưu tự động (không cần hành động)
 
@@ -405,7 +403,6 @@ Dùng `TaskList` để xem trạng thái task real-time cho team hiện tại.
 
 1. Dùng `--no-forge` bỏ enrichment
 2. `review.arc_convergence_tier_override: "light"` — ít review-mend cycles
-3. `codex.disabled: true` — tắt cross-model
 4. `work.max_workers: 2` — giảm worker
 
 ### "Review cứ tìm issue cũ (pre-existing)"

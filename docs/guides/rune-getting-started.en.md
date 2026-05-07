@@ -292,7 +292,6 @@ Once you're comfortable with the basic workflow, explore these advanced commands
 | Enrich a plan with more detail | `/rune:forge plans/...` |
 | Impact analysis of your changes | `/rune:goldmask` |
 | Structured reasoning (trade-off analysis, etc.) | `/rune:elicit` |
-| Cross-model code review (Claude + Codex) | `/rune:codex-review` |
 | Standalone browser E2E testing | `/rune:test-browser` |
 | Parallel hypothesis debugging | `/rune:debug` |
 | Extract session learnings to memory | `/rune:learn` |
@@ -335,7 +334,7 @@ Yes! Use `/rune:test-browser` for standalone browser E2E testing. It runs a 9-st
 Use `/rune:debug` — it spawns multiple hypothesis-investigator agents in parallel using the Analysis of Competing Hypotheses (ACH) method.
 
 **Q: Can I get a second opinion from a different AI model?**
-Yes. `/rune:codex-review` runs Claude and OpenAI Codex in parallel, cross-verifies findings, and merges consensus issues into a unified TOME.
+Yes.
 
 **Q: How does Rune learn from past sessions?**
 Use `/rune:learn` to extract CLI correction patterns and review recurrence findings from your session history. These are persisted to Rune Echoes (persistent memory) for future sessions.

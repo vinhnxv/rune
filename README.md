@@ -220,7 +220,6 @@ When run with no arguments, `/rune:tarnished` scans your project state (plans, r
 | `/rune:cancel-arc-batch` | Stop an active arc-batch loop |
 | `/rune:cancel-arc-hierarchy` | Stop an active arc-hierarchy loop |
 | `/rune:cancel-arc-issues` | Stop an active arc-issues loop |
-| `/rune:cancel-codex-review` | Stop an active codex review |
 | `/rune:team-delegate` | Task delegation dashboard |
 | `/rune:plan-review` | Review plan code samples for correctness |
 | `/rune:pr-guardian` | Automated PR shepherd — lint, CI, rebase, migrations, browser test, auto-merge (cron every 5 min) |
@@ -255,7 +254,7 @@ The full pipeline from plan to merged PR, with 45 phases:
 ```
 Forge → Plan Review → Refinement → Verification → Semantic Verification
   → Design Extraction → Task Decomposition → Work → Storybook Verification
-  → Design Verification → UX Verification → Gap Analysis → Codex Gap Analysis
+  → Design Verification → UX Verification → Gap Analysis
   → Gap Remediation → Goldmask Verification → Code Review (--deep)
   → Goldmask Correlation → Mend → Verify Mend → Design Iteration
   → Test → Test Coverage Critique → Pre-Ship Validation → Release Quality Check
@@ -475,7 +474,6 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | Design Analyst | Figma frame relationship classifier (5-signal weighted composite) |
 | Todo Verifier | TODO staleness verification — classifies TODOs as VALID or FALSE_POSITIVE |
 | UX Pattern Analyzer | Codebase UX maturity assessment (loading, error, form, navigation patterns) |
-| Codex Phase Handler | Isolated Codex phase execution (codex-exec.sh wrapper) |
 | Tome Digest | TOME finding extraction (P1/P2/P3 counts, recurring patterns) — shell-based |
 | Forge Warden | Multi-perspective backend code review for forge enrichment |
 | Verdict Binder | Inspection aggregator — merges Inspector findings into VERDICT.md |
@@ -550,7 +548,6 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | `ash-guide` | Reference | Agent invocation guide |
 | `tarnished` | Routing | Unified entry point — natural language to workflow |
 | `using-rune` | Reference | Workflow discovery and routing |
-| `codex-cli` | Integration | Cross-model verification |
 | `testing` | Testing | 3-tier test orchestration |
 | `agent-browser` | Testing | E2E browser automation knowledge |
 | `systematic-debugging` | Debugging | 4-phase debugging methodology |
@@ -563,7 +560,6 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | `resolve-all-gh-pr-comments` | Workflow | Batch resolve all open PR review comments |
 | `skill-testing` | Development | TDD for skill development |
 | `debug` | Debugging | ACH-based parallel hypothesis debugging |
-| `codex-review` | Workflow | Cross-model code review (Claude + Codex in parallel) |
 | `learn` | Memory | Session self-learning (CLI corrections, review recurrences) |
 | `figma-to-react` | Integration | Figma-to-React MCP server knowledge |
 | `status` | Reporting | Worker status reporting for swarm execution |
@@ -588,7 +584,6 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | `variant-hunt` | Analysis | Systematic variant analysis — "find more like this" for confirmed findings |
 | `supply-chain-audit` | Security | Dependency risk analysis (maintainer count, CVE history, abandonment) |
 | `pr-guardian` | Automation | Cron-based PR shepherd loop — comments, lint, CI, rebase, migrations, browser test, auto-merge |
-| `codex-status` | Reporting | Codex activity summary for current/recent arc run |
 | `verify` | Workflow | Verify TOME findings before mend (TRUE_POSITIVE/FALSE_POSITIVE classification) |
 | `react-composition-patterns` | Intelligence | React compound components, state lifting, explicit variants, React 19 APIs |
 | `react-native-patterns` | Intelligence | React Native/Expo best practices (FlashList, Reanimated, native navigation) |
@@ -651,9 +646,6 @@ goldmask:
     depth: enhanced             # basic | enhanced | full
 
 # Cross-model verification
-codex:
-  enabled: true
-  workflows: [devise, arc, appraise]
 
 # Custom Ashes
 ashes:
@@ -668,46 +660,6 @@ See [`talisman.example.yml`](plugins/rune/talisman.example.yml) for the full sch
 
 ---
 
-## Codex CLI Integration (Optional)
-
-Rune supports [OpenAI Codex CLI](https://github.com/openai/codex) as a cross-model verification layer. If you have a **ChatGPT Pro** subscription, you can enable Codex to add a second AI perspective alongside Claude — giving you higher-confidence results through independent cross-verification.
-
-### What Codex adds
-
-| Workflow | Codex Role |
-|----------|-----------|
-| `/rune:arc` | Gap analysis phase — Codex independently reviews implementation gaps |
-| `/rune:appraise` | Cross-model review — Claude and Codex review in parallel, findings are cross-verified |
-| `/rune:devise` | Plan validation — Codex provides a second opinion on plan feasibility |
-| `/rune:codex-review` | Dedicated cross-model review — runs Claude + Codex agents side by side |
-
-Findings are tagged with confidence levels: **CROSS-VERIFIED** (both models agree), **STANDARD** (single model), or **DISPUTED** (models disagree).
-
-### Trade-off: quality vs. time
-
-Enabling Codex **increases runtime** for every workflow that uses it — each Codex invocation adds an extra verification pass. For `/rune:arc`, this can add 10–20 minutes on top of the already 1–3 hour pipeline. Enable it when correctness matters more than speed.
-
-### Enable / Disable
-
-Codex integration is controlled via `talisman.yml`:
-
-```yaml
-# .rune/talisman.yml
-codex:
-  enabled: true                          # Set to false to disable entirely
-  workflows: [devise, arc, appraise]     # Which workflows use Codex
-```
-
-To disable: set `codex.enabled: false` or remove the `codex` section. Rune auto-detects whether the `codex` CLI is installed and authenticated — if not available, Codex phases are silently skipped.
-
-### Prerequisites
-
-1. [ChatGPT Pro](https://openai.com/chatgpt/pricing/) subscription (for Codex API access)
-2. Codex CLI installed: `npm install -g @openai/codex`
-3. Authenticated: `codex login`
-4. `.codexignore` file in project root (required for `--full-auto` mode)
-
----
 
 ## MCP Tool Integrations (Optional)
 

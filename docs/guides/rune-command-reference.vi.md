@@ -95,7 +95,6 @@ Hướng dẫn liên quan:
 | Lệnh | Dừng workflow nào |
 |------|-------------------|
 | `/rune:cancel-review` | Review đang chạy |
-| `/rune:cancel-codex-review` | Codex-review đang chạy |
 | `/rune:cancel-audit` | Audit đang chạy |
 | `/rune:cancel-arc` | Arc pipeline đang chạy |
 | `/rune:cancel-arc-batch` | Arc-batch loop đang chạy |

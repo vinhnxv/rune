@@ -38,7 +38,7 @@ Rune workflows use a 2-layer cleanup strategy:
 1. **Primary**: Read `config.json` to discover all registered teammates (dynamic)
 2. **Fallback**: Hardcoded array of ALL possible teammates (static, used when config.json fails)
 
-If the fallback array is incomplete, agents spawned by conditional phases (Goldmask, Arena, Codex, etc.) may be missed during cleanup — leading to orphaned processes.
+If the fallback array is incomplete, agents spawned by conditional phases (Goldmask, Arena, etc.) may be missed during cleanup — leading to orphaned processes.
 
 ## Rules Being Enforced
 
@@ -64,8 +64,6 @@ Target workflows (skills that use TeamCreate):
 - `arc` — end-to-end pipeline
 - `inspect` — plan-vs-implementation audit
 - `goldmask` — impact analysis
-- `codex-review` — cross-model review
-
 ## Analysis Steps
 
 ### Step 1: Inventory All Agent() Calls

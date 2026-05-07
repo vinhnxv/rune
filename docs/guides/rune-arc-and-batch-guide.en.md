@@ -35,7 +35,6 @@ Related guide:
 - Sufficient token budget for multi-agent workflows.
 
 ### Optional
-- `codex` CLI for cross-model verification phases.
 - `.rune/talisman.yml` for tuning (timeouts, bot review, merge behavior, testing policy).
 
 ---
@@ -91,7 +90,6 @@ Arc pre-flight validates:
 ### 4.4 What arc executes
 Arc runs a phased pipeline including:
 - Plan readiness: Forge, Plan Review, Plan Refinement, Verification, Semantic Verification, Design Extraction, Task Decomposition.
-- Implementation quality: Work, Design Verification, Gap Analysis, Codex Gap Analysis, Gap Remediation, Goldmask Verification.
 - Convergence: Code Review (--deep), Goldmask Correlation, Mend, Verify Mend, Design Iteration loops.
 - Delivery: Test (3-tier: unit/integration/E2E), Test Coverage Critique, Pre-Ship Validation, Release Quality Check, Ship, Bot Review Wait, PR Comment Resolution, Merge.
 

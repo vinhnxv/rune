@@ -12,7 +12,7 @@ Related guides:
 
 ## 1. Architecture Overview
 
-Rune's review pipeline uses **Ashes** — consolidated teammate agents that each embed multiple review perspectives. The built-in set includes 7 Ashes (Forge Warden, Ward Sentinel, Pattern Weaver, Glyph Scribe, Knowledge Keeper, Veil Piercer, and Codex Oracle). You can extend this with **custom Ashes** that join the same Roundtable Circle lifecycle:
+Rune's review pipeline uses **Ashes** — consolidated teammate agents that each embed multiple review perspectives.You can extend this with **custom Ashes** that join the same Roundtable Circle lifecycle:
 
 ```
 Built-in Ashes (7)  +  Custom Ashes (talisman.yml)  =  Total Ashes (up to max_ashes)
@@ -104,7 +104,6 @@ settings:
     - DOC          # Knowledge Keeper
     - QUAL         # Pattern Weaver
     - FRONT        # Glyph Scribe
-    - CDX          # Codex Oracle (lowest)
 ```
 
 Higher position in the hierarchy means the finding "wins" when two Ashes report the same issue (5-line proximity window).
@@ -189,10 +188,8 @@ ashes:
 
 ### Constraints
 
-- **Sub-cap**: CLI-backed Ashes are limited by `settings.max_cli_ashes` (default: 2). Codex Oracle does NOT count toward this limit.
 - **Security**: Binary name must match `CLI_BINARY_PATTERN`. Model name must match `MODEL_NAME_PATTERN`.
 - **Hallucination guard**: All CLI-backed Ashes include a 4-step verification guard (diff relevance, code verification).
-- **Dedup**: External model prefixes are positioned below CDX in the default hierarchy.
 
 ### Prerequisites
 
@@ -264,8 +261,6 @@ ashes:
         extensions: [".md", ".rst", ".txt"]
       finding_prefix: "MDOC"
 ```
-
-Valid built-in names: `forge-warden`, `ward-sentinel`, `veil-piercer`, `pattern-weaver`, `glyph-scribe`, `knowledge-keeper`, `codex-oracle`.
 
 ---
 
@@ -416,7 +411,6 @@ settings:
     - DOC
     - QUAL
     - FRONT
-    - CDX
 ```
 
 ---
@@ -426,7 +420,6 @@ settings:
 | Constraint | Value | Notes |
 |-----------|-------|-------|
 | Max total Ashes | `settings.max_ashes` (default 9) | Includes built-in + custom |
-| Max CLI-backed Ashes | `settings.max_cli_ashes` (default 2) | Codex Oracle excluded |
 | Context budget per Ash | `context_budget` (default 20 files) | Higher = more tokens |
 | Finding prefix | 2-5 uppercase chars | Must be unique across all Ashes |
 | Agent prompt | < 500 lines | Move details to supporting files |

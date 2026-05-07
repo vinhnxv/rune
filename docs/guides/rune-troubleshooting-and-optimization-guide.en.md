@@ -264,7 +264,6 @@ Multi-agent workflows consume tokens proportionally to team size. Each teammate 
 | `/rune:devise` | 3-7 agents | 3-5x | 5-15 min |
 | `/rune:devise --quick` | 2-3 agents | 1.5-2x | 2-5 min |
 | `/rune:strive` | 2-4 workers | 2-4x | 10-30 min |
-| `/rune:codex-review` | 4-8 agents | 5-8x | 5-15 min |
 | `/rune:debug` | 2-5 investigators | 3-5x | 5-10 min |
 | `/rune:arc` (full) | varies per phase | 10-30x | 30-90 min |
 
@@ -294,7 +293,6 @@ Multi-agent workflows consume tokens proportionally to team size. Each teammate 
 | `--no-forge` | Skip forge enrichment phase | Saves 15 min + agents |
 | `--no-test` | Skip testing phase | Saves test execution |
 | Light convergence | `review.arc_convergence_tier_override: "light"` | Max 2 review-mend cycles |
-| Disable Codex | `codex.disabled: true` | No cross-model verification |
 | Lower workers | `work.max_workers: 2` | Fewer parallel workers |
 
 ### 3.5 Automatic optimizations (no action needed)
@@ -452,7 +450,6 @@ Use `TaskList` to see real-time task status for the current team.
 
 1. Use `--no-forge` to skip enrichment
 2. Set `review.arc_convergence_tier_override: "light"` for fewer review-mend cycles
-3. Disable Codex: `codex.disabled: true`
 4. Reduce `work.max_workers` to 2
 
 ### "Review keeps finding pre-existing issues"

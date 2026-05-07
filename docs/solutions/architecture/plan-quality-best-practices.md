@@ -6,7 +6,6 @@
 
 | Framework | Planning Approach | Key Pattern |
 |-----------|-------------------|-------------|
-| **OpenAI Codex** | Dynamic discovery: reads AGENTS.md/README.md, then greps for code, decomposes task iteratively. No upfront comprehensive plan. | Environment-first: agent gathers context before acting. Struggles with spec ambiguity (Martin Fowler's analysis found only 2/6 runs discovered reusable components). |
 | **Devin** | Collaborative planning mode with human. Recommends "Plan -> Implement chunk -> Test -> Fix -> Checkpoint review -> Next chunk." | Checkpoint-gated: treats developer as architect guiding junior developers. Uses dedicated knowledge management for consistency. |
 | **SWE-agent** | Localization-first: begins with reproduction code and/or localizing the issue to specific lines, then patches. | Reproduce -> Localize -> Patch -> Verify. Agentless variant proved simplicity can yield competitive results. |
 | **AutoCodeRover** | AST-based code search combined with LLM reasoning. Localizes before planning a fix. | Structural search (AST) for localization produces better plans than text-only search. Achieved 19% on SWE-bench-lite at low cost. |
@@ -319,7 +318,6 @@ These conformance suites are more rigorous than ad-hoc unit tests because they a
 - [Augment Code: Spec-Driven AI Code Generation with Multi-Agent Systems](https://www.augmentcode.com/guides/spec-driven-ai-code-generation-with-multi-agent-systems) -- Specification-as-contract enforcement
 - [Augment Code: Spec-Driven Development & AI Agents Explained](https://www.augmentcode.com/guides/spec-driven-development-ai-agents-explained) -- Three-phase SDD methodology
 - [Block/Goose: Does Your AI Agent Need a Plan?](https://block.github.io/goose/blog/2025/12/19/does-your-ai-agent-need-a-plan/) -- Planning spectrum: Architect/Director/Explorer strategies
-- [Martin Fowler: Autonomous coding agents (Codex example)](https://martinfowler.com/articles/exploring-gen-ai/autonomous-agents-codex-example.html) -- Analysis of Codex agent planning limitations
 - [Devin: Coding Agents 101](https://devin.ai/agents101) -- Checkpoint-gated implementation pattern
 - [Stack Overflow: Are bugs inevitable with AI coding agents?](https://stackoverflow.blog/2026/01/28/are-bugs-and-incidents-inevitable-with-ai-coding-agents/) -- AI generates 1.7x more bugs; plan quality matters
 - [TDS: Why Your Multi-Agent System is Failing (17x Error Trap)](https://towardsdatascience.com/why-your-multi-agent-system-is-failing-escaping-the-17x-error-trap-of-the-bag-of-agents/) -- Error amplification in flat agent topologies
