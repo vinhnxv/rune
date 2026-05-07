@@ -208,18 +208,11 @@ Phases in the skip map are auto-skipped by the stop hook without LLM dispatch �
 
 ```javascript
 // ── Gather talisman inputs for skip map ──
-// readTalismanSection: "misc", "codex", "ux"
+// readTalismanSection: "misc", "ux"
 const miscConfig = readTalismanSection("misc") ?? {}
 const designSync = miscConfig.design_sync ?? {}
 const storybook = miscConfig.storybook ?? {}
 const ux = readTalismanSection("ux") ?? {}
-const codex = readTalismanSection("codex") ?? {}
-
-// ── Detect external tools ──
-const codexAvailable = Bash("command -v codex >/dev/null 2>&1 && echo 'yes' || echo 'no'").trim() === "yes"
-const codexEnabled = codexAvailable
-  && codex?.disabled !== true
-  && Array.isArray(codex?.workflows) && codex.workflows.includes("arc")
 
 /**
  * computeSkipMap — Pre-compute deterministic phase skip decisions.
@@ -228,19 +221,15 @@ const codexEnabled = codexAvailable
  * @param {object} designSync — talisman misc.design_sync section
  * @param {object} storybook — talisman misc.storybook section
  * @param {object} ux — talisman ux section
- * @param {boolean} codexAvailable — Whether Codex CLI is installed and reachable
- * @param {boolean} codexEnabled — Whether Codex CLI is available AND enabled for arc
- * @param {object} codex — talisman codex section (for per-phase granular disable)
  * @param {object} planMeta — Extracted YAML frontmatter from plan file
  * @returns {object} Map of { phase_name: skip_reason_string } for phases to auto-skip.
  *   Phases NOT in the map are dispatched normally. Empty map = no pre-skipping.
  *
  * Valid skip reasons (canonical enum — keep in sync with arc-phase-constants.md):
  *   forge_disabled, design_sync_disabled, no_figma_urls, storybook_disabled,
- *   ux_disabled, codex_unavailable, codex_disabled_for_arc, codex_phase_disabled,
- *   bot_review_disabled, testing_disabled
+ *   ux_disabled, bot_review_disabled, testing_disabled
  */
-function computeSkipMap(arcConfig, designSync, storybook, ux, codexAvailable, codexEnabled, codex, planMeta, planFile) {
+function computeSkipMap(arcConfig, designSync, storybook, ux, planMeta, planFile) {
   const map = {}
 
   // ── Forge (unified via skip_map instead of inline status) ──
@@ -290,29 +279,6 @@ function computeSkipMap(arcConfig, designSync, storybook, ux, codexAvailable, co
   // ── UX verification (1 phase) ──
   if (ux.enabled !== true) {
     map.ux_verification = "ux_disabled"
-  }
-
-  // ── Codex phases (5 phases including task_decomposition) ──
-  if (!codexEnabled) {
-    const reason = !codexAvailable ? "codex_unavailable" : "codex_disabled_for_arc"
-    map.task_decomposition = reason
-    map.semantic_verification = reason
-    map.codex_gap_analysis = reason
-    map.test_coverage_critique = reason
-    map.release_quality_check = reason
-  } else {
-    // Per-phase granular disable (talisman codex sub-keys)
-    // QUAL-001 FIX: Use phase-specific skip reasons to match runtime paths in arc-codex-phases.md
-    if (codex?.task_decomposition?.enabled === false)
-      map.task_decomposition = "codex_task_decomposition_disabled"
-    if (codex?.semantic_verification?.enabled === false)
-      map.semantic_verification = "codex_semantic_verification_disabled"
-    if (codex?.gap_analysis?.enabled === false)
-      map.codex_gap_analysis = "codex_gap_analysis_disabled"
-    if (codex?.test_coverage?.enabled === false)
-      map.test_coverage_critique = "codex_test_coverage_disabled"
-    if (codex?.release_quality?.enabled === false)
-      map.release_quality_check = "codex_release_quality_disabled"
   }
 
   // ── Verify phase (1 phase) ──
@@ -396,7 +362,7 @@ function computeSkipMap(arcConfig, designSync, storybook, ux, codexAvailable, co
   return map
 }
 
-const skipMap = computeSkipMap(arcConfig, designSync, storybook, ux, codexAvailable, codexEnabled, codex, planMeta, planFile)
+const skipMap = computeSkipMap(arcConfig, designSync, storybook, ux, planMeta, planFile)
 ```
 
 ## Checkpoint Schema v26
@@ -518,7 +484,6 @@ Write(checkpointPath, {
     ux_verification: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
     gap_analysis: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
     gap_analysis_qa: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, retry_count: 0, demotion_revert_count: 0 },
-    codex_gap_analysis: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
     gap_remediation: { status: "pending", artifact: null, artifact_hash: null, team_name: null, fixed_count: null, deferred_count: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
     inspect: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, completion_pct: null, p1_count: null, verdict: null, demotion_revert_count: 0 },
     inspect_fix: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, fixed_count: null, deferred_count: null, demotion_revert_count: 0 },

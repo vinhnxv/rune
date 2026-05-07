@@ -14,7 +14,7 @@ per-phase reference files (timeout values), arc-resume.md (schema migration)
 //   2. arc-phase-stop-hook.sh (Bash array for phase dispatch)
 // These MUST stay in sync. Divergence causes silent phase ordering bugs.
 // TODO: Add preflight assertion comparing both arrays.
-const PHASE_ORDER = ['forge', 'forge_qa', 'plan_review', 'plan_refine', 'verification', 'semantic_verification', 'design_extraction', 'design_prototype', 'task_decomposition', 'work', 'work_qa', 'drift_review', 'storybook_verification', 'design_verification', 'design_verification_qa', 'ux_verification', 'gap_analysis', 'gap_analysis_qa', 'codex_gap_analysis', 'gap_remediation', 'inspect', 'inspect_fix', 'verify_inspect', 'goldmask_verification', 'code_review', 'code_review_qa', 'goldmask_correlation', 'verify', 'mend', 'mend_qa', 'verify_mend', 'design_iteration', 'test', 'test_qa', 'browser_test', 'browser_test_fix', 'verify_browser_test', 'test_coverage_critique', 'deploy_verify', 'pre_ship_validation', 'release_quality_check', 'ship', 'bot_review_wait', 'pr_comment_resolution', 'merge']
+const PHASE_ORDER = ['forge', 'forge_qa', 'plan_review', 'plan_refine', 'verification', 'design_extraction', 'design_prototype', 'work', 'work_qa', 'drift_review', 'storybook_verification', 'design_verification', 'design_verification_qa', 'ux_verification', 'gap_analysis', 'gap_analysis_qa', 'gap_remediation', 'inspect', 'inspect_fix', 'verify_inspect', 'goldmask_verification', 'code_review', 'code_review_qa', 'goldmask_correlation', 'verify', 'mend', 'mend_qa', 'verify_mend', 'design_iteration', 'test', 'test_qa', 'browser_test', 'browser_test_fix', 'verify_browser_test', 'deploy_verify', 'pre_ship_validation', 'ship', 'bot_review_wait', 'pr_comment_resolution', 'merge']
 
 // SYNC-CRITICAL: PHASE_GROUPS is duplicated in:
 //   1. This file (JavaScript reference for group definitions)
@@ -25,7 +25,7 @@ const PHASE_GROUPS = [
   { id: 'planning',     phases: ['forge', 'forge_qa', 'plan_review', 'plan_refine', 'verification', 'semantic_verification'] },
   { id: 'design',       phases: ['design_extraction', 'design_prototype', 'task_decomposition'] },
   { id: 'work',         phases: ['work', 'work_qa', 'drift_review', 'storybook_verification'] },
-  { id: 'verification', phases: ['design_verification', 'design_verification_qa', 'ux_verification', 'gap_analysis', 'gap_analysis_qa', 'codex_gap_analysis', 'gap_remediation'] },
+  { id: 'verification', phases: ['design_verification', 'design_verification_qa', 'ux_verification', 'gap_analysis', 'gap_analysis_qa', 'gap_remediation'] },
   { id: 'inspect',      phases: ['inspect', 'inspect_fix', 'verify_inspect', 'goldmask_verification'] },
   { id: 'review',       phases: ['code_review', 'code_review_qa', 'goldmask_correlation', 'verify', 'mend', 'mend_qa', 'verify_mend', 'design_iteration'] },
   { id: 'testing',      phases: ['test', 'test_qa', 'browser_test', 'browser_test_fix', 'verify_browser_test', 'test_coverage_critique'] },
@@ -95,17 +95,14 @@ const PHASE_TIMEOUTS = {
   plan_review:   talismanTimeouts.plan_review ?? 900_000,    // 15 min (inner 10m + 5m setup)
   plan_refine:   talismanTimeouts.plan_refine ?? 180_000,    //  3 min (orchestrator-only, no team)
   verification:  talismanTimeouts.verification ?? 30_000,    // 30 sec (orchestrator-only, no team)
-  semantic_verification: talismanTimeouts.semantic_verification ?? 720_000,  // 12 min (delegated to codex-phase-handler teammate)
   design_extraction: talismanTimeouts.design_extraction ?? 600_000,  // 10 min (conditional — gated by design_sync.enabled + Figma URL)
   design_prototype: talismanTimeouts.design_prototype ?? 600_000,  // 10 min (conditional — gated by design_sync.enabled + VSM files from design_extraction)
-  task_decomposition: talismanTimeouts.task_decomposition ?? 600_000,  // 10 min (delegated to codex-phase-handler teammate)
   work:          talismanTimeouts.work ?? 2_100_000,    // 35 min (inner 30m + 5m setup)
   drift_review:  talismanTimeouts.drift_review ?? 120_000,  // 2 min (inline, no team)
   storybook_verification: talismanTimeouts.storybook_verification ?? 900_000,  // 15 min (conditional — gated by storybook.enabled in talisman misc)
   design_verification: talismanTimeouts.design_verification ?? 480_000,  //  8 min (conditional — gated by VSM files from design_extraction)
   ux_verification: talismanTimeouts.ux_verification ?? 300_000,  //  5 min (conditional — gated by ux.enabled + frontend files detected)
   gap_analysis:  talismanTimeouts.gap_analysis ?? 720_000,   // 12 min (inner 8m + 2m setup + 2m aggregate)
-  codex_gap_analysis: talismanTimeouts.codex_gap_analysis ?? 960_000,  // 16 min (delegated to codex-phase-handler teammate)
   gap_remediation: talismanTimeouts.gap_remediation ?? 900_000,  // 15 min (inner 10m + 5m setup)
   inspect:       talismanTimeouts.inspect ?? 900_000,       // 15 min (4 Inspector Ashes + verdict-binder)
   inspect_fix:   talismanTimeouts.inspect_fix ?? 900_000,   // 15 min (gap-fixer agents for FIXABLE findings)
@@ -115,10 +112,8 @@ const PHASE_TIMEOUTS = {
   verify_mend:   talismanTimeouts.verify_mend ?? 240_000,    //  4 min (orchestrator-only, no team)
   design_iteration: talismanTimeouts.design_iteration ?? 900_000,  // 15 min (conditional)
   test:          talismanTimeouts.test ?? 1_500_000,      // 25 min without E2E. Dynamic: 50 min with E2E (3_000_000)
-  test_coverage_critique: talismanTimeouts.test_coverage_critique ?? 900_000,  // 15 min (delegated to codex-phase-handler teammate)
   deploy_verify: talismanTimeouts.deploy_verify ?? 300_000,  //  5 min (conditional — gated by migration/API/config file changes)
   pre_ship_validation: talismanTimeouts.pre_ship_validation ?? 360_000,  //  6 min (orchestrator-only)
-  release_quality_check: talismanTimeouts.release_quality_check ?? 600_000,  // 10 min (delegated to codex-phase-handler teammate)
   bot_review_wait: talismanTimeouts.bot_review_wait ?? 900_000,  // 15 min (orchestrator-only, polling)
   pr_comment_resolution: talismanTimeouts.pr_comment_resolution ?? 1_200_000,  // 20 min (orchestrator-only)
   goldmask_verification: talismanTimeouts.goldmask_verification ?? 900_000,  // 15 min (inner 10m + 5m setup)
@@ -198,7 +193,7 @@ function calculateDynamicTimeout(tier) {
     PHASE_TIMEOUTS.design_verification_qa +
     PHASE_TIMEOUTS.ux_verification +
     PHASE_TIMEOUTS.gap_analysis + PHASE_TIMEOUTS.gap_analysis_qa +
-    PHASE_TIMEOUTS.codex_gap_analysis + PHASE_TIMEOUTS.gap_remediation +
+    PHASE_TIMEOUTS.gap_remediation +
     PHASE_TIMEOUTS.inspect + PHASE_TIMEOUTS.inspect_fix + PHASE_TIMEOUTS.verify_inspect +
     PHASE_TIMEOUTS.goldmask_verification +
     PHASE_TIMEOUTS.code_review + PHASE_TIMEOUTS.code_review_qa +
@@ -228,36 +223,6 @@ function calculateDynamicTimeout(tier) {
 // Shared prototype pollution guard — used by prePhaseCleanup (ARC-6) and ORCH-1 resume cleanup.
 const FORBIDDEN_PHASE_KEYS = new Set(['__proto__', 'constructor', 'prototype'])
 
-// Cascade circuit breaker tracker — updates codex_cascade checkpoint fields.
-// Called after every Codex phase completion in phases (2.8, 4.5, 5.6, 7.8, 8.55).
-// With delegation, the Tarnished calls this using error_class from teammate's SendMessage metadata.
-function updateCascadeTracker(checkpoint, classified) {
-  if (!checkpoint.codex_cascade) {
-    checkpoint.codex_cascade = {
-      total_attempted: 0, total_succeeded: 0, total_failed: 0,
-      consecutive_failures: 0, cascade_warning: false,
-      cascade_skipped: 0, last_failure_phase: null
-    }
-  }
-  const cc = checkpoint.codex_cascade
-  cc.total_attempted++
-
-  if (classified.category === "SUCCESS") {
-    cc.total_succeeded++
-    cc.consecutive_failures = 0
-  } else {
-    cc.total_failed++
-    cc.consecutive_failures++
-    cc.last_failure_phase = checkpoint.current_phase
-
-    // Trigger cascade warning on 3+ consecutive failures or AUTH/QUOTA errors
-    if (cc.consecutive_failures >= 3 || classified.category === "AUTH" || classified.category === "QUOTA") {
-      cc.cascade_warning = true
-    }
-  }
-
-  updateCheckpoint({ codex_cascade: cc })
-}
 
 // Declarative reaction evaluation — replaces hardcoded thresholds in arc-failure-policy.md.
 // Called by phase reference files when a reaction event occurs.
@@ -345,13 +310,6 @@ const SKIP_REASONS = {
   NO_FIGMA_URLS: "no_figma_urls",                     // design_sync enabled but no figma_urls in plan
   STORYBOOK_DISABLED: "storybook_disabled",           // misc.storybook.enabled !== true
   UX_DISABLED: "ux_disabled",                         // ux.enabled !== true
-  CODEX_UNAVAILABLE: "codex_unavailable",             // codex CLI not installed
-  CODEX_DISABLED_FOR_ARC: "codex_disabled_for_arc",   // codex.disabled or "arc" not in codex.workflows
-  CODEX_TASK_DECOMPOSITION_DISABLED: "codex_task_decomposition_disabled",
-  CODEX_SEMANTIC_VERIFICATION_DISABLED: "codex_semantic_verification_disabled",
-  CODEX_GAP_ANALYSIS_DISABLED: "codex_gap_analysis_disabled",
-  CODEX_TEST_COVERAGE_DISABLED: "codex_test_coverage_disabled",
-  CODEX_RELEASE_QUALITY_DISABLED: "codex_release_quality_disabled",  // per-phase codex sub-key disabled
   BOT_REVIEW_DISABLED: "bot_review_disabled",         // bot_review not enabled via flag or talisman
   TESTING_DISABLED: "testing_disabled",               // --no-test flag or arc.defaults.no_test
   INSPECT_DISABLED: "inspect_disabled",               // arc.inspect.enabled === false
@@ -363,7 +321,7 @@ const SKIP_REASONS = {
 // ── Phase skip classification ──
 // Pre-computable: forge, design_extraction, design_prototype, design_verification*,
 //   design_iteration*, storybook_verification, ux_verification, task_decomposition,
-//   semantic_verification, codex_gap_analysis, test_coverage_critique,
+//   
 //   release_quality_check, bot_review_wait, pr_comment_resolution, test*,
 //   browser_test*, browser_test_fix*, verify_browser_test*
 //   (* = conditionally pre-computable — only when parent feature is disabled)
@@ -373,7 +331,7 @@ const SKIP_REASONS = {
 //   deploy_verify (depends on post-work diff analysis)
 //
 // computeSkipMap() signature:
-//   function computeSkipMap(arcConfig, designSync, storybook, ux, codexEnabled, codex, planMeta) → object
+//   function computeSkipMap(arcConfig, designSync, storybook, ux, planMeta) → object
 
 // ── phase_skip_log entry schema (appended to checkpoint by stop hook) ──
 // { phase: string, event: "auto_skipped", reason: string,
@@ -388,7 +346,7 @@ const DEPTH_PRESETS = {
   quick: [
     "forge", "forge_qa", "semantic_verification", "design_extraction",
     "design_prototype", "design_verification", "design_verification_qa",
-    "ux_verification", "storybook_verification", "codex_gap_analysis",
+    "ux_verification", "storybook_verification",
     "goldmask_verification", "goldmask_correlation", "inspect", "inspect_fix",
     "verify_inspect", "design_iteration", "browser_test", "browser_test_fix",
     "verify_browser_test", "test_coverage_critique", "release_quality_check",

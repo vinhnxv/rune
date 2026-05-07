@@ -1,10 +1,10 @@
 # Phase 5.8: GAP REMEDIATION — Full Algorithm
 
-New phase between Codex Gap Analysis (5.6) and Goldmask Verification (5.7). Automatically fixes FIXABLE findings from the Phase 5.5 Inspector Ashes VERDICT before handing off to code review, reducing P2/P3 noise and improving the signal-to-noise ratio in the TOME.
+New phase after Gap Analysis (5.5) and before Goldmask Verification (5.7). Automatically fixes FIXABLE findings from the Phase 5.5 Inspector Ashes VERDICT before handing off to code review, reducing P2/P3 noise and improving the signal-to-noise ratio in the TOME.
 
 **Team**: `arc-gap-fix-{id}` — follows ATE-1 pattern
 **Timeout**: 900_000ms (15 min: inner 10m + 5m setup)
-**Inputs**: `tmp/arc/{id}/gap-analysis-verdict.md` (from Phase 5.5 STEP B), `tmp/arc/{id}/codex-gap-analysis.md` (from Phase 5.6), checkpoint `needs_remediation` + `codex_needs_remediation` flags
+**Inputs**: `tmp/arc/{id}/gap-analysis-verdict.md` (from Phase 5.5 STEP B), checkpoint `needs_remediation` flag
 **Outputs**: `tmp/arc/{id}/gap-remediation-report.md`, committed code fixes
 **Talisman key**: `arc.gap_analysis.remediation`
 
@@ -16,21 +16,16 @@ New phase between Codex Gap Analysis (5.6) and Goldmask Verification (5.7). Auto
 // Gate A (deterministic): needs_remediation from Phase 5.5 STEP D
 const deterministicNeedsRemediation = checkpoint.phases?.gap_analysis?.needs_remediation === true
 
-// Gate B (Codex): codex_needs_remediation from Phase 5.6
-const codexNeedsRemediation = checkpoint.phases?.codex_gap_analysis?.codex_needs_remediation === true
-const codexFindingCount = checkpoint.phases?.codex_gap_analysis?.codex_finding_count ?? 0
-const codexThreshold = checkpoint.phases?.codex_gap_analysis?.codex_threshold ?? 5
-
-// Gate C: remediation enabled in talisman
+// Gate B: remediation enabled in talisman
 const remediationEnabled = talisman?.arc?.gap_analysis?.remediation?.enabled !== false  // Default: true
 
-// Decision: either signal triggers remediation (if enabled)
-const shouldRemediate = remediationEnabled && (deterministicNeedsRemediation || codexNeedsRemediation)
+// Decision: deterministic signal triggers remediation (if enabled)
+const shouldRemediate = remediationEnabled && deterministicNeedsRemediation
 
 if (!shouldRemediate) {
   const reason = !remediationEnabled
     ? "arc.gap_analysis.remediation.enabled: false in talisman"
-    : `Neither Phase 5.5 nor Phase 5.6 flagged needs_remediation (deterministicNeedsRemediation=${deterministicNeedsRemediation}, codexNeedsRemediation=${codexNeedsRemediation}, codexFindingCount=${codexFindingCount}, codexThreshold=${codexThreshold})`
+    : `Phase 5.5 did not flag needs_remediation (deterministicNeedsRemediation=${deterministicNeedsRemediation})`
 
   Write(`tmp/arc/${id}/gap-remediation-report.md`,
     `# Gap Remediation — Skipped\n\n**Reason**: ${reason}\n**Date**: ${new Date().toISOString()}\n`)
@@ -47,15 +42,12 @@ if (!shouldRemediate) {
 }
 
 // Gate decision logging (AC 4.10)
-log(`Phase 5.8: Gate triggered by: deterministic=${deterministicNeedsRemediation}, codex=${codexNeedsRemediation} (${codexFindingCount} findings >= threshold ${codexThreshold})`)
+log(`Phase 5.8: Gate triggered by: deterministic=${deterministicNeedsRemediation}`)
 
 // Determine fixer inputs based on which gate triggered
 const fixerInputs = []
 if (deterministicNeedsRemediation) {
   fixerInputs.push(`tmp/arc/${id}/gap-analysis-verdict.md`)
-}
-if (codexNeedsRemediation) {
-  fixerInputs.push(`tmp/arc/${id}/codex-gap-analysis.md`)
 }
 
 // ── Task Remediation (v1.169.0) ──
@@ -584,4 +576,4 @@ log(`Phase 5.8 complete: ${fixedFindingIds.length} gaps fixed, ${deferredFinding
 
 **Output**: `tmp/arc/{id}/gap-remediation-report.md`
 
-**Failure policy**: Non-blocking (WARN). Gate failure (needs_remediation=false AND codex_needs_remediation=false, or talisman disabled) skips cleanly. If gap-fixer times out or produces no commits, the report records zero fixes and the pipeline continues. The deferred findings are persisted to echoes for future awareness. Does not halt pipeline.
+**Failure policy**: Non-blocking (WARN). Gate failure (needs_remediation=false, or talisman disabled) skips cleanly. If gap-fixer times out or produces no commits, the report records zero fixes and the pipeline continues. The deferred findings are persisted to echoes for future awareness. Does not halt pipeline.

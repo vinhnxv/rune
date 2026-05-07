@@ -118,7 +118,7 @@ for (const cmdFile of commandFiles) {
   const lines = content.split('\n')
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
-    if (/const\s+(SAFE_|CODEX_\w*ALLOWLIST|BRANCH_RE|FORBIDDEN_KEYS|VALID_EXTRACTORS)/.test(line)) {
+    if (/const\s+(SAFE_|BRANCH_RE|FORBIDDEN_KEYS|VALID_EXTRACTORS)/.test(line)) {
       const context = lines.slice(Math.max(0, i - 3), i + 1).join('\n')
       if (!context.includes('security-patterns.md')) {
         issues.push(`Undocumented security pattern at ${cmdFile}:${i + 1} -- missing security-patterns.md reference`)

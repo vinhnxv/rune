@@ -55,7 +55,6 @@ This phase creates a team and spawns agents. It MUST follow the Agent Teams patt
 | veil-piercer-plan | `agents/utility/veil-piercer-plan.md` | Always | Plan truth-telling (reality vs fiction) |
 | horizon-sage | `agents/utility/horizon-sage.md` | `talisman.horizon.enabled !== false` | Strategic depth assessment |
 | evidence-verifier | `agents/utility/evidence-verifier.md` | `talisman.evidence.enabled !== false` | Evidence-based plan grounding |
-| codex-plan-reviewer | CLI-backed (codex exec) | Codex detected + `codex.workflows` includes `"arc"` | Cross-model plan verification |
 
 ## Algorithm
 
@@ -166,19 +165,6 @@ if (stateWeaverEnabled) {
     name: "state-weaver",
     agent: "agents/utility/state-weaver.md",
     focus: "Plan state machine validation (phases, transitions, I/O contracts)"
-  })
-}
-
-// Codex Plan Reviewer (optional 6th reviewer — see arc-delegation-checklist.md Phase 2)
-// Detection: canonical codex-detection.md algorithm (9 steps, NOT inline simplified check)
-// Arc-mode adaptation: if .codexignore is missing, skip Codex silently (no AskUserQuestion)
-// — AskUserQuestion would block the automated arc pipeline indefinitely.
-const codexDetected = detectCodexOracle()  // per roundtable-circle/references/codex-detection.md
-if (codexDetected && talisman?.codex?.workflows?.includes("arc")) {
-  reviewers.push({
-    name: "codex-plan-reviewer",
-    agent: null,  // CLI-backed reviewer — uses codex exec directly, no agent file
-    focus: "Cross-model plan verification (Codex Oracle)"
   })
 }
 
@@ -605,7 +591,7 @@ try {
   // followed by Layer 1 cleanup can still shut them down. Sending
   // shutdown_request to absent members is a documented safe no-op.
   allMembers = ["scroll-reviewer", "decree-arbiter", "knowledge-keeper", "veil-piercer-plan",
-    "horizon-sage", "evidence-verifier", "state-weaver", "codex-plan-reviewer",
+    "horizon-sage", "evidence-verifier", "state-weaver",
     // Layer 2 inspectors (safe no-op if absent):
     "grace-warden-plan-review", "ruin-prophet-plan-review",
     "sight-oracle-plan-review", "vigil-keeper-plan-review"]

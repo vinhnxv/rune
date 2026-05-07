@@ -178,11 +178,6 @@ if (wiringSection) {
   reviewContext += `\n\nWiring Map Context: Plan includes an Integration & Wiring Map. See tmp/arc/${id}/wiring-context.md for expected file modifications and registration points. Cross-reference committed changes against wiring expectations.`
 }
 
-// STEP 2: Codex Oracle conditional inclusion
-// Run Codex detection per roundtable-circle/references/codex-detection.md.
-// If detected and "review" is in talisman.codex.workflows, include Codex Oracle.
-// Codex Oracle findings use CDX prefix and participate in dedup and TOME aggregation.
-
 // STEP 3: Delegate to /rune:appraise --deep
 // /rune:appraise --deep runs multi-wave review (Wave 1 core + Wave 2 investigation + Wave 3 dimension).
 // This replaces the former separate audit phases (8/8.5/8.7) by folding audit-depth analysis
@@ -300,20 +295,11 @@ from appraise.md. Step ordering matters — scope building depends on default br
 | 2 | Changed files scope building | **RUN** | Review needs file inventory for Ash assignment. Depends on step 1 |
 | 3 | Abort conditions check | **RUN** | Graceful no-op if no reviewable changes |
 | 4 | Custom Ash loading | **RUN** | `ashes.custom[]` filtered by `workflows: [review]` (no-op if none configured) |
-| 5 | Codex Oracle detection | **RUN** | Per `codex-detection.md`, if `review` in `talisman.codex.workflows` |
 
 **Steps SKIPPED** (arc handles or not applicable):
 - Branch detection: arc already has the branch from pre-flight (COMMIT-1)
 - Scope summary display: arc is automated — no user display needed
 - Dry-run mode / `--partial` flag: arc always reviews full scope
-
-## Codex Oracle
-
-Conditional on two checks:
-1. `codex` CLI is detected on the system (see [codex-detection.md](../../roundtable-circle/references/codex-detection.md))
-2. `"review"` is listed in `talisman.codex.workflows` configuration
-
-When both conditions are met, the Codex Oracle is included as an additional reviewer. Its findings use the `CDX` prefix and participate in the standard dedup hierarchy and TOME aggregation.
 
 ## TOME Relocation
 

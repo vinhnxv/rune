@@ -21,10 +21,6 @@ Invoke `/rune:mend` logic on the TOME. Parallel fixers resolve findings from the
 
 **Consumers**: Phase 7.5 (VERIFY MEND) reads the resolution report to detect regressions
 
-> **v1.39.0**: Mend Phase 5.8 (Codex Fix Verification) adds optional cross-model post-fix validation.
-> When Codex is available and `mend` is in `talisman.codex.workflows`, a verification teammate runs
-> `codex exec` against the applied diff to detect regressions, weak fixes, and fix conflicts.
-> Results are included in the resolution report. All non-fatal — mend continues without Codex on any error.
 > See `mend.md` Phase 5.8 for full pseudocode.
 
 > **Note**: `sha256()`, `updateCheckpoint()`, `exists()`, `warn()`, and `parseFrontmatter()` are dispatcher-provided utilities available in the arc orchestrator context. Phase reference files call these without import.

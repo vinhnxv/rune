@@ -14,11 +14,8 @@ Phase 2.5: PLAN REFINEMENT → Extract CONCERNs, write concern context (conditio
     ↓ (concern-context.md) — WARN on all-CONCERN (auto-proceed; --confirm to pause)
 Phase 2.7: VERIFICATION GATE → Deterministic plan checks (zero LLM)
     ↓ (verification-report.md)
-Phase 2.8: SEMANTIC VERIFICATION → Codex cross-model contradiction detection (v1.39.0)
-    ↓ (codex-semantic-verification.md)
 Phase 3:   DESIGN EXTRACTION → Figma VSM extraction (conditional, v1.109.0)
     ↓ (tmp/arc/{id}/vsm/) — conditional: design_sync.enabled + Figma URL in plan
-Phase 4.5: TASK DECOMPOSITION → Codex cross-model task validation (v1.51.0)
     ↓ (task-validation.md) — advisory, non-blocking
 Phase 5:   WORK → Swarm implementation + incremental commits
     ↓ (work-summary.md + committed code)
@@ -26,8 +23,6 @@ Phase 5.2: DESIGN VERIFICATION → VSM fidelity check (conditional, v1.109.0)
     ↓ (design-verification.md) — conditional: VSM files exist from Phase 3
 Phase 5.5: GAP ANALYSIS → Check plan criteria vs committed code (deterministic + LLM)
     ↓ (gap-analysis.md) — WARN only, never halts
-Phase 5.6: CODEX GAP ANALYSIS → Cross-model plan vs implementation check (v1.39.0)
-    ↓ (codex-gap-analysis.md) — WARN only, never halts
 Phase 5.8: GAP REMEDIATION → Auto-fix FIXABLE findings from Inspector Ashes VERDICT (v1.51.0)
     ↓ (gap-remediation-report.md) — conditional; WARN only, never halts
 Phase 5.7: GOLDMASK VERIFICATION → Blast-radius analysis via investigation agents (v1.47.0)
@@ -44,11 +39,9 @@ Phase 7.6: DESIGN ITERATION → Screenshot→analyze→fix loop (conditional, v1
     ↓ (design-iteration.md) — conditional: design_verification fidelity score < threshold
 Phase 7.7: TEST → 3-tier QA gate: unit → integration → E2E/browser (v1.43.0)
     ↓ (test-report.md) — WARN only, never halts
-Phase 7.8: TEST COVERAGE CRITIQUE → Codex cross-model test analysis (v1.51.0)
     ↓ (test-critique.md) — advisory, non-blocking
 Phase 8.5: PRE-SHIP VALIDATION → Dual-gate completion check (v1.80.0)
     ↓ (pre-ship-report.md) — non-blocking, proceeds with diagnostics in PR body
-Phase 8.55: RELEASE QUALITY CHECK → Codex cross-model release validation (v1.51.0)
     ↓ (release-quality.md) — advisory, non-blocking
 Phase 9.1: BOT_REVIEW_WAIT → Poll for bot reviews before shipping (v1.88.0)
     ↓ (bot-review-wait.md) — non-blocking, skippable via talisman
@@ -85,13 +78,10 @@ The arc orchestrator is a **lightweight dispatcher**, not a monolithic agent. Wi
 | PLAN REVIEW | PLAN REFINEMENT | `plan-review.md` | 3 reviewer verdicts (PASS/CONCERN/BLOCK) |
 | PLAN REFINEMENT | VERIFICATION | `concern-context.md` | Extracted concern list. Plan not modified |
 | VERIFICATION | SEMANTIC VERIFICATION | `verification-report.md` | Deterministic check results (PASS/WARN) |
-| SEMANTIC VERIFICATION | DESIGN EXTRACTION | `codex-semantic-verification.md` | Codex contradiction findings (or skip) |
 | DESIGN EXTRACTION | TASK DECOMPOSITION | `tmp/arc/{id}/vsm/`, `tmp/arc/{id}/design/` | VSM files per component (or skipped) |
 | TASK DECOMPOSITION | WORK | `task-validation.md` | Task granularity/dependency validation (or skip) |
 | WORK | DESIGN VERIFICATION | Working tree + `work-summary.md` | Git diff of committed changes + task summary |
 | DESIGN VERIFICATION | GAP ANALYSIS | `design-verification-report.md` | Fidelity report + design-findings.json (or skipped) |
-| GAP ANALYSIS | CODEX GAP ANALYSIS | `gap-analysis.md` | Criteria coverage (ADDRESSED/MISSING/PARTIAL) |
-| CODEX GAP ANALYSIS | GAP REMEDIATION | `codex-gap-analysis.md` | Cross-model gap findings + checkpoint flags |
 | GAP REMEDIATION | GOLDMASK VERIFICATION | `gap-remediation-report.md` | Fixed findings list + deferred list |
 | CODE REVIEW | MEND | `tome.md` | TOME with `<!-- RUNE:FINDING ... -->` markers |
 | MEND | VERIFY MEND | `resolution-report.md` | Fixed/FP/Failed finding list |
