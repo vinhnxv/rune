@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.69.0] — 2026-05-07
+
+**Figma MCP servers removed from plugin manifest.**
+
+Removed `figma-to-react` and `figma-context` from `plugins/rune/.mcp.json`. These two MCP servers were previously loaded unconditionally whenever the Rune plugin was enabled, regardless of `talisman.yml` integration gates. Users who relied on Figma-based workflows (`design-sync`, `design-prototype`, `figma-to-react` skill, arc Phase 2.6/2.7/2.8) will no longer see these MCP servers connect on `/mcp` listing.
+
+**Removed MCP servers:**
+- `figma-to-react` (Rune-built, `scripts/figma-to-react/start.sh`)
+- `figma-context` (Framelink, `npx figma-developer-mcp`)
+
+**Retained MCP servers:** `echo-search`, `agent-search`, `context7`.
+
+**Note:** Figma-related skills (`figma-to-react`, `design-sync`, `design-prototype`, `design-system-discovery`) and arc phases remain in the codebase but will no-op without the MCP servers. A follow-up cleanup pass can remove orphan refs if Figma is permanently dropped.
+
 ## [2.68.0] — 2026-05-07
 
 **Codex CLI integration removed.**
