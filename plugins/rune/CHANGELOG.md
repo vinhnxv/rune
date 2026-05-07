@@ -1,5 +1,49 @@
 # Changelog
 
+## [2.68.0] — 2026-05-07
+
+**Codex CLI integration removed.**
+
+Codex Oracle (cross-model verification via OpenAI Codex CLI) and all related sub-systems are removed from the Rune plugin. This affects users who had `codex.disabled: false` in their talisman config and relied on Codex agents during arc/appraise/audit/devise/forge/strive/mend/inspect/goldmask workflows. Falls back to single-model (Claude) review.
+
+**Removed skills:**
+- `codex-cli` — canonical Codex CLI integration skill
+- `codex-review` — dedicated cross-model code review workflow
+- `codex-status` — Codex activity reporting
+
+**Removed commands:**
+- `/rune:cancel-codex-review`
+
+**Removed arc phases (45 → 40):**
+- Phase 2.8 — Codex Semantic Verification
+- Phase 4.5 — Codex Task Decomposition
+- Phase 5.6 — Codex Gap Analysis
+- Phase 7.8 — Codex Test Coverage Critique
+- Phase 8.55 — Codex Release Quality Check
+
+**Removed sub-features across 100+ files:**
+- Codex Oracle Ash from Roundtable Circle (built-in Ash count: 8 → 7; CDX prefix retired)
+- Codex Plan Reviewer in devise Phase 4.5
+- Codex Risk Amplification in goldmask Phase 3.5
+- Codex Drift Detection in inspect Phase 1.5
+- Codex Post-monitor Critique in strive Phase 3.7
+- Codex Advisory in strive Phase 4.5
+- Codex Fix Verification in mend Phase 5.8
+- Codex Echo Validation in rune-echoes
+- Codex Section Validation in forge Phase 1.7
+- Codex Arena Judge in devise Phase 1.8
+- Cross-model elicitation (codex_role column in methods.csv removed)
+- Codex Diff Verification (Phase 6.2) and Architecture Review (Phase 6.3)
+- All `codex.*` talisman config keys (single `codex:` section + `codex_review:` section)
+
+**Removed scripts:**
+- `scripts/codex-exec.sh` and `scripts/tests/test-codex-exec.sh`
+- `registry/utility/codex-phase-handler.md`
+
+**Migration:** Remove any `codex:` or `codex_review:` blocks from your `talisman.yml`. No replacement is required — Rune workflows now run with Claude as the sole reviewer/orchestrator. If you relied on Codex for cross-model verification, consider configuring custom CLI-backed Ashes via `ashes.custom[]` with the `cli:` field (see `roundtable-circle/references/custom-ashes.md`).
+
+Net change: −7,000+ lines across 130+ files.
+
 ## [2.67.3] — 2026-05-07
 
 Chore: Listing-budget optimization pass + new lint rule for permanent regression protection.
