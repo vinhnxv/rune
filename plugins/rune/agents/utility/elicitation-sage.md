@@ -136,26 +136,13 @@ If either file is missing or unreadable, write a status file with `<!-- ELICITAT
 
 ## Cross-Model Workflow (v1.39.0)
 
-Some methods have a `codex_role` column in methods.csv (e.g., `red_team`, `failure`, `critic`).
-When your assigned method has a non-empty `codex_role`, this indicates a **cross-model elicitation**
-where Codex provides the adversarial perspective.
-
-**IMPORTANT (Architecture Rule #1 / CC-2)**: You (the sage) CANNOT run Bash or codex exec.
-The orchestrator handles Codex execution in a **separate teammate** before or during your invocation.
-The Codex output is written to a temp file that you read.
 
 ### Cross-Model Sage Workflow
 
-1. **Check for codex_role**: After finding your assigned method in methods.csv, check the `codex_role` column
-2. **If codex_role is non-empty**: Look for the Codex perspective file at:
-   `tmp/{workflow}/{id}/elicitation/codex-{method_slug}.md`
    (where `method_slug = method_name.toLowerCase().replace(/[^a-z0-9-]/g, '-')` — QUAL-007 FIX: matches plan.md regex)
-3. **If file exists**: Read it and synthesize both perspectives (yours + Codex) using the Cross-Model Output Format below
-4. **If file does not exist**: Proceed with single-model output. Add note: "Codex perspective unavailable — using single-model analysis"
 
 ### Cross-Model Roles
 
-| codex_role | Claude Role | Codex Role | Method |
 |------------|-------------|------------|--------|
 | `red_team` | Blue Team (defender) | Red Team (attacker) | Red Team vs Blue Team |
 | `failure` | Optimistic scenario | Failure scenario | Pre-mortem Analysis |
@@ -167,16 +154,12 @@ The Codex output is written to a temp file that you read.
 ## Structured Reasoning: {method_name} (Cross-Model)
 
 > Method: {method_name} | Category: {category} | Tier: {tier}
-> Phase: {current_phase} | Mode: Cross-Model ({codex_role})
 
 ### Claude Perspective ({claude_role})
 {your analysis — 3-7 points following output_pattern}
 
-### Codex Perspective ({codex_role})
-{codex analysis from temp file — summarized, verified against codebase}
 
 ### Cross-Model Synthesis
-| Topic | Claude View | Codex View | Agreement |
 |-------|------------|------------|-----------|
 | {topic1} | {view} | {view} | AGREE/DISAGREE |
 
@@ -189,13 +172,8 @@ The Codex output is written to a temp file that you read.
 <!-- ELICITATION:elicitation-sage:SELECTED:CROSS_MODEL -->
 ```
 
-### Codex Output Verification
 
-When reading the Codex perspective file:
-- Verify any file references mentioned by Codex actually exist (Read/Glob)
 - Verify any line number references are plausible (Read the file, check line count)
-- Discard Codex claims that fail verification — note as "unverified" in synthesis
-- If Codex output is empty or nonsensical, fall back to single-model output
 
 ## Constraints
 

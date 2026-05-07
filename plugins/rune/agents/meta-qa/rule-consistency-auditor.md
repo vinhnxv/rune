@@ -100,10 +100,6 @@ Grep all .md and .sh files for `Skill(` calls.
 Flag any without `rune:` prefix (per CLAUDE.md "Namespace Prefix" rule).
 Exclude CHANGELOG and description fields.
 
-### RC-NAMESPACE-02: codex-exec.sh uses full path (Error)
-
-Grep for `codex-exec.sh` invocations.
-Flag any without `${RUNE_PLUGIN_ROOT}` prefix (or `${CLAUDE_PLUGIN_ROOT}` in hook scripts).
 
 ### RC-TALISMAN-01: Talisman config vs hardcoded defaults (Warning)
 
