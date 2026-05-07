@@ -10,7 +10,7 @@
 #   Instead of one large talisman.yml, you can split into 3 files:
 #     .rune/talisman.yml              — Core runtime config (this file)
 #     .rune/talisman.ashes.yml        — Agent registry (ashes, user_agents, doubt_seer)
-#     .rune/talisman.integrations.yml — External tools (codex, echoes, elicitation, etc.)
+#     .rune/talisman.integrations.yml — External tools (echoes, elicitation, etc.)
 #   Companion files are optional — single-file layout is fully supported.
 #   Use `/rune:talisman split` to auto-extract sections into companion files.
 #   Use `/rune:talisman merge` to rejoin them into a single file.
@@ -28,7 +28,7 @@ version: 1
 #   efficient — Save money: Sonnet primary, Haiku for mechanical tasks (~20-25% cost)
 #   minimal  — Maximum savings: Haiku for most, Sonnet for reasoning-heavy (~15-20% cost)
 # See references/cost-tier-mapping.md for full agent-to-category-to-model mapping.
-# Does NOT affect: main session model, Custom Ashes, or Codex Oracle.
+# Does NOT affect: main session model or Custom Ashes.
 # cost_tier: balanced    # Omit or comment out to use "balanced" (the default)
 
 # ──────────────────────────────────────────────
@@ -212,7 +212,7 @@ settings:
   max_ashes: 9
 
   # Sub-cap on CLI-backed Ashes (v1.57.0+)
-  # Must be <= max_ashes. Codex Oracle is NOT counted toward this limit.
+  # Must be <= max_ashes.
   # CLI-backed Ashes are external models invoked via CLI (e.g., gemini, llama).
   # Set to 0 to disable all CLI-backed Ashes.
   max_cli_ashes: 2
@@ -242,7 +242,6 @@ settings:
     - DOC          # Knowledge Keeper
     - QUAL         # Pattern Weaver
     - FRONT        # Glyph Scribe
-    - CDX          # Codex Oracle (lowest — cross-model findings defer to all built-in Ashes)
 
   # Whether Truthsight Layer 2 verifier checks custom Ash outputs
   verification:
@@ -359,7 +358,7 @@ audit:
 defaults:
   disable_ashes: []
   # Example: disable_ashes: ["knowledge-keeper", "veil-piercer"]
-  # Valid names: forge-warden, ward-sentinel, veil-piercer, pattern-weaver, glyph-scribe, knowledge-keeper, codex-oracle
+  # Valid names: forge-warden, ward-sentinel, veil-piercer, pattern-weaver, glyph-scribe, knowledge-keeper
 
 # ──────────────────────────────────────────────
 # Forge — Forge Gaze selection overrides (forge runs by default)
@@ -583,7 +582,6 @@ arc:
     #     - "coderabbitai[bot]"
     #     - "copilot[bot]"
     #     - "cubic-dev-ai[bot]"
-    #     - "chatgpt-codex-connector[bot]"
     #   quality_commands: []            # Project-specific quality check commands
     #   # Example: ["npm run lint", "npm run typecheck"]
     #   max_review_rounds: 3           # Max bot review→fix→push cycles (default: 3)
@@ -692,7 +690,6 @@ arc:
     audit: 1200000               # 20 minutes (default: inner 15m + 5m setup)
     semantic_verification: 180000  # 3 minutes (default, v1.39.0+)
     # task_decomposition: 180000       # Phase 4.5: Task decomposition (3 min)
-    codex_gap_analysis: 660000   # 11 minutes (default, v1.39.0+)
     test: 900000                 # 15 min outer timeout (inner: 600s without E2E, 2100s with E2E)
     # design_extraction: 300000        # Phase D1: Figma design extraction (5 min)
     # design_iteration: 600000         # Phase D2: Design iteration loop (10 min)
@@ -1127,7 +1124,6 @@ work:
   # Classifies tasks as ATOMIC or COMPOSITE at parse time (Phase 1.1 in forge-team.md).
   # COMPOSITE tasks are split into 2-4 subtasks with non-overlapping fileTargets.
   # Decomposition runs AFTER extractFileTargets() and scoreTaskComplexity() complete.
-  # NOTE: distinct from codex.task_decomposition (Phase 4.5 cross-model validation — different concept).
   # See references/task-decomposition.md for the full classification + decomposition logic.
   # task_decomposition:
   #   enabled: true                # Master toggle — skip all LLM calls when false (default: true)
@@ -1438,178 +1434,6 @@ evidence:
 # orphaned artifacts, and I/O contract mismatches.
 state_weaver:
   enabled: true              # Kill switch — set false to disable state-weaver globally
-
-# ──────────────────────────────────────────────
-# Codex Oracle — Cross-model verification (v1.18.0+)
-# ──────────────────────────────────────────────
-# Codex Oracle is auto-detected when the `codex` CLI is installed
-# (npm install -g @openai/codex). It provides a second AI perspective
-# (GPT-5.3-codex) alongside Claude's built-in Ashes, catching issues
-# that single-model blind spots miss.
-#
-# When enabled, Codex Oracle:
-#   - Joins the Roundtable Circle as a built-in Ash (CDX prefix)
-#   - Runs codex exec in read-only sandbox mode
-#   - Findings are verified against actual source code (Phase 5.5)
-#   - Cross-validated findings (Claude + Codex agree) get a confidence boost
-#   - Hallucinated findings (fabricated file/code references) are removed
-#
-# Prerequisites:
-#   - codex CLI installed: npm install -g @openai/codex
-#   - OpenAI account authenticated via codex CLI (Rune does NOT manage API keys)
-#   - jq recommended for structured JSONL parsing (raw text fallback if unavailable)
-#
-# Disable Codex Oracle entirely by setting disabled: true.
-# This is the runtime kill switch — no code changes needed.
-codex:
-  disabled: false                    # Set true to disable Codex Oracle entirely
-  model: "gpt-5.3-codex"             # Codex model — only gpt-5.x-codex(-spark) supported (e.g., gpt-5-codex, gpt-5.3-codex, gpt-5.3-codex-spark)
-  reasoning: "xhigh"                # Reasoning effort (xhigh, high, medium, low)
-  # NOTE: sandbox is currently ignored — codex always uses --sandbox read-only. Reserved for future use.
-  sandbox: "read-only"               # Sandbox mode (always read-only for review — do NOT change)
-  context_budget: 20                 # Max files to review per session (default: 20)
-  confidence_threshold: 80           # Min confidence % to report a finding (default: 80)
-  # Which workflows use Codex Oracle. Remove a workflow name to skip Codex in that pipeline.
-  # "mend" added in v1.39.0 for post-fix verification.
-  # ── Timeout Configuration (v1.45.0+) ──
-  # Outer GNU timeout for codex exec invocations (seconds).
-  # Range: 300-3600. Default: 600. Minimum 5 min ensures xhigh reasoning has time.
-  timeout: 600
-  # Inner stream idle timeout — fires when model stops streaming (seconds).
-  # Default: timeout - 60s. Must be < timeout.
-  stream_idle_timeout: 540
-  workflows: [review, audit, plan, forge, work, mend, goldmask, inspect, arc]
-  # Work advisory settings (Phase 4.5 of /rune:strive — non-blocking plan-vs-implementation check)
-  work_advisory:
-    enabled: true                    # Set false to skip advisory in work pipeline
-    max_diff_size: 15000             # Truncate diff to this many chars (default: 15000)
-  # Diff-focused review settings (for /rune:appraise — v1.31.0+)
-  # When enabled, Codex Oracle reviews unified diffs instead of whole files.
-  # This reduces irrelevant findings on unchanged code and improves token efficiency.
-  # Only applies to /rune:appraise — /rune:audit always uses file-focused review.
-  review_diff:
-    enabled: true                      # Use diff instead of whole files (default: true)
-    max_diff_size: 15000               # Max diff chars per codex exec batch (default: 15000)
-    context_lines: 5                   # Lines of context around each change (default: 5)
-    include_new_files_full: true       # Include full content for new/untracked files (default: true)
-  # Cross-model verification settings (Phase 5.5 — hallucination guard)
-  verification:
-    enabled: true                    # Cross-model verification (recommended: true)
-    fuzzy_match_threshold: 0.7       # Code snippet match threshold (0.0-1.0, default: 0.7)
-    cross_model_bonus: 0.15          # Confidence boost when Claude + Codex agree on same finding (review/audit scope)
-  # ── Deep Integration Keys (v1.39.0+) ──────────────────
-  # Cross-model elicitation for adversarial reasoning methods
-  elicitation:
-    enabled: true                    # Cross-model structured reasoning (default: true)
-    # QUAL-003: methods and timeout are consumed by the orchestrator's cross-model routing (elicitation/SKILL.md STEP 3-5).
-    # Orchestrator codex invocation code ships with the routing protocol — these keys are active.
-    methods: []                      # Auto-detect from codex_role column (empty OR omitted = all cross-model methods)
-    timeout: 300                     # Codex timeout per elicitation invocation (default: 300s)
-  # Post-fix Codex verification in /rune:mend
-  mend_verification:
-    enabled: true                    # Enable post-fix verification (default: true)
-    max_diff_size: 15000             # Max diff chars for verification (default: 15000)
-  # Codex Arena Judge in /rune:devise Phase 1.8
-  arena:
-    enabled: true                    # Enable Codex Arena Judge (default: true)
-    role: "judge"                    # "judge" | "generator" | "both" (default: "judge")
-    timeout: 300                     # Arena judge timeout (default: 300s)
-    cross_model_bonus: 0.15          # Confidence bonus for cross-model agreement in arena (MC-3: separate from verification scope above)
-  # Semantic contradiction detection in /rune:arc Phase 2.8
-  # NOTE: Key is "semantic_verification" (not "verification_gate") to distinguish from Phase 2.7 (MC-2)
-  semantic_verification:
-    enabled: true                    # Enable semantic contradiction detection (default: true)
-    timeout: 300                     # 5 min minimum for xhigh reasoning (default: 300s)
-    reasoning: "xhigh"              # Overrides global codex.reasoning for this feature
-  # Cross-model gap detection in /rune:arc Phase 5.6
-  gap_analysis:
-    enabled: true                    # Enable cross-model gap detection (default: true)
-    timeout: 600                     # Gap analysis timeout (default: 600s)
-  # Edge case suggestions for /rune:strive trial-forger
-  trial_forger:
-    enabled: true                    # Enable edge case suggestions before test writing (default: true)
-    timeout: 300                     # 5 min minimum for xhigh reasoning (default: 300s)
-    reasoning: "xhigh"              # Overrides global codex.reasoning for this feature
-  # Rune Smith inline advisory during implementation
-  rune_smith:
-    enabled: false                   # DISABLED by default — opt-in only (cost-intensive per worker per task)
-    timeout: 300                     # 5 min minimum for xhigh reasoning (default: 300s)
-    reasoning: "xhigh"              # xhigh reasoning for maximum quality
-    min_diff_size: 100               # Skip for trivial changes below this char count
-    confidence_threshold: 90         # Only report CRITICAL findings (>= 90% confidence)
-  # Cross-model complexity scoring in /rune:devise Phase 2.5 (Shatter)
-  shatter:
-    enabled: true                    # Enable cross-model complexity scoring (default: true)
-    weight: 0.3                      # Codex weight in blended score (default: 0.3, range: 0.0-1.0)
-  # Echo learning generalizability validation before persist
-  echo_validation:
-    enabled: true                    # Enable learning generalizability check (default: true)
-    timeout: 300                     # 5 min minimum for xhigh reasoning (default: 300s)
-    reasoning: "xhigh"              # xhigh reasoning for maximum quality
-  # ── Codex Expansion Keys (v1.51.0+) ──────────────────
-  # 10 additional inline cross-model verification points.
-  # All follow the canonical 4-condition detection gate + SEC-003 temp file pattern.
-  # 6 default-on (high ROI), 4 opt-in OFF (greenfield or niche).
-  # Cross-model diff verification in /rune:appraise Phase 6.2
-  # Verifies P1/P2 findings against actual diff hunks — 3-way verdict (CONFIRMED/WEAKENED/REFUTED)
-  diff_verification:
-    enabled: true                    # Default ON — high ROI, structured verdict (default: true)
-    timeout: 300                     # Structured 3-way verdict, not deep analysis (default: 300s)
-    reasoning: "high"               # high reasoning for structured verdict
-  # Cross-model test coverage critique in /rune:arc Phase 7.8
-  # Analyzes test report + diff for missing edge cases, brittle patterns, untested error paths
-  test_coverage_critique:
-    enabled: true                    # Default ON — catches coverage gaps cross-model (default: true)
-    timeout: 600                     # Must trace coverage gaps across diff + test report (default: 600s)
-    reasoning: "xhigh"              # xhigh — deep analysis of test coverage
-  # Cross-model release quality check in /rune:arc Phase 8.55
-  # Validates CHANGELOG completeness, breaking API changes, version bump conventions
-  release_quality_check:
-    enabled: true                    # Default ON — checklist-style validation (default: true)
-    timeout: 300                     # Checklist-style, not deep analysis (default: 300s)
-    reasoning: "high"               # high reasoning for structured validation
-  # Cross-model section validation in /rune:forge Phase 1.7
-  # Checks which plan sections reference high-risk files but have no Forge Gaze match
-  section_validation:
-    enabled: true                    # Default ON — binary coverage check (default: true)
-    timeout: 300                     # Binary check — "does section reference files?" (default: 300s)
-    reasoning: "medium"             # medium — simple binary check
-  # Cross-model research tiebreaker in /rune:devise Phase 2.3.5
-  # Conditional — only runs when research agents produce conflicting recommendations
-  research_tiebreaker:
-    enabled: true                    # Default ON — conditional, usually skips (default: true)
-    timeout: 300                     # Compare 2-3 positions (default: 300s)
-    reasoning: "high"               # high reasoning for conflict resolution
-  # Cross-model task decomposition validation in /rune:arc Phase 4.5
-  # Validates task granularity, dependencies, and file ownership conflicts before work begins
-  task_decomposition:
-    enabled: true                    # Default ON — structured granularity check (default: true)
-    timeout: 300                     # Structured check (default: 300s)
-    reasoning: "high"               # high reasoning for decomposition analysis
-  # Cross-model risk amplification in Goldmask Phase 3.5
-  # Traces 2nd/3rd-order risk chains that single-model analysis likely misses
-  risk_amplification:
-    enabled: false                   # OFF by default — greenfield, unproven value (opt-in)
-    timeout: 600                     # Deep transitive dependency tracing (default: 600s)
-    reasoning: "xhigh"              # xhigh — deep risk chain analysis
-  # Cross-model drift detection in /rune:inspect Phase 1.5
-  # Compares plan intent vs code semantics for pre-inspection drift signals
-  drift_detection:
-    enabled: false                   # OFF by default — greenfield, inspect already catches drift post-hoc (opt-in)
-    timeout: 600                     # Plan-vs-code semantic comparison (default: 600s)
-    reasoning: "xhigh"              # xhigh — semantic drift requires deep analysis
-  # Cross-model architecture consistency review in /rune:audit Phase 6.3
-  # Analyzes TOME findings for cross-cutting architectural patterns (audit mode only)
-  architecture_review:
-    enabled: false                   # OFF by default — audit-only niche use case (opt-in)
-    timeout: 600                     # TOME aggregate analysis (default: 600s)
-    reasoning: "xhigh"              # xhigh — cross-cutting pattern analysis
-  # Cross-model post-monitor architectural critique in /rune:strive Phase 3.7
-  # Analyzes all committed code vs plan for architectural drift after workers complete
-  post_monitor_critique:
-    enabled: false                   # OFF by default — post-execution signal has limited actionability (opt-in)
-    timeout: 300                     # Committed code vs plan check (default: 300s)
-    reasoning: "high"               # high reasoning for architectural comparison
 
 # ──────────────────────────────────────────────
 # Context Monitor — Runtime context rot prevention (v1.78.0+)
@@ -2098,29 +1922,6 @@ context_weaving:
 #   thresholds:
 #     min_score: 70                            # Minimum UX score to pass (0-100, default: 70)
 #     max_p1_findings: 0                       # Maximum P1 findings before blocking (when blocking: true, default: 0)
-
-# ──────────────────────────────────────────────
-# Codex Review — Cross-model code review (/rune:codex-review) (v1.107.0+)
-# ──────────────────────────────────────────────
-# Runs Claude Ashes and Codex agents in parallel on the same diff, then cross-verifies
-# findings using a consensus algorithm. Consensus findings (reported by both models) are
-# promoted to higher severity. Model-exclusive findings are preserved with provenance tags.
-codex_review:
-  disabled: false                    # Set true to disable codex-review globally (default: false)
-  timeout: 600000                    # Per-agent timeout in ms (default: 600000 = 10 min)
-  cross_model_bonus: 15              # Severity boost applied to consensus findings (0-100, default: 15)
-                                     # When both Claude and Codex report the same issue, its severity score
-                                     # is increased by this amount to elevate it in the merged TOME.
-  confidence_threshold: 80           # Minimum confidence % to include a finding in the merged TOME (default: 80)
-                                     # Findings below this threshold are logged but excluded from output.
-  max_agents: 6                      # Maximum total agents (Claude + Codex combined, default: 6)
-                                     # Codex Oracle counts as 1 toward this cap.
-  focus_areas:                       # Limit review scope to specific concern areas (default: all areas)
-    - security                       # Authentication, authorization, injection, secrets exposure
-    - bugs                           # Logic errors, off-by-one, null dereference, race conditions
-    - performance                    # Hot paths, N+1 queries, memory leaks, excessive allocations
-    - quality                        # Code quality, maintainability, naming, complexity
-    - dead-code                      # Unused exports, unreachable code, orphaned files
 
 # ──────────────────────────────────────────────
 # Keyword Detection — UserPromptSubmit hook (KEYWORD-001)
