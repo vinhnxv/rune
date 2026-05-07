@@ -156,9 +156,6 @@ ${decisions ? decisions : ""}
   }
   return ""
 })()}
-${Bash(`test -f "tmp/work/${timestamp}/codex-advisory.md" && echo "yes"`).trim() === "yes" ? `
-## Codex Advisory
-See [codex-advisory.md](tmp/work/${timestamp}/codex-advisory.md) for cross-model implementation review.` : ""}
 ${monitoringRequired ? `
 ## Post-Deploy Monitoring
 <!-- Fill in before merging -->

@@ -29,7 +29,7 @@ allowed-tools:
 
 Orchestrate a multi-agent inspection that measures implementation completeness and quality against a plan. Each Inspector Ash gets its own dedicated context window via Agent Teams.
 
-**Load skills**: `roundtable-circle`, `context-weaving`, `rune-echoes`, `rune-orchestration`, `team-sdk`, `polling-guard`, `zsh-compat`, `goldmask`, `codex-cli`
+**Load skills**: `roundtable-circle`, `context-weaving`, `rune-echoes`, `rune-orchestration`, `team-sdk`, `polling-guard`, `zsh-compat`, `goldmask`
 
 ## Flags
 
@@ -80,14 +80,6 @@ See [phase-1-scope.md](references/phase-1-scope.md) for the full scope resolutio
 Runs AFTER scope (Phase 1), BEFORE team creation (Phase 2). Discovers existing risk-map or spawns `lore-analyst`. Re-sorts `scopeFiles` by risk tier and enriches requirement classification.
 
 See [phase-1-scope.md](references/phase-1-scope.md) for skip conditions, discovery steps, and the dual-inspector gate. See [lore-layer-integration.md](../goldmask/references/lore-layer-integration.md) for the shared protocol and [risk-tier-sorting.md](../goldmask/references/risk-tier-sorting.md) for sorting.
-
-## Phase 1.5: Codex Drift Detection (v1.51.0)
-
-Cross-model comparison of plan intent vs code semantics before inspector team creation. Flags semantic drift where code implements something different from what the plan specified. Default OFF (greenfield). Non-blocking — drift report is additional context, not a gate.
-
-**Output**: `tmp/inspect/{identifier}/drift-report.md`
-
-See [codex-drift-detection.md](references/codex-drift-detection.md) for the full protocol — detection infrastructure, prompt generation, and drift report injection into Phase 3 inspector prompts.
 
 ### MCP-First Inspector Discovery (v1.170.0+)
 

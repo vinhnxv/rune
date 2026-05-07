@@ -126,12 +126,6 @@ The `TaskCompleted` hook automatically appends lightweight observation entries t
 
 See [auto-observation.md](references/auto-observation.md) for the full protocol, role detection table, and security details.
 
-## Codex Echo Validation (Optional)
-
-Before persisting a learning to `.rune/echoes/`, optionally ask Codex whether the insight is generalizable or context-specific. This prevents polluting echoes with one-off observations that don't transfer to future sessions. Gated by `talisman.codex.echo_validation.enabled`. Uses nonce-bounded prompt, codex-exec.sh wrapper, and non-JSON output guard.
-
-See [codex-echo-validation.md](references/codex-echo-validation.md) for the full protocol.
-
 ## Echo Schema Versioning
 
 MEMORY.md files include a version header:

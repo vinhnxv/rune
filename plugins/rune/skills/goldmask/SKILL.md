@@ -117,12 +117,6 @@ Phase 3: WISDOM INVESTIGATION (sequential — needs Impact output)
     |  Wisdom Sage --> intent classifications + caution scores
     |  (Sonnet, ~60-120s)
     |
-Phase 3.5: CODEX RISK AMPLIFICATION (parallel with Phase 3, v1.51.0+)
-    |  Codex traces 2nd/3rd-order risk chains
-    |  Reads Impact outputs + risk-map.json
-    |  --> risk-amplification.md (CDX-RISK prefix)
-    |  (codex exec, opt-in, ~600s)
-    |
 Phase 4: COORDINATION + CDD
     |  Goldmask Coordinator merges all three layers
     |  --> GOLDMASK.md + findings.json
@@ -138,9 +132,9 @@ Total agents: 8 (5 Haiku tracers + 1 Haiku lore-analyst + 1 Sonnet wisdom-sage +
 
 See [orchestration-protocol.md](references/orchestration-protocol.md) for full pseudocode.
 
-**Phases 4-6**: Create 8 tasks (1 Lore + 5 Impact tracers parallel → 1 Wisdom Sage sequential → 1 Coordinator sequential). Optional Phase 3.5 Codex Risk Amplification. POLL-001 compliant monitoring. Each layer degrades independently — any combination is better than a single layer.
+**Phases 4-6**: Create 8 tasks (1 Lore + 5 Impact tracers parallel → 1 Wisdom Sage sequential → 1 Coordinator sequential). POLL-001 compliant monitoring. Each layer degrades independently — any combination is better than a single layer.
 
-See [phase-4-5-6-tasks-monitor-degradation.md](references/phase-4-5-6-tasks-monitor-degradation.md) for task creation, spawn contracts, polling config, and degradation rules. See [codex-risk-amplification.md](references/codex-risk-amplification.md) for Phase 3.5.
+See [phase-4-5-6-tasks-monitor-degradation.md](references/phase-4-5-6-tasks-monitor-degradation.md) for task creation, spawn contracts, polling config, and degradation rules.
 
 **Phase 7**: Standard 5-component team cleanup. See [phase7-cleanup.md](references/phase7-cleanup.md).
 

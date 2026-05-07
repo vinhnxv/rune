@@ -34,22 +34,6 @@ Spawn Wisdom Sage after all Phase 1+2 tasks complete:
 - Include risk-map.json from Lore
 - Include reference to `wisdom-protocol.md`
 
-**Phase 3.5: Codex Risk Amplification (parallel with Phase 3, v1.51.0+):**
-
-Traces 2nd/3rd-order risk chains via Codex (transitive dependencies, runtime config cascades, deployment topology). 4-condition gate: `detectCodex()` + `!codex.disabled` + `risk_amplification.enabled` + `goldmask` in `codex.workflows`. Outputs `risk-amplification.md` with CDX-RISK prefix findings.
-
-See [codex-risk-amplification.md](codex-risk-amplification.md) for the full protocol.
-
-**Phase 4 (sequential — after Wisdom + Phase 3.5 complete):**
-
-```
-TaskCreate("Coordinator synthesis — merge all layers into GOLDMASK.md")
-```
-
-Spawn Coordinator after Wisdom (and optional Risk Amplification) completes:
-- Include all layer outputs
-- Include `risk-amplification.md` if it exists (Coordinator reads alongside other layers)
-- Include reference to `output-format.md` and `confidence-scoring.md`
 
 ## Phase 5: Monitor with Polling
 

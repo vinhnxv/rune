@@ -86,23 +86,3 @@ caution = min(1.0, caution)  # Cap at 1.0
 | MEDIUM | >= 0.40 | Standard careful review |
 | LOW | < 0.40 | Safe to change freely |
 
-## Amplified Risk Score (v1.51.0+ — Codex Phase 3.5)
-
-When Codex Risk Amplification is enabled (`codex.risk_amplification.enabled`), the Coordinator receives an additional signal: `risk-amplification.md` containing 2nd/3rd-order risk chains.
-
-**Scoring integration**: Amplified risk chains are treated as a **4th confidence method** alongside A (Import), B (Type System), and C (Empirical):
-
-| Method | Description | Base Confidence |
-|--------|-------------|-----------------|
-| **D (Amplified)** | Codex-identified transitive dependency chain | 0.30 |
-
-Method D signals are combined with existing methods via Noisy-OR:
-```
-combined = 1 - PRODUCT(1 - c_i)  // where c_i includes Method D at 0.30
-```
-
-**Constraints**:
-- Amplified chains are advisory — they raise awareness but do not auto-escalate tiers
-- CDX-RISK findings feed into the Coordinator alongside Impact/Wisdom/Lore outputs
-- False positive rate is bounded by multi-layer consensus (Coordinator cross-validates)
-- When Codex is unavailable, Method D is simply absent — scoring falls back to A+B+C

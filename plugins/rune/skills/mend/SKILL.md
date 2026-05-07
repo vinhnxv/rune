@@ -29,7 +29,7 @@ allowed-tools:
 
 Parses a TOME file for structured findings, groups them by file to prevent concurrent edits, summons restricted mend-fixer teammates, and produces a resolution report.
 
-**Load skills**: `roundtable-circle`, `context-weaving`, `rune-echoes`, `rune-orchestration`, `codex-cli`, `team-sdk`, `polling-guard`, `zsh-compat`
+**Load skills**: `roundtable-circle`, `context-weaving`, `rune-echoes`, `rune-orchestration`, `team-sdk`, `polling-guard`, `zsh-compat`
 
 ## Usage
 
@@ -70,11 +70,9 @@ Phase 5.6: WARD CHECK (2nd) -> Validates cross-file fixes
     |
 Phase 5.7: DOC-CONSISTENCY -> Fix drift between source-of-truth files
     |
-Phase 5.8: CODEX FIX VERIFICATION -> Cross-model post-fix validation (v1.39.0)
-    |
 Phase 5.95: GOLDMASK QUICK CHECK (v1.71.0) -> Deterministic MUST-CHANGE verification
     |
-Phase 6: RESOLUTION REPORT -> Produce report (includes Codex verdict + Goldmask)
+Phase 6: RESOLUTION REPORT -> Produce report (includes Goldmask)
     |
 Phase 7: CLEANUP -> Shutdown fixers, persist echoes, report summary
 ```
@@ -202,19 +200,6 @@ After ward check passes, runs a single doc-consistency scan to fix drift between
 
 See [doc-consistency.md](../roundtable-circle/references/doc-consistency.md) for the full algorithm.
 
-## Phase 5.8: Codex Fix Verification
-
-Cross-model post-fix validation (non-fatal). Diffs against `preMendSha` (captured at Phase 2) to scope to mend-applied fixes only.
-
-<!-- BACK-006: preMendSha timing window — preMendSha is captured at team creation (Phase 2), not at
-     individual fixer spawn time. This is intentional: it provides a stable baseline for the entire
-     mend session even when fixers start at different times. Any uncommitted local changes present at
-     Phase 2 will appear in the diff, but these are pre-existing and outside mend's scope. -->
-
-**Verdicts**: GOOD_FIX / WEAK_FIX / REGRESSION / CONFLICT
-
-See [resolution-report.md](references/resolution-report.md) for Codex verification section format and edge cases.
-
 ## Phase 5.95: Goldmask Quick Check (Deterministic)
 
 After all fixes and verifications, run a deterministic blast-radius check comparing mend output against Goldmask predictions. No agents — pure set comparison. Advisory-only (does NOT halt the pipeline).
@@ -259,7 +244,7 @@ if (fixersClaimingEvidence > 0 && evidenceDirs.length === 0) {
 
 Aggregates fixer SEALs, cross-file fixes, doc-consistency fixes into `tmp/mend/{id}/resolution-report.md`. P1 FAILED/SKIPPED triggers escalation warning. Goldmask Integration section (risk overlay + quick check results).
 
-See [resolution-report.md](references/resolution-report.md) for the full report format, convergence logic, Goldmask section, and Codex verification.
+See [resolution-report.md](references/resolution-report.md) for the full report format, convergence logic, and Goldmask section.
 
 ### Status Normalization (MANDATORY)
 
