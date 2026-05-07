@@ -110,7 +110,7 @@ PHASE_ORDER=(
   design_extraction design_prototype task_decomposition work work_qa
   drift_review storybook_verification design_verification design_verification_qa
   ux_verification gap_analysis gap_analysis_qa
-  codex_gap_analysis gap_remediation
+  gap_remediation
   inspect inspect_fix verify_inspect goldmask_verification
   code_review code_review_qa
   goldmask_correlation mend mend_qa

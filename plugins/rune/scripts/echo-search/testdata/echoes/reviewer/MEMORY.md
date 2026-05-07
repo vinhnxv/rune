@@ -24,13 +24,13 @@
 ## Inscribed — Performance Bottleneck Analysis (2026-01-20)
 
 **Source**: `rune:appraise def456`
-**Confidence**: HIGH (4 Ashes, all completed, Codex verified)
+**Confidence**: HIGH (4 Ashes, all completed)
 
 ### Review Metrics
 
 - Branch: feat/query-optimization
 - Files reviewed: 8 (all .py)
-- Ashes: Forge Warden, Ward Sentinel, Pattern Weaver, Codex Oracle
+- Ashes: Forge Warden, Ward Sentinel, Pattern Weaver
 
 ### Key Learnings
 

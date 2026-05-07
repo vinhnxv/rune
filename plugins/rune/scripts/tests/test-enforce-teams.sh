@@ -375,9 +375,9 @@ output=$(get_output "$result")
 assert_contains "Rune agent with named suffix still blocked" "ATE-1" "$output"
 
 # ═══════════════════════════════════════════════════════════════
-# 10. Signal 2: Inscription detection for inspect/codex-review (FIX #1)
+# 10. Signal 2: Inscription detection for inspect/ (FIX #1)
 # ═══════════════════════════════════════════════════════════════
-printf "\n=== Signal 2: Inspect/Codex-review Inscription Detection ===\n"
+printf "\n=== Signal 2: Inspect Inscription Detection ===\n"
 
 # Create a CWD with ONLY an inspect inscription (no state files)
 INSCR_CWD=$(mktemp -d)
@@ -392,14 +392,6 @@ result=$(run_hook "{\"tool_name\": \"Agent\", \"cwd\": \"$INSCR_CWD\", \"tool_in
 output=$(get_output "$result")
 assert_contains "Signal 2: inspect inscription detected" "ATE-1" "$output"
 
-# 10b. Codex-review inscription should trigger deny
-mkdir -p "$INSCR_CWD/tmp/codex-review/20260321-001/."
-cat > "$INSCR_CWD/tmp/codex-review/20260321-001/inscription.json" <<EOF
-{"team_name": "rune-codex-20260321", "status": "active", "session_id": "${CLAUDE_SESSION_ID:-${RUNE_SESSION_ID:-test-session}}", "owner_pid": $PPID}
-EOF
-result=$(run_hook "{\"tool_name\": \"Agent\", \"cwd\": \"$INSCR_CWD\", \"tool_input\": {\"subagent_type\": \"general-purpose\", \"prompt\": \"Do work\"}}")
-output=$(get_output "$result")
-assert_contains "Signal 2: codex-review inscription detected" "ATE-1" "$output"
 
 rm -rf "$INSCR_CWD"
 

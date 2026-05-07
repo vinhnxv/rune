@@ -4,7 +4,6 @@
 |------|---------------|-------------------|
 | **Arc** | End-to-end pipeline | A hero's journey |
 | **Ash** | Teammate agents (review, work, research, utility) | Spirit Ashes summoned to aid in battle |
-| **Codex Oracle** | Cross-model verification Ash (wraps GPT-5.3-codex via codex CLI) | An oracle who perceives truth from a different perspective |
 | **Convergence Gate** | Phase 7.5 verify-mend regression check with retry loop | A gate that ensures changes converge toward stability |
 | **Damage Control (DC)** | Named recovery procedure for agent failures. 6 defined: DC-1 Glyph Flood through DC-6 Lost Grace. Each follows ASSESS → CONTAIN → RECOVER → VERIFY → REPORT with 4-level escalation | Emergency repairs after a calamity |
 | **Decree Arbiter** | Technical soundness reviewer for plans | A judge who weighs the merit of decrees |

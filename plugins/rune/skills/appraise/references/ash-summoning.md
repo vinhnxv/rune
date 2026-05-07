@@ -71,10 +71,7 @@ Agent({
              // $() constructs could be injected into Ash prompts.
              // MITIGATION: Write the file list to tmp/reviews/{identifier}/changed-files.txt and
              // reference it in the prompt rather than embedding raw paths inline.
-             // Codex Oracle additionally requires: {context_budget}, {codex_model}, {codex_reasoning},
              // {file_batch}, {review_mode}, {default_branch}, {identifier}, {diff_context}, {max_diff_size}
-             // review_mode is always "review" for /rune:appraise (Codex Oracle uses diff-focused strategy)
-             // These are resolved from talisman.codex.* config. See codex-oracle.md header for full contract.
              // SEC-007: Validate review_mode before substitution:
              // review_mode = ["review", "audit"].includes(mode) ? mode : "audit"
              */,
@@ -243,11 +240,6 @@ See `roundtable-circle/references/custom-ashes.md` for full schema and validatio
 
 ## CLI-Backed Ashes
 
-After custom Ash loading, check whether the Codex Oracle should be summoned. Codex Oracle is a built-in Ash that wraps the OpenAI `codex` CLI, providing cross-model verification (GPT-5.3-codex alongside Claude). It is auto-detected and gracefully skipped when unavailable.
-
-See `roundtable-circle/references/codex-detection.md` for the canonical detection algorithm.
-
-**Note:** CLI detection is fast (no network call, <100ms). When Codex Oracle is selected, it counts toward the `max_ashes` cap. Codex Oracle findings use the `CDX` prefix and participate in standard dedup, TOME aggregation, and Truthsight verification.
 
 ### Other CLI-Backed Ashes
 
@@ -256,7 +248,6 @@ External models can participate as CLI-backed Ashes (v1.57.0+). Unlike agent-bac
 - Define in `talisman.yml` → `ashes.custom[]` with `cli:` field
 - When `cli:` is present, `agent` and `source` become optional
 - Subject to `max_cli_ashes` sub-cap (default: 2) within `max_ashes`
-- Codex Oracle is NOT counted toward `max_cli_ashes`
 - Prompt generated from `external-model-template.md` with Truthbinding
 - **Nonce-bounded content injection**: Diffs and file content are injected via nonce-bounded markers to prevent prompt injection
 
@@ -275,4 +266,4 @@ Findings that fail verification are marked HALLUCINATED or UNVERIFIED and exclud
 - `MODEL_NAME_PATTERN` — Validates model identifier format
 - `CLI_PATH_VALIDATION` — Ensures binary path does NOT resolve within project directory (prevents executing project files)
 
-See `roundtable-circle/references/custom-ashes.md` and `roundtable-circle/references/codex-detection.md` for full specs.
+See `roundtable-circle/references/custom-ashes.md` for full specs.

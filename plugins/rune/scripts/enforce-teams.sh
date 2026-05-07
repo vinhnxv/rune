@@ -275,7 +275,7 @@ if [[ -z "$active_workflow" ]]; then
            "${CWD}"/tmp/.rune-mend-*.json "${CWD}"/tmp/.rune-plan-*.json \
            "${CWD}"/tmp/.rune-forge-*.json "${CWD}"/tmp/.rune-goldmask-*.json \
            "${CWD}"/tmp/.rune-brainstorm-*.json "${CWD}"/tmp/.rune-debug-*.json \
-           "${CWD}"/tmp/.rune-design-sync-*.json "${CWD}"/tmp/.rune-codex-review-*.json \
+           "${CWD}"/tmp/.rune-design-sync-*.json \
            "${CWD}"/tmp/.rune-resolve-todos-*.json "${CWD}"/tmp/.rune-self-audit-*.json; do
     # Skip files older than STALE_THRESHOLD_MIN minutes
     # PERF: per-file `find -maxdepth 0 -mmin` is O(n) but safe; batch find risks glob/ownership edge cases
@@ -304,14 +304,14 @@ fi
 # INSCR_STALE_MIN (defined at file-level constants): see cross-reference at STALE_THRESHOLD_MIN.
 if [[ -z "$active_workflow" ]]; then
   shopt -s nullglob
-  # FIX #1: Added inspect/ and codex-review/ (previously missing — defense-in-depth gap)
+  # FIX #1: Added inspect/ (previously missing — defense-in-depth gap)
   for inscr in "${CWD}"/tmp/reviews/*/inscription.json \
                "${CWD}"/tmp/audit/*/inscription.json \
                "${CWD}"/tmp/forge/*/inscription.json \
                "${CWD}"/tmp/work/*/inscription.json \
                "${CWD}"/tmp/mend/*/inscription.json \
                "${CWD}"/tmp/inspect/*/inscription.json \
-               "${CWD}"/tmp/codex-review/*/inscription.json; do
+
     # Recency guard: skip files older than INSCR_STALE_MIN (tighter than Signal 1)
     if [[ -f "$inscr" ]] && find "$inscr" -maxdepth 0 -mmin -${INSCR_STALE_MIN} -print -quit 2>/dev/null | grep -q .; then
 
@@ -555,7 +555,7 @@ elif [[ -n "${AGENT_NAME:-}" ]]; then
     repo-surveyor|echo-reader|git-miner|practice-seeker|lore-scholar|\
     flow-seer|scroll-reviewer|decree-arbiter|research-verifier|\
     evidence-verifier|veil-piercer-plan|horizon-sage|elicitation-sage|\
-    ux-pattern-analyzer|state-weaver|codex-researcher|codex-plan-reviewer|\
+    ux-pattern-analyzer|state-weaver|\
     design-analyst|design-inventory-agent)
       WORKFLOW_TYPE="plan" ;;
     # Inspect Ashes
@@ -569,9 +569,6 @@ elif [[ -n "${AGENT_NAME:-}" ]]; then
     e2e-browser-tester|trial-forger|trial-oracle|test-failure-analyst|\
     contract-validator)
       WORKFLOW_TYPE="test" ;;
-    # Codex Ashes
-    codex-oracle|codex-phase-handler|codex-arena-judge)
-      WORKFLOW_TYPE="codex" ;;
     # Debug Ashes
     hypothesis-investigator)
       WORKFLOW_TYPE="debug" ;;

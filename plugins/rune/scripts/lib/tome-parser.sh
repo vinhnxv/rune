@@ -12,7 +12,7 @@
 #   Format A (canonical):  <!-- RUNE:FINDING nonce="..." id="SEC-001" file="..." line="42" severity="P1" ... -->
 #                          ... content ...
 #                          <!-- /RUNE:FINDING id="SEC-001" -->
-#   Format B (codex positional): <!-- RUNE:FINDING xsec-001 P1 -->
+#   Format B (positional): <!-- RUNE:FINDING xsec-001 P1 -->
 #                                ... content ...
 #                                (no closer — delimited by next marker, HR, heading, or EOF)
 #   Format D (UX alternate close): Same attrs as Format A but uses <!-- RUNE:FINDING:END --> as closer

@@ -470,7 +470,7 @@ PHASE_ORDER=(
   design_extraction design_prototype task_decomposition work work_qa
   drift_review storybook_verification design_verification design_verification_qa
   ux_verification gap_analysis gap_analysis_qa
-  codex_gap_analysis gap_remediation
+  gap_remediation
   inspect inspect_fix verify_inspect goldmask_verification
   code_review code_review_qa
   goldmask_correlation verify mend mend_qa
@@ -503,7 +503,6 @@ _phase_ref() {
     plan_review)              echo "${base}/arc-phase-plan-review.md" ;;
     plan_refine)              echo "${base}/arc-phase-plan-refine.md" ;;
     verification)             echo "${base}/verification-gate.md" ;;
-    semantic_verification)    echo "${base}/arc-codex-phases.md" ;;
     design_extraction)        echo "${base}/arc-phase-design-extraction.md" ;;
     design_prototype)         echo "${base}/arc-phase-design-prototype.md" ;;
     task_decomposition)       echo "${base}/arc-phase-task-decomposition.md" ;;
@@ -513,7 +512,6 @@ _phase_ref() {
     design_verification)      echo "${base}/arc-phase-design-verification.md" ;;
     ux_verification)          echo "${base}/arc-phase-ux-verification.md" ;;
     gap_analysis)             echo "${base}/gap-analysis.md" ;;
-    codex_gap_analysis)       echo "${base}/arc-codex-phases.md" ;;
     gap_remediation)          echo "${base}/gap-remediation.md" ;;
     inspect)                  echo "${base}/arc-phase-inspect.md" ;;
     inspect_fix)              echo "${base}/arc-phase-inspect-fix.md" ;;
@@ -547,12 +545,11 @@ _phase_ref() {
 # Required when multiple phases share the same reference file. Without hints,
 # Claude reads the full file and may execute multiple phases in one turn,
 # preventing the Stop hook from firing between them.
-# Shared files: arc-codex-phases.md, arc-phase-pre-ship-validation.md
+# Shared files: arc-phase-pre-ship-validation.md
 _phase_section_hint() {
   local phase="$1"
   case "$phase" in
     semantic_verification)    echo "Execute Phase 2.8 (Semantic Verification) section ONLY. Do NOT execute Phase 5.6." ;;
-    codex_gap_analysis)       echo "Execute Phase 5.6 (Codex Gap Analysis) section ONLY. Do NOT execute Phase 2.8." ;;
     test)                     echo "" ;;
     browser_test|browser_test_fix|verify_browser_test) echo "" ;;
     test_coverage_critique)   echo "" ;;
@@ -747,7 +744,7 @@ _phase_weight() {
     design_extraction|design_verification|design_iteration|design_prototype) echo 2 ;;
     gap_analysis|gap_remediation|goldmask_verification|goldmask_correlation|verify) echo 2 ;;
     storybook_verification|ux_verification)  echo 2 ;;
-    verify_mend|codex_gap_analysis|test_coverage_critique) echo 2 ;;
+    verify_mend) echo 2 ;;
     browser_test|browser_test_fix|verify_browser_test) echo 2 ;;
     *)                                       echo 1 ;;
   esac

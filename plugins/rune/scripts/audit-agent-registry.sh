@@ -56,11 +56,7 @@ if [[ -d "$ASH_DIR" ]]; then
 fi
 
 # Known dynamically-spawned agents (no .md file — created programmatically)
-DYNAMIC_AGENTS="codex-arena-judge
-codex-oracle
-codex-plan-reviewer
-codex-researcher
-design-inventory-agent
+DYNAMIC_AGENTS="design-inventory-agent
 glyph-scribe
 pattern-weaver
 test-runner"

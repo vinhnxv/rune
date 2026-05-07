@@ -550,7 +550,7 @@ try {
   allMembers = [
     // Plan review agents
     "scroll-reviewer", "decree-arbiter", "knowledge-keeper", "veil-piercer-plan",
-    "evidence-verifier", "codex-plan-reviewer",
+    "evidence-verifier",
     // Inspect/gap analysis agents
     "grace-warden", "ruin-prophet", "sight-oracle", "vigil-keeper",
     "grace-warden-inspect", "ruin-prophet-inspect", "sight-oracle-inspect", "vigil-keeper-inspect",
@@ -691,7 +691,7 @@ const PHASE_LABELS = {
   verification: '2.7 (VERIFICATION)', semantic_verification: '2.8 (SEMANTIC VERIFICATION)',
   design_extraction: '3 (DESIGN EXTRACTION)', design_prototype: '3.2 (DESIGN PROTOTYPE)', task_decomposition: '4.5 (TASK DECOMPOSITION)',
   work: '5 (WORK)', design_verification: '5.2 (DESIGN VERIFICATION)',
-  gap_analysis: '5.5 (GAP ANALYSIS)', codex_gap_analysis: '5.6 (CODEX GAP ANALYSIS)',
+  gap_analysis: '5.5 (GAP ANALYSIS)',
   gap_remediation: '5.8 (GAP REMEDIATION)', goldmask_verification: '5.7 (GOLDMASK VERIFICATION)',
   code_review: '6 (CODE REVIEW)', goldmask_correlation: '6.5 (GOLDMASK CORRELATION)',
   mend: '7 (MEND)', verify_mend: '7.5 (VERIFY MEND)', design_iteration: '7.6 (DESIGN ITERATION)',

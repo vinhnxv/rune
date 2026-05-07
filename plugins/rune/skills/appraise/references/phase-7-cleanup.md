@@ -6,7 +6,7 @@
 // FALLBACK: built-in Ashes + runebinder + all conditional agents (safe to send shutdown to absent members)
 // CLEAN-006 FIX: "pattern-weaver" → "pattern-seer" (correct registered name)
 allMembers = ["forge-warden", "ward-sentinel", "pattern-seer", "veil-piercer",
-  "glyph-scribe", "knowledge-keeper", "codex-oracle", "runebinder",
+  "glyph-scribe", "knowledge-keeper", "runebinder",
   "doubt-seer", "elicitation-sage-security-1", "elicitation-sage-security-2",
   // Phase 1.5 UX reviewers (conditional — ux.enabled + frontend files)
   "ux-heuristic-reviewer", "ux-flow-validator", "ux-interaction-auditor", "ux-cognitive-walker",

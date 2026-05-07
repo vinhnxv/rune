@@ -73,7 +73,6 @@ KNOWN_BOTS = botConfig.known_bots ?? [
   "coderabbitai[bot]",
   "copilot[bot]",
   "cubic-dev-ai[bot]",
-  "chatgpt-codex-connector[bot]"
 ]
 QUALITY_COMMANDS = botConfig.quality_commands ?? []
 ```

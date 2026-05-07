@@ -98,7 +98,6 @@ Shared resources: [Review Checklist](../skills/roundtable-circle/references/agen
 | evidence-verifier | Evidence-based plan claim validation — systematic per-claim verification against codebase/docs/external sources with grounding scores. Used by /rune:devise |
 | ux-pattern-analyzer | Codebase UX maturity assessment — inventories loading, error handling, form validation, navigation, empty state, confirmation/undo, and feedback patterns. 4-level maturity scale. Used by devise Phase 0.3 |
 | tome-digest | TOME finding extraction — counts P1/P2/P3 severity, extracts recurring prefixes, top findings. Shell-based extraction via artifact-extract.sh (zero LLM tokens). Used by arc Phase 7 (Mend) |
-| codex-phase-handler | Delegated Codex phase execution — runs Codex CLI commands as a teammate to keep Tarnished context clean |
 
 ## Investigation Agents (`agents/investigation/`)
 
