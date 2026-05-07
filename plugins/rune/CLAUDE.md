@@ -12,7 +12,6 @@ Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspe
 | **rune-echoes** | Smart Memory Lifecycle — 5-tier project memory (Etched/Notes/Inscribed/Observations/Traced) |
 | **ash-guide** | Agent invocation reference and Ash selection guide |
 | **elicitation** | Curated structured reasoning methods — Deep integration via elicitation-sage across plan, forge, review, and mend phases |
-| **codex-cli** | Canonical Codex CLI integration — detection, execution, error handling, talisman config, 9-point deep integration (elicitation, mend verification, arena, semantic check, gap analysis, trial forger, rune smith advisory, shatter scoring, echo validation) |
 | **chome-pattern** | CLAUDE_CONFIG_DIR resolution pattern for multi-account support |
 | **polling-guard** | Monitoring loop fidelity — correct waitForCompletion translation, anti-pattern reference |
 | **skill-testing** | TDD methodology for skills — pressure testing, rationalization counters, Iron Law (SKT-001). Use `--improve` for convergence loop (test → fix → re-test with semantic guard and echo persistence) |
@@ -24,7 +23,7 @@ Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspe
 | **design-sync** | Figma design synchronization workflow — 3-phase pipeline (PLAN: extraction → WORK: implementation → REVIEW: fidelity). VSM intermediate format, Figma MCP integration, fidelity scoring (6 dimensions), iterative refinement. Gated by `design_sync.enabled` |
 | **systematic-debugging** | 4-phase debugging methodology (Observe → Narrow → Hypothesize → Fix) for workers hitting repeated failures. Iron Law: no fixes without root cause investigation (DBG-001) |
 | **zsh-compat** | zsh shell compatibility — read-only variables, glob NOMATCH, word splitting, array indexing |
-| **arc** | End-to-end orchestration pipeline (pre-flight freshness gate + 45 phases: forge → forge_qa → plan review → plan refinement → verification → semantic verification → design extraction → design prototype → task decomposition → work → work_qa → drift review → storybook verification → design verification → design_verification_qa → ux verification → gap analysis → gap_analysis_qa → codex gap analysis → gap remediation → inspect → inspect_fix → verify_inspect → goldmask verification → code review (--deep) → code_review_qa → goldmask correlation → verify → mend → mend_qa → verify mend → design iteration → test → test_qa → browser test → browser test fix → verify browser test → test coverage critique → deploy verify → pre-ship validation → release quality check → ship → bot review wait → PR comment resolution → merge). Supports `--step-groups` for context-optimized group pausing |
+| **arc** | End-to-end orchestration pipeline (pre-flight freshness gate + 40 phases: forge → forge_qa → plan review → plan refinement → verification → design extraction → design prototype → work → work_qa → drift review → storybook verification → design verification → design_verification_qa → ux verification → gap analysis → gap_analysis_qa → gap remediation → inspect → inspect_fix → verify_inspect → goldmask verification → code review (--deep) → code_review_qa → goldmask correlation → verify → mend → mend_qa → verify mend → design iteration → test → test_qa → browser test → browser test fix → verify browser test → deploy verify → pre-ship validation → ship → bot review wait → PR comment resolution → merge). Supports `--step-groups` for context-optimized group pausing |
 | **testing** | Test orchestration pipeline knowledge for arc Phase 7.7 — 4-tier testing (unit, PBT, integration, E2E/browser) with property-based testing Tier 1.5 (fast-check, hypothesis, proptest, rapid) (non-invocable) |
 | **agent-browser** | Browser automation knowledge injection for E2E testing (non-invocable) |
 | **test-browser** | Standalone browser E2E testing — inline workflow (no agent teams): scope detection, **infrastructure discovery** (docker-compose, tunnels, proxies, credentials), **backend impact tracing** (API → frontend consumer → route), route discovery, **test plan generation** (dependency chains, acceptance criteria extraction, topological execution order), server verification, **UI-first flow execution** (prerequisite chains before target tests), per-route smoke test + **deep testing** (`--deep`): interaction testing (form fill, button clicks), data persistence (submit → navigate → verify), visual/layout inspection (overflow, spacing, touch targets, responsive breakpoints), UX logic (empty states, loading, a11y, error handling), data diagnosis (HAR-based null/empty root cause: API vs UI), **cross-screen workflow continuity** (Create→List→Edit→Save CRUD lifecycle), **anomaly reporting** (in-scope + out-of-scope with severity and confidence). Supports frontend AND backend changes. `/rune:test-browser [PR# | branch] [plan-file.md] [--headed] [--deep] [--max-routes N]` |
@@ -45,7 +44,6 @@ Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspe
 | **brainstorm** | Collaborative idea exploration — 3 modes: Solo (conversation), Roundtable Advisors (3 agent personas), Deep (advisors + elicitation sages). Persistent output in `docs/brainstorms/` |
 | **devise** | Multi-agent planning: brainstorm, research, validate, synthesize, shatter, forge, review, **grounding gate** (+ `--quick`). Predictive Goldmask (2-8 agents, basic default) for pre-implementation risk assessment. Phase 4D Grounding Gate (evidence-verifier + assumption-slayer) runs ALWAYS — even with `--quick` — to catch hallucinated solutions |
 | **appraise** | Multi-agent code review with up to 7 built-in Ashes (+ custom from talisman.yml). Default: standard. Use `--deep` for multi-wave deep review. Phase 0.6 (conditional): Context building spawns context-builder agent for architectural comprehension before Ash review, gated by `review.context_building` (auto/always/never). Phase 1.6 (conditional): Design fidelity wave spawns design-implementation-reviewer (DES- prefix) when design_review.enabled=true + frontend files + design refs exist. Phase 1.7 (conditional): Data flow integrity wave spawns flow-integrity-tracer (FLOW- prefix) when data_flow.enabled + CRUD/data model files detected. Zero overhead otherwise. |
-| **codex-review** | Cross-model code review — runs Claude and Codex agents in parallel, cross-verifies findings, merges consensus issues into a unified TOME. Use when you want a second opinion from an independent model on critical changes. |
 | **resolve-gh-pr-comment** | Resolve a single GitHub PR review comment — fetch, analyze, fix, reply, and resolve thread |
 | **resolve-all-gh-pr-comments** | Batch resolve all open PR review comments with pagination and progress tracking |
 | **strive** | Swarm work execution with self-organizing task pool (+ `--approve`, incremental commits) |
@@ -69,7 +67,6 @@ Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspe
 | **react-native-patterns** | React Native/Expo best practices — FlashList, Reanimated, native navigation, expo-image, safe areas, monorepo config. Non-invocable — auto-loaded for React Native/Expo projects |
 | **variant-hunt** | Systematic variant analysis — "find more like this" for confirmed findings. Takes a TOME finding ID, pattern description, or TOME path, spawns variant-hunter agents with progressive generalization (exact → structural → semantic). Opt-in via `variant_analysis.enabled`. `/rune:variant-hunt` |
 | **supply-chain-audit** | Analyze project dependencies for supply chain risks — maintainer count, commit frequency, CVE history, abandonment signals, bus factor, and security policy. Supports npm, pip, cargo, go mod, composer. Configurable via `supply_chain` talisman section. `/rune:supply-chain-audit` |
-| **codex-status** | Show Codex activity summary for the current or most recent arc run — phase status, finding counts, simplified verification verdicts. Read-only, no agents. `/rune:codex-status` |
 | **pr-guardian** | Automated PR shepherd loop — cron-based (every 5 min) that checks review comments, CI/CD status, branch freshness, runs browser tests, and auto-merges when green. 7-day auto-expiry. `/rune:pr-guardian` |
 | **post-findings** | Post Rune review/audit findings to GitHub PR as formatted comment. Parses TOME, formats markdown, posts via `gh`. Configurable via `pr_comment` talisman section. `/rune:post-findings` |
 | **cc-inspect** | Claude Code runtime environment inspector — reports environment variables, session identity, config directory, plugin paths, system toolchain versions, Rune runtime state, and platform details. Diagnostic tool for explicit user invocation. `/rune:cc-inspect` |
@@ -80,7 +77,6 @@ Multi-agent engineering orchestration for Claude Code. Plan, work, review, inspe
 | Command | Description |
 |---------|-------------|
 | `/rune:cancel-review` | Cancel active review and shutdown teammates |
-| `/rune:cancel-codex-review` | Cancel active codex review and shutdown teammates |
 | `/rune:cancel-audit` | Cancel active audit and shutdown teammates |
 | `/rune:plan-review` | Review plan code samples for implementation correctness (thin wrapper for /rune:inspect --mode plan) |
 | `/rune:cancel-arc` | Cancel active arc pipeline |
@@ -220,7 +216,7 @@ See [cost-tier-mapping.md](references/cost-tier-mapping.md) for the full categor
 Reads `.rune/talisman.yml` (project) → `$CHOME/talisman.yml` (global) → `{}`.
 Where `CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`.
 
-**Preferred**: Use `readTalismanSection(sectionName)` — reads pre-resolved JSON shards from `tmp/.talisman-resolved/` for 94% token reduction. Falls back to full-file `readTalisman()` if shards are unavailable. Available shards: `arc`, `codex`, `review`, `work`, `goldmask`, `plan`, `gates`, `settings`, `inspect`, `testing`, `audit`, `ux`, `misc` (includes `integrations`).
+**Preferred**: Use `readTalismanSection(sectionName)` — reads pre-resolved JSON shards from `tmp/.talisman-resolved/` for 94% token reduction. Falls back to full-file `readTalisman()` if shards are unavailable. Available shards: `arc`, `review`, `work`, `goldmask`, `plan`, `gates`, `settings`, `inspect`, `testing`, `audit`, `ux`, `misc` (includes `integrations`).
 
 **Rule**: Use SDK `Read()` — NEVER `Bash("cat ...")` or `Bash("test -f ...")`.
 `Read()` auto-resolves `CLAUDE_CONFIG_DIR` and tilde. Bash does not (ZSH `~ not found` bug).
@@ -286,7 +282,6 @@ Every change to this plugin MUST include updates to all four files:
 - [ ] README.md Skills table includes all skills
 - [ ] plugin.json description counts match actual files
 - [ ] No bare `Skill()` calls without `rune:` prefix (run namespace validation command)
-- [ ] No bare `codex-exec.sh` without `${RUNE_PLUGIN_ROOT}` path
 - [ ] Run `bash scripts/validate-plugin-wiring.sh` — no SDMT-* violations
 - [ ] Run `bash scripts/validate-task-contract.sh` — no TEAM-002 violations (TaskCreate before Agent, TaskUpdate in agent tools)
 - [ ] Run `bash scripts/validate-skill-descriptions.sh` — no DESC-* violations (no `<example>` in description, length under 800 chars, alias skills/commands set `disable-model-invocation: true`)
@@ -302,18 +297,17 @@ External models can participate in the Roundtable Circle as CLI-backed Ashes. Un
 **Key concepts:**
 - Define in `talisman.yml` → `ashes.custom[]` with `cli:` field (discriminated union)
 - When `cli:` is present, `agent` and `source` become optional
-- Detection via `detectExternalModel()` (generalized from Codex detection)
+- Detection via `detectExternalModel()`
 - Subject to `max_cli_ashes` sub-cap (default: 2) within `max_ashes`
-- Codex Oracle has its own dedicated gate and is NOT counted toward `max_cli_ashes`
 - Prompt generated from `external-model-template.md` with ANCHOR/RE-ANCHOR Truthbinding
 - Includes 4-step Hallucination Guard (Step 0: diff relevance, Steps 1-3: verification)
 - Nonce-bounded content injection for diffs/file content
 
 **Security patterns:** `CLI_BINARY_PATTERN`, `MODEL_NAME_PATTERN`, `OUTPUT_FORMAT_ALLOWLIST`, `CLI_PATH_VALIDATION`, `CLI_TIMEOUT_PATTERN` — all defined in `security-patterns.md`.
 
-**Dedup:** External model prefixes are positioned below CDX in the default hierarchy. Built-in prefixes always precede external model prefixes.
+**Dedup:** Built-in prefixes always precede external model prefixes in the dedup hierarchy.
 
-**References:** [custom-ashes.md](skills/roundtable-circle/references/custom-ashes.md), [codex-detection.md](skills/roundtable-circle/references/codex-detection.md), [external-model-template.md](skills/roundtable-circle/references/external-model-template.md)
+**References:** [custom-ashes.md](skills/roundtable-circle/references/custom-ashes.md), [external-model-template.md](skills/roundtable-circle/references/external-model-template.md)
 
 ## Hook Infrastructure
 
@@ -502,7 +496,6 @@ When adding or modifying skills, verify:
 
 ### Namespace Prefix (CRITICAL)
 - [ ] All `Skill()` calls use the `rune:` prefix: `Skill("rune:arc", ...)` — NEVER `Skill("arc", ...)`
-- [ ] All `codex-exec.sh` invocations use full path: `"${RUNE_PLUGIN_ROOT}/scripts/codex-exec.sh"` — NEVER bare `codex-exec.sh` or `./scripts/codex-exec.sh`
 - [ ] Stop hook prompts use escaped `Skill(\"rune:arc\", ...)` — same prefix rule applies
 
 **Why**: Plugin skills are namespaced as `rune:<skill>`. Without the prefix, skill resolution fails silently — Claude either can't find the skill or skips the pipeline and implements directly. Bare script paths fail with exit 127 in teammate contexts where CWD differs from plugin root. See ARC-BATCH-001 (v1.109.4, v1.143.3).
@@ -515,9 +508,6 @@ grep -rn '`references/\|`assets/\|`scripts/' plugins/rune/skills/*/SKILL.md
 
 # Check for bare Skill() calls missing rune: prefix (should return nothing)
 grep -rn 'Skill(['"'"'"]' plugins/rune/skills/ plugins/rune/scripts/ --include='*.md' --include='*.sh' | grep -v 'rune:' | grep -v CHANGELOG | grep -v 'description:'
-
-# Check for bare codex-exec.sh calls (should return nothing)
-grep -rn 'Run:.*codex-exec\|^\s*\./scripts/codex-exec' plugins/rune/skills/ --include='*.md'
 
 # Verify all skills have name and description
 for f in plugins/rune/skills/*/SKILL.md(N); do

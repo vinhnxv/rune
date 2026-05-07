@@ -11,7 +11,6 @@
 
 | Agent | Verification Approach | Explicit Plan Compliance? |
 |-------|----------------------|---------------------------|
-| **OpenAI Codex** | Reason-act loop: interprets task, decomposes into subtasks, generates code, runs tests, iterates on failures. Uses fail2pass + pass2pass test suites from SWE-bench. | **No explicit plan compliance check.** Verification is test-driven: code is correct if tests pass. No mechanism compares implementation back to the original plan/spec. |
 | **Devin** | Checkpoint-gated: Plan -> Implement chunk -> Test -> Fix -> Checkpoint review -> Next chunk. Human reviews at checkpoints. | **Partial.** Checkpoints are human-reviewed, creating an implicit plan compliance check. But the verification is manual, not automated. Devin recommends treating the developer as "architect guiding junior developers." |
 | **SWE-agent** | Reproduce -> Localize -> Patch -> Verify. State-machine with explicit phases (Searching, Planning, Editing). | **No explicit plan compliance.** Verification is against test suites. The "plan" is implicit in the localization phase, not a first-class artifact that gets checked. |
 | **Cursor Agent Mode** | Presents implementation plan before executing. Human approves/modifies. Separates planning model from execution model. | **Plan approval before execution, not after.** No post-implementation check that code matches the approved plan. Verification relies on human review of the diff. |
@@ -368,7 +367,6 @@ Repeat for each task. After all tasks:
 ## References
 
 ### AI Agent Architectures
-- [Unrolling the Codex Agent Loop](https://openai.com/index/unrolling-the-codex-agent-loop/) -- OpenAI's description of the reason-act-verify loop
 - [Devin Coding Agents 101](https://devin.ai/agents101) -- Checkpoint-gated implementation pattern
 - [SWE-agent Architecture](https://swe-agent.com/latest/background/architecture/) -- State-machine based agent design
 - [Open SWE: Open-Source Asynchronous Coding Agent](https://blog.langchain.com/introducing-open-swe-an-open-source-asynchronous-coding-agent/) -- Multi-agent with Planner/Reviewer separation

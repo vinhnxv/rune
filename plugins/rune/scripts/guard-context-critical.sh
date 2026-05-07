@@ -188,7 +188,6 @@ if [[ "$REM_INT" -le "$WARNING_THRESHOLD" && "$REM_INT" -gt "$CRITICAL_THRESHOLD
     "$CWD/tmp/.rune-brainstorm-"*.json \
     "$CWD/tmp/.rune-debug-"*.json \
     "$CWD/tmp/.rune-design-sync-"*.json \
-    "$CWD/tmp/.rune-codex-review-"*.json \
     "$CWD/tmp/.rune-resolve-todos-"*.json \
     "$CWD/tmp/.rune-self-audit-"*.json \
     "$CWD/tmp/.rune-arc-"*.json; do
@@ -213,7 +212,7 @@ if [[ "$REM_INT" -le "$WARNING_THRESHOLD" && "$REM_INT" -gt "$CRITICAL_THRESHOLD
     work|strive)
       SUGGESTION="Complete current task, skip optional tasks. Commit what is done." ;;
     arc)
-      SUGGESTION="Skip optional phases (forge, codex-gap, test-coverage-critique). Proceed to ship." ;;
+      SUGGESTION="Skip optional phases (forge). Proceed to ship." ;;
     devise|plan)
       SUGGESTION="Skip forge enrichment. Proceed directly to plan review." ;;
     *)

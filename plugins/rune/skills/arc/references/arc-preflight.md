@@ -761,7 +761,6 @@ const ARC_TEAM_PREFIXES = [
   "arc-ux-",  // UX verification team (conditional — ux.enabled + frontend files)
   "arc-browser-test-", "arc-browser-fix-",  // browser test convergence loop teams (conditional — frontend + agent-browser)
   "arc-deploy-",  // deployment verification team (conditional — deployment-relevant files in diff)
-  "arc-codex-sv-", "arc-codex-td-", "arc-codex-ga-", "arc-codex-tc-", "arc-codex-rq-",  // Codex phase handler teams (delegated to codex-phase-handler teammate)
   "rune-forge-", "rune-work-", "rune-review-", "rune-mend-", "rune-mend-deep-", "rune-verify-",  // sub-command teams (rune-verify- = standalone /rune:verify)
   "rune-audit-",  // CLEAN-005: retained as a safety net for standalone /rune:audit orphans — NOT spawned by arc directly. Cross-workflow orphan sweep only.
   "rune-brainstorm-",  // brainstorm skill teams (Solo/Roundtable/Deep modes)

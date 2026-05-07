@@ -5,29 +5,6 @@ purpose: |
   TOME with structured findings. Relocates TOME to arc artifacts directory.
 defined_in: plugins/rune/skills/arc/references/arc-phase-code-review.md
 steps:
-  - id: "REV-STEP-01"
-    name: "Propagate gap analysis context"
-    required: false
-    order: 1
-    artifact: null
-    artifact_check: "Review context string includes MISSING/PARTIAL counts from gap-analysis.md (if gap analysis exists)"
-    description: "Read gap-analysis.md and extract MISSING/PARTIAL counts. Build review context string so reviewers can focus on incomplete areas. Uses artifact extraction when enabled."
-
-  - id: "REV-STEP-02"
-    name: "Inject VERDICT dimension scores"
-    required: false
-    order: 2
-    artifact: null
-    artifact_check: "Review context includes low-scoring dimensions (<7/10) from gap-analysis-verdict.md"
-    description: "Read VERDICT.md for dimension scores. Extract dimensions scoring below 7/10 and inject as focus areas for reviewers. Uses artifact extraction when enabled."
-
-  - id: "REV-STEP-03"
-    name: "Codex Oracle detection"
-    required: false
-    order: 3
-    artifact: null
-    artifact_check: "Codex Oracle included if codex CLI detected and 'review' in talisman.codex.workflows"
-    description: "Run Codex detection per codex-detection.md. If detected and 'review' is in talisman.codex.workflows, include Codex Oracle as additional reviewer with CDX prefix."
 
   - id: "REV-STEP-04"
     name: "Record in_progress checkpoint"

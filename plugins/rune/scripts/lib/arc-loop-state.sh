@@ -199,7 +199,7 @@ arc_state_integrity_log() {
       fi
       if mkdir "$_lock" 2>/dev/null; then
         # SEC-001: previously this block captured `trap -p EXIT` and restored it
-        # via `eval "$_prev_exit_trap"`. That pattern matched codex-exec.sh's own
+        # via `eval "$_prev_exit_trap"`. That pattern matched the wrapper's own
         # pre-fix bug — `eval` on captured trap output is a shell-injection surface
         # when an upstream caller sets a trap containing attacker-controlled text.
         # The rotation block sets NO other state that an EXIT trap would need to

@@ -154,10 +154,10 @@ stateDiagram-v2
     Phase5_Work --> Phase6_GapAnalysis : feature branch + commits
 
     state "Phase 6: Gap Analysis" as Phase6_GapAnalysis
-    Phase6_GapAnalysis --> Phase6_5_CodexGap : gaps identified
+    Phase6_GapAnalysis --> Phase6_5_
 
-    state "Phase 6.5: Codex Gap Analysis" as Phase6_5_CodexGap
-    Phase6_5_CodexGap --> Phase6_7_GapRemediation : cross-verified
+    state "Phase 6.5: 
+    Phase6_5_
 
     state "Phase 6.7: Gap Remediation" as Phase6_7_GapRemediation
     Phase6_7_GapRemediation --> Phase7_Goldmask : gaps fixed (mend)
@@ -335,7 +335,7 @@ stateDiagram-v2
 
 ## 3. Roundtable Circle
 
-**Shared orchestration** used by: Appraise, Audit, Codex-Review
+**Shared orchestration** used by: Appraise, Audit, 
 **Phases**: 7 (0–7) | Generic lifecycle for multi-agent review
 
 ```mermaid
@@ -410,11 +410,11 @@ stateDiagram-v2
 
     state "Phase 6: Verify" as Phase6_Verify {
         [*] --> TruthsightValidation
-        TruthsightValidation --> Phase6_2_CodexDiff : validated
-        Phase6_2_CodexDiff --> Phase6_3_CodexArch : diff verified (optional)
-        Phase6_3_CodexArch --> [*] : architecture reviewed (audit only)
-        Phase6_2_CodexDiff --> [*] : skip codex
-        TruthsightValidation --> [*] : skip codex
+        TruthsightValidation --> Phase6_2_
+        Phase6_2_
+        Phase6_3_
+        Phase6_2_
+        TruthsightValidation --> [*] : skip 
     }
 
     Phase6_Verify --> Phase7_Cleanup
@@ -440,7 +440,6 @@ stateDiagram-v2
 | Veil Piercer | adversarial truth-telling | Always |
 | Glyph Scribe | frontend review | Conditional (frontend files in diff) |
 | Knowledge Keeper | documentation review | Conditional (doc changes >= 10 lines) |
-| Codex Oracle | cross-model verification | Conditional (talisman enabled) |
 
 ---
 
@@ -623,9 +622,9 @@ stateDiagram-v2
         StuckWorker --> PollLoop : warn
         WorkersDone --> Phase3_5_CommitBroker : direct mode
         WorkersDone --> Phase3_5_MergeBroker : worktree mode
-        Phase3_5_CommitBroker --> Phase3_7_CodexCritique : committed
-        Phase3_5_MergeBroker --> Phase3_7_CodexCritique : merged
-        Phase3_7_CodexCritique --> [*] : optional cross-model check
+        Phase3_5_CommitBroker --> Phase3_7_
+        Phase3_5_MergeBroker --> Phase3_7_
+        Phase3_7_
     }
 
     Phase3_Monitor --> Phase4_QualityGates
@@ -634,8 +633,8 @@ stateDiagram-v2
         [*] --> Phase4_1_TodoSummary
         Phase4_1_TodoSummary --> Phase4_3_DocConsistency
         Phase4_3_DocConsistency --> Phase4_4_QuickGoldmask
-        Phase4_4_QuickGoldmask --> Phase4_5_CodexAdvisory
-        Phase4_5_CodexAdvisory --> [*]
+        Phase4_4_QuickGoldmask --> Phase4_5_
+        Phase4_5_
     }
 
     Phase4_QualityGates --> Phase5_EchoPersist
@@ -724,9 +723,9 @@ stateDiagram-v2
         Phase5_5_CrossFile --> Phase5_6_SecondWard : cross-file fixes applied
         Phase5_6_SecondWard --> Phase5_7_DocConsistency
         SecurityScan --> Phase5_7_DocConsistency : no cross-file needed
-        Phase5_7_DocConsistency --> Phase5_8_CodexVerify : optional
-        Phase5_8_CodexVerify --> Phase5_9_TodoUpdate
-        Phase5_7_DocConsistency --> Phase5_9_TodoUpdate : skip codex
+        Phase5_7_DocConsistency --> Phase5_8_
+        Phase5_8_
+        Phase5_7_DocConsistency --> Phase5_9_TodoUpdate : skip 
         Phase5_9_TodoUpdate --> Phase5_95_GoldmaskCheck
         Phase5_95_GoldmaskCheck --> [*] : MUST-CHANGE verified
     }
@@ -777,8 +776,8 @@ stateDiagram-v2
         [*] --> SplitHeadings : split at ## headings
         SplitHeadings --> Phase1_3_FileRefs
         Phase1_3_FileRefs --> Phase1_5_LoreLayer : extract file references
-        Phase1_5_LoreLayer --> Phase1_7_CodexValidation : risk scoring (optional)
-        Phase1_7_CodexValidation --> [*] : force-include list (optional)
+        Phase1_5_LoreLayer --> Phase1_7_
+        Phase1_7_
     }
 
     Phase1_ParseSections --> Phase2_ForgeGaze
@@ -889,11 +888,11 @@ stateDiagram-v2
     state "Phase 3: Wisdom Investigation (sequential)" as Phase3_Wisdom
     note right of Phase3_Wisdom : Wisdom Sage → intent + caution scores
 
-    state "Phase 3.5: Codex Risk Amplification (parallel with P3)" as Phase3_5_Codex
-    note right of Phase3_5_Codex : optional — transitive dependency chains
+    state "Phase 3.5: 
+    note right of Phase3_5_
 
     Phase3_Wisdom --> Phase4_Coordinate
-    Phase3_5_Codex --> Phase4_Coordinate
+    Phase3_5_
 
     state "Phase 4: Coordination + CDD" as Phase4_Coordinate {
         [*] --> GoldmaskCoordinator
@@ -916,7 +915,7 @@ tmp/goldmask/{session_id}/
 ├── config-dependency.md   ← Phase 2: ConfigDependencyTracer
 ├── risk-map.json          ← Phase 1: LoreAnalyst
 ├── wisdom-report.md       ← Phase 3: WisdomSage
-├── risk-amplification.md  ← Phase 3.5: Codex (optional)
+├── risk-amplification.md  ← Phase 3.5: 
 ├── GOLDMASK.md            ← Phase 4: Coordinator (final report)
 └── findings.json          ← Phase 4: machine-readable findings
 ```
@@ -959,11 +958,11 @@ stateDiagram-v2
         Phase1_3_LoreLayer --> [*] : risk intelligence (optional)
     }
 
-    Phase1_Scope --> Phase1_5_CodexDrift
+    Phase1_Scope --> Phase1_5_
 
-    state "Phase 1.5: Codex Drift Detection" as Phase1_5_CodexDrift
-    note right of Phase1_5_CodexDrift : optional cross-model drift check
-    Phase1_5_CodexDrift --> Phase2_ForgeTeam
+    state "Phase 1.5: 
+    note right of Phase1_5_
+    Phase1_5_
 
     state "Phase 2: Forge Team" as Phase2_ForgeTeam {
         [*] --> CreateInscription
@@ -1116,7 +1115,7 @@ stateDiagram-v2
         note right of Advisory
             Goldmask data unavailable
             Linter detection failed
-            Codex verification skipped
+            
             → Proceed unchanged
         end note
 

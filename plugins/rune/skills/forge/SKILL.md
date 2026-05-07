@@ -31,7 +31,7 @@ allowed-tools:
 
 Deepens an existing plan with Forge Gaze topic-aware enrichment. Each plan section is matched to specialized agents who provide expert perspectives. Enrichments are written back into the plan via Edit (not overwrite).
 
-**Load skills**: `roundtable-circle`, `context-weaving`, `rune-echoes`, `rune-orchestration`, `elicitation`, `codex-cli`, `team-sdk`, `polling-guard`, `zsh-compat`
+**Load skills**: `roundtable-circle`, `context-weaving`, `rune-echoes`, `rune-orchestration`, `elicitation`, `team-sdk`, `polling-guard`, `zsh-compat`
 
 ## ANCHOR — TRUTHBINDING PROTOCOL
 
@@ -71,8 +71,6 @@ Phase 1.3: Extract File References (parse plan for code paths)
 Phase 1.5: Lore Layer (risk scoring on referenced files — Goldmask)
     |
 Phase 1.6: MCP Integration Resolution (resolve active tools for forge phase)
-    |
-Phase 1.7: Codex Section Validation (coverage gap check, v1.51.0+)
     |
 Phase 1.8: Design Reference Context (conditional — design_sync gate)
     |
@@ -143,7 +141,7 @@ Resolve active MCP tool integrations for the forge phase. Computed once here and
 See [mcp-integration.md](../strive/references/mcp-integration.md) for the shared resolver algorithm.
 
 ```javascript
-// After Lore Layer, before Codex validation
+// After Lore Layer
 const mcpIntegrations = resolveMCPIntegrations("forge", {
   changedFiles: uniqueFiles,  // File refs extracted in Phase 1.3
   taskDescription: planContent
@@ -154,14 +152,6 @@ const mcpContextBlock = buildMCPContextBlock(mcpIntegrations)
 ```
 
 **Skip condition**: If `resolveMCPIntegrations` returns empty array, `mcpContextBlock` is `""` and no injection occurs in Phase 4.
-
-## Phase 1.7: Codex Section Validation (v1.51.0+)
-
-After Lore Layer risk scoring, validate enrichment coverage cross-model. Identifies plan sections that reference high-risk files but have no Forge Gaze agent match. Produces a `forceIncludeList` consumed by Phase 2.
-
-**Skip conditions**: Codex unavailable, `codex.disabled`, `codex.section_validation.enabled === false`, `forge` not in `codex.workflows`, or `sections.length <= 5`.
-
-See [codex-section-validation.md](references/codex-section-validation.md) for the full protocol — 4-condition gate, nonce-bounded prompt, force-include list parsing, and SEC-003 compliance.
 
 ## Phase 1.8: Design Reference Context (conditional)
 
@@ -346,9 +336,9 @@ When you discover new component requirements during enrichment, emit:
 
 ## Phase 2: Forge Gaze Selection
 
-Apply the Forge Gaze topic-matching algorithm with force-include from Phase 1.7 and risk-weighted scoring from Goldmask Lore Layer. Boosts CRITICAL files by +0.15 and HIGH files by +0.08.
+Apply the Forge Gaze topic-matching algorithm with risk-weighted scoring from Goldmask Lore Layer. Boosts CRITICAL files by +0.15 and HIGH files by +0.08.
 
-See [forge-gaze-selection.md](references/forge-gaze-selection.md) for the full protocol — mode selection, force-include application, risk-weighted scoring, and Codex Oracle participation.
+See [forge-gaze-selection.md](references/forge-gaze-selection.md) for the full protocol — mode selection, risk-weighted scoring, and topic matching.
 
 See also [forge-gaze.md](../roundtable-circle/references/forge-gaze.md) for the base topic-matching algorithm.
 

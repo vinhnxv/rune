@@ -4,7 +4,7 @@
 # Reduces per-phase token cost from ~1,200 to ~50-100 tokens (94% reduction).
 #
 # Merge order: defaults <- global <- project (project wins)
-# Output: tmp/.talisman-resolved/{arc,codex,review,...,pr_comment,discipline,_meta}.json (16 files)
+# Output: tmp/.talisman-resolved/{arc,review,...,pr_comment,discipline,_meta}.json (15 files)
 #
 # Hook events: SessionStart (startup|resume)
 # Timeout budget: <2 seconds (5s hard limit)
@@ -112,7 +112,7 @@ fi
 
 # ── Canonical shard name list (used by both fast-path check and write loop) ──
 # BACK-001 FIX: Single source of truth — prevents drift between fast-path and write loop
-SHARD_NAMES=("arc" "codex" "review" "work" "goldmask" "plan" "gates" "settings" "inspect" "testing" "audit" "ux" "misc" "keyword_detection" "tool_failure_tracking" "deliverable_verification" "context_stop_guard" "pr_comment" "discipline" "reactions" "brand")
+SHARD_NAMES=("arc" "review" "work" "goldmask" "plan" "gates" "settings" "inspect" "testing" "audit" "ux" "misc" "keyword_detection" "tool_failure_tracking" "deliverable_verification" "context_stop_guard" "pr_comment" "discipline" "reactions" "brand")
 
 # ── Guard: defaults file must exist and not be a symlink ──
 # SEC-004 FIX: Add symlink check to prevent symlink-based content injection
@@ -478,7 +478,6 @@ all_shards=$(echo "$merged" | jq '{
     quick: .arc.quick,
     state_file: .arc.state_file
   },
-  codex: (.codex // {}),
   review: (.review // {}),
   work: (.work // {}),
   goldmask: (.goldmask // {}),
@@ -516,7 +515,6 @@ all_shards=$(echo "$merged" | jq '{
     question_relay: (.question_relay // {}),
     context_monitor: (.context_monitor // {}),
     context_weaving: (.context_weaving // {}),
-    codex_review: (.codex_review // {}),
     teammate_lifecycle: (.teammate_lifecycle // {}),
     inner_flame: (.inner_flame // {}),
     solution_arena: (.solution_arena // {}),

@@ -123,7 +123,7 @@ else
 fi
 
 # Verify key shards exist in system dir
-for shard in arc codex review work settings; do
+for shard in arc review work settings; do
   TOTAL_COUNT=$(( TOTAL_COUNT + 1 ))
   if [[ -f "$SHARD_DIR/${shard}.json" ]]; then
     PASS_COUNT=$(( PASS_COUNT + 1 ))
@@ -156,8 +156,6 @@ version: "1.0"
 cost_tier: "efficient"
 review:
   max_ashes: 5
-codex:
-  enabled: true
 YAML
 
 # Project talisman exists → shards go to project-level dir
@@ -356,9 +354,6 @@ ashes:
 YAML
 
 cat > "$MOCK_CWD/.rune/talisman.integrations.yml" <<YAML
-codex:
-  enabled: true
-  model: o3
 YAML
 
 SHARD_DIR="$MOCK_CWD/tmp/.talisman-resolved"
@@ -375,18 +370,10 @@ python3 -c "import yaml" 2>/dev/null && _has_yaml_parser=true
 if [[ "$_has_yaml_parser" != "true" ]]; then
   PASS_COUNT=$(( PASS_COUNT + 1 ))
   printf "  PASS: Companion merge SKIPPED (no YAML parser)\n"
-elif [[ -f "$SHARD_DIR/codex.json" ]]; then
-  codex_enabled=$(python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get("enabled",""))' < "$SHARD_DIR/codex.json" 2>/dev/null || echo "")
-  if [[ "$codex_enabled" == "True" || "$codex_enabled" == "true" ]]; then
-    PASS_COUNT=$(( PASS_COUNT + 1 ))
-    printf "  PASS: Integrations companion (codex.enabled=true) merged into codex shard\n"
-  else
-    FAIL_COUNT=$(( FAIL_COUNT + 1 ))
-    printf "  FAIL: Integrations companion not merged (codex.enabled=%s)\n" "$codex_enabled"
-  fi
+
 else
   FAIL_COUNT=$(( FAIL_COUNT + 1 ))
-  printf "  FAIL: codex.json shard missing after companion merge\n"
+  printf "  FAIL: companion merge produced no shard\n"
 fi
 
 # Verify _meta.json records companion sources

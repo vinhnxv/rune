@@ -42,7 +42,6 @@ Tài liệu liên quan:
 - Dự trù token đủ lớn cho workflow multi-agent.
 
 ### Tùy chọn
-- `codex` CLI cho các pha cross-model.
 - `.rune/talisman.yml` để chỉnh timeout, bot review, merge behavior, test policy.
 
 ---
@@ -98,7 +97,6 @@ Arc pre-flight sẽ kiểm tra:
 ### 4.4 Arc chạy những gì
 Arc chạy pipeline theo phase, gồm:
 - Plan readiness: Forge, Plan Review, Plan Refinement, Verification, Semantic Verification, Design Extraction, Task Decomposition.
-- Implementation quality: Work, Design Verification, Gap Analysis, Codex Gap Analysis, Gap Remediation, Goldmask Verification.
 - Convergence: Code Review (--deep), Goldmask Correlation, Mend, Verify Mend, Design Iteration loop.
 - Delivery: Test (3 tầng: unit/integration/E2E), Test Coverage Critique, Pre-Ship Validation, Release Quality Check, Ship, Bot Review Wait, PR Comment Resolution, Merge.
 

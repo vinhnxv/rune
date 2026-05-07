@@ -81,7 +81,6 @@ const TRUSTED_BOTS = new Set([
   "coderabbitai[bot]",
   "copilot[bot]",
   "cubic-dev-ai[bot]",
-  "chatgpt-codex-connector[bot]",
   "github-actions[bot]",
   "dependabot[bot]",
   "renovate[bot]",

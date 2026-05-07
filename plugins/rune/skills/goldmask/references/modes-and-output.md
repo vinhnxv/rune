@@ -34,7 +34,6 @@ tmp/goldmask/{session_id}/
 +-- config-dependency.md
 +-- risk-map.json
 +-- wisdom-report.md
-+-- risk-amplification.md  (Codex Phase 3.5, v1.51.0+)
 +-- GOLDMASK.md
 +-- findings.json
 ```

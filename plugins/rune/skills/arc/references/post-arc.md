@@ -118,10 +118,8 @@ Phases:
   2.   PLAN REVIEW:     {status} — plan-review.md ({verdict})
   2.5  PLAN REFINEMENT: {status} — {concerns_count} concerns extracted
   2.7  VERIFICATION:    {status} — {issues_count} issues
-  2.8  SEMANTIC VERIFY: {status} — codex-semantic-verification.md
   5.   WORK:            {status} — {tasks_completed}/{tasks_total} tasks
   5.5  GAP ANALYSIS:    {status} — {addressed}/{total} criteria addressed
-  5.6  CODEX GAP:       {status} — codex-gap-analysis.md
   5.8  GAP REMEDIATION: {status} — gap-remediation-report.md ({fixed_count} fixed, {deferred_count} deferred)
   5.7  GOLDMASK VERIFY: {status} — goldmask-verification.md ({finding_count} findings, {critical_count} critical)
   6.   CODE REVIEW:     {status} — tome.md ({finding_count} findings)

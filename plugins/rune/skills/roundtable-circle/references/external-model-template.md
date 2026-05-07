@@ -8,7 +8,7 @@
 > | Variable | Source | Default |
 > |----------|--------|---------|
 > | `{cli_binary}` | `ashes.custom[].cli` | — |
-> | `{model_name}` | `ashes.custom[].model` | — | <!-- Note: codex-oracle uses {codex_model} (domain-prefixed). This template uses generic naming for multi-CLI portability. -->
+> | `{model_name}` | `ashes.custom[].model` | — | 
 > | `{finding_prefix}` | `ashes.custom[].finding_prefix` | — |
 > | `{output_format}` | `ashes.custom[].output_format` | — |
 > | `{ignore_file}` | `ashes.custom[].ignore_file` | (empty) |
@@ -206,7 +206,6 @@ SEAL: {
 
 - [Custom Ashes](../custom-ashes.md) — CLI-backed Ash schema
 - [Security Patterns](../security-patterns.md) — CLI_BINARY_PATTERN, MODEL_NAME_PATTERN, sanitizePlanContent()
-- [Codex Detection](../codex-detection.md) — detectExternalModel() algorithm
 - [Dedup Runes](../dedup-runes.md) — External model prefix positioning
 
 ## Communication Protocol

@@ -34,7 +34,7 @@ Cách nhanh nhất để có talisman cấu hình đúng là dùng skill `/rune:
 /rune:talisman update
 
 # Tìm hiểu về từng section cấu hình
-/rune:talisman guide codex
+/rune:talisman guide 
 /rune:talisman guide arc
 /rune:talisman guide review
 
@@ -58,7 +58,6 @@ Khi `talisman.yml` lớn lên, bạn có thể tách thành **3 file companion**
 |------|------|---------------|
 | `.rune/talisman.yml` | Config runtime chính (rune-gaze, review, work, arc, testing, v.v.) | Hầu hết người dùng |
 | `.rune/talisman.ashes.yml` | Định nghĩa agent tùy chỉnh (ashes, user_agents, extra_agent_dirs) | Tác giả agent |
-| `.rune/talisman.integrations.yml` | Công cụ bên ngoài (codex, elicitation, echoes, evidence, v.v.) | Power users |
 
 ```bash
 # Tách talisman.yml thành 3 file
@@ -393,32 +392,6 @@ Tuỳ chọn nâng cao (opt-in):
 
 ---
 
-## 11. Codex Oracle (Xác minh đa model)
-
-```yaml
-codex:
-  disabled: false              # Kill switch
-  model: "gpt-5.3-codex"
-  reasoning: "xhigh"          # xhigh | high | medium | low
-  timeout: 600                 # Timeout ngoài (giây)
-  stream_idle_timeout: 540     # Timeout idle trong
-
-  # QUAN TRỌNG: bao gồm "arc" để Codex chạy trong các phase arc (v1.87.0+)
-  workflows: [review, audit, plan, forge, work, mend, goldmask, inspect, arc]
-
-  # 17 điểm xác minh inline (v1.51.0+, mở rộng v1.87.0+)
-  diff_verification:
-    enabled: true              # So khớp findings P1/P2 với diff hunks
-  test_coverage_critique:
-    enabled: true              # Phát hiện gaps coverage test
-  section_validation:
-    enabled: true              # Kiểm tra coverage section plan
-  task_decomposition:
-    enabled: true              # Kiểm tra độ chi tiết task
-```
-
----
-
 ## 12. Biến môi trường Platform
 
 Đặt trong `.claude/settings.json` (không phải talisman):
@@ -554,7 +527,6 @@ context_weaving:
 | `work` | Ward commands, workers, branch | 3 workers |
 | `testing` | Test 3 tầng | Tất cả bật |
 | `goldmask` | Impact analysis theo workflow | Tất cả enabled |
-| `codex` | Cross-model verification (17 điểm) | Tự detect |
 | `elicitation` | Structured reasoning | Enabled |
 | `echoes` | Bộ nhớ agent | FTS enabled |
 | `mend` | Giải quyết finding song song | 3 batch, 5/fixer |

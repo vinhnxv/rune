@@ -6,7 +6,7 @@
 
 Each review agent is embedded as a "perspective" inside an Ash. This registry defines which perspectives belong to which Ash, what file scopes they target, and which wave they execute in.
 
-> **Architecture note:** Forge Warden, Ward Sentinel, Pattern Weaver, and Veil Piercer embed dedicated review agent files from `agents/review/` (21 agents across 4 Ashes). Glyph Scribe, Knowledge Keeper, and Codex Oracle use **inline perspective definitions** in their Ash prompts rather than dedicated agent files.
+> **Architecture note:** Forge Warden, Ward Sentinel, Pattern Weaver, and Veil Piercer embed dedicated review agent files from `agents/review/` (21 agents across 4 Ashes). Glyph Scribe and Knowledge Keeper use **inline perspective definitions** in their Ash prompts rather than dedicated agent files.
 
 ### Wave & Depth Fields
 
@@ -97,23 +97,6 @@ Each Ash entry carries two scheduling fields used by [wave-scheduling.md](wave-s
 **Audit file priority:** README > CLAUDE.md > docs/ > other .md files
 **Context budget:** max 25 files
 
-### Codex Oracle (Cross-Model)
-
-**Wave:** 1 | **Deep only:** false
-
-> **External CLI** — Codex Oracle invokes `codex exec` via Bash, unlike other Ashes which use Claude Code tools directly. Auto-detected, conditionally summoned. Uses **inline perspective definitions** (like Glyph Scribe and Knowledge Keeper).
-
-| Perspective (inline) | Focus | Scope Priority |
-|----------------------|-------|---------------|
-| Cross-model security | Issues that Claude Ashes might miss | Auth files > API routes > infrastructure |
-| Cross-model logic | Edge cases, concurrency, error handling | Business logic > data transformations |
-| Cross-model quality | Duplication, API design, validation gaps | All file types |
-
-**Activation:** `command -v codex` returns 0 AND `talisman.codex.disabled` is not true
-**Audit file priority:** new files > modified files > high-risk files > other
-**Context budget:** max 20 files (configurable via talisman)
-**Finding prefix:** `CDX`
-
 ### Veil Piercer (Truth-Telling)
 
 **Wave:** 1 | **Deep only:** false
@@ -195,7 +178,6 @@ Some files may be reviewed by multiple Ash:
 | `Dockerfile` | Ward Sentinel + Forge Warden |
 | CI/CD configs | Ward Sentinel + Pattern Weaver |
 | Test files | Pattern Weaver + Forge Warden |
-| ALL files (when codex available) | Codex Oracle (cross-model perspective) |
 | ALL files | Veil Piercer (truth-telling perspective) |
 
 This is intentional — different perspectives catch different issues.
@@ -212,7 +194,6 @@ When `/rune:audit --focus <area>` is used, only summon the relevant Ash(s):
 | `frontend` | Glyph Scribe only |
 | `docs` | Knowledge Keeper only |
 | `backend` | Forge Warden + Ward Sentinel |
-| `cross-model` | Codex Oracle only |
 | `truth` | Veil Piercer only |
 | `full` | All (default) |
 
@@ -221,17 +202,15 @@ Focus mode increases context budget per Ash since fewer are competing for resour
 ### CLI-Backed Ashes (External Model, v1.57.0+)
 
 > **External CLI** — CLI-backed Ashes invoke external model CLIs (e.g., `gemini`, `llama`) via Bash,
-> similar to Codex Oracle. Defined in `ashes.custom[]` with `cli:` field. Auto-detected via
+> Defined in `ashes.custom[]` with `cli:` field. Auto-detected via
 > `detectExternalModel()`, conditionally summoned. Uses the parameterized
 > [external-model-template.md](../../roundtable-circle/references/external-model-template.md) prompt.
 
 | Aspect | Description |
 |--------|-------------|
 | **Activation** | `detectExternalModel()` succeeds AND workflow matches config |
-| **Sub-cap** | `max_cli_ashes` (default: 2) — separate from Codex Oracle gate |
 | **Context budget** | From `ashes.custom[].context_budget` (configurable per entry) |
 | **Finding prefix** | From `ashes.custom[].finding_prefix` (2-5 uppercase chars) |
-| **Dedup position** | Below CDX in default hierarchy; built-in prefixes always precede |
 | **Prompt template** | `skills/roundtable-circle/references/external-model-template.md` (parameterized) |
 
 **Example entry (from talisman.yml):**
@@ -295,7 +274,6 @@ Quick reference for wave assignments across all Ashes. See [wave-scheduling.md](
 | Veil Piercer | 1 | false | VEIL | No (always) |
 | Glyph Scribe | 1 | false | FRONT | Yes (frontend files) |
 | Knowledge Keeper | 1 | false | DOC | Yes (docs >= 10 lines) |
-| Codex Oracle | 1 | false | CDX | Yes (codex CLI available) |
 | design-implementation-reviewer | 1 | false | DES | Yes (design_review.enabled + design_sync.enabled + frontend files) |
 | rot-seeker | 2 | true | DEBT | No (all deep) |
 | strand-tracer | 2 | true | INTG | No (all deep) |

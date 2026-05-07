@@ -89,7 +89,6 @@ Related guides:
 | Command | Stops |
 |---------|-------|
 | `/rune:cancel-review` | Active review session |
-| `/rune:cancel-codex-review` | Active codex-review session |
 | `/rune:cancel-audit` | Active audit session |
 | `/rune:cancel-arc` | Active arc pipeline |
 | `/rune:cancel-arc-batch` | Active arc-batch loop |

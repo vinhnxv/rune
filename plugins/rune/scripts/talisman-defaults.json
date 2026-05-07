@@ -59,9 +59,9 @@
       "_comment": "Phase-loop state file integrity subsystem. Bash-driven creation (mktemp + mv -f), PostToolUse auto-recovery, Stop-hook watchdog, heartbeat mtime refresh, pending-phase-gated deletion, integrity log. All writes are unconditional since v2.56.0 (canary removed).",
       "stale_multiplier": 3,
       "heartbeat_interval_sec": 60,
-      "_note_retention_env_only": "Integrity-log retention is env-var-only: RUNE_ARC_INTEG_LOG_MAX_BYTES (default 5242880) and RUNE_ARC_INTEGRITY_LOG_MAX_ARCHIVES (default 5). Keys intentionally absent from this shard — no code consumer reads them.",
-      "_note_flag_lifetime_deferred": "`flag_lifetime` key intentionally absent — per-call flag reads mean mid-arc flips take effect immediately. R24 (mid-arc consistency) remains an open risk until arc-start snapshot semantics ship in a follow-up.",
-      "_note_siblings_removed": "VEIL-002: siblings.* block removed — no code consumer. Restore when arc_state_recover gates on siblings.$kind"
+      "_note_retention_env_only": "Integrity-log retention is env-var-only: RUNE_ARC_INTEG_LOG_MAX_BYTES (default 5242880) and RUNE_ARC_INTEGRITY_LOG_MAX_ARCHIVES (default 5). Keys intentionally absent from this shard \u2014 no code consumer reads them.",
+      "_note_flag_lifetime_deferred": "`flag_lifetime` key intentionally absent \u2014 per-call flag reads mean mid-arc flips take effect immediately. R24 (mid-arc consistency) remains an open risk until arc-start snapshot semantics ship in a follow-up.",
+      "_note_siblings_removed": "VEIL-002: siblings.* block removed \u2014 no code consumer. Restore when arc_state_recover gates on siblings.$kind"
     },
     "ship": {
       "auto_merge": false,
@@ -95,7 +95,6 @@
       "audit": 1200000,
       "bot_review_wait": 900000,
       "code_review": 900000,
-      "codex_gap_analysis": 660000,
       "forge": 900000,
       "gap_analysis": 720000,
       "gap_remediation": 900000,
@@ -239,151 +238,6 @@
     "guidelines": null,
     "typography": {},
     "voice": null
-  },
-  "codex": {
-    "architecture_review": {
-      "enabled": false,
-      "reasoning": "xhigh",
-      "timeout": 600
-    },
-    "arena": {
-      "cross_model_bonus": 0.15,
-      "enabled": true,
-      "role": "judge",
-      "timeout": 300
-    },
-    "confidence_threshold": 80,
-    "context_budget": 20,
-    "diff_verification": {
-      "enabled": true,
-      "reasoning": "high",
-      "timeout": 300
-    },
-    "disabled": false,
-    "drift_detection": {
-      "enabled": false,
-      "reasoning": "xhigh",
-      "timeout": 600
-    },
-    "echo_validation": {
-      "enabled": true,
-      "reasoning": "xhigh",
-      "timeout": 300
-    },
-    "elicitation": {
-      "enabled": true,
-      "methods": [],
-      "timeout": 300
-    },
-    "gap_analysis": {
-      "enabled": true,
-      "timeout": 600
-    },
-    "mend_verification": {
-      "enabled": true,
-      "max_diff_size": 15000
-    },
-    "model": "gpt-5.3-codex",
-    "post_monitor_critique": {
-      "enabled": false,
-      "reasoning": "high",
-      "timeout": 300
-    },
-    "reasoning": "xhigh",
-    "release_quality_check": {
-      "enabled": true,
-      "reasoning": "high",
-      "timeout": 300
-    },
-    "research_tiebreaker": {
-      "enabled": true,
-      "reasoning": "high",
-      "timeout": 300
-    },
-    "review_diff": {
-      "context_lines": 5,
-      "enabled": true,
-      "include_new_files_full": true,
-      "max_diff_size": 15000
-    },
-    "risk_amplification": {
-      "enabled": false,
-      "reasoning": "xhigh",
-      "timeout": 600
-    },
-    "rune_smith": {
-      "confidence_threshold": 90,
-      "enabled": false,
-      "min_diff_size": 100,
-      "reasoning": "xhigh",
-      "timeout": 300
-    },
-    "sandbox": "read-only",
-    "section_validation": {
-      "enabled": true,
-      "reasoning": "medium",
-      "timeout": 300
-    },
-    "semantic_verification": {
-      "enabled": true,
-      "reasoning": "xhigh",
-      "timeout": 300
-    },
-    "shatter": {
-      "enabled": true,
-      "weight": 0.3
-    },
-    "stream_idle_timeout": 540,
-    "task_decomposition": {
-      "enabled": true,
-      "reasoning": "high",
-      "timeout": 300
-    },
-    "test_coverage_critique": {
-      "enabled": true,
-      "reasoning": "xhigh",
-      "timeout": 600
-    },
-    "timeout": 600,
-    "trial_forger": {
-      "enabled": true,
-      "reasoning": "xhigh",
-      "timeout": 300
-    },
-    "verification": {
-      "cross_model_bonus": 0.15,
-      "enabled": true,
-      "fuzzy_match_threshold": 0.7
-    },
-    "work_advisory": {
-      "enabled": true,
-      "max_diff_size": 15000
-    },
-    "workflows": [
-      "review",
-      "audit",
-      "plan",
-      "forge",
-      "work",
-      "mend",
-      "goldmask",
-      "inspect",
-      "arc"
-    ]
-  },
-  "codex_review": {
-    "confidence_threshold": 80,
-    "cross_model_bonus": 15,
-    "disabled": false,
-    "focus_areas": [
-      "security",
-      "bugs",
-      "performance",
-      "quality",
-      "dead-code"
-    ],
-    "max_agents": 6,
-    "timeout": 600000
   },
   "context_monitor": {
     "caution_threshold": 40,
@@ -698,7 +552,7 @@
     },
     "plan_review_block": {
       "action": "halt",
-      "message": "Plan review blocked — critical issues found",
+      "message": "Plan review blocked \u2014 critical issues found",
       "retries": 0
     },
     "qa_gate_failed": {

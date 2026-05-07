@@ -1026,30 +1026,6 @@ For a typical review with 20 findings across 10 files, total verification time i
 
 Layer 0 inline checks + Layer 2 verifier. See roundtable-circle SKILL.md for the protocol.
 
-### Phase 6.2: Codex Diff Verification (Layer 3)
-
-Cross-model verification of P1/P2 findings against actual diff hunks. Runs after Layer 2 (Smart Verifier).
-
-- **Gate**: 4-condition canonical pattern — `codexAvailable && !codexDisabled && diffVerifyEnabled && workflowIncluded("review" OR "audit")`
-- **Input**: Up to 3 P1/P2 findings from `truthsight-report.md` (fallback: TOME.md if Layer 2 skipped)
-- **Output**: `{outputDir}codex-diff-verification.md` (CDX-VERIFY prefix)
-- **Verdicts**: CONFIRMED (+0.15 confidence), WEAKENED (no change), REFUTED (demote to P3)
-- **Config**: `codex.diff_verification.enabled` (default: true), timeout 300s, reasoning "high"
-
-See roundtable-circle SKILL.md Phase 6.2 for full pseudocode.
-
-### Phase 6.3: Codex Architecture Review (Audit Mode Only)
-
-Cross-model analysis of TOME findings for cross-cutting architectural patterns. Only runs when `scope=full` (audit mode).
-
-- **Gate**: 5-condition — canonical 4-condition + `scope === "full"` (audit only, NOT appraise)
-- **Input**: TOME.md aggregate (truncated to 20K chars)
-- **Output**: `{outputDir}architecture-review.md` (CDX-ARCH prefix)
-- **Focus**: Naming drift, layering violations, error handling inconsistency
-- **Config**: `codex.architecture_review.enabled` (default: false — opt-in), timeout 600s, reasoning "xhigh"
-
-See roundtable-circle SKILL.md Phase 6.3 for full pseudocode.
-
 ## Phase 7: Cleanup
 
 ```javascript
@@ -1080,7 +1056,7 @@ try {
     // Static: all possible built-in Ashes
     // CLEAN-006 FIX: "pattern-weaver" → "pattern-seer" (correct registered name)
     "forge-warden", "ward-sentinel", "pattern-seer", "veil-piercer",
-    "glyph-scribe", "knowledge-keeper", "codex-oracle",
+    "glyph-scribe", "knowledge-keeper",
     // Aggregation + verification
     "runebinder", "doubt-seer",
     // Deep-mode agents (--deep: Wave 2 investigators + deep aggregation)

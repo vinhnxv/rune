@@ -103,7 +103,6 @@ settings:
     - DOC          # Knowledge Keeper
     - QUAL         # Pattern Weaver
     - FRONT        # Glyph Scribe
-    - CDX          # Codex Oracle (thấp nhất)
 ```
 
 ---
@@ -174,7 +173,6 @@ ashes:
 
 ### Ràng buộc
 
-- **Sub-cap**: Giới hạn bởi `settings.max_cli_ashes` (mặc định: 2). Codex Oracle KHÔNG tính vào.
 - **Bảo mật**: Binary name phải khớp `CLI_BINARY_PATTERN`.
 - **Chống hallucination**: Tất cả CLI Ashes có guard 4 bước.
 - CLI binary phải được cài và xác thực riêng. Rune KHÔNG quản lý API key cho model bên ngoài.
@@ -351,7 +349,6 @@ settings:
     - DOC
     - QUAL
     - FRONT
-    - CDX
 ```
 
 ---
@@ -361,7 +358,6 @@ settings:
 | Ràng buộc | Giá trị | Ghi chú |
 |----------|---------|---------|
 | Max tổng Ashes | `settings.max_ashes` (mặc định 9) | Gồm built-in + custom |
-| Max CLI Ashes | `settings.max_cli_ashes` (mặc định 2) | Codex Oracle không tính |
 | Context budget mỗi Ash | `context_budget` (mặc định 20 file) | Cao hơn = nhiều token hơn |
 | Finding prefix | 2-5 ký tự viết hoa | Phải duy nhất |
 | Agent prompt | < 500 dòng | Chuyển chi tiết sang file phụ |

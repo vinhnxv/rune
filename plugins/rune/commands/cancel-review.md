@@ -122,7 +122,7 @@ try {
 } catch (e) {
   // FALLBACK: all possible appraise agents (safe to send shutdown to absent members)
   allMembers = ["forge-warden", "ward-sentinel", "pattern-weaver", "veil-piercer",
-    "glyph-scribe", "knowledge-keeper", "codex-oracle", "runebinder", "doubt-seer",
+    "glyph-scribe", "knowledge-keeper", "runebinder", "doubt-seer",
     "ux-heuristic-reviewer", "ux-flow-validator", "ux-interaction-auditor", "ux-cognitive-walker",
     "design-implementation-reviewer", "shard-reviewer-a", "shard-reviewer-b", "shard-reviewer-c",
     "shard-reviewer-d", "shard-reviewer-e", "elicitation-sage-security-1", "elicitation-sage-security-2"]

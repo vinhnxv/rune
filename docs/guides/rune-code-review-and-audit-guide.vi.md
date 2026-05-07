@@ -49,7 +49,6 @@ Các hướng dẫn liên quan:
 - Đủ token budget — mỗi workflow khởi tạo nhiều agent, mỗi agent có context window riêng.
 
 ### Tùy chọn
-- `codex` CLI cho cross-model verification (Codex Oracle tham gia review).
 - `.rune/talisman.yml` để tinh chỉnh timeout, Ash, và custom reviewer.
 
 ---
@@ -267,10 +266,8 @@ Hoặc dùng flag tích hợp:
 Cho các thay đổi quan trọng, lấy ý kiến thứ hai từ model độc lập:
 
 ```bash
-/rune:codex-review
+/rune:
 ```
-
-Chạy Claude và OpenAI Codex reviewer song song, kiểm tra chéo phát hiện, và hợp nhất vấn đề đồng thuận thành TOME thống nhất. Cần cài `codex` CLI.
 
 ### Chu trình đầy đủ trong arc
 
@@ -365,10 +362,10 @@ Phân bổ công việc audit qua nhiều session mà không quét lại file đ
 /rune:mend tmp/audit/{id}/TOME.md                  # Sửa kết quả audit
 
 # Review cross-model
-/rune:codex-review                                 # Claude + Codex song song
+/rune:
 
 # Hủy
 /rune:cancel-review
 /rune:cancel-audit
-/rune:cancel-codex-review
+/rune:cancel-
 ```

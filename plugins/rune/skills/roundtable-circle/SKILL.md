@@ -58,8 +58,6 @@ Phase 5:   Aggregate       → Summon Runebinder → writes TOME.md (reads conde
 Phase 5.2: Citation Verify → Deterministic grep-based file:line verification (Tarnished-level)
 Phase 5.4: Todo Generation → Per-finding todo files from TOME (mandatory)
 Phase 6:   Verify          → Truthsight validation on P1 findings
-Phase 6.2: Diff Verify     → Codex cross-model P1/P2 verification (v1.51.0+)
-Phase 6.3: Arch Review     → Codex architecture review (audit mode only, v1.51.0+)
 Phase 7:   Cleanup         → Shutdown requests → approvals → TeamDelete
 ```
 
@@ -74,7 +72,6 @@ Phase 7:   Cleanup         → Shutdown requests → approvals → TeamDelete
 | **Glyph Scribe** | Frontend review | Frontend files changed | TypeScript safety, React performance, accessibility |
 | **Knowledge Keeper** | Docs review | Docs changed (>= 10 lines) | Accuracy, completeness, anti-injection |
 | **Flow Integrity Tracer** | Data flow review | 2+ stack layers in diff | Field phantoms, persistence gaps, roundtrip asymmetry |
-| **Codex Oracle** | Cross-model review | `codex` CLI available | Cross-model security, logic, quality (GPT-5.3-codex) |
 
 Plus **Runebinder** (utility) for aggregation in Phase 5.
 
@@ -88,9 +85,7 @@ Projects can register additional Ash from local agents, global agents, or other 
 - **Verified** by Truthsight (if `settings.verification.layer_2_custom_agents: true`)
 - **Aggregated** into TOME.md by Runebinder
 
-**Max total:** 8 built-in + up to 2 custom = 10 Ashes (configurable via `settings.max_ashes`). The cap exists because each Ash output (~10k tokens) consumes verifier context budget. Custom Ash ceiling: 2 (total max: 10 = 8 built-in + 2 custom). Increased from 5+3 in v1.17.0 to 6+2 in v1.18.0, then 7+2 in v1.43.0 (Veil Piercer), then 8+2 (Flow Integrity Tracer).
-
-**Migration note (v1.18.0):** Custom Ash ceiling reduced from 3 to 2 due to Codex Oracle addition. Projects using 3 custom Ashes should reduce to 2 or disable Codex Oracle via `talisman.codex.disabled: true`.
+**Max total:** 7 built-in + up to 2 custom = 9 Ashes (configurable via `settings.max_ashes`). The cap exists because each Ash output (~10k tokens) consumes verifier context budget.
 
 See [`custom-ashes.md`](references/custom-ashes.md) for full schema, wrapper prompt template, and examples.
 
@@ -106,15 +101,12 @@ tmp/reviews/{id}/
 ├── glyph-scribe.md          # Frontend review findings (if summoned)
 ├── knowledge-keeper.md      # Docs review findings (if summoned)
 ├── flow-integrity-tracer.md # Data flow review findings (if summoned)
-├── codex-oracle.md          # Cross-model review findings (if codex CLI available)
 ├── condensed/               # Pre-aggregated Ash outputs (Phase 5.0, when threshold exceeded)
 │   ├── forge-warden.md      #   Condensed: findings + assumptions + summary only
 │   ├── ward-sentinel.md     #   P1/P2 full, P3 truncated, N one-liner
 │   └── _compression-report.md  # Per-Ash compression metrics
 ├── TOME.md                  # Aggregated + deduplicated findings
-├── truthsight-report.md     # Verification results (if Layer 2 enabled)
-├── codex-diff-verification.md  # Codex diff verification (Phase 6.2, v1.51.0+)
-└── architecture-review.md   # Codex architecture review (Phase 6.3, audit only, v1.51.0+)
+└── truthsight-report.md     # Verification results (if Layer 2 enabled)
 ```
 
 ### Audit Mode
@@ -363,8 +355,6 @@ Three-layer verification when enabled in inscription.json:
 
 Layer 2 summon: 3+ Ashes (review) or 5+ Ashes (audit). Full spec: [Truthsight Pipeline](../rune-orchestration/references/truthsight-pipeline.md)
 
-**Phase 6.2** (Codex Diff Verification) and **Phase 6.3** (Codex Architecture Review, audit only): See [codex-verification-phases.md](references/codex-verification-phases.md).
-
 ## Phase 7: Cleanup
 
 1. **Dynamic member discovery** — read team config to find ALL teammates (fallback: Phase 1 selectedAsh list)
@@ -428,5 +418,4 @@ Partial results remain in `tmp/audit/{id}/`.
 - [Risk Tiers](references/risk-tiers.md) — 4-tier deterministic task classification (Grace/Ember/Rune/Elden)
 - [Sharded Review Path](references/sharded-review-path.md) — Phase 3 shard orchestration pseudocode (spawn, monitor, cross-shard)
 - [Pre-Aggregate](references/pre-aggregate.md) — Phase 5.0 extraction algorithm (threshold-gated, deterministic)
-- [Codex Verification Phases](references/codex-verification-phases.md) — Phase 6.2 diff verification + Phase 6.3 architecture review
 - Companion: `rune-orchestration` (patterns), `context-weaving` (Glyph Budget)

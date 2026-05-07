@@ -22,7 +22,6 @@ Wave assignments are derived from `circle-registry.md` entries. Each Ash has a `
 //   Wave 1: Core reviewers (always run first)
 //     - forge-warden, ward-sentinel, pattern-weaver, veil-piercer
 //     - glyph-scribe (conditional: frontend files), knowledge-keeper (conditional: docs)
-//     - codex-oracle (conditional: codex CLI available)
 //
 //   Wave 2: Deep investigation (deepOnly: true)
 //     - rot-seeker, strand-tracer, decree-auditor, fringe-watcher

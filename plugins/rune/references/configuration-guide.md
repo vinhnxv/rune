@@ -191,7 +191,6 @@ See [docs/guides/mcp-integration-spec.en.md](../../../docs/guides/mcp-integratio
 | `arc.timeouts.task_decomposition` | number | `180000` | Phase 4.5: Task decomposition (3 min) |
 | `arc.timeouts.work` | number | `2100000` | Phase 5: Work (35 min) |
 | `arc.timeouts.gap_analysis` | number | `720000` | Phase 5.5: Gap analysis (12 min) |
-| `arc.timeouts.codex_gap_analysis` | number | `660000` | Phase 5.6: Codex gap (11 min) |
 | `arc.timeouts.gap_remediation` | number | `900000` | Phase 5.8: Remediation (15 min) |
 | `arc.timeouts.goldmask_verification` | number | `900000` | Phase 5.9: Goldmask verify (15 min) |
 | `arc.timeouts.code_review` | number | `900000` | Phase 6: Code review (15 min) |
@@ -403,36 +402,6 @@ See [docs/guides/mcp-integration-spec.en.md](../../../docs/guides/mcp-integratio
 |-----|------|---------|-------------|
 | `state_weaver.enabled` | boolean | `true` | Kill switch — set false to disable state-weaver globally |
 
-### `codex` — Cross-Model Verification
-
-| Key | Type | Default | Description |
-|-----|------|---------|-------------|
-| `codex.disabled` | boolean | `false` | Kill switch |
-| `codex.model` | string | `"gpt-5.3-codex"` | Codex model |
-| `codex.reasoning` | string | `"xhigh"` | Reasoning effort |
-| `codex.sandbox` | string | `"read-only"` | Sandbox mode |
-| `codex.context_budget` | number | `20` | Max files per session |
-| `codex.confidence_threshold` | number | `80` | Min confidence % |
-| `codex.timeout` | number | `600` | GNU timeout (s) |
-| `codex.stream_idle_timeout` | number | `540` | Stream idle timeout (s) |
-| `codex.workflows` | string[] | `[review, audit, arc, ...]` | Active workflows |
-| `codex.work_advisory.enabled` | boolean | `true` | Work advisory |
-| `codex.review_diff.enabled` | boolean | `true` | Diff-focused review |
-| `codex.verification.enabled` | boolean | `true` | Cross-model verification |
-| `codex.diff_verification.enabled` | boolean | `true` | Appraise diff verify |
-| `codex.test_coverage_critique.enabled` | boolean | `true` | Test coverage gaps |
-| `codex.release_quality_check.enabled` | boolean | `true` | CHANGELOG validation |
-| `codex.section_validation.enabled` | boolean | `true` | Forge section check |
-| `codex.research_tiebreaker.enabled` | boolean | `true` | Conflict resolution |
-| `codex.task_decomposition.enabled` | boolean | `true` | Task granularity |
-| `codex.risk_amplification.enabled` | boolean | `false` | Risk chains (opt-in) |
-| `codex.drift_detection.enabled` | boolean | `false` | Drift detection (opt-in) |
-| `codex.architecture_review.enabled` | boolean | `false` | Architecture review (opt-in) |
-| `codex.post_monitor_critique.enabled` | boolean | `false` | Post-work critique (opt-in) |
-| `codex.gap_analysis.enabled` | boolean | `true` | Gap analysis |
-| `codex.gap_analysis.remediation_threshold` | number | `5` | Remediation trigger |
-| `codex.trial_forger.enabled` | boolean | `true` | Test generation |
-| `codex.rune_smith.enabled` | boolean | `false` | Implementation advisory |
 
 ### `context_monitor` — Token Usage Monitoring
 
@@ -543,39 +512,6 @@ forge:                                 # Forge Gaze selection overrides
   max_per_section: 3                   # Max agents per section (cap: 5)
   max_total_agents: 8                  # Max total agents (cap: 15)
 
-codex:                                 # Codex CLI integration (see codex-cli skill for full details)
-  disabled: false                      # Kill switch — skip Codex entirely
-  model: "gpt-5.3-codex"        # Model for codex exec
-  reasoning: "xhigh"                  # Reasoning effort (xhigh | high | medium | low)
-  timeout: 600                         # Outer GNU timeout in seconds for codex exec (default: 600, range: 300-3600)
-  stream_idle_timeout: 540             # Inner stream idle timeout — kills codex if no output for this duration (default: 540, range: 10-timeout)
-  workflows: [review, audit, plan, forge, work, mend, goldmask, inspect]  # Which pipelines use Codex
-  work_advisory:
-    enabled: true                      # Codex advisory in /rune:strive
-  gap_analysis:
-    remediation_threshold: 5           # Actionable Codex findings (MISSING/INCOMPLETE/DRIFT, excluding EXTRA) to trigger Phase 5.8 via Codex gate (default: 5, range: [1, 20] — RUIN-001 clamp)
-  # ── Codex Expansion (v1.51.0+) — 17 new inline cross-model verification points ──
-  diff_verification:                   # Appraise Phase 6.2 — 3-way verdict on P1/P2 findings vs diff hunks
-    enabled: true                      # ON by default (CDX-VERIFY prefix)
-  test_coverage_critique:              # Arc Phase 7.8 — test coverage gaps after test phase
-    enabled: true                      # ON by default (CDX-TEST prefix)
-  release_quality_check:               # Arc Phase 8.55 — CHANGELOG + breaking changes validation
-    enabled: true                      # ON by default (CDX-RELEASE prefix, advisory only)
-  section_validation:                  # Forge Phase 1.7 — plan section coverage check
-    enabled: true                      # ON by default (CDX-SECTION prefix)
-  research_tiebreaker:                 # Devise Phase 2.3.5 — conflict resolution (conditional)
-    enabled: true                      # ON by default, usually skips (CDX-TIEBREAKER tag)
-  task_decomposition:                  # Arc Phase 4.5 — task granularity + dependency validation
-    enabled: true                      # ON by default (CDX-TASK prefix)
-  risk_amplification:                  # Goldmask Phase 3.5 — 2nd/3rd-order risk chains
-    enabled: false                     # OFF — greenfield, opt-in (CDX-RISK prefix)
-  drift_detection:                     # Inspect Phase 1.5 — plan-vs-code semantic drift
-    enabled: false                     # OFF — greenfield, opt-in (CDX-INSPECT-DRIFT prefix)
-  architecture_review:                 # Audit Phase 6.3 — cross-cutting TOME analysis
-    enabled: false                     # OFF — audit-only niche (CDX-ARCH prefix)
-  post_monitor_critique:               # Strive Phase 3.7 — post-work architectural critique
-    enabled: false                     # OFF — limited actionability (CDX-ARCH-STRIVE prefix)
-
 solution_arena:
   enabled: true                    # Enable Arena phase in /rune:devise
   skip_for_types: ["fix"]          # Feature types that skip Arena
@@ -672,7 +608,7 @@ timeout wins. Rune controls layers 5-7 (application level). Layers 1-4 are platf
 | Layer | Mechanism | Default | Config | Rune Interaction |
 |-------|-----------|---------|--------|------------------|
 | 1 | Bash tool timeout | 2 min | `BASH_DEFAULT_TIMEOUT_MS` | Ward checks, test suites, build commands |
-| 2a | MCP connection | 10 sec | `MCP_TIMEOUT` | Context7 queries, Codex detection |
+| 2a | MCP connection | 10 sec | `MCP_TIMEOUT` | Context7 queries |
 | 2b | MCP tool invocation | 60 sec | `MCP_TOOL_TIMEOUT` | Per-tool call timeout |
 | 3 | Teammate heartbeat | 5 min | Not configurable (SDK hardcoded) | DC-3 Fading Ash detection aligns at 5 min |
 | 4 | SSE/API connection | ~5 min | Not configurable | Empty responses on long MCP calls |
@@ -768,10 +704,8 @@ Per-phase timeout values in milliseconds. Values are clamped to 10s–3600s rang
 | `plan_review` | number | 900000 | Phase 2: Plan review (15 min) |
 | `plan_refine` | number | 180000 | Phase 2.5: Plan refinement (3 min) |
 | `verification` | number | 30000 | Phase 2.7: Verification gate (30 sec) |
-| `semantic_verification` | number | 180000 | Phase 2.8: Codex semantic check (3 min) |
 | `work` | number | 2100000 | Phase 5: Work execution (35 min) |
 | `gap_analysis` | number | 60000 | Phase 5.5: Gap analysis (1 min) |
-| `codex_gap_analysis` | number | 660000 | Phase 5.6: Codex gap analysis (11 min) |
 | `code_review` | number | 900000 | Phase 6: Code review (15 min) |
 | `mend` | number | 1380000 | Phase 7: Mend (23 min) |
 | `verify_mend` | number | 240000 | Phase 7.5: Verify mend (4 min) |

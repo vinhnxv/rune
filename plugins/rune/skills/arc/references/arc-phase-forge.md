@@ -1,6 +1,6 @@
 # Phase 1: FORGE — Full Algorithm
 
-Invoke `/rune:forge` logic on the plan. Forge Gaze topic-aware enrichment with Codex Oracle and custom Ashes.
+Invoke `/rune:forge` logic on the plan. Forge Gaze topic-aware enrichment with custom Ashes.
 
 **Team**: `rune-forge-{timestamp}` (delegated to `/rune:forge` — manages its own TeamCreate/TeamDelete with guards)
 **Tools**: Forge agents receive read-only tools (Read, Glob, Grep, Write for own output file only)
@@ -14,7 +14,6 @@ Invoke `/rune:forge` logic on the plan. Forge Gaze topic-aware enrichment with C
 
 **Forge Gaze features** (all handled internally by `/rune:forge`):
 - Topic-to-agent matching: each plan section gets specialized agents based on keyword overlap scoring
-- Codex Oracle: conditional cross-model enrichment if `codex` CLI available and `forge` in `talisman.codex.workflows`
 - Custom Ashes: talisman.yml `ashes.custom` with `workflows: [forge]`
 - Enrichment Output Format: Best Practices, Performance, Implementation Details, Edge Cases, References
 
@@ -67,7 +66,7 @@ for (const sf of staleForgeFiles) {
 
 // STEP 2b: Delegate to /rune:forge
 // /rune:forge manages its own team lifecycle (TeamCreate, Forge Gaze agent selection,
-// section-level enrichment, Codex Oracle, custom Ashes, cleanup, TeamDelete).
+// section-level enrichment, custom Ashes, cleanup, TeamDelete).
 // Delegation pattern: /rune:forge creates its own team (e.g., rune-forge-{timestamp}).
 // Arc reads the team name from the forge state file after delegation returns.
 // NAMESPACE: MUST use "rune:forge" prefix — bare "forge" fails silently in plugin context.

@@ -297,7 +297,6 @@ Khi đã quen với workflow cơ bản, hãy khám phá các lệnh nâng cao:
 | Bổ sung chi tiết cho kế hoạch | `/rune:forge plans/...` |
 | Phân tích tác động thay đổi | `/rune:goldmask` |
 | Suy luận có cấu trúc (phân tích trade-off, v.v.) | `/rune:elicit` |
-| Review cross-model (Claude + Codex) | `/rune:codex-review` |
 | Test E2E trình duyệt độc lập | `/rune:test-browser` |
 | Debug song song đa giả thuyết | `/rune:debug` |
 | Trích xuất bài học từ session | `/rune:learn` |
@@ -340,7 +339,7 @@ Có! Dùng `/rune:test-browser` cho test E2E trình duyệt độc lập. Chạy
 Dùng `/rune:debug` — nó khởi tạo nhiều agent điều tra giả thuyết song song bằng phương pháp ACH (Analysis of Competing Hypotheses).
 
 **H: Tôi có thể lấy ý kiến thứ hai từ model AI khác không?**
-Có. `/rune:codex-review` chạy Claude và OpenAI Codex song song, kiểm tra chéo phát hiện, và hợp nhất các vấn đề đồng thuận thành TOME.
+Có.
 
 **H: Rune học được gì từ các session trước?**
 Dùng `/rune:learn` để trích xuất pattern sửa lỗi CLI và phát hiện review lặp lại từ lịch sử session. Chúng được lưu vào Rune Echoes cho các session sau.

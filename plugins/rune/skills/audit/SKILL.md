@@ -37,7 +37,7 @@ allowed-tools:
 
 Thin wrapper that sets audit-specific parameters, then delegates to the shared Roundtable Circle orchestration. Unlike `/rune:appraise` (which reviews changed files via git diff), `/rune:audit` scans the entire project.
 
-**Load skills**: `roundtable-circle`, `context-weaving`, `rune-echoes`, `rune-orchestration`, `codex-cli`, `team-sdk`, `polling-guard`, `zsh-compat`
+**Load skills**: `roundtable-circle`, `context-weaving`, `rune-echoes`, `rune-orchestration`, `team-sdk`, `polling-guard`, `zsh-compat`
 
 ## Flags
 
@@ -67,7 +67,7 @@ Thin wrapper that sets audit-specific parameters, then delegates to the shared R
 
 **Focus mode** selects only the relevant Ash (see [circle-registry.md](../roundtable-circle/references/circle-registry.md) for the mapping).
 
-**Max agents** reduces team size when context or cost is a concern. Priority order: Ward Sentinel > Forge Warden > Veil Piercer > Pattern Weaver > Glyph Scribe > Knowledge Keeper > Codex Oracle.
+**Max agents** reduces team size when context or cost is a concern. Priority order: Ward Sentinel > Forge Warden > Veil Piercer > Pattern Weaver > Glyph Scribe > Knowledge Keeper.
 
 **Conditional Ashes** (not counted in the 7 built-in cap — spawned only when gate conditions are met):
 - **flow-integrity-tracer** (FLOW- prefix): Data flow integrity verification across UI↔API↔DB layers. Gate: `talisman.data_flow.enabled` (default: true) AND 2+ stack layers detected in scanned files. See [circle-registry.md](../roundtable-circle/references/circle-registry.md) for the full conditional Ash registry.
@@ -136,9 +136,6 @@ After scanning files, check for custom Ash config:
 
 See [custom-ashes.md](../roundtable-circle/references/custom-ashes.md) for full schema and validation rules.
 
-### Detect Codex Oracle
-
-See [codex-detection.md](../roundtable-circle/references/codex-detection.md) for the canonical detection algorithm.
 
 ## Phase 0.45: Context Building (conditional)
 
@@ -298,9 +295,6 @@ See [incremental-writeback.md](references/incremental-writeback.md) for the full
 | Concurrent audit running | Warn, offer to cancel previous |
 | File count exceeds 150 | Warn about partial coverage, proceed with capped budgets |
 | Not a git repo | Works fine — audit uses `find`, not `git diff`. Incremental degrades to mtime-based scoring. |
-| Codex CLI not installed | Skip Codex Oracle |
-| Codex not authenticated | Skip Codex Oracle |
-| Codex disabled in talisman.yml | Skip Codex Oracle |
 | State file corrupted | Rebuild from `history/` snapshots (see incremental-state-schema.md) |
 | State file locked (dead PID) | Detect dead PID via `kill -0`, remove stale lock, proceed |
 | Concurrent incremental sessions | Second session warns, falls back to full audit |

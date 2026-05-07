@@ -43,7 +43,6 @@ The protocol creates an epistemic boundary: agents form conclusions from code be
 |-------|------|-------------------|
 | **Layer 0** (inline) | During review | Inscription-driven quality gates on required sections |
 | **Layer 2** (Smart Verifier) | After review | Haiku-model semantic revalidation of high-priority findings |
-| **Phase 6.2** (Cross-model) | In arc pipeline | Codex cross-model verification of P1/P2 findings against actual diff hunks |
 
 Each layer includes a **4-step hallucination guard**: diff relevance → evidence quality → behavioral assessment → confidence calibration. Evidence-tagged Seal fields (`evidence_coverage`, `unproven_claims`) provide a quantitative trust signal.
 
@@ -106,7 +105,6 @@ Detection mechanism: `on-task-completed.sh` writes signal files to `tmp/.rune-si
 
 **Solution**: A priority-based deduplication system:
 - Each Ash uses a unique 2-5 character **finding prefix** (e.g., SEC, BACK, QUAL)
-- A configurable hierarchy defines which prefix wins on conflict: `SEC > BACK > VEIL > DOUBT > DOC > QUAL > FRONT > CDX`
 - **5-line proximity window**: If two Ashes report findings within 5 lines of each other in the same file, the higher-priority prefix wins
 - The losing Ash's confidence is preserved in an `also_flagged_by` annotation
 - Deep audit adds 12 additional prefixes (CORR, FAIL, DSEC, DEBT, etc.)
@@ -224,13 +222,12 @@ Phase 1     FORGE              — Research enrichment of plan
 Phase 2     PLAN REVIEW        — 3-reviewer circuit breaker
 Phase 2.5   REFINEMENT         — Concern extraction, orchestrator-only
 Phase 2.7   VERIFICATION       — Deterministic checks, zero LLM
-Phase 2.8   SEMANTIC CHECK     — Codex cross-model analysis
+Phase 2.8   SEMANTIC CHECK     — 
 Phase 3     DESIGN EXTRACT     — Figma/design context extraction
 Phase 4.5   TASK DECOMP        — Task granularity validation
 Phase 5     WORK               — Swarm implementation
 Phase 5.3   DESIGN VERIFY      — Design implementation verification
 Phase 5.5   GAP ANALYSIS       — Plan-to-code compliance (deterministic)
-Phase 5.6   CODEX GAP          — Cross-model gap detection
 Phase 5.8   GAP FIX            — Auto-remediation team
 Phase 5.9   GOLDMASK VERIFY    — Blast-radius verification
 Phase 6     CODE REVIEW        — Roundtable Circle (--deep)

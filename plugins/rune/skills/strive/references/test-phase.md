@@ -14,7 +14,6 @@ Phase 3.6: Mini Test Phase (lightweight verification)  ← NEW
     |   - Spawn strive-test-runner
     |   - Optional: strive-failure-analyst for RCA
     |
-Phase 3.7: Codex Post-monitor Critique
     |
 Phase 4: Quality Gates
 ```
@@ -460,7 +459,7 @@ ${uncoveredFiles.length > 0 ? `Uncovered implementation files: ${uncoveredFiles.
 
 ### Non-blocking Completion
 
-Regardless of test outcome, proceed to Phase 3.7 (Codex Critique) or Phase 4 (Quality Gates).
+Regardless of test outcome, proceed to Phase 4 (Quality Gates).
 
 ```javascript
 log(`STRIVE-TEST: Test phase complete. Results: ${testResults?.passed ?? "?"} passed, ${testResults?.failed ?? "?"} failed`)
@@ -508,7 +507,6 @@ Phase 3.5: Commit/Merge Broker -> Apply patches or merge worktree branches
     |
 Phase 3.6: Mini Test Phase -> Lightweight unit test verification (NEW)
     |
-Phase 3.7: Codex Post-monitor Critique -> Architectural drift detection
     |
 Phase 4: Ward Check -> Quality gates + verification checklist
 ```

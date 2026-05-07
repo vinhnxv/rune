@@ -33,7 +33,7 @@ allowed-tools:
 
 Parses a plan into tasks with dependencies, summons swarm workers, and coordinates parallel implementation.
 
-**Load skills**: `roundtable-circle`, `context-weaving`, `rune-echoes`, `rune-orchestration`, `codex-cli`, `team-sdk`, `git-worktree` (when worktree mode active), `polling-guard`, `zsh-compat`, `frontend-design-patterns` + `figma-to-react` + `design-sync` (when design context active)
+**Load skills**: `roundtable-circle`, `context-weaving`, `rune-echoes`, `rune-orchestration`, `team-sdk`, `git-worktree` (when worktree mode active), `polling-guard`, `zsh-compat`, `frontend-design-patterns` + `figma-to-react` + `design-sync` (when design context active)
 
 ## Usage
 
@@ -74,8 +74,6 @@ Phase 3.5: Commit/Merge Broker -> Apply patches or merge worktree branches (orch
     |
 Phase 3.6: Mini Test Phase -> Lightweight unit test verification (orchestrator-only)
     |
-Phase 3.7: Codex Post-monitor Critique -> Architectural drift detection (optional, non-blocking)
-    |
 Phase 4: Ward Check -> Quality gates + verification checklist
     |
 Phase 4.1: Todo Summary -> Generate worker-logs/_summary.md from per-worker log files (orchestrator-only)
@@ -83,8 +81,6 @@ Phase 4.1: Todo Summary -> Generate worker-logs/_summary.md from per-worker log 
 Phase 4.3: Doc-Consistency -> Non-blocking version/count drift detection (orchestrator-only)
     |
 Phase 4.4: Quick Goldmask -> Compare predicted CRITICAL files vs committed (orchestrator-only)
-    |
-Phase 4.5: Codex Advisory -> Optional plan-vs-implementation review (non-blocking)
     |
 Phase 4.6: Blind AC Verification -> AC-only verification by blind agent (optional, gated by blind_verification.enabled)
     |
@@ -392,14 +388,6 @@ After the commit/merge broker finishes, optionally run a lightweight test phase 
 
 See [test-phase.md](references/test-phase.md) for the full protocol — pre-flight gates, scope detection, test discovery, runner spawning, failure analysis, and cleanup integration.
 
-### Phase 3.7: Codex Post-monitor Architectural Critique (Optional, Non-blocking)
-
-After all workers complete and the commit/merge broker finishes, optionally run Codex to detect architectural drift between committed code and the plan. Non-blocking, opt-in via `codex.post_monitor_critique.enabled`.
-
-**Skip conditions**: Codex unavailable, `codex.disabled`, feature not enabled, `work` not in `codex.workflows`, or `total_worker_commits <= 3`.
-
-See [codex-post-monitor.md](references/codex-post-monitor.md) for the full protocol — feature gate, nonce-bounded prompt injection, codex-exec.sh invocation, error classification, and ward check integration.
-
 ## Phase 4: Quality Gates
 
 Read and execute [quality-gates.md](references/quality-gates.md) before proceeding.
@@ -411,8 +399,6 @@ Read and execute [quality-gates.md](references/quality-gates.md) before proceedi
 **Phase 4.3 — Doc-Consistency**: Non-blocking version/count drift detection. See [doc-consistency.md](../roundtable-circle/references/doc-consistency.md).
 
 **Phase 4.4 — Quick Goldmask**: Compare plan-time CRITICAL file predictions against committed files. Emits WARNINGs only. Non-blocking.
-
-**Phase 4.5 — Codex Advisory**: Optional plan-vs-implementation review via `codex exec`. INFO-level findings only. Talisman kill switch: `codex.work_advisory.enabled: false`.
 
 ## Phase 5: Echo Persist
 

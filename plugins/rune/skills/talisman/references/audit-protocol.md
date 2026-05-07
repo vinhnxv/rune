@@ -78,7 +78,6 @@ Checks:
 
   LOC-001 (INFO) — Section in "wrong" file
     A section exists in a file that doesn't match the expected mapping.
-    Example: `codex:` in main talisman.yml instead of talisman.integrations.yml
     Action: SUGGEST — offer to move via /rune:talisman split
 
   ORP-001 (INFO) — Orphaned companion sections
@@ -98,8 +97,6 @@ Sections are assigned to companion files by audience:
 - `doubt_seer` — cross-agent claim verification config
 
 **`talisman.integrations.yml`** (external tools):
-- `codex` — cross-model verification
-- `codex_review` — codex review workflow settings
 - `elicitation` — reasoning method configuration
 - `horizon` — strategic assessment
 - `evidence` — evidence verification
@@ -117,9 +114,9 @@ Present findings in priority order:
 
 ```
 1. CRITICAL gaps — missing sections that affect core functionality
-   (codex.workflows missing entries, deprecated file_todos keys, etc.)
+   (deprecated file_todos keys, etc.)
 2. RECOMMENDED — sections that improve workflow quality
-   (missing codex deep integration keys, missing arc timeouts, etc.)
+   (missing arc timeouts, etc.)
 3. OPTIONAL — nice-to-have sections
    (context_monitor, horizon, etc.)
 4. DIVERGENT — intentional? values that differ from defaults

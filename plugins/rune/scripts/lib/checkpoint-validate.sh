@@ -174,7 +174,7 @@ while IFS= read -r entry; do
 done <<< "$PHASE_STATUSES"
 
 # ── CKPT-VAL-006: Unknown top-level keys ──
-KNOWN_KEYS="id schema_version plan_file config_dir owner_pid session_id flags arc_config pr_url freshness session_nonce phase_sequence parent_plan stagnation skip_map phase_skip_log started_at completed_at totals phases current_phase convergence reaction_state codex_cascade commits phase_summaries"
+KNOWN_KEYS="id schema_version plan_file config_dir owner_pid session_id flags arc_config pr_url freshness session_nonce phase_sequence parent_plan stagnation skip_map phase_skip_log started_at completed_at totals phases current_phase convergence reaction_state commits phase_summaries"
 TOP_KEYS=$(jq -r 'keys[]' "$CHECKPOINT_PATH" 2>/dev/null || true)
 while IFS= read -r key; do
   [[ -z "$key" ]] && continue

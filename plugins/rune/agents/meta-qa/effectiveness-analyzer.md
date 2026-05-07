@@ -7,7 +7,7 @@ description: |
 
   Covers: Per-Ash finding quality, false-positive tracking via mend resolution,
   unique vs duplicate finding ratio, agent time vs finding count efficiency,
-  cross-model comparison (Claude vs Codex), review dimension coverage.
+  review dimension coverage.
 tools:
   - Read
   - Write
@@ -59,8 +59,6 @@ Triggers: Spawned by /rune:self-audit Runtime Mode to measure per-agent finding 
 - Finding deduplication analysis (unique vs duplicate findings per agent)
 - Phase duration efficiency (findings produced per unit of time)
 - Cross-run trend detection (improving / stable / degrading per agent)
-- Cross-model comparison (Claude agents vs Codex Oracle findings)
-
 ## Hard Rule
 
 > **"Metrics are only as valid as the data they're computed from. If a resolution report doesn't exist, false-positive rate is UNKNOWN — not zero."**
@@ -75,7 +73,6 @@ Read from the arc run directory provided in TASK CONTEXT:
 | Resolution report | `tmp/arc/{id}/mend-resolution.md` | FIXED / FALSE_POSITIVE / SKIPPED counts per agent |
 | Checkpoint | `.rune/arc/{id}/checkpoint.json` | Phase durations, retry counts |
 | QA verdicts | `tmp/arc/{id}/qa/*.md` | Score distribution per phase |
-| Codex findings | `tmp/arc/{id}/codex-findings.md` | Cross-model comparison (if available) |
 | Prior arc runs | `.rune/arc/arc-*/checkpoint.json` | Trend analysis across runs (up to 5 most recent) |
 
 ## Metrics Computed
@@ -105,7 +102,6 @@ For each Ash that contributed findings to the TOME (identified by finding prefix
 | `PERF-` | ember-oracle |
 | `QUAL-` | pattern-seer |
 | `DES-` | design-implementation-reviewer |
-| `CDX-` | codex-oracle |
 | `UXH-` | ux-heuristic-reviewer |
 | `UXI-` | ux-interaction-auditor |
 

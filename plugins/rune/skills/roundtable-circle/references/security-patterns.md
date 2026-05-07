@@ -3,7 +3,6 @@
 > **Convention**: Command files retain inline regex values (agents need them in-context)
 > but MUST include a sync comment: `// Security pattern: {NAME} — see security-patterns.md`
 > Do NOT declare new `SAFE_*` or `ALLOWLIST` patterns without adding them here first.
-> Follows the same convention as `codex-detection.md` (commit `d880296`).
 
 ## Identifier Validators
 
@@ -115,7 +114,7 @@ Note: `SAFE_REGEX_PATTERN` does not include `\n` in its character class, so mult
 **Alias**: SAFE_IDENTIFIER_PATTERN (identical regex, shared threat model)
 **Threat model**: Validates CLI binary names for external model Ashes. Blocks path separators (`/`, `\`), dots (`.` — prevents `../`), spaces, and shell metacharacters. The binary is resolved via `command -v` after validation, and the resolved path must NOT be within the project directory (see `CLI_PATH_VALIDATION`).
 **ReDoS safe**: Yes (character class only, no quantifier nesting)
-**Consumers**: custom-ashes.md (CLI-backed Ash validation), codex-detection.md (detectExternalModel)
+**Consumers**: custom-ashes.md (CLI-backed Ash validation)
 
 ### OUTPUT_FORMAT_ALLOWLIST
 <!-- PATTERN:OUTPUT_FORMAT_ALLOWLIST values='["jsonl","text","json"]' version="1" -->
@@ -128,7 +127,7 @@ Note: `SAFE_REGEX_PATTERN` does not include `\n` in its character class, so mult
 **Regex**: `/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/`
 **Threat model**: Validates external model names. Requires alphanumeric first character to prevent injection via leading hyphens (`-` could be misinterpreted as CLI flags). Allows dots and hyphens for model version identifiers (e.g., `gemini-2.5-pro`, `llama3.1`). Does NOT allow spaces, slashes, or shell metacharacters.
 **ReDoS safe**: Yes (character class only)
-**Consumers**: custom-ashes.md (CLI-backed Ash validation, default `model_pattern`), codex-detection.md (detectExternalModel)
+**Consumers**: custom-ashes.md (CLI-backed Ash validation, default `model_pattern`)
 
 ### CLI_PATH_VALIDATION
 **Rule**: Resolved CLI binary path (from `command -v {cli}`) must NOT be within the project directory.
@@ -140,14 +139,14 @@ if [[ "$cli_path" == "$PWD"* ]]; then
   error "CLI binary '{cli}' resolves to project directory — rejected for safety"
 fi
 ```
-**Consumers**: codex-detection.md (detectExternalModel step 3)
+**Consumers**: external CLI-backed Ash validation (detectExternalModel step 3)
 
 ### CLI_TIMEOUT_PATTERN
 <!-- PATTERN:CLI_TIMEOUT_PATTERN regex="/^\d{1,5}$/" version="1" -->
 **Regex**: `/^\d{1,5}$/`
-**Threat model**: Validates CLI timeout values from talisman.yml before shell interpolation. Identical format to CODEX_TIMEOUT_ALLOWLIST. Accepts only 1-5 digit integers (max 99999). Bounds checking (300-3600) is performed after format validation.
+**Threat model**: Validates CLI timeout values from talisman.yml before shell interpolation. Accepts only 1-5 digit integers (max 99999). Bounds checking (300-3600) is performed after format validation.
 **ReDoS safe**: Yes (character class with bounded quantifier, no nesting)
-**Consumers**: custom-ashes.md (CLI-backed Ash validation), codex-detection.md (detectExternalModel)
+**Consumers**: custom-ashes.md (CLI-backed Ash validation)
 
 ### sanitizePlanContent()
 
@@ -171,7 +170,7 @@ function sanitizePlanContent(content, maxLength = 50000) {
 }
 ```
 
-**Consumers**: external-model-template.md (diff/file content injection), codex-oracle.md (existing Codex flow)
+**Consumers**: external-model-template.md (diff/file content injection)
 
 ## Content Sanitization
 
@@ -286,29 +285,6 @@ echo "clean text" | detect_homoglyphs_tier_ab
 Homoglyph detection is **complementary** to zero-width/tag/math-alpha stripping (see `sanitizeUntrustedText()` above). Unicode stripping removes invisible characters; homoglyph detection flags visible-but-deceptive characters. Both are needed for comprehensive prompt injection defense.
 
 **Consumers**: sanitize-text.sh (library export), ward-sentinel agents, security review agents
-
-## Codex Allowlists
-
-### CODEX_MODEL_ALLOWLIST
-<!-- PATTERN:CODEX_MODEL_ALLOWLIST regex="/^gpt-5(\.\d+)?-codex(-spark)?$/" version="3" last-reviewed="2026-02-24" -->
-**Regex**: `/^gpt-5(\.\d+)?-codex(-spark)?$/`
-**Threat model**: Restricts Codex model parameter to gpt-5.x-codex family only (with optional -spark variant). Only gpt-5.x-codex models are supported by the Codex CLI with ChatGPT accounts. Other families (gpt-4o, o1-o4) fail at runtime.
-**Test cases**: `gpt-5-codex` (pass), `gpt-5.3-codex` (pass), `gpt-5.2-codex` (pass), `gpt-5.3-codex-spark` (pass), `o4-mini` (reject), `gpt-4o` (reject)
-**Last reviewed**: 2026-02-15
-**Consumers**: plan.md (Phase 1C + Phase 4C), work.md (Phase 4.5)
-
-### CODEX_REASONING_ALLOWLIST
-<!-- PATTERN:CODEX_REASONING_ALLOWLIST values='["xhigh","high","medium","low"]' version="2" last-reviewed="2026-02-24" -->
-**Values**: `["xhigh", "high", "medium", "low"]`
-**Threat model**: Restricts reasoning effort parameter to known-safe values.
-**Consumers**: plan.md (Phase 1C + Phase 4C), work.md (Phase 4.5)
-
-### CODEX_TIMEOUT_ALLOWLIST
-<!-- PATTERN:CODEX_TIMEOUT_ALLOWLIST regex="/^\d{1,5}$/" version="1" -->
-**Regex**: `/^\d{1,5}$/`
-**Threat model**: Validates codex timeout values from talisman.yml before shell interpolation. Accepts only 1-5 digit integers (max 99999). Bounds checking (300–3600 for timeout, 10–timeout for stream_idle_timeout) is performed by `resolveCodexTimeouts()` after format validation.
-**ReDoS safe**: Yes (character class with bounded quantifier, no nesting)
-**Consumers**: codex-detection.md (resolveCodexTimeouts), codex-oracle.md, codex-cli/SKILL.md, work.md, forge.md, research-phase.md, plan-review.md, mend.md, gap-analysis.md, solution-arena.md, rune-smith.md, rune-echoes/SKILL.md
 
 ## Prototype Guards
 

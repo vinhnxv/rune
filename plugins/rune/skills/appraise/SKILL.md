@@ -36,7 +36,7 @@ allowed-tools:
 
 Orchestrate a multi-agent code review using the Roundtable Circle architecture. Each Ash gets its own dedicated context window via Agent Teams.
 
-**Load skills**: `roundtable-circle`, `context-weaving`, `rune-echoes`, `rune-orchestration`, `codex-cli`, `team-sdk`, `polling-guard`, `zsh-compat`
+**Load skills**: `roundtable-circle`, `context-weaving`, `rune-echoes`, `rune-orchestration`, `team-sdk`, `polling-guard`, `zsh-compat`
 
 ## Spec-Aware Review (Discipline Integration)
 
@@ -89,7 +89,7 @@ const params = {
 | `--deep` | Run multi-wave deep review: Wave 1 (core, up to 7 Ashes) + Wave 2 (investigation, 4 Ashes) + Wave 3 (dimension, up to 7 Ashes). Each wave runs as a full Roundtable Circle pass. | Off |
 | `--partial` | Review only staged files (`git diff --cached`) instead of full branch diff | Off |
 | `--dry-run` | Execute Phase 0 (Pre-flight) and Phase 1 (Rune Gaze) only. Display changed files, Ash selections, chunk plan, then exit. Does NOT create teams, tasks, state files, or spawn agents. | Off |
-| `--max-agents <N>` | Limit total Ash summoned (1-8). Priority: Ward Sentinel > Forge Warden > Veil Piercer > Pattern Weaver > Glyph Scribe > Knowledge Keeper > Codex Oracle | All selected |
+| `--max-agents <N>` | Limit total Ash summoned (1-8). Priority: Ward Sentinel > Forge Warden > Veil Piercer > Pattern Weaver > Glyph Scribe > Knowledge Keeper | All selected |
 | `--no-chunk` | Force single-pass review (disable chunking) | Off |
 | `--chunk-size <N>` | Override chunk threshold — file count that triggers chunking (default: 20) | 20 |
 | `--no-converge` | Disable convergence loop — single review pass per chunk | Off |
@@ -286,13 +286,12 @@ for iteration in 1..MAX_ITERATIONS:
 
 ## Phase 4.5 + Phase 5 + Phase 5.3 + Phase 5.5 + Phase 6
 
-Read and execute [tome-aggregation.md](references/tome-aggregation.md) for the full Runebinder aggregation, Doubt Seer cross-examination, diff-scope tagging, Codex Oracle verification, and Truthsight verification protocols.
+Read and execute [tome-aggregation.md](references/tome-aggregation.md) for the full Runebinder aggregation, Doubt Seer cross-examination, diff-scope tagging, and Truthsight verification protocols.
 
 **Summary of phases:**
 - **Phase 4.5 (Doubt Seer)**: Conditional. Strict opt-in (`talisman.doubt_seer.enabled = true`). Cross-examines P1/P2 findings. 5-min timeout. VERDICT: BLOCK sets `workflow_blocked` flag.
 - **Phase 5 (Runebinder)**: Aggregates all Ash findings. Deduplicates using `SEC > BACK > VEIL > DOUBT > FLOW > DOC > QUAL > FRONT > DES > AESTH > UXH > UXF > UXI > UXC > CDX` hierarchy. Writes `TOME.md`. Every finding MUST be wrapped in `<!-- RUNE:FINDING ... -->` markers for mend parsing.
 - **Phase 5.3 (Diff-Scope Tagging)**: Orchestrator-only. Tags findings with `scope="in-diff"` or `scope="pre-existing"`.
-- **Phase 5.5 (Cross-Model Verification)**: Only if Codex Oracle was summoned. Verifies CDX findings against source. Removes HALLUCINATED + UNVERIFIED findings.
 - **Phase 6 (Truthsight)**: Layer 0 inline checks + Layer 2 verifier for P1 findings.
 
 ## Phase 7: Cleanup & Echo Persist
@@ -310,8 +309,3 @@ See [phase-7-cleanup.md](references/phase-7-cleanup.md) for full pseudocode.
 | Ash crash | Report gap in TOME.md |
 | ALL Ash fail | Abort, notify user |
 | Concurrent review running | Warn, offer to cancel previous |
-| Codex CLI not installed | Skip Codex Oracle, log: "CLI not found" |
-| Codex not authenticated | Skip Codex Oracle, log: "run `codex login`" |
-| Codex disabled in talisman.yml | Skip Codex Oracle, log: "disabled via talisman.yml" |
-| Codex exec timeout (>10 min) | Codex Oracle partial results, log: "timeout — reduce context_budget" |
-| jq unavailable | Codex Oracle uses raw text fallback instead of JSONL parsing |

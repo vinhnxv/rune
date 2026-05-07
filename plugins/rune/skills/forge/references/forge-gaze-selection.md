@@ -4,13 +4,12 @@ Applies the Forge Gaze topic-matching algorithm to select enrichment agents per 
 
 **Inputs**: `sections` (parsed plan sections), `forceIncludeList` (from Phase 1.7), `riskMap` (from Phase 1.5), `flags` (--exhaustive), `topic_registry`
 **Outputs**: `assignments` map (section -> [agent, score] pairs), risk-boosted sections flagged
-**Preconditions**: Phase 1.7 (Codex Section Validation) complete
+**Preconditions**: Phase 1.6 (MCP Integration Resolution) complete
 
 ```javascript
 const mode = flags.exhaustive ? "exhaustive" : "default"
 const assignments = forge_select(sections, topic_registry, mode)
 
-// Apply Phase 1.7 force-include list (Codex Section Validation)
 if (forceIncludeList.length > 0) {
   for (const sectionTitle of forceIncludeList) {
     const section = sections.find(s => s.title === sectionTitle)
@@ -18,7 +17,6 @@ if (forceIncludeList.length > 0) {
       // Force-include with default enrichment agent (must match forge-gaze [agent_object, score] shape)
       const defaultAgent = topic_registry.find(a => a.name === "rune-architect") || { name: "rune-architect", perspective: "Architectural compliance and design pattern review" }
       assignments.set(section, [[defaultAgent, 0.50]])
-      log(`  Force-include: "${sectionTitle}" — added by Codex Section Validation`)
     }
   }
 }
@@ -97,9 +95,3 @@ for (const [section, agents] of assignments) {
 | Max total agents | 8 | 12 |
 
 These can be overridden via `talisman.yml` `forge:` section.
-
-## Codex Oracle Forge Agent (conditional)
-
-When `codex` CLI is available and `codex.workflows` includes `"forge"`, Codex Oracle participates in Forge Gaze topic matching. It provides cross-model enrichment.
-
-See [forge-enrichment-protocol.md](forge-enrichment-protocol.md) for the full Codex Oracle activation logic, prompt templates, and agent lifecycle.

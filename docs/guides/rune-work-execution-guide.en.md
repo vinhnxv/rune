@@ -37,7 +37,6 @@ Related guides:
 - Sufficient token budget for multi-agent work.
 
 ### Optional
-- `codex` CLI for cross-model verification after implementation.
 - `.rune/talisman.yml` for tuning worker count, ward commands, and commit format.
 
 ---

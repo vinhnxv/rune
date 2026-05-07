@@ -41,7 +41,6 @@ Related guides:
 - Sufficient token budget — each workflow spawns multiple agents with dedicated context windows.
 
 ### Optional
-- `codex` CLI for cross-model verification (Codex Oracle joins as additional reviewer).
 - `.rune/talisman.yml` for tuning timeouts, Ash selection, and custom reviewers.
 
 ---
@@ -270,10 +269,8 @@ Or use the streamlined flag:
 For critical changes, get a second opinion from an independent model:
 
 ```bash
-/rune:codex-review
+/rune:
 ```
-
-This runs Claude and OpenAI Codex reviewers in parallel, cross-verifies findings between models, and merges consensus issues into a unified TOME. Requires `codex` CLI installed.
 
 ### Full cycle in arc
 
@@ -369,10 +366,10 @@ Spread audit work across multiple sessions without re-scanning reviewed files.
 /rune:mend tmp/audit/{id}/TOME.md                  # Fix audit findings
 
 # Cross-model review
-/rune:codex-review                                 # Claude + Codex in parallel
+/rune:
 
 # Cancel
 /rune:cancel-review
 /rune:cancel-audit
-/rune:cancel-codex-review
+/rune:cancel-
 ```

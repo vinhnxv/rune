@@ -123,7 +123,7 @@ try {
 } catch (e) {
   // FALLBACK: all possible audit agents (safe to send shutdown to absent members)
   allMembers = ["forge-warden", "ward-sentinel", "pattern-weaver", "veil-piercer",
-    "glyph-scribe", "knowledge-keeper", "codex-oracle", "runebinder", "doubt-seer",
+    "glyph-scribe", "knowledge-keeper", "runebinder", "doubt-seer",
     "rot-seeker", "strand-tracer", "decree-auditor", "fringe-watcher",
     "runebinder-deep", "runebinder-merge", "cross-shard-sentinel",
     "elicitation-sage-security-1", "elicitation-sage-security-2"]

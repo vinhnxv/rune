@@ -163,7 +163,6 @@ const modelId = resolveFullModelId(alias)                  // → "claude-sonnet
 ## Notes
 
 - **Custom Ashes** defined by users are NOT affected by `cost_tier` — they may use non-Claude models
-- **Codex Oracle** has its own `codex.model` config path — NOT affected
 - **Main session model** is controlled by Claude Code settings — NOT affected
 - **Agent frontmatter `model:`** becomes the fallback when `cost_tier` is not set in talisman
 - Unknown agents (e.g., future agents not yet categorized) fall back to `TIER_DEFAULTS`

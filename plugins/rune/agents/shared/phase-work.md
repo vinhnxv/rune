@@ -106,7 +106,6 @@ Confidence: {0-100}. Inner-flame: {pass|fail|partial}. Revised: {count}.
 - TDD cycle details (rune-smith: RED/GREEN/REFACTOR)
 - Test discovery and quality rules (trial-forger)
 - Language-specific mandatory quality checks (Python/TypeScript/Rust)
-- Codex inline advisory (rune-smith optional step 6.5)
 - Worktree mode lifecycle (rune-smith)
 - Pre-completion quality gate details (rune-smith)
 - Test pattern matching and edge case generation (trial-forger)

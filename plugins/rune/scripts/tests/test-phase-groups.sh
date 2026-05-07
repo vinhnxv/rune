@@ -72,7 +72,6 @@ assert_eq "storybook_verification → work" "work" "$(_lookup_phase_group "story
 # Verification group
 assert_eq "design_verification → verification" "verification" "$(_lookup_phase_group "design_verification")"
 assert_eq "gap_analysis → verification" "verification" "$(_lookup_phase_group "gap_analysis")"
-assert_eq "codex_gap_analysis → verification" "verification" "$(_lookup_phase_group "codex_gap_analysis")"
 assert_eq "gap_remediation → verification" "verification" "$(_lookup_phase_group "gap_remediation")"
 
 # Inspect group
@@ -115,7 +114,7 @@ PHASE_ORDER=(
   forge forge_qa plan_review plan_refine verification semantic_verification
   design_extraction design_prototype task_decomposition
   work work_qa drift_review storybook_verification
-  design_verification design_verification_qa ux_verification gap_analysis gap_analysis_qa codex_gap_analysis gap_remediation
+  design_verification design_verification_qa ux_verification gap_analysis gap_analysis_qa gap_remediation
   inspect inspect_fix verify_inspect goldmask_verification
   code_review code_review_qa goldmask_correlation verify mend mend_qa verify_mend design_iteration
   test test_qa browser_test browser_test_fix verify_browser_test test_coverage_critique

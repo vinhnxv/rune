@@ -1,6 +1,6 @@
 # Resolution Report — mend.md Phase 6 Reference
 
-Resolution report format, convergence logic, P1 escalation, and Codex verification integration.
+Resolution report format, convergence logic, and P1 escalation.
 
 ## Phase 6: RESOLUTION REPORT
 
@@ -136,48 +136,7 @@ These require immediate attention before merging.
 
 Present escalation prominently in the completion report (before next-steps).
 
-## Phase 5.8: Codex Fix Verification
 
-Cross-model post-fix validation to catch regressions and validate fix quality.
-
-**Preconditions**: Phase 5.7 complete, Codex available, `mend` in `talisman.codex.workflows`, `talisman.codex.mend_verification.enabled !== false`, `.codexignore` present.
-
-**Inputs**: Git diff against `preMendSha` (captured at Phase 2), original TOME findings
-**Outputs**: `tmp/mend/{id}/codex-mend-verification.md` with `[CDX-MEND-NNN]` findings
-
-### Finding Verdicts
-
-| Verdict | Meaning | Action |
-|---------|---------|--------|
-| `GOOD_FIX` | Fix resolves finding correctly | None |
-| `WEAK_FIX` | Fix addresses symptom, not root cause | Warn user in resolution report |
-| `REGRESSION` | Fix introduces new issue | WARN — flag for human review |
-| `CONFLICT` | Two fixes contradict each other | WARN — flag for human review |
-
-### Codex Section in Resolution Report
-
-When Phase 5.8 produces results:
-
-```markdown
-## Codex Verification (Cross-Model)
-- Regressions: {N}
-- Weak fixes: {N}
-- Conflicts: {N}
-- Good fixes: {N}
-
-{detailed CDX-MEND findings if any REGRESSION or CONFLICT detected}
-```
-
-### Edge Cases
-
-| Scenario | Handling |
-|----------|----------|
-| No fixes applied (all FALSE_POSITIVE/SKIPPED) | Skip Phase 5.8 entirely |
-| Ward check failed | Still run Codex verification — may explain WHY ward failed |
-| Fix diff > max_diff_size | Truncated via `head -c`, prioritize most recent changes |
-| Codex finds regression in P1 fix | Elevate to WARN in resolution report |
-| Codex timeout | Proceed without verification, log warning |
-| .codexignore missing | Skip verification (required for --full-auto) |
 
 ## Completion Report Format
 

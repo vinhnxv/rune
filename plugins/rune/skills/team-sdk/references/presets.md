@@ -41,7 +41,6 @@ agents:
   conditional:
     - glyph-scribe        # Frontend — when frontend files changed
     - knowledge-keeper    # Docs — when docs changed (>= 10 lines)
-    - codex-oracle        # Cross-model — when codex CLI available
 max_agents: 9             # 7 built-in + 2 custom (settings.max_ashes)
 state_file: "tmp/.rune-review-{id}.json"
 signal_dir: "tmp/.rune-signals/rune-review-{id}"
@@ -105,7 +104,6 @@ agents:
   conditional:
     - practice-seeker     # External: best-practice research (Context7)
     - lore-scholar        # External: framework docs (Context7)
-    - codex-researcher    # External: cross-model research (codex CLI)
   post_research:
     - flow-seer           # Spec validation (always, runs after research)
 max_agents: 7
@@ -198,7 +196,6 @@ agents:
     - forge-warden        # When backend files in scope
     - glyph-scribe        # When frontend files in scope
     - knowledge-keeper    # When docs in scope
-    - codex-oracle        # When codex CLI available
 max_agents: 9
 state_file: "tmp/.rune-audit-{id}.json"
 signal_dir: "tmp/.rune-signals/rune-audit-{id}"

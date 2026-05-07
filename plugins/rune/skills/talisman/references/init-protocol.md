@@ -94,7 +94,6 @@ Based on detected stack, customize the template:
 - `version: 1`
 - `rune-gaze:` — with stack-appropriate extensions
 - `settings:` — with dedup_hierarchy including stack prefixes
-- `codex:` — with workflows including arc
 - `review:` — diff_scope + convergence + sharding
 - `work:` — ward commands from detected stack
 - `arc:` — defaults + ship + timeouts
@@ -197,7 +196,6 @@ If .mcp.json exists:
    - Do NOT mention companion files or the split layout during init
    - Companion files are an advanced feature suggested contextually later:
      * When user adds custom ashes via /rune:talisman guide ashes
-     * When user configures codex deep integration
      * When /rune:talisman audit detects the file exceeds ~500 lines
    - The split layout is always optional — single-file is the default
 

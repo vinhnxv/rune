@@ -64,16 +64,6 @@ TaskCreate({
 })
 ```
 
-### Codex Oracle (Cross-Model)
-
-```
-TaskCreate({
-  subject: "Review code as Codex Oracle (cross-model verification)",
-  description: "Files: {codex_files}\nOutput: tmp/reviews/{id}/codex-oracle.md\nPerspectives: cross-model security, logic, quality (GPT-5.3-codex)\nRequired sections: P1 (Critical), P2 (High), P3 (Medium), Reviewer Assumptions, Self-Review Log\nNote: Requires codex CLI. Conditional — skipped if CLI unavailable.",
-  activeForm: "Running cross-model review via Codex Oracle"
-})
-```
-
 ### CLI-Backed Ash (External Model, v1.57.0+)
 
 ```
@@ -87,7 +77,6 @@ TaskCreate({
 **Key differences from agent-backed Ash:**
 - Uses `external-model-template.md` prompt instead of agent-specific prompt
 - CLI execution via `timeout {timeout} {cli_binary} -- "{model_name}" ...`
-- Subject to `max_cli_ashes` sub-cap (default: 2, separate from Codex Oracle)
 - Detection via `detectExternalModel()` instead of agent file resolution
 
 ## Audit Mode Templates
@@ -153,7 +142,6 @@ veil-piercer    ─┤
 pattern-weaver  ─┤── All complete ──► runebinder ──► truthsight-verifier
 glyph-scribe    ─┤
 knowledge-keeper ─┤
-codex-oracle    ─┘
 ```
 
 All Ash are independent — no `blockedBy` relationships between them. The Runebinder task should be `blockedBy` all Ash tasks. The Truthsight Verifier (if enabled) should be `blockedBy` the Runebinder.

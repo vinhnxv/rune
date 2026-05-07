@@ -125,7 +125,6 @@ function readTalismanSection(section) {
       file_todos: full?.file_todos ?? {},
       context_monitor: full?.context_monitor ?? {},
       context_weaving: full?.context_weaving ?? {},
-      codex_review: full?.codex_review ?? {},
       teammate_lifecycle: full?.teammate_lifecycle ?? {},
       inner_flame: full?.inner_flame ?? {},
       solution_arena: full?.solution_arena ?? {},
@@ -145,7 +144,6 @@ function readTalismanSection(section) {
 | Section | Top-level keys | Common consumers |
 |---------|---------------|------------------|
 | `arc` | arc.defaults, arc.ship, arc.pre_merge_checks, arc.timeouts, arc.sharding, arc.batch, arc.gap_analysis, arc.consistency | arc-checkpoint-init, arc-preflight, arc-phase-constants, gap-analysis |
-| `codex` | codex.* | arc-codex-phases, goldmask, codex-review, solution-arena |
 | `discipline` | discipline.* | validate-discipline-proofs, validate-context-isolation, work-loop-convergence, discipline-work-loop, pre-ship-validator |
 | `review` | review.* | review-scope, parse-tome, appraise |
 | `work` | work.* | strive, ship-phase, rune-smith, trial-forger |
@@ -156,7 +154,7 @@ function readTalismanSection(section) {
 | `inspect` | inspect.* | inspect/SKILL.md |
 | `testing` | testing.* | testing pipeline |
 | `audit` | audit.* | audit/SKILL.md |
-| `misc` | debug, mend, design_sync, stack_awareness, question_relay, file_todos, context_monitor, context_weaving, codex_review, teammate_lifecycle, inner_flame, solution_arena, arc_hierarchy, schema_drift, deployment_verification | debug, mend, design-sync, and other low-frequency consumers |
+| `misc` | debug, mend, design_sync, stack_awareness, question_relay, file_todos, context_monitor, context_weaving, teammate_lifecycle, inner_flame, solution_arena, arc_hierarchy, schema_drift, deployment_verification | debug, mend, design-sync, and other low-frequency consumers |
 
 **Reserved**: `misc` is a reserved shard name for all low-frequency top-level keys that don't warrant individual shards.
 
@@ -165,7 +163,7 @@ function readTalismanSection(section) {
 Two sections bundle multiple top-level talisman keys:
 
 - **`gates`** — Feature gates that control optional pipeline stages: `elicitation`, `horizon`, `evidence`, `doubt_seer`. These are frequently accessed as boolean checks (`?.enabled !== false`).
-- **`misc`** — Low-frequency config sections: `debug`, `mend`, `design_sync`, `stack_awareness`, `question_relay`, `file_todos`, `context_monitor`, `context_weaving`, `codex_review`, `teammate_lifecycle`, `inner_flame`, `solution_arena`, `arc_hierarchy`, `schema_drift`, `deployment_verification`.
+- **`misc`** — Low-frequency config sections: `debug`, `mend`, `design_sync`, `stack_awareness`, `question_relay`, `file_todos`, `context_monitor`, `context_weaving`, `teammate_lifecycle`, `inner_flame`, `solution_arena`, `arc_hierarchy`, `schema_drift`, `deployment_verification`.
 
 ## Usage Examples
 

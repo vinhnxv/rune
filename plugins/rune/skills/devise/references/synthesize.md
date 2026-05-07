@@ -689,7 +689,6 @@ Files that must stay in sync when this plan's changes are applied:
 - Git history: {git-miner findings}
 - Best practices: {practice-seeker findings, if run}
 - Framework docs: {lore-scholar findings, if run}
-- Cross-model research: {codex-researcher findings, if run}
 - Spec analysis: {flow-seer findings}
 ```
 

@@ -15,7 +15,6 @@
 | **Skills** | 43 | 8 (2 core + 6 optional) |
 | **Hook scripts** | 38 | 4 |
 | **MCP servers** | 3 (echo-search, figma-to-react, context7) | 0 |
-| **Models supported** | Claude (native) + Codex (bolted-on) + CLI Ashes | Claude + Codex + OpenCode (native routing for all) |
 | **Team coordination** | Agent Teams (TeamCreate/SendMessage/TaskUpdate) | Shell `&` + `wait` (PID-based parallelism) |
 | **Run tracking** | tmp/ state files, TOME aggregation | JSONL append-only index, per-run artifacts |
 | **Config** | talisman.yml (82 keys, 13 shards) | config.toml (minimal, pinned skills only) |
@@ -42,7 +41,7 @@ run-agent.sh --model MODEL --dry-run -p "PROMPT"  # Preview without executing
 
 ```
 claude-*, opus*, sonnet*, haiku*  →  claude -p
-gpt-*, o1*, o3*, o4*, codex*     →  codex exec
+gpt-*, o1*, o3*, o4*, 
 opencode-*, provider/model       →  opencode run
 ```
 
@@ -100,7 +99,7 @@ environment policy > agent profile permissions > skill tool requests
 ```bash
 # Multiple model families reviewing in parallel
 run-agent.sh --agent reviewer --model claude-opus-4-6 --session "$SID" &
-run-agent.sh --agent reviewer --model gpt-5.3-codex --session "$SID" &
+run-agent.sh --agent reviewer --model gpt-5.3-
 run-agent.sh --agent reviewer --model google/gemini-3.1-pro-preview --session "$SID" &
 wait
 ```
@@ -125,17 +124,15 @@ Pluggable guidance with override precedence:
 - `references/default-model-guidance.md` — base recommendations
 - `references/model-guidance/*.md` — project overrides (replace default entirely)
 
-Default picks: Codex for implementation, fan-out for reviews, Opus for architecture, Haiku for lightweight tasks.
-
 ---
 
 ## Things Rune Can Learn from Orchestrate
 
 ### 1. First-Class Multi-Model Routing (HIGH PRIORITY)
 
-**Gap**: Codex is second-class in Rune (CLI-backed Ashes with hallucination guards, `max_cli_ashes` sub-cap). No Google Gemini, Llama, or OpenCode support. Adding a new model requires talisman config + custom Ash definition.
+No Google Gemini, Llama, or OpenCode support. Adding a new model requires talisman config + custom Ash definition.
 
-**Pattern to adopt**: A universal model router that maps model names to CLI invocations. `claude-*` → claude, `gpt-*` → codex, `provider/model` → opencode. This would replace the brittle `codex-cli` detection pattern.
+**Pattern to adopt**: A universal model router that maps model names to CLI invocations.
 
 ### 2. Per-Run Structured Artifacts (HIGH PRIORITY)
 

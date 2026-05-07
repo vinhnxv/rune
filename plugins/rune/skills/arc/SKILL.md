@@ -1,7 +1,7 @@
 ---
 name: arc
 description: |
-  Full plan-to-merged-PR pipeline — 45 phases with convergence loops, Goldmask
+  Full plan-to-merged-PR pipeline — 40 phases with convergence loops, Goldmask
   risk analysis, pre-ship validation, bot review integration, cross-model
   verification, and conditional design sync. Use when running end-to-end from
   plan to merge, resuming an interrupted arc with --resume after a crash or
@@ -36,9 +36,9 @@ allowed-tools:
 
 Chains forty-five phases into a single automated pipeline. Each phase runs as its own Claude Code turn with fresh context — the `arc-phase-stop-hook.sh` drives phase iteration via the Stop hook pattern. Artifact-based handoff connects phases. Checkpoint state enables resume after failure.
 
-**Context budget advisory**: Full arc run: 45 phases x ~3.5min avg = ~154 minutes (lower bound). Context compaction is almost guaranteed in a single session. For constrained sessions, use `--no-forge` to skip Phase 1 enrichment, or split into multiple `/rune:arc --resume` sessions. For context optimization, use `--step-groups` to pause at group boundaries — each group gets a fresh context window on resume. The `PreCompact` hook saves checkpoint state automatically.
+**Context budget advisory**: Full arc run: 40 phases x ~3.5min avg = ~154 minutes (lower bound). Context compaction is almost guaranteed in a single session. For constrained sessions, use `--no-forge` to skip Phase 1 enrichment, or split into multiple `/rune:arc --resume` sessions. For context optimization, use `--step-groups` to pause at group boundaries — each group gets a fresh context window on resume. The `PreCompact` hook saves checkpoint state automatically.
 
-**Load skills**: `roundtable-circle`, `context-weaving`, `rune-echoes`, `rune-orchestration`, `elicitation`, `codex-cli`, `team-sdk`, `testing`, `agent-browser`, `polling-guard`, `zsh-compat`, `design-sync`
+**Load skills**: `roundtable-circle`, `context-weaving`, `rune-echoes`, `rune-orchestration`, `elicitation`, `team-sdk`, `testing`, `agent-browser`, `polling-guard`, `zsh-compat`, `design-sync`
 
 ## CRITICAL — No Pipeline Second-Guessing (ARC-NSG-001)
 
@@ -82,48 +82,43 @@ The pipeline uses **named phases** (not numeric IDs) in `PHASE_ORDER`. The numer
 | 2 | 3 | `plan_review` | Team | 15 min | `/rune:appraise` (inspect mode) |
 | 2.5 | 4 | `plan_refine` | Inline | 3 min | — |
 | 2.7 | 5 | `verification` | Inline | 30 sec | — |
-| 2.8 | 6 | `semantic_verification` | Team | 12 min | Codex (conditional) |
-| 3 | 7 | `design_extraction` | Team | 10 min | Conditional: `design_sync.enabled` |
-| 3.2 | 8 | `design_prototype` | Team | 10 min | Conditional: `design_sync.enabled` + VSM files |
-| 4.5 | 9 | `task_decomposition` | Team | 10 min | Codex (conditional) |
-| 5 | 10 | `work` | Team | 35 min | `/rune:strive` |
-| 5.01 | 11 | `work_qa` | Team | 5 min | QA gate (1 agent) |
-| 5.1 | 12 | `drift_review` | Inline | 2 min | — |
-| 3.3 | 13 | `storybook_verification` | Team | 15 min | Conditional: `storybook.enabled` |
-| 5.2 | 14 | `design_verification` | Team | 8 min | Conditional: VSM files |
-| 5.21 | 15 | `design_verification_qa` | Team | 5 min | QA gate (1 agent, conditional) |
-| 5.3 | 16 | `ux_verification` | Team | 5 min | Conditional: `ux.enabled` |
-| 5.5 | 17 | `gap_analysis` | Team | 12 min | — |
-| 5.51 | 18 | `gap_analysis_qa` | Team | 5 min | QA gate (1 agent) |
-| 5.6 | 19 | `codex_gap_analysis` | Team | 16 min | Codex (conditional) |
-| 5.8 | 20 | `gap_remediation` | Team | 15 min | — |
-| 5.81 | 21 | `inspect` | Team | 15 min | `/rune:inspect` (4 Inspector Ashes) |
-| 5.82 | 22 | `inspect_fix` | Team | 15 min | Gap-fixer agents (FIXABLE findings) |
-| 5.83 | 23 | `verify_inspect` | Inline | 4 min | Convergence evaluation |
-| 5.7 | 24 | `goldmask_verification` | Team | 15 min | `/rune:goldmask` |
-| 6 | 25 | `code_review` | Team | 15 min | `/rune:appraise --deep` |
-| 6.1 | 26 | `code_review_qa` | Team | 5 min | QA gate (1 agent) |
-| 6.5 | 27 | `goldmask_correlation` | Inline | 1 min | — |
-| 6.6 | 28 | `verify` | Team | 10 min | Finding verification gate |
-| 7 | 29 | `mend` | Team | 23 min | `/rune:mend` |
-| 7.01 | 30 | `mend_qa` | Team | 5 min | QA gate (1 agent) |
-| 7.3 | 31 | `verify_mend` | Inline | 4 min | — |
-| 7.4 | 32 | `design_iteration` | Team | 15 min | Conditional: design fidelity |
-| 7.7 | 33 | `test` | Team | 25-50 min | Testing agents |
-| 7.71 | 34 | `test_qa` | Team | 5 min | QA gate (1 agent) |
-| 7.7.5 | 35 | `browser_test` | Team | 15 min | Conditional: frontend + agent-browser |
-| 7.7.6 | 36 | `browser_test_fix` | Team | 15 min | Conditional: browser_test failures |
-| 7.7.7 | 37 | `verify_browser_test` | Inline | 4 min | Convergence controller |
-| 7.8 | 38 | `test_coverage_critique` | Team | 15 min | Codex (conditional) |
-| 7.9 | 39 | `deploy_verify` | Team | 5 min | Conditional: deployment verification |
-| 8.5 | 40 | `pre_ship_validation` | Inline | 6 min | — |
-| 8.55 | 41 | `release_quality_check` | Team | 10 min | Codex (conditional) |
-| 9 | 42 | `ship` | Inline | 5 min | — |
-| 9.1 | 43 | `bot_review_wait` | Inline | 15 min | Conditional: `--bot-review` |
-| 9.2 | 44 | `pr_comment_resolution` | Inline | 20 min | Conditional: `--bot-review` |
-| 9.5 | 45 | `merge` | Inline | 10 min | — |
+| 3 | 6 | `design_extraction` | Team | 10 min | Conditional: `design_sync.enabled` |
+| 3.2 | 7 | `design_prototype` | Team | 10 min | Conditional: `design_sync.enabled` + VSM files |
+| 5 | 8 | `work` | Team | 35 min | `/rune:strive` |
+| 5.01 | 9 | `work_qa` | Team | 5 min | QA gate (1 agent) |
+| 5.1 | 10 | `drift_review` | Inline | 2 min | — |
+| 3.3 | 11 | `storybook_verification` | Team | 15 min | Conditional: `storybook.enabled` |
+| 5.2 | 12 | `design_verification` | Team | 8 min | Conditional: VSM files |
+| 5.21 | 13 | `design_verification_qa` | Team | 5 min | QA gate (1 agent, conditional) |
+| 5.3 | 14 | `ux_verification` | Team | 5 min | Conditional: `ux.enabled` |
+| 5.5 | 15 | `gap_analysis` | Team | 12 min | — |
+| 5.51 | 16 | `gap_analysis_qa` | Team | 5 min | QA gate (1 agent) |
+| 5.8 | 17 | `gap_remediation` | Team | 15 min | — |
+| 5.81 | 18 | `inspect` | Team | 15 min | `/rune:inspect` (4 Inspector Ashes) |
+| 5.82 | 19 | `inspect_fix` | Team | 15 min | Gap-fixer agents (FIXABLE findings) |
+| 5.83 | 20 | `verify_inspect` | Inline | 4 min | Convergence evaluation |
+| 5.7 | 21 | `goldmask_verification` | Team | 15 min | `/rune:goldmask` |
+| 6 | 22 | `code_review` | Team | 15 min | `/rune:appraise --deep` |
+| 6.1 | 23 | `code_review_qa` | Team | 5 min | QA gate (1 agent) |
+| 6.5 | 24 | `goldmask_correlation` | Inline | 1 min | — |
+| 6.6 | 25 | `verify` | Team | 10 min | Finding verification gate |
+| 7 | 26 | `mend` | Team | 23 min | `/rune:mend` |
+| 7.01 | 27 | `mend_qa` | Team | 5 min | QA gate (1 agent) |
+| 7.3 | 28 | `verify_mend` | Inline | 4 min | — |
+| 7.4 | 29 | `design_iteration` | Team | 15 min | Conditional: design fidelity |
+| 7.7 | 30 | `test` | Team | 25-50 min | Testing agents |
+| 7.71 | 31 | `test_qa` | Team | 5 min | QA gate (1 agent) |
+| 7.7.5 | 32 | `browser_test` | Team | 15 min | Conditional: frontend + agent-browser |
+| 7.7.6 | 33 | `browser_test_fix` | Team | 15 min | Conditional: browser_test failures |
+| 7.7.7 | 34 | `verify_browser_test` | Inline | 4 min | Convergence controller |
+| 7.9 | 35 | `deploy_verify` | Team | 5 min | Conditional: deployment verification |
+| 8.5 | 36 | `pre_ship_validation` | Inline | 6 min | — |
+| 9 | 37 | `ship` | Inline | 5 min | — |
+| 9.1 | 38 | `bot_review_wait` | Inline | 15 min | Conditional: `--bot-review` |
+| 9.2 | 39 | `pr_comment_resolution` | Inline | 20 min | Conditional: `--bot-review` |
+| 9.5 | 40 | `merge` | Inline | 10 min | — |
 
-> **Execution order**: The "Exec Order" column shows the actual sequence. Phase numbers (#) are for human reference only and are **non-monotonic** — e.g., 5.8 (gap_remediation) runs before 5.7 (goldmask_verification). Always use `PHASE_ORDER` array position, not numeric IDs. Total: 45 phases.
+> **Execution order**: The "Exec Order" column shows the actual sequence. Phase numbers (#) are for human reference only and are **non-monotonic** — e.g., 5.8 (gap_remediation) runs before 5.7 (goldmask_verification). Always use `PHASE_ORDER` array position, not numeric IDs. Total: 40 phases.
 
 ## Usage
 
@@ -517,8 +512,6 @@ See [post-arc.md](references/post-arc.md). 30-second budget. After sweep, **fini
 - [Completion Stamp](references/arc-phase-completion-stamp.md) — Plan file completion record
 - [Result Signal](references/arc-result-signal.md) — Deterministic completion signal for stop hooks
 - [Stagnation Sentinel](references/stagnation-sentinel.md) — Error pattern detection, budget enforcement
-- [Codex Phases](references/arc-codex-phases.md) — Phases 2.8, 4.5, 5.6, 7.8, 8.55
-- [Task Decomposition](references/arc-phase-task-decomposition.md) — Phase 4.5
 - [Design Extraction](references/arc-phase-design-extraction.md) — Phase 3 (conditional)
 - [Storybook Verification](references/arc-phase-storybook-verification.md) — Phase 3.3 (conditional: `storybook.enabled`)
 - [Design Verification](references/arc-phase-design-verification.md) — Phase 5.2 (conditional)

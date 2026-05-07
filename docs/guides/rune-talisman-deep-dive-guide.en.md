@@ -27,7 +27,7 @@ The fastest way to get a properly configured talisman is the `/rune:talisman` sk
 /rune:talisman update
 
 # Learn about a specific configuration section
-/rune:talisman guide codex
+/rune:talisman guide 
 /rune:talisman guide arc
 /rune:talisman guide review
 
@@ -51,7 +51,6 @@ As `talisman.yml` grows, it can be split into **3 companion files** organized by
 |------|----------|-----------|
 | `.rune/talisman.yml` | Core runtime config (rune-gaze, review, work, arc, testing, etc.) | Most users |
 | `.rune/talisman.ashes.yml` | Custom agent definitions (ashes, user_agents, extra_agent_dirs) | Agent authors |
-| `.rune/talisman.integrations.yml` | External tools (codex, elicitation, echoes, evidence, etc.) | Power users |
 
 ```bash
 # Split a single talisman.yml into 3 files
@@ -499,32 +498,6 @@ Advanced echo tuning (mostly opt-in):
 
 ---
 
-## 11. Codex Oracle (Cross-Model Verification)
-
-```yaml
-codex:
-  disabled: false              # Kill switch
-  model: "gpt-5.3-codex"
-  reasoning: "xhigh"          # xhigh | high | medium | low
-  timeout: 600                 # Outer timeout in seconds
-  stream_idle_timeout: 540     # Inner idle timeout
-
-  # IMPORTANT: include "arc" for Codex to run in arc phases (v1.87.0+)
-  workflows: [review, audit, plan, forge, work, mend, goldmask, inspect, arc]
-
-  # 17 inline verification points (v1.51.0+, expanded v1.87.0+)
-  diff_verification:
-    enabled: true              # P1/P2 findings vs diff hunks
-  test_coverage_critique:
-    enabled: true              # Test coverage gaps
-  section_validation:
-    enabled: true              # Plan section coverage
-  task_decomposition:
-    enabled: true              # Task granularity validation
-```
-
----
-
 ## 12. Platform Environment Variables
 
 These go in `.claude/settings.json` (not talisman):
@@ -642,8 +615,6 @@ defaults:
     - "veil-piercer"        # Not needed for this project
 ```
 
-Valid names: `forge-warden`, `ward-sentinel`, `veil-piercer`, `pattern-weaver`, `glyph-scribe`, `knowledge-keeper`, `codex-oracle`.
-
 ---
 
 ## 15. Mend Settings
@@ -746,8 +717,6 @@ reactions:
 | `work` | Ward commands, workers, branch | 3 workers |
 | `testing` | 3-tier test execution | All tiers on |
 | `goldmask` | Per-workflow impact analysis | All enabled |
-| `codex` | Cross-model verification (17 inline points) | Auto-detect |
-| `codex_review` | Cross-model code review settings | Disabled |
 | `teammate_lifecycle` | Agent runtime caps (max_turns, max_runtime_minutes) | Category defaults |
 | `elicitation` | Structured reasoning | Enabled |
 | `echoes` | Agent memory persistence | FTS enabled |

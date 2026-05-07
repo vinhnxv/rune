@@ -45,7 +45,6 @@ Các hướng dẫn liên quan:
 - Đủ token budget cho multi-agent work.
 
 ### Tùy chọn
-- `codex` CLI cho cross-model verification sau implementation.
 - `.rune/talisman.yml` để tinh chỉnh số worker, ward command, và commit format.
 
 ---

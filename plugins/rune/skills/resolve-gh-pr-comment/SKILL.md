@@ -4,7 +4,6 @@ description: |
   Resolve a specific GitHub PR review comment. Supports review thread
   comments (line-level) and issue comments (PR-level from bots).
   Handles copilot, gemini-code-assist, coderabbitai, cubic-dev-ai,
-  chatgpt-codex-connector bots. Verifies findings against actual code
   before applying fixes. Can be used standalone or invoked from arc
   Phase 9.2 for individual comment resolution.
   Keywords: resolve, PR comment, review, bot feedback, GitHub.
@@ -203,7 +202,6 @@ const TRUSTED_BOTS = new Set([
   "coderabbitai[bot]",
   "copilot[bot]",
   "cubic-dev-ai[bot]",
-  "chatgpt-codex-connector[bot]",
   "github-actions[bot]",
   "dependabot[bot]",
   "renovate[bot]",

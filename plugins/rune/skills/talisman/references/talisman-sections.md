@@ -28,7 +28,6 @@ This list reflects the documented schema used by Rune (including default-injecte
 | 20 | `horizon` | Strategic assessment | `enabled`, `min_score`, `dimensions` |
 | 21 | `testing` | Test orchestration | `browser.*` (`headed`, `deep`, `infrastructure_discovery`, `test_plan`, `ui_first`, `report_out_of_scope`), `tiers.unit`, `tiers.integration`, `tiers.e2e`, `service.*`, `scenarios.*`, `extended_tier.*`, `contract.*`, `visual_regression.*`, `accessibility.*`, `history.*`, `fixtures.*`, `flaky_detection.*`, `production_readiness.*` |
 | 22 | `doubt_seer` | Claim verification | `enabled`, `min_claims`, `verdict_threshold` |
-| 23 | `codex` | Cross-model verification | `model`, `workflows`, `timeout`, 17 deep integration keys |
 | 24 | `context_monitor` + `context_weaving` | Context management | `enabled`, `warning_threshold`, `glyph_budget`, `offload_threshold`, `pretooluse_guard.enabled` |
 | 25 | `debug` | ACH parallel debugging | `max_investigators`, `timeout_ms`, `model`, `re_triage_rounds`, `echo_on_verdict` |
 | 26 | `plan` | Research & planning config | `verification_patterns[]`, `freshness` (`enabled`, `warn_threshold`, `block_threshold`, `max_commit_distance`), `external_research` (`"always"` / `"auto"` / `"never"`), `research_urls[]` |
@@ -45,10 +44,6 @@ This list reflects the documented schema used by Rune (including default-injecte
 
 These sections affect core workflow correctness:
 
-### `codex.workflows`
-**Impact**: Controls which Rune workflows can use Codex cross-model verification.
-**Critical key**: Must include `arc` for arc phases to use Codex (v1.87.0+).
-**Default**: `[review, audit, plan, forge, work, mend, goldmask, inspect, arc]`
 
 ### `settings.dedup_hierarchy`
 **Impact**: Finding dedup priority order. Missing prefixes = duplicate findings.
@@ -165,29 +160,6 @@ work:
   ward_commands: ["go test ./...", "go vet ./..."]
 ```
 
-## Codex Deep Integration Keys
-
-17 inline cross-model verification points:
-
-| Key | Phase | Default | Purpose |
-|-----|-------|---------|---------|
-| `elicitation` | Devise/Forge | `true` | Structured reasoning via Codex |
-| `mend_verification` | Mend Phase 5.9 | `true` | Post-mend correctness check |
-| `arena` | Devise Phase 2.4 | `true` | Solution arena verification |
-| `trial_forger` | Testing | `true` | Test generation advisory |
-| `rune_smith` | Strive | `true` | Implementation advisory |
-| `shatter` | Devise Phase 3.5 | `true` | Shatter assessment scoring |
-| `echo_validation` | Echoes | `true` | Echo quality verification |
-| `diff_verification` | Appraise Phase 6.2 | `true` | 3-way verdict on findings |
-| `test_coverage_critique` | Arc Phase 7.8 | `true` | Test coverage gaps |
-| `release_quality_check` | Arc Phase 8.55 | `true` | CHANGELOG validation |
-| `section_validation` | Forge Phase 1.7 | `true` | Plan section coverage |
-| `research_tiebreaker` | Devise Phase 2.3.5 | `true` | Conflict resolution |
-| `task_decomposition` | Arc Phase 4.5 | `true` | Task granularity check |
-| `risk_amplification` | Goldmask Phase 3.5 | `false` | 2nd/3rd-order risk chains |
-| `drift_detection` | Inspect Phase 1.5 | `false` | Plan-vs-code drift |
-| `architecture_review` | Audit Phase 6.3 | `false` | Cross-cutting analysis |
-| `post_monitor_critique` | Strive Phase 3.7 | `false` | Post-work architectural critique |
 
 ## Arc Timeouts
 
@@ -203,7 +175,6 @@ All 24 phase timeouts (ms):
 | 4.5 Task Decomposition | `task_decomposition` | 180000 |
 | 5 Work | `work` | 2100000 |
 | 5.5 Gap Analysis | `gap_analysis` | 60000 |
-| 5.6 Codex Gap | `codex_gap_analysis` | 660000 |
 | 5.8 Gap Remediation | `gap_remediation` | 900000 |
 | 5.9 Goldmask Verify | `goldmask_verification` | 300000 |
 | 6 Code Review | `code_review` | 900000 |
@@ -370,7 +341,7 @@ Talisman configuration can optionally be split into 3 files organized by audienc
 |------|----------|----------|
 | `talisman.yml` | `version`, `cost_tier`, `rune-gaze`, `settings`, `defaults`, `review`, `work`, `arc`, `testing`, `audit`, `inspect`, `plan`, `mend`, `inner_flame`, `teammate_lifecycle`, `context_monitor`, `context_weaving`, `devise`, `strive`, `discipline`, `solution_arena` | All users (core runtime config) |
 | `talisman.ashes.yml` | `ashes`, `user_agents`, `extra_agent_dirs`, `doubt_seer` | Agent authors (custom review agents) |
-| `talisman.integrations.yml` | `codex`, `codex_review`, `elicitation`, `horizon`, `evidence`, `echoes`, `state_weaver`, `file_todos` | Power users (external tool integrations) |
+| `talisman.integrations.yml` | `elicitation`, `horizon`, `evidence`, `echoes`, `state_weaver`, `file_todos` | Power users (external tool integrations) |
 
 ### Merge Behavior
 

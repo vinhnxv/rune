@@ -200,7 +200,7 @@ if [[ "$ARTIFACT_ENABLED" == "true" ]]; then
 
     mkdir -p "$ARC_HISTORY/$arc_id"
 
-    # Core artifacts — also check uppercase VERDICT.md variant (Codex finding #6)
+    # Core artifacts — also check uppercase VERDICT.md variant
     for artifact in tome.md TOME.md resolution-report.md work-summary.md gap-analysis.md inspect-verdict.md VERDICT.md; do
       [ -f "$arc_dir/$artifact" ] && cp -- "$arc_dir/$artifact" "$ARC_HISTORY/$arc_id/" 2>/dev/null || true
     done
@@ -239,7 +239,7 @@ if [[ "$ARTIFACT_ENABLED" == "true" ]]; then
   fi
 fi
 # NOTE: .artifact-dirty signal write happens AFTER tmp/.rune-signals cleanup in Step 5
-# (Codex finding #1: writing before cleanup means the signal is deleted immediately)
+# (writing before cleanup means the signal is deleted immediately)
 ```
 
 ### 5. Remove Artifacts
@@ -401,7 +401,7 @@ if [[ ! -L "tmp/.rune-signals" ]] && [[ -d "tmp/.rune-signals" ]]; then
 fi
 
 # Write .artifact-dirty signal AFTER tmp/.rune-signals cleanup so it survives rest
-# (Codex finding #1: signal written before cleanup is deleted by the cleanup itself)
+# (signal written before cleanup is deleted by the cleanup itself)
 if [[ "${ARTIFACT_EXTRACTED:-false}" == "true" ]]; then
   SIGNAL_DIR="tmp/.rune-signals"
   mkdir -p "$SIGNAL_DIR" 2>/dev/null

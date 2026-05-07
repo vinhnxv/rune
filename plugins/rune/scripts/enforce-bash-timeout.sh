@@ -6,7 +6,6 @@
 #   1. Fast-path: skip if no active Rune workflow
 #   2. Fast-path: skip if command already has timeout/gtimeout prefix
 #   3. Fast-path: skip if tool_input.timeout is set (Claude already set a timeout)
-#   4. Fast-path: skip if command is a codex exec invocation
 #   5. Match command against TIMEOUT_PATTERNS (npm test, pytest, cargo test, etc.)
 #   6. Resolve timeout value from talisman process_management.bash_timeout (default 300s)
 #   7. Detect timeout binary: gtimeout (macOS coreutils) → timeout (Linux)
@@ -78,9 +77,7 @@ case "$MATCH_CMD" in
   timeout\ *|gtimeout\ *) exit 0 ;;
 esac
 
-# Fast-path: skip codex exec commands
 case "$MATCH_CMD" in
-  *codex\ exec*|*"codex exec"*) exit 0 ;;
 esac
 
 # ── Resolve CWD and check for active Rune workflow ──
@@ -147,7 +144,7 @@ if [[ -z "$active_workflow" ]]; then
            "${CWD}"/tmp/.rune-plan-*.json "${CWD}"/tmp/.rune-forge-*.json \
            "${CWD}"/tmp/.rune-inspect-*.json "${CWD}"/tmp/.rune-goldmask-*.json \
            "${CWD}"/tmp/.rune-brainstorm-*.json "${CWD}"/tmp/.rune-debug-*.json \
-           "${CWD}"/tmp/.rune-design-sync-*.json "${CWD}"/tmp/.rune-codex-review-*.json \
+           "${CWD}"/tmp/.rune-design-sync-*.json \
            "${CWD}"/tmp/.rune-resolve-todos-*.json "${CWD}"/tmp/.rune-self-audit-*.json; do
     [[ -f "$f" ]] || continue
     # Consolidated jq: extract status + ownership fields in one call

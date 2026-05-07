@@ -29,7 +29,7 @@ allowed-tools:
 
 # /rune:devise — Multi-Agent Planning Workflow
 
-**Load skills**: `roundtable-circle`, `context-weaving`, `rune-echoes`, `rune-orchestration`, `elicitation`, `codex-cli`, `team-sdk`, `polling-guard`, `zsh-compat`
+**Load skills**: `roundtable-circle`, `context-weaving`, `rune-echoes`, `rune-orchestration`, `elicitation`, `team-sdk`, `polling-guard`, `zsh-compat`
 
 Orchestrates a planning pipeline using Agent Teams with dependency-aware task scheduling.
 
@@ -65,7 +65,7 @@ Phase 0.2: Source Image Analysis (conditional — fetch + vision describe source
 Phase 1: Research (up to 10 agents, conditional — join existing team)
     ├─ Phase 1A: LOCAL RESEARCH (always — repo-surveyor, echo-reader, git-miner, wiring-cartographer, activation-pathfinder)
     ├─ Phase 1B: RESEARCH DECISION (talisman plan config bypass, risk + local sufficiency scoring, URL sanitization)
-    ├─ Phase 1C: EXTERNAL RESEARCH (conditional — practice-seeker + Context7 MCP, lore-scholar + Context7, codex-researcher)
+    ├─ Phase 1C: EXTERNAL RESEARCH (conditional — practice-seeker + Context7 MCP, lore-scholar + Context7)
     ├─ Phase 1C.5: RESEARCH VERIFICATION (conditional — research-verifier, serial/blocking)
     └─ Phase 1D: SPEC VALIDATION (always — flow-seer)
     ↓ (all research tasks converge)
@@ -83,7 +83,7 @@ Phase 3: Forge (default — skipped with --quick)
     ↓
 Phase 4: Plan Review (scroll review + optional iterative refinement)
     ↓
-Phase 4.5: Technical Review (optional — decree-arbiter + knowledge-keeper + codex-plan-reviewer)
+Phase 4.5: Technical Review (optional — decree-arbiter + knowledge-keeper)
     ↓
 Phase 4D: Grounding Gate (ALWAYS — evidence-verifier + assumption-slayer, even with --quick)
     ↓
@@ -199,7 +199,7 @@ Before researching solutions, scan affected code areas for existing bugs, gaps, 
 
 ## Phase 1: Research (Conditional, up to 10 agents)
 
-Spawns local research agents (repo-surveyor, echo-reader, git-miner, wiring-cartographer, activation-pathfinder), evaluates risk/sufficiency scores to decide on external research (practice-seeker, lore-scholar, codex-researcher), optionally verifies external research outputs for trustworthiness (research-verifier, Phase 1C.5), then runs spec validation (flow-seer). Includes research consolidation validation checkpoint. Phase 1B reads `talisman.plan` config for `external_research` bypass modes (`always`/`auto`/`never`) and `research_urls` with SSRF-defensive URL sanitization. External research agents use Context7 MCP for framework documentation alongside WebSearch. Phase 1C.5 scores findings across 5 dimensions (relevance, accuracy, freshness, cross-validation, security) and maps verdicts (TRUSTED/CAUTION/UNTRUSTED/FLAGGED) — skipped with `--quick`, `--no-verify-research`, or when no external research ran.
+Spawns local research agents (repo-surveyor, echo-reader, git-miner, wiring-cartographer, activation-pathfinder), evaluates risk/sufficiency scores to decide on external research (practice-seeker, lore-scholar), optionally verifies external research outputs for trustworthiness (research-verifier, Phase 1C.5), then runs spec validation (flow-seer). Includes research consolidation validation checkpoint. Phase 1B reads `talisman.plan` config for `external_research` bypass modes (`always`/`auto`/`never`) and `research_urls` with SSRF-defensive URL sanitization. External research agents use Context7 MCP for framework documentation alongside WebSearch. Phase 1C.5 scores findings across 5 dimensions (relevance, accuracy, freshness, cross-validation, security) and maps verdicts (TRUSTED/CAUTION/UNTRUSTED/FLAGGED) — skipped with `--quick`, `--no-verify-research`, or when no external research ran.
 
 ### MCP-First Research Agent Discovery (v1.171.0+)
 
@@ -251,12 +251,6 @@ Runs predictive risk analysis on files likely affected by the plan. Supports 3 d
 
 See [goldmask-prediction.md](references/goldmask-prediction.md) for the full protocol — depth modes, agent spawning, plan injection, and error handling.
 
-## Phase 2.3.5: Research Conflict Tiebreaker (Codex)
-
-**CONDITIONAL** — only runs when research agents produce conflicting recommendations (~20% trigger rate).
-
-See [conflict-tiebreaker.md](references/conflict-tiebreaker.md) for the full protocol.
-
 ## Phase 2.5: Shatter Assessment
 
 Skipped when `--quick` is passed. Assesses plan complexity and optionally decomposes into shards or hierarchical children.
@@ -303,7 +297,7 @@ See [forge-gaze.md](../roundtable-circle/references/forge-gaze.md) for the full 
 
 ## Phase 4: Plan Review (Iterative)
 
-Runs scroll-reviewer for document quality (with Truth-Telling Mandate), then automated verification gate (deterministic checks including talisman patterns, universal checks, CommonMark compliance, measurability, filler detection). Optionally summons decree-arbiter, knowledge-keeper, and codex-plan-reviewer for technical review.
+Runs scroll-reviewer for document quality (with Truth-Telling Mandate), then automated verification gate (deterministic checks including talisman patterns, universal checks, CommonMark compliance, measurability, filler detection). Optionally summons decree-arbiter and knowledge-keeper for technical review.
 
 **Truth-Telling Mandate** (appended to scroll-reviewer prompt in Phase 4): Ensures `--quick` path users get critical thinking benefit even without full brainstorm:
 - If a plan section is weak, say it's weak — explain WHY with evidence
@@ -311,7 +305,7 @@ Runs scroll-reviewer for document quality (with Truth-Telling Mandate), then aut
 - If you lack data to judge, say "INSUFFICIENT DATA" — never hedge without evidence
 
 **Inputs**: Plan document from Phase 2/3, talisman config
-**Outputs**: `tmp/plans/{timestamp}/scroll-review.md`, `tmp/plans/{timestamp}/decree-review.md`, `tmp/plans/{timestamp}/knowledge-review.md`, `tmp/plans/{timestamp}/codex-plan-review.md`
+**Outputs**: `tmp/plans/{timestamp}/scroll-review.md`, `tmp/plans/{timestamp}/decree-review.md`, `tmp/plans/{timestamp}/knowledge-review.md`
 **Error handling**: BLOCK verdict -> address before presenting; CONCERN verdicts -> include as warnings
 **Iterative**: Max 2 refinement passes for HIGH severity issues
 
