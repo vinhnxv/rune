@@ -1,5 +1,44 @@
 # Changelog
 
+## [3.0.0-alpha.1] — 2026-05-09
+
+**Lean rebuild on the four-pillar essence.** Major version reset that strips two years of accumulated bloat and rebuilds on Rune's load-bearing core: `/rune:arc` with checkpoint framework, QA phases, Discipline Engineering, and multi-agent orchestration via Agent Teams.
+
+**Day 1 cuts (this release):**
+
+- Plugin description trimmed from ~3,200 chars (incident changelog) to ~235 chars (capability statement). Plugin description is no longer a fix log.
+- Version bumped 2.69.1 → 3.0.0-alpha.1 in both `plugin.json` and `.claude-plugin/marketplace.json`.
+
+**Day 1 cuts (subsequent commits in this branch):**
+
+- 11 knowledge-only skills removed: `figma-to-react`, `frontend-design-patterns`, `react-composition-patterns`, `react-native-patterns`, `react-performance-rules`, `react-view-transitions`, `web-interface-rules`, `untitledui-mcp`, `design-system-discovery`, `storybook`, `agent-browser`. These were docs masquerading as skills — they consumed context budget without serving the four pillars.
+- 3 design skills removed: `design-prototype`, `design-sync`, `ux-design-process`. Design intent integrates into `devise` plan templates and `forge` enrichment instead.
+- 5 dependent agents removed: `ux-heuristic-reviewer`, `ux-interaction-auditor`, `design-iterator`, `proto-worker`, `ux-pattern-analyzer`.
+- 5 arc design phase reference files removed: `arc-phase-design-package`, `arc-phase-design-iteration`, `arc-phase-design-extraction`, `arc-phase-design-prototype`, `arc-phase-browser-test`.
+- 3 arc variant skills removed: `arc-batch`, `arc-hierarchy`, `arc-issues`. These workflows move to an external harness (separate project) — not in-Rune.
+- 3 arc variant Stop hook scripts and 3 cancel commands removed.
+- CLAUDE.md skill table trimmed from ~70 rows to ≤15 — surfacing the v3.x essence.
+
+**Breaking changes (v3.x is intentionally not v2.x compatible):**
+
+- Removed `/rune:design-prototype`, `/rune:design-sync`, `/rune:ux-design-process` commands.
+- Removed `/rune:arc-batch`, `/rune:arc-hierarchy`, `/rune:arc-issues` commands.
+- Removed `/rune:cancel-arc-batch`, `/rune:cancel-arc-hierarchy`, `/rune:cancel-arc-issues` commands.
+- Removed `untitledui-mcp` skill and any reliance on the UntitledUI MCP server inside Rune.
+- Devise no longer auto-detects Figma URLs or runs UX research / design system discovery sub-phases.
+- Strive no longer enriches worker prompts with Figma/design context.
+- Arc no longer runs design extraction, design prototype, design verification, design iteration, or browser test phases.
+
+**Non-goals for the v3.x line (planned, not in this release):**
+
+- Memory layer removal (`echoes`, `learn`, `elevate` skills + echo-search MCP) — Day 8+.
+- Talisman config layer removal — Day 8+.
+- 4 arc Stop hooks → 1 dispatcher refactor — Day 8-14.
+- Inspector mode-variant agent consolidation — Day 8-14.
+- QA verifier consolidation — Day 8-14.
+
+See `docs/brainstorms/2026-05-09-rune-v3-lean-rebuild-brainstorm.md` for the full rebuild rationale, four-pillar definition, and cut/keep decision matrix.
+
 ## [2.69.1] — 2026-05-08
 
 **Fix `enforce-teams.sh` syntax error blocking all Agent calls.**
