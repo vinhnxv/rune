@@ -316,7 +316,7 @@ def isEnabled(self):
 
 ### 9. React Composition Patterns
 
-Reference `react-composition-patterns` skill. Flag these anti-patterns:
+Flag these React composition anti-patterns:
 
 #### Boolean Prop Proliferation
 - Components with 3+ boolean props (`isLoading`, `isError`, `isCompact`, `isDisabled`)

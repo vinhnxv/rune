@@ -28,7 +28,6 @@ skills:
 maxTurns: 60
 mcpServers:
   - echo-search
-  - figma-to-react
 source: builtin
 priority: 100
 primary_phase: work

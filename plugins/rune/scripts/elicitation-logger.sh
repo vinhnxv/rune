@@ -1,10 +1,10 @@
 #!/bin/bash
 # scripts/elicitation-logger.sh
-# Elicitation hook logger for echo-search and figma-to-react elicitation prompts.
+# Elicitation hook logger for echo-search elicitation prompts.
 # Appends elicitation requests to a per-user JSONL log for audit and debugging.
 #
 # Event: Elicitation
-# Matcher: echo-search|figma-to-react
+# Matcher: echo-search
 # Behavior: OPERATIONAL — fail-forward, exit 0 always
 # Max log size: 5MB (512 * 1024 * 10 bytes) — skips append when exceeded
 

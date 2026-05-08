@@ -71,10 +71,8 @@ _is_mcp_server() {
     # ─ Rune plugin MCP servers (plugins/rune/.mcp.json) ─
     *echo-search/server.py*) return 0 ;;
     *agent-search/server.py*) return 0 ;;
-    *figma-to-react/server.py*) return 0 ;;
     *pace_mcp_server*) return 0 ;;
     *context7-mcp*|*context7*) return 0 ;;
-    *figma-developer-mcp*|*figma-context*) return 0 ;;
 
     # ─ Anthropic official MCP servers ─
     *sequential-thinking*) return 0 ;;

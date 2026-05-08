@@ -4,12 +4,12 @@ description: |
   Master command — natural-language router for all Rune workflows. Parses VN+EN
   input, chains multi-step workflows, checks prerequisites. Also a Rune expert
   for guidance and education ("how does rune work", "what should I do").
-  Use for: "/tarnished plan|work|review|arc|arc-batch ...", "rune help",
+  Use for: "/tarnished plan|work|review|arc ...", "rune help",
   "which command", "do everything", "thảo luận", "khám phá", master command,
-  routing, mcp integration, custom agent, agent list.
+  routing, custom agent, agent list.
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[plan|work|review|arc|arc-batch|...] [args]"
+argument-hint: "[plan|work|review|arc|...] [args]"
 allowed-tools:
   - Read
   - Glob
@@ -59,11 +59,11 @@ Read `$ARGUMENTS`. Three paths:
 ```
 
 Fast-path keywords: `plan`, `work`, `review`, `brainstorm`, `explore`, `devise`,
-`strive`, `appraise`, `audit`, `arc`, `arc-batch`, `arc-issues`, `arc-hierarchy`,
+`strive`, `appraise`, `audit`, `arc`,
 `forge`, `verify`, `mend`, `inspect`, `goldmask`, `elicit`, `rest`, `echoes`, `clean`, `variant-hunt`, `supply-chain-audit`, `post-findings`,
-`ship`, `fix`, `debug`, `cancel`, `mcp`, `untitledui`, `design-sync`, `elevate`,
+`ship`, `fix`, `debug`, `cancel`, `elevate`,
 `file-todos`, `learn`, `resolve-comments`, `resolve-comment`, `resolve-todos`,
-`skill-testing`, `team-status`, `test-browser`, `ux`, `team-delegate`,
+`skill-testing`, `team-status`, `team-delegate`,
 `self-audit`.
 
 **Path C — Natural language** (no keyword match):
@@ -224,17 +224,6 @@ load [rune-knowledge.md](references/rune-knowledge.md) and provide educational g
 → Read references/rune-knowledge.md for relevant section
 → Read references/skill-catalog.md for details
 → Explain with context from the user's actual codebase
-
-### MCP Integration Guidance
-```
-/rune:tarnished mcp
-/rune:tarnished how to add mcp
-/rune:tarnished setup untitledui
-/rune:tarnished tích hợp mcp
-```
-→ Read references/rune-knowledge.md "MCP Integration" section
-→ For setup: route to `/rune:talisman guide integrations`
-→ For UntitledUI-specific: explain setup + route to talisman guide
 
 ### Agent Configuration Guidance
 ```
