@@ -467,16 +467,14 @@ fi
 PHASE_ORDER=(
   forge forge_qa
   plan_review plan_refine verification semantic_verification
-  design_extraction design_prototype task_decomposition work work_qa
-  drift_review storybook_verification design_verification design_verification_qa
-  ux_verification gap_analysis gap_analysis_qa
+  task_decomposition work work_qa
+  drift_review gap_analysis gap_analysis_qa
   gap_remediation
   inspect inspect_fix verify_inspect goldmask_verification
   code_review code_review_qa
   goldmask_correlation verify mend mend_qa
-  verify_mend design_iteration
+  verify_mend
   test test_qa
-  browser_test browser_test_fix verify_browser_test
   test_coverage_critique deploy_verify pre_ship_validation release_quality_check
   ship bot_review_wait pr_comment_resolution merge
 )
@@ -503,14 +501,9 @@ _phase_ref() {
     plan_review)              echo "${base}/arc-phase-plan-review.md" ;;
     plan_refine)              echo "${base}/arc-phase-plan-refine.md" ;;
     verification)             echo "${base}/verification-gate.md" ;;
-    design_extraction)        echo "${base}/arc-phase-design-extraction.md" ;;
-    design_prototype)         echo "${base}/arc-phase-design-prototype.md" ;;
     task_decomposition)       echo "${base}/arc-phase-task-decomposition.md" ;;
     work)                     echo "${base}/arc-phase-work.md" ;;
     drift_review)             echo "${base}/arc-phase-drift-review.md" ;;
-    storybook_verification)   echo "${base}/arc-phase-storybook-verification.md" ;;
-    design_verification)      echo "${base}/arc-phase-design-verification.md" ;;
-    ux_verification)          echo "${base}/arc-phase-ux-verification.md" ;;
     gap_analysis)             echo "${base}/gap-analysis.md" ;;
     gap_remediation)          echo "${base}/gap-remediation.md" ;;
     inspect)                  echo "${base}/arc-phase-inspect.md" ;;
@@ -522,11 +515,7 @@ _phase_ref() {
     verify)                   echo "${base}/arc-phase-verify.md" ;;
     mend)                     echo "${base}/arc-phase-mend.md" ;;
     verify_mend)              echo "${base}/verify-mend.md" ;;
-    design_iteration)         echo "${base}/arc-phase-design-iteration.md" ;;
     test)                     echo "${base}/arc-phase-test.md" ;;
-    browser_test)             echo "${base}/arc-phase-browser-test.md" ;;
-    browser_test_fix)         echo "${base}/arc-phase-browser-test-fix.md" ;;
-    verify_browser_test)      echo "${base}/arc-phase-verify-browser-test.md" ;;
     test_coverage_critique)   echo "${base}/arc-phase-test-coverage-critique.md" ;;
     deploy_verify)            echo "${base}/arc-phase-deploy-verify.md" ;;
     pre_ship_validation)      echo "${base}/arc-phase-pre-ship-validation.md" ;;
@@ -535,7 +524,7 @@ _phase_ref() {
     bot_review_wait)          echo "${base}/arc-phase-bot-review-wait.md" ;;
     pr_comment_resolution)    echo "${base}/arc-phase-pr-comment-resolution.md" ;;
     merge)                    echo "${base}/arc-phase-merge.md" ;;
-    forge_qa|work_qa|gap_analysis_qa|code_review_qa|mend_qa|test_qa|design_verification_qa)
+    forge_qa|work_qa|gap_analysis_qa|code_review_qa|mend_qa|test_qa)
                               echo "${base}/arc-phase-qa-gate.md" ;;
     *)                        echo "" ;;
   esac
@@ -551,7 +540,6 @@ _phase_section_hint() {
   case "$phase" in
     semantic_verification)    echo "Execute Phase 2.8 (Semantic Verification) section ONLY. Do NOT execute Phase 5.6." ;;
     test)                     echo "" ;;
-    browser_test|browser_test_fix|verify_browser_test) echo "" ;;
     test_coverage_critique)   echo "" ;;
     pre_ship_validation)      echo "Execute Phase 8.5 (Pre-Ship Completion Validator) section ONLY. Do NOT execute Phase 8.55 (Release Quality Check)." ;;
     release_quality_check)    echo "Execute Phase 8.55 (Release Quality Check) section ONLY. Do NOT execute Phase 8.5 (Pre-Ship Completion Validator)." ;;
@@ -741,11 +729,8 @@ _phase_weight() {
     code_review)                             echo 4 ;;
     forge|mend|test)                         echo 3 ;;
     plan_review|plan_refine)                 echo 3 ;;
-    design_extraction|design_verification|design_iteration|design_prototype) echo 2 ;;
     gap_analysis|gap_remediation|goldmask_verification|goldmask_correlation|verify) echo 2 ;;
-    storybook_verification|ux_verification)  echo 2 ;;
     verify_mend) echo 2 ;;
-    browser_test|browser_test_fix|verify_browser_test) echo 2 ;;
     *)                                       echo 1 ;;
   esac
 }

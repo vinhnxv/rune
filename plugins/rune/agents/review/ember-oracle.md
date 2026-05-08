@@ -10,8 +10,6 @@ tools:
   - Glob
   - Grep
 maxTurns: 30
-mcpServers:
-  - echo-search
 source: builtin
 priority: 100
 primary_phase: review
@@ -144,7 +142,7 @@ active_records = await repo.find_active(limit=100, offset=page * 100)
 
 ### 5. React/Next.js Performance
 
-Reference `react-performance-rules` skill for exhaustive patterns. Priority findings:
+Priority React/Next.js performance findings:
 
 #### CRITICAL — Waterfall Detection
 - Sequential `await` in components (should be `Promise.all` or parallel Suspense)

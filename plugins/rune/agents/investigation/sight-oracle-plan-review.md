@@ -37,8 +37,6 @@ tags:
   - profile
   - plan-review
   - code-samples
-mcpServers:
-  - echo-search
 ---
 ## Description Details
 

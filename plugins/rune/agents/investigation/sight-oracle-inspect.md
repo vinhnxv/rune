@@ -36,8 +36,6 @@ tags:
   - profile
   - plan-vs-implementation
   - completeness
-mcpServers:
-  - echo-search
 ---
 
 ## Bootstrap Context (MANDATORY — Read ALL before any work)

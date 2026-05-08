@@ -14,10 +14,6 @@ tools:
   - WebFetch
   - SendMessage
 maxTurns: 40
-mcpServers:
-  - echo-search
-  - context7
-  - tavily
 source: builtin
 priority: 100
 primary_phase: devise

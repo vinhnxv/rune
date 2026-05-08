@@ -24,8 +24,6 @@ disallowedTools:
   - TeamCreate
   - TeamDelete
 maxTurns: 50
-mcpServers:
-  - echo-search
 source: builtin
 priority: 100
 primary_phase: self-audit

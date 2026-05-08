@@ -12,7 +12,6 @@
 # PAT-005 FIX: Matched tools (via hooks.json matchers):
 #   - mcp__plugin_rune_context7__*        (Context7 documentation)
 #   - WebSearch|WebFetch                  (web content)
-#   - mcp__plugin_rune_figma-to-react__*  (Figma design data)
 #   - mcp__plugin_rune_echo-search__*     (echo memory search)
 #   - mcp__plugin_rune_agent-search__*    (agent registry search)
 
@@ -75,7 +74,6 @@ TOOL_CLASS=""
 case "$TOOL_NAME" in
   mcp__plugin_rune_context7__*) TOOL_CLASS="context7" ;;
   WebSearch|WebFetch)           TOOL_CLASS="web" ;;
-  mcp__plugin_rune_figma-to-react__*) TOOL_CLASS="figma" ;;
   mcp__plugin_rune_echo-search__*) TOOL_CLASS="echo-search" ;;
   *) exit 0 ;;  # Not an MCP tool we advise on
 esac

@@ -26,8 +26,6 @@ disallowedTools:
   - TeamDelete
   - NotebookEdit
 maxTurns: 30
-mcpServers:
-  - echo-search
 source: builtin
 priority: 80
 primary_phase: verify

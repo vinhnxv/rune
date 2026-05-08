@@ -37,8 +37,6 @@ tags:
   - quality
   - documentation
   - correctness
-mcpServers:
-  - echo-search
 ---
 ## Description Details
 

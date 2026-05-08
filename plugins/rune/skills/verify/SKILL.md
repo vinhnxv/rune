@@ -58,8 +58,6 @@ Phase 3: AGGREGATE -> Collect verdicts, compute stats
     |
 Phase 4: OUTPUT   -> Write VERDICTS.md + mend-ready filtered list
     |
-Phase 5: ECHO     -> Persist FALSE_POSITIVE patterns to Rune Echoes
-    |
 Phase 6: CLEANUP  -> Shutdown teammates, TeamDelete
 ```
 
@@ -393,73 +391,6 @@ const verdictsJson = verdicts.map(v => ({
   reasoning: v.reasoning
 }))
 Write(`${outputDir}/verdicts.json`, JSON.stringify(verdictsJson, null, 2))
-```
-
-## Phase 5: ECHO — Persist FALSE_POSITIVE Patterns
-
-```pseudocode
-// 5.1 Persist FP patterns to Rune Echoes for future review suppression
-const fpFindings = verdicts.filter(v => v.verdict === "FALSE_POSITIVE")
-
-if (fpFindings.length > 0) {
-  const echoLib = `\${RUNE_PLUGIN_ROOT}/scripts/lib/echo-append.sh`
-
-  for (const fp of fpFindings) {
-    // 5.2 Dedup check: search existing echoes before writing
-    // Use echo-search MCP if available to avoid duplicate FP records
-    let isDuplicate = false
-    try {
-      const existing = mcp__echo-search__echo_search({
-        query: `false-positive ${fp.findingId} ${fp.finding?.file || ""}`,
-        limit: 3,
-        layer: "inscribed",
-        role: "verifier"
-      })
-      // Check if an echo with matching ASH prefix + category already exists
-      isDuplicate = existing?.results?.some(r =>
-        r.content.includes(fp.findingId.split("-")[0]) &&
-        r.tags?.includes("false-positive")
-      )
-    } catch (e) {
-      // MCP unavailable — proceed without dedup (safe to write duplicate)
-    }
-
-    if (isDuplicate) {
-      log(`Skipping echo for ${fp.findingId} — duplicate FP pattern already exists`)
-      continue
-    }
-
-    // 5.3 Find the original finding for metadata
-    const originalFinding = verifiableFindings.find(f => f.id === fp.findingId)
-    let ashPrefix = fp.findingId.split("-")[0]
-    let category = originalFinding?.file?.split("/").slice(-2, -1)[0] || "unknown"
-
-    // SEC-001: Sanitize TOME-derived values before shell interpolation
-    if (!/^[A-Z]+$/.test(ashPrefix)) ashPrefix = "UNKNOWN"
-    if (!/^[a-zA-Z0-9_-]+$/.test(category)) category = "unknown"
-
-    // 5.4 Write echo entry via temp file (safe from shell injection in content)
-    const content = [
-      `Finding: ${originalFinding?.title || fp.findingId}`,
-      `File: ${originalFinding?.file || "unknown"}`,
-      `Reason: ${fp.reasoning}`,
-      `Pattern: ${ashPrefix} findings in this area are often false positives due to ${fp.reasoning}`
-    ].join("\n")
-
-    const contentTmpFile = `${outputDir}/.echo-content-${ashPrefix}-${i}.tmp`
-    Write(contentTmpFile, content)
-    Bash(`source "${echoLib}" && rune_echo_append \
-      --role verifier --layer inscribed \
-      --source "rune:verify ${id}" \
-      --title "FP Pattern: ${ashPrefix}-${category}" \
-      --content "$(head -c 1800 "${contentTmpFile}")" \
-      --confidence HIGH \
-      --tags "false-positive,${ashPrefix},${category}"`)
-    Bash(`rm -f "${contentTmpFile}"`)
-  }
-
-  log(`Persisted ${fpFindings.length} FP patterns to echoes`)
-}
 ```
 
 ## Phase 6: CLEANUP — Shutdown and TeamDelete

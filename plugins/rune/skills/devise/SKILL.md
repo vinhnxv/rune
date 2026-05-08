@@ -87,8 +87,6 @@ Phase 4.5: Technical Review (optional — decree-arbiter + knowledge-keeper)
     ↓
 Phase 4D: Grounding Gate (ALWAYS — evidence-verifier + assumption-slayer, even with --quick)
     ↓
-Phase 5: Echo Persist (save learnings to .rune/echoes/)
-    ↓
 Phase 6: Cleanup & Present (shutdown teammates, TeamDelete, present plan)
     ↓
 Output: plans/YYYY-MM-DD-{type}-{name}-plan.md
@@ -126,21 +124,9 @@ Three paths based on flags:
 
 **Output**: `tmp/plans/{timestamp}/brainstorm-decisions.md` with mandatory sections: Non-Goals, Constraint Classification, Success Criteria, Scope Boundary.
 
-### Design Signal Detection & Inventory Agent
-
-Scans user description for Figma URLs (`FIGMA_URL_PATTERN`), sets `designAware` flag, and conditionally spawns `design-pipeline-agent` to call `figma_list_components` MCP for component pre-population. Includes `--quick` fallback for re-scanning feature description when Phase 0 is skipped.
-
-See [design-signal-detection.md](references/design-signal-detection.md) for the full detection logic and inventory agent spawn protocol.
-
 See [brainstorm-phase.md](references/brainstorm-phase.md) for the delegation protocol, `--brainstorm-context` workspace reading, and devise-specific overrides.
 
 Read and execute when Phase 0 runs.
-
-### Design System & Builder Discovery (Phase 0.5)
-
-Runs design system and UI builder discovery after Figma URL detection, before Phase 1. Zero cost when no design system or builder is detected. Loads companion skill (e.g., `untitledui-mcp`) when a builder is found.
-
-See [design-system-discovery/SKILL.md](../design-system-discovery/SKILL.md) for the full algorithms. See [ux-and-mcp-discovery.md](references/ux-and-mcp-discovery.md) for the inline discovery code.
 
 ### Phase 0.2: Source Image Analysis (conditional)
 
@@ -162,22 +148,6 @@ When the plan frontmatter contains `source_images` (populated by `/rune:arc-issu
 **Output**: `tmp/plans/{timestamp}/research/visual-context.md` — one section per image with source URL, alt text, and visual description (or unavailability notice).
 
 **Downstream consumers**: Research agents (repo-surveyor, wiring-cartographer) receive `brainstormContext.visual_context` in their spawn prompts when available.
-
-### Phase 0.3: UX Research (conditional)
-
-Spawns `ux-pattern-analyzer` to assess current UX maturity when `ux.enabled` is true and frontend files are detected. Runs AFTER Design System Discovery (Phase 0.5), BEFORE Phase 1 Research. Zero cost when UX is disabled or no frontend files exist.
-
-**Skip conditions**: `talisman.ux.enabled` is not `true`, or no frontend files detected.
-
-**Output**: `brainstormContext.ux_maturity` — consumed by Phase 2 (Synthesize) to enrich the plan with UX pattern recommendations.
-
-See [ux-and-mcp-discovery.md](references/ux-and-mcp-discovery.md) for the full agent spawn code, skip logic, and UX maturity schema.
-
-### MCP Integration Discovery (Phase 0, conditional)
-
-Resolve active MCP integrations for the `devise` phase. Zero cost when no integrations configured.
-
-See [ux-and-mcp-discovery.md](references/ux-and-mcp-discovery.md) for the inline integration code. See `strive/references/mcp-integration.md` for the shared resolver algorithm.
 
 ### Phase 0.8: Dependency-Aware Issue Discovery (conditional)
 
@@ -211,10 +181,6 @@ Research agents are discovered via agent-search MCP before spawning, enabling us
 
 See [research-phase.md](references/research-phase.md) for the full protocol.
 
-#### MCP Tool Context in Research Agents
-
-When `mcpIntegrations.length > 0`, append MCP context to research agent prompts (practice-seeker, lore-scholar, repo-surveyor). See [ux-and-mcp-discovery.md](references/ux-and-mcp-discovery.md) for injection code.
-
 ## Phase 1.8: Solution Arena
 
 Generates competing solutions from research, evaluates on weighted dimensions, challenges with adversarial agents, and presents a decision matrix for approach selection.
@@ -231,17 +197,12 @@ See [solution-arena.md](references/solution-arena.md) for full protocol (sub-ste
 
 Tarnished consolidates research findings into a plan document. User selects detail level (Minimal/Standard/Comprehensive). Includes plan templates, formatting best practices, and the Plan Section Convention (contracts before pseudocode). Consolidates wiring-cartographer and activation-pathfinder outputs into `## Integration & Wiring Map` section (Standard and Comprehensive only; omitted for Minimal).
 
-**Inputs**: Research outputs from `tmp/plans/{timestamp}/research/` (including `wiring-map.md` and `activation-path.md` from integration research), user detail level selection, `designAware` (boolean from Phase 0), `figmaUrls` (string[] from Phase 0), `figmaUrl` (string or null — first entry, backward compat)
+**Inputs**: Research outputs from `tmp/plans/{timestamp}/research/` (including `wiring-map.md` and `activation-path.md` from integration research), user detail level selection
 **Outputs**: `plans/YYYY-MM-DD-{type}-{feature-name}-plan.md`
 **Error handling**: Missing research files -> proceed with available data
 **Comprehensive only**: Re-runs flow-seer on the drafted plan for a second SpecFlow pass
-**Design-aware**: When `design_sync_candidate === true`, adds `figma_urls` array and `design_sync: true` to frontmatter, and emits a "Design Implementation" section in the plan body (with component inventory from design-pipeline-agent if available)
 
 See [synthesize.md](references/synthesize.md) for the full protocol.
-
-#### MCP Integration Context in Synthesis
-
-When active MCP integrations are available, include MCP tools, companion skills, and library metadata in the synthesis prompt. See [ux-and-mcp-discovery.md](references/ux-and-mcp-discovery.md) for injection code.
 
 ## Phase 2.3: Predictive Goldmask
 
@@ -321,55 +282,6 @@ See [plan-review.md](references/plan-review.md) for the full protocol.
 **Agents**: `grounding-evidence-verifier`, `grounding-assumption-slayer`
 
 See [plan-review.md](references/plan-review.md) Phase 4D section for the full protocol.
-
-## Phase 5: Echo Persist
-
-Persist planning learnings to Rune Echoes via `echo-append.sh`:
-
-```javascript
-// Resolve echo-append.sh path once
-const PLUGIN_ROOT = Bash("echo ${RUNE_PLUGIN_ROOT}").trim()
-const ECHO_LIB = `${PLUGIN_ROOT}/scripts/lib/echo-append.sh`
-
-// Persist architectural discoveries from research phase
-const researchFiles = Glob(`tmp/plans/${timestamp}/research/*.md`)
-if (researchFiles.length > 0) {
-  const analysis = Read(`tmp/plans/${timestamp}/research/codebase-analysis.md`)
-  // Extract key patterns (tech stack, conventions)
-  const techStack = extractSection(analysis, "Tech Stack") || ""
-  const conventions = extractSection(analysis, "Conventions") || ""
-  const combined = (techStack + "\n" + conventions).trim()
-
-  if (combined.length > 0) {
-    Bash(`source "${ECHO_LIB}" && rune_echo_append \
-      --role planner --layer inscribed \
-      --source "rune:devise ${timestamp}" \
-      --title "Architecture: ${featureName}" \
-      --content "$(printf '%s' "${combined}" | head -c 1800)" \
-      --confidence HIGH \
-      --tags "architecture,devise,${featureSlug}"`)
-  }
-}
-
-// Persist plan decisions (scope, approach, constraints)
-const planFile = Read(`plans/${planFilename}`)
-const approach = extractSection(planFile, "Approach") || extractSection(planFile, "Tasks") || ""
-if (approach.length > 0) {
-  Bash(`source "${ECHO_LIB}" && rune_echo_append \
-    --role planner --layer inscribed \
-    --source "rune:devise ${timestamp}" \
-    --title "Decision: ${featureName} approach" \
-    --content "$(printf '%s' "${approach}" | head -c 1800)" \
-    --confidence HIGH \
-    --tags "decision,devise,${featureSlug}"`)
-}
-```
-
-**Content schema** (devise):
-- Title: `"Architecture: {feature}"` or `"Decision: {feature} approach"`
-- Layer: `inscribed` (90-day TTL, weight 0.7)
-- Confidence: `HIGH` (backed by research agents)
-- Tags: `architecture` or `decision`, `devise`, `{feature-slug}`
 
 ## Phase 6: Cleanup & Present
 

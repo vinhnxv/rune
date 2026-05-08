@@ -6,7 +6,6 @@ description: |
   Handles scope selection, team creation, review orchestration, aggregation, verification, and cleanup.
   Optional `--deep` runs multi-wave deep review with up to 18 Ashes across 3 waves.
   Phase 1.5 adds UX reviewers when `talisman.ux.enabled` + frontend files detected.
-  Phase 1.6 adds design fidelity reviewer (DES prefix) when `talisman.design_review.enabled` + frontend files detected.
   Phase 1.7 adds data flow integrity reviewer (FLOW prefix) when 2+ stack layers detected in diff.
 user-invocable: true
 disable-model-invocation: false
@@ -100,7 +99,7 @@ const params = {
 
 **Partial mode** is useful for reviewing a subset of changes before committing.
 
-**Deep mode** runs 3 waves of review with up to 18 Ashes total (excludes Phase 1.6 design reviewer — that activates in standard mode too). See [orchestration-phases.md](../roundtable-circle/references/orchestration-phases.md) for the wave execution pattern and [wave-scheduling.md](../roundtable-circle/references/wave-scheduling.md) for wave selection logic.
+**Deep mode** runs 3 waves of review with up to 18 Ashes total. See [orchestration-phases.md](../roundtable-circle/references/orchestration-phases.md) for the wave execution pattern and [wave-scheduling.md](../roundtable-circle/references/wave-scheduling.md) for wave selection logic.
 
 **Dry-run mode** executes Phase 0 (Pre-flight) and Phase 1 (Rune Gaze) only, then displays changed files classified by type, which Ash would be summoned, file assignments per Ash, estimated team size, and chunk plan if file count exceeds `CHUNK_THRESHOLD`. No teams, tasks, state files, or agents are created. If `--deep + --partial` is used, displays a warning about sparse findings from investigation Ashes.
 
@@ -245,7 +244,7 @@ try {
 
 ## Phase 1: Rune Gaze (Scope Selection)
 
-Classifies changed files by extension → selects Ashes. Custom Ash discovery (agent-backed + CLI-backed) happens here. Phase 1.5 adds UX reviewers when `talisman.ux.enabled` + frontend files detected. Phase 1.6 adds design fidelity reviewer (`DES`-prefixed findings) when `talisman.design_review.enabled` + frontend files detected. `--dry-run` exits after this phase.
+Classifies changed files by extension → selects Ashes. Custom Ash discovery (agent-backed + CLI-backed) happens here. `--dry-run` exits after this phase.
 
 See [phase-1-rune-gaze.md](references/phase-1-rune-gaze.md) for full classification table, UX gate, and dry-run exit. See [rune-gaze.md](../roundtable-circle/references/rune-gaze.md) for the base algorithm.
 
@@ -294,9 +293,9 @@ Read and execute [tome-aggregation.md](references/tome-aggregation.md) for the f
 - **Phase 5.3 (Diff-Scope Tagging)**: Orchestrator-only. Tags findings with `scope="in-diff"` or `scope="pre-existing"`.
 - **Phase 6 (Truthsight)**: Layer 0 inline checks + Layer 2 verifier for P1 findings.
 
-## Phase 7: Cleanup & Echo Persist
+## Phase 7: Cleanup
 
-Dynamic member discovery → shutdown_request → grace period → TeamDelete with retry-with-backoff (4 attempts) → filesystem fallback → release workflow lock → update state file → persist P1/P2 patterns to echoes → present TOME → auto-mend or interactive prompt.
+Dynamic member discovery → shutdown_request → grace period → TeamDelete with retry-with-backoff (4 attempts) → filesystem fallback → release workflow lock → update state file → present TOME → auto-mend or interactive prompt.
 
 See [phase-7-cleanup.md](references/phase-7-cleanup.md) for full pseudocode.
 

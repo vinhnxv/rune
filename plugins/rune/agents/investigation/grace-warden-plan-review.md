@@ -37,8 +37,6 @@ tags:
   - deviated
   - plan-review
   - code-samples
-mcpServers:
-  - echo-search
 ---
 ## Description Details
 

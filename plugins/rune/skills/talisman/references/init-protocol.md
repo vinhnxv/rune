@@ -32,18 +32,10 @@ After stack detection, query agent-search MCP for stack-relevant agents and scaf
 ```
 stack = detectStack()  # from Phase 2
 
-# Query agent-search MCP for stack-relevant agents (skip if MCP unavailable)
+# Stack-relevant agent recommendations (static — agent-search MCP removed in v3.0.0-alpha.1)
 recommendations = []
-if agent-search MCP available:
-  for lang in stack.languages:
-    results = mcp__plugin_rune_agent-search__agent_search({
-      query: "{lang} review specialist",
-      phase: "appraise",
-      language: lang,    # New language filter from Task 2
-      limit: 3
-    })
-    if results:
-      recommendations.append({ language: lang, agents: results })
+# Static recommendations from agents/ directory based on stack.languages —
+# read agent frontmatter directly to filter by language/category.
 
 # Present recommendations to user
 if recommendations:

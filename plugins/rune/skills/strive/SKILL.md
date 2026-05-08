@@ -33,7 +33,7 @@ allowed-tools:
 
 Parses a plan into tasks with dependencies, summons swarm workers, and coordinates parallel implementation.
 
-**Load skills**: `roundtable-circle`, `context-weaving`, `rune-echoes`, `rune-orchestration`, `team-sdk`, `git-worktree` (when worktree mode active), `polling-guard`, `zsh-compat`, `frontend-design-patterns` + `figma-to-react` + `design-sync` (when design context active)
+**Load skills**: `roundtable-circle`, `context-weaving`, `rune-orchestration`, `team-sdk`, `git-worktree` (when worktree mode active), `polling-guard`, `zsh-compat`
 
 ## Usage
 
@@ -85,8 +85,6 @@ Phase 4.4: Quick Goldmask -> Compare predicted CRITICAL files vs committed (orch
 Phase 4.6: Blind AC Verification -> AC-only verification by blind agent (optional, gated by blind_verification.enabled)
     |
 Phase 4.7: Drift Signals -> Workers write drift signal files to tmp/work/{timestamp}/drift-signals/ when plan-reality mismatches are detected
-    |
-Phase 5: Echo Persist -> Save learnings
     |
 Phase 6: Cleanup -> Shutdown workers, TeamDelete
     |
@@ -162,12 +160,6 @@ See [task-decomposition.md](references/task-decomposition.md) for `runTaskDecomp
 
 **Summary**: `extractedTasks = runTaskDecomposition(extractedTasks, workConfig)`. After expansion, inscription.json
 is re-written with subtask entries (EC-9). Disabled via `work.task_decomposition.enabled: false`.
-
-### Design Context Discovery (conditional, zero cost if no artifacts)
-
-See [design-context.md](references/design-context.md) for the 4-strategy cascade (design-package → arc-artifacts → design-sync → figma-url-only), conditional skill loading, and task annotation flow.
-
-**Summary**: Triple-gated (`design_sync.enabled` + frontend task signals + artifact presence). When active, loads `frontend-design-patterns`, `figma-to-react`, `design-sync` skills and injects DCD/VSM content into worker prompts.
 
 ### MCP Integration Discovery (conditional, zero cost if no integrations)
 
@@ -399,12 +391,6 @@ Read and execute [quality-gates.md](references/quality-gates.md) before proceedi
 **Phase 4.3 — Doc-Consistency**: Non-blocking version/count drift detection. See [doc-consistency.md](../roundtable-circle/references/doc-consistency.md).
 
 **Phase 4.4 — Quick Goldmask**: Compare plan-time CRITICAL file predictions against committed files. Emits WARNINGs only. Non-blocking.
-
-## Phase 5: Echo Persist
-
-Persist implementation patterns and discipline metrics to Rune Echoes. Workers echo records completed/failed task counts and key modified files. Discipline echo records SCR, first-pass rate, convergence iterations, and failure histogram.
-
-See [echo-persist.md](references/echo-persist.md) for the full implementation code.
 
 ## Phase 6: Cleanup & Report
 

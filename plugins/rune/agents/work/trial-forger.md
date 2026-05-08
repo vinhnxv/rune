@@ -23,9 +23,6 @@ skills:
   - discipline
   - testing
 maxTurns: 60
-mcpServers:
-  - echo-search
-  - figma-to-react
 source: builtin
 priority: 100
 primary_phase: work
@@ -427,7 +424,7 @@ generate design-specific tests alongside functional tests:
 
 1. **Story coverage tests**: Verify Storybook stories exist for all components referenced in the
    Visual Spec Map (VSM). Check that each component variant has a corresponding named export
-   in `*.stories.tsx`. Use `figma-to-react` MCP tools to inspect design specs when available.
+   in `*.stories.tsx`.
 
 2. **Accessibility tests**: Generate axe-core accessibility test cases for components with
    DES- acceptance criteria. Verify WCAG AA compliance (contrast, ARIA labels, focus management).

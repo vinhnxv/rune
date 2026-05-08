@@ -14,7 +14,7 @@ per-phase reference files (timeout values), arc-resume.md (schema migration)
 //   2. arc-phase-stop-hook.sh (Bash array for phase dispatch)
 // These MUST stay in sync. Divergence causes silent phase ordering bugs.
 // TODO: Add preflight assertion comparing both arrays.
-const PHASE_ORDER = ['forge', 'forge_qa', 'plan_review', 'plan_refine', 'verification', 'design_extraction', 'design_prototype', 'work', 'work_qa', 'drift_review', 'storybook_verification', 'design_verification', 'design_verification_qa', 'ux_verification', 'gap_analysis', 'gap_analysis_qa', 'gap_remediation', 'inspect', 'inspect_fix', 'verify_inspect', 'goldmask_verification', 'code_review', 'code_review_qa', 'goldmask_correlation', 'verify', 'mend', 'mend_qa', 'verify_mend', 'design_iteration', 'test', 'test_qa', 'browser_test', 'browser_test_fix', 'verify_browser_test', 'deploy_verify', 'pre_ship_validation', 'ship', 'bot_review_wait', 'pr_comment_resolution', 'merge']
+const PHASE_ORDER = ['forge', 'forge_qa', 'plan_review', 'plan_refine', 'verification', 'work', 'work_qa', 'drift_review', 'gap_analysis', 'gap_analysis_qa', 'gap_remediation', 'inspect', 'inspect_fix', 'verify_inspect', 'goldmask_verification', 'code_review', 'code_review_qa', 'goldmask_correlation', 'verify', 'mend', 'mend_qa', 'verify_mend', 'test', 'test_qa', 'deploy_verify', 'pre_ship_validation', 'ship', 'bot_review_wait', 'pr_comment_resolution', 'merge']
 
 // SYNC-CRITICAL: PHASE_GROUPS is duplicated in:
 //   1. This file (JavaScript reference for group definitions)
@@ -23,12 +23,11 @@ const PHASE_ORDER = ['forge', 'forge_qa', 'plan_review', 'plan_refine', 'verific
 // also add it to the appropriate group in PHASE_GROUPS.
 const PHASE_GROUPS = [
   { id: 'planning',     phases: ['forge', 'forge_qa', 'plan_review', 'plan_refine', 'verification', 'semantic_verification'] },
-  { id: 'design',       phases: ['design_extraction', 'design_prototype', 'task_decomposition'] },
-  { id: 'work',         phases: ['work', 'work_qa', 'drift_review', 'storybook_verification'] },
-  { id: 'verification', phases: ['design_verification', 'design_verification_qa', 'ux_verification', 'gap_analysis', 'gap_analysis_qa', 'gap_remediation'] },
+  { id: 'work',         phases: ['work', 'work_qa', 'drift_review', 'task_decomposition'] },
+  { id: 'verification', phases: ['gap_analysis', 'gap_analysis_qa', 'gap_remediation'] },
   { id: 'inspect',      phases: ['inspect', 'inspect_fix', 'verify_inspect', 'goldmask_verification'] },
-  { id: 'review',       phases: ['code_review', 'code_review_qa', 'goldmask_correlation', 'verify', 'mend', 'mend_qa', 'verify_mend', 'design_iteration'] },
-  { id: 'testing',      phases: ['test', 'test_qa', 'browser_test', 'browser_test_fix', 'verify_browser_test', 'test_coverage_critique'] },
+  { id: 'review',       phases: ['code_review', 'code_review_qa', 'goldmask_correlation', 'verify', 'mend', 'mend_qa', 'verify_mend'] },
+  { id: 'testing',      phases: ['test', 'test_qa', 'test_coverage_critique'] },
   { id: 'ship',         phases: ['deploy_verify', 'pre_ship_validation', 'release_quality_check', 'ship', 'bot_review_wait', 'pr_comment_resolution', 'merge'] },
 ]
 
@@ -95,13 +94,8 @@ const PHASE_TIMEOUTS = {
   plan_review:   talismanTimeouts.plan_review ?? 900_000,    // 15 min (inner 10m + 5m setup)
   plan_refine:   talismanTimeouts.plan_refine ?? 180_000,    //  3 min (orchestrator-only, no team)
   verification:  talismanTimeouts.verification ?? 30_000,    // 30 sec (orchestrator-only, no team)
-  design_extraction: talismanTimeouts.design_extraction ?? 600_000,  // 10 min (conditional — gated by design_sync.enabled + Figma URL)
-  design_prototype: talismanTimeouts.design_prototype ?? 600_000,  // 10 min (conditional — gated by design_sync.enabled + VSM files from design_extraction)
   work:          talismanTimeouts.work ?? 2_100_000,    // 35 min (inner 30m + 5m setup)
   drift_review:  talismanTimeouts.drift_review ?? 120_000,  // 2 min (inline, no team)
-  storybook_verification: talismanTimeouts.storybook_verification ?? 900_000,  // 15 min (conditional — gated by storybook.enabled in talisman misc)
-  design_verification: talismanTimeouts.design_verification ?? 480_000,  //  8 min (conditional — gated by VSM files from design_extraction)
-  ux_verification: talismanTimeouts.ux_verification ?? 300_000,  //  5 min (conditional — gated by ux.enabled + frontend files detected)
   gap_analysis:  talismanTimeouts.gap_analysis ?? 720_000,   // 12 min (inner 8m + 2m setup + 2m aggregate)
   gap_remediation: talismanTimeouts.gap_remediation ?? 900_000,  // 15 min (inner 10m + 5m setup)
   inspect:       talismanTimeouts.inspect ?? 900_000,       // 15 min (4 Inspector Ashes + verdict-binder)
@@ -110,7 +104,6 @@ const PHASE_TIMEOUTS = {
   code_review:   talismanTimeouts.code_review ?? 900_000,    // 15 min (inner 10m + 5m setup)
   mend:          talismanTimeouts.mend ?? 1_380_000,    // 23 min (inner 15m + 5m setup + 3m ward/cross-file)
   verify_mend:   talismanTimeouts.verify_mend ?? 240_000,    //  4 min (orchestrator-only, no team)
-  design_iteration: talismanTimeouts.design_iteration ?? 900_000,  // 15 min (conditional)
   test:          talismanTimeouts.test ?? 1_500_000,      // 25 min without E2E. Dynamic: 50 min with E2E (3_000_000)
   deploy_verify: talismanTimeouts.deploy_verify ?? 300_000,  //  5 min (conditional — gated by migration/API/config file changes)
   pre_ship_validation: talismanTimeouts.pre_ship_validation ?? 360_000,  //  6 min (orchestrator-only)
@@ -123,14 +116,10 @@ const PHASE_TIMEOUTS = {
   merge:         talismanTimeouts.merge ?? 600_000,     // 10 min (orchestrator-only)
   forge_qa:        talismanTimeouts.forge_qa ?? 300_000,        //  5 min (QA gate — 1 agent)
   work_qa:         talismanTimeouts.work_qa ?? 300_000,         //  5 min (QA gate — 1 agent)
-  design_verification_qa: talismanTimeouts.design_verification_qa ?? 300_000,  //  5 min (QA gate — 1 agent)
   gap_analysis_qa: talismanTimeouts.gap_analysis_qa ?? 300_000, //  5 min (QA gate — 1 agent)
   code_review_qa:  talismanTimeouts.code_review_qa ?? 300_000,  //  5 min (QA gate — 1 agent)
   mend_qa:         talismanTimeouts.mend_qa ?? 300_000,         //  5 min (QA gate — 1 agent)
   test_qa:         talismanTimeouts.test_qa ?? 300_000,         //  5 min (QA gate — 1 agent)
-  browser_test:         talismanTimeouts.browser_test ?? 900_000,         // 15 min (conditional — frontend + agent-browser)
-  browser_test_fix:     talismanTimeouts.browser_test_fix ?? 900_000,     // 15 min (conditional — browser_test failures)
-  verify_browser_test:  talismanTimeouts.verify_browser_test ?? 240_000,  //  4 min (convergence evaluation, no team)
 }
 ```
 
@@ -185,13 +174,9 @@ function calculateDynamicTimeout(tier) {
   const basePhaseBudget = PHASE_TIMEOUTS.forge + PHASE_TIMEOUTS.forge_qa +
     PHASE_TIMEOUTS.plan_review +
     PHASE_TIMEOUTS.plan_refine + PHASE_TIMEOUTS.verification +
-    PHASE_TIMEOUTS.semantic_verification + PHASE_TIMEOUTS.design_extraction +
-    PHASE_TIMEOUTS.design_prototype + PHASE_TIMEOUTS.task_decomposition +
+    PHASE_TIMEOUTS.semantic_verification + PHASE_TIMEOUTS.task_decomposition +
     PHASE_TIMEOUTS.work + PHASE_TIMEOUTS.work_qa +
     PHASE_TIMEOUTS.drift_review +  // DECR-001 fix: was missing from budget
-    PHASE_TIMEOUTS.storybook_verification + PHASE_TIMEOUTS.design_verification +
-    PHASE_TIMEOUTS.design_verification_qa +
-    PHASE_TIMEOUTS.ux_verification +
     PHASE_TIMEOUTS.gap_analysis + PHASE_TIMEOUTS.gap_analysis_qa +
     PHASE_TIMEOUTS.gap_remediation +
     PHASE_TIMEOUTS.inspect + PHASE_TIMEOUTS.inspect_fix + PHASE_TIMEOUTS.verify_inspect +
@@ -201,9 +186,7 @@ function calculateDynamicTimeout(tier) {
     PHASE_TIMEOUTS.verify +
     PHASE_TIMEOUTS.mend + PHASE_TIMEOUTS.mend_qa +
     PHASE_TIMEOUTS.verify_mend +
-    PHASE_TIMEOUTS.design_iteration +
     PHASE_TIMEOUTS.test + PHASE_TIMEOUTS.test_qa +
-    PHASE_TIMEOUTS.browser_test + PHASE_TIMEOUTS.browser_test_fix + PHASE_TIMEOUTS.verify_browser_test +
     PHASE_TIMEOUTS.test_coverage_critique +
     PHASE_TIMEOUTS.deploy_verify +  // DECR-001 fix: was missing from budget
     PHASE_TIMEOUTS.pre_ship_validation + PHASE_TIMEOUTS.release_quality_check +
