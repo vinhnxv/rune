@@ -551,9 +551,8 @@ try {
     // Plan review agents
     "scroll-reviewer", "decree-arbiter", "knowledge-keeper", "veil-piercer-plan",
     "evidence-verifier",
-    // Inspect/gap analysis agents
+    // Inspect/gap analysis agents (base agents only — mode-variant files removed in v3.0.0-alpha.2)
     "grace-warden", "ruin-prophet", "sight-oracle", "vigil-keeper",
-    "grace-warden-inspect", "ruin-prophet-inspect", "sight-oracle-inspect", "vigil-keeper-inspect",
     "verdict-binder", "gap-fixer",
     // Code review agents (delegated to appraise — unlikely here but safe)
     "forge-warden", "ward-sentinel", "pattern-weaver", "veil-piercer",

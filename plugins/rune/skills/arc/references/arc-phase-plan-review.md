@@ -23,10 +23,10 @@ The calling phase should:
 When delegating to `/rune:appraise` or the roundtable-circle, MCP discovery is handled
 automatically by Rune Gaze Phase 1. No additional work needed in the arc phase itself.
 
-Plan-review inspector agents are now standalone files in `agents/investigation/`:
-- `grace-warden-plan-review`, `ruin-prophet-plan-review`, `sight-oracle-plan-review`, `vigil-keeper-plan-review`
+Plan-review inspectors share the 4 base inspector agents in `agents/investigation/` with mode dispatch:
+- `grace-warden`, `ruin-prophet`, `sight-oracle`, `vigil-keeper`
 
-These can be spawned via `subagent_type` or discovered via `agent_search(phase="inspect", query="plan review")`.
+The base agent dispatches on the `MODE:` first line of the spawn-prompt body. For plan-review use, prepend `MODE: plan-review\n\n` to the user prompt. These can be spawned via `subagent_type` or discovered via `agent_search(phase="inspect", query="plan review")`.
 
 ## ATE-1 Compliance
 
@@ -399,30 +399,33 @@ if (hasCodeBlocks) {
     `### Block ${b.index} (${b.language}, line ${b.lineStart})\n\`\`\`${b.language}\n${b.code}\n\`\`\``
   ).join("\n\n")
 
-  // Spawn 4 inspect agents (plan-review mode templates)
+  // Spawn 4 inspect agents (single base agent file; mode dispatched via MODE: prefix)
   for (const inspector of inspectors) {
-    const templatePath = `agents/investigation/${inspector}-plan-review.md`
+    const templatePath = `agents/investigation/${inspector}.md`
     // CONCERN 3: fileExists guard
     if (!exists(templatePath)) {
-      warn(`Plan-review template missing for ${inspector}: ${templatePath} — skipping`)
+      warn(`Inspector base template missing for ${inspector}: ${templatePath} — skipping`)
       continue
     }
+
+    const renderedTemplate = loadTemplate(templatePath, {
+      plan_path: enrichedPlanPath,
+      output_path: `tmp/arc/${id}/plan-inspect-${inspector}.md`,
+      task_id: "auto",
+      requirements: requirements.map(r => `- ${r.id}: ${r.text}`).join("\n"),
+      identifiers: identifiers.map(i => `${i.type}: ${i.value}`).join("\n"),
+      scope_files: scopeFiles.join("\n"),
+      code_blocks: codeBlocksText,
+      timestamp: new Date().toISOString()
+    })
 
     Agent({
       team_name: layer2TeamName,
       name: inspector,
       subagent_type: "general-purpose",
       model: resolveModelForAgent(inspector, talisman),  // Cost tier mapping (references/cost-tier-mapping.md)
-      prompt: loadTemplate(templatePath, {
-        plan_path: enrichedPlanPath,
-        output_path: `tmp/arc/${id}/plan-inspect-${inspector}.md`,
-        task_id: "auto",
-        requirements: requirements.map(r => `- ${r.id}: ${r.text}`).join("\n"),
-        identifiers: identifiers.map(i => `${i.type}: ${i.value}`).join("\n"),
-        scope_files: scopeFiles.join("\n"),
-        code_blocks: codeBlocksText,
-        timestamp: new Date().toISOString()
-      }),
+      // Prepend MODE: plan-review so the base agent dispatches to its `## Mode: plan-review` section.
+      prompt: `MODE: plan-review\n\n${renderedTemplate}`,
       run_in_background: true
     })
   }
@@ -592,9 +595,9 @@ try {
   // shutdown_request to absent members is a documented safe no-op.
   allMembers = ["scroll-reviewer", "decree-arbiter", "knowledge-keeper", "veil-piercer-plan",
     "horizon-sage", "evidence-verifier", "state-weaver",
-    // Layer 2 inspectors (safe no-op if absent):
-    "grace-warden-plan-review", "ruin-prophet-plan-review",
-    "sight-oracle-plan-review", "vigil-keeper-plan-review"]
+    // Layer 2 inspectors — base agent names (safe no-op if absent):
+    "grace-warden", "ruin-prophet",
+    "sight-oracle", "vigil-keeper"]
 }
 
 // Clean up signal directory

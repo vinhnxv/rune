@@ -1,5 +1,5 @@
 <!-- Source: Extracted from agents/review/ward-sentinel.md, agents/review/pattern-seer.md,
-     agents/review/flaw-hunter.md, agents/investigation/grace-warden-inspect.md,
+     agents/review/flaw-hunter.md, agents/investigation/grace-warden.md (Mode: inspect),
      agents/utility/knowledge-keeper.md -->
 
 # Finding Format Template — Shared Reference
