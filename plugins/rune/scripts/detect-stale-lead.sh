@@ -127,10 +127,7 @@ fi
 # If OUR session's arc loop is active AND status is not completed, arc-phase-stop-hook
 # handles wake-up — we should not interfere.
 for loop_file in \
-  "${CWD}/${RUNE_STATE}/arc-phase-loop.local.md" \
-  "${CWD}/${RUNE_STATE}/arc-batch-loop.local.md" \
-  "${CWD}/${RUNE_STATE}/arc-hierarchy-loop.local.md" \
-  "${CWD}/${RUNE_STATE}/arc-issues-loop.local.md"; do
+  "${CWD}/${RUNE_STATE}/arc-phase-loop.local.md"; do
   if [[ -f "$loop_file" ]] && [[ ! -L "$loop_file" ]]; then
     _loop_fm=$(sed -n '/^---$/,/^---$/p' "$loop_file" 2>/dev/null | sed '1d;$d')
     _loop_cfg=$(printf '%s\n' "$_loop_fm" | grep "^config_dir:" | sed "s/^config_dir:[[:space:]]*//" | sed 's/^"//' | sed 's/"$//' | head -1 || true)

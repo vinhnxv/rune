@@ -578,36 +578,6 @@
         ]
       },
       {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/arc-batch-stop-hook.sh",
-            "timeout": 15,
-            "statusMessage": "Checking arc batch loop..."
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/arc-hierarchy-stop-hook.sh",
-            "timeout": 15,
-            "statusMessage": "Checking arc hierarchy loop..."
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/arc-issues-stop-hook.sh",
-            "timeout": 15,
-            "statusMessage": "Checking arc issues loop..."
-          }
-        ]
-      },
-      {
         "_rationale": "STALE-LEAD-001: Wakes idle team lead when all teammates have completed work. 4-method detection cascade (sentinel → count → TaskList files → liveness check). Debounced per team per session. OPERATIONAL — fail-forward. Runs AFTER arc phase loop (which handles its own wake-up) and BEFORE workflow complete cleanup.",
         "hooks": [
           {
