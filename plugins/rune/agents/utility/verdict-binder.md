@@ -40,8 +40,6 @@ tags:
   - gaps
   - deduplication
   - alignment
-mcpServers:
-  - echo-search
 ---
 
 ## Bootstrap Context (MANDATORY — Read ALL before any work)

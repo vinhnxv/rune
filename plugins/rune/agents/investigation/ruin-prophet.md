@@ -14,8 +14,6 @@ tools:
   - TaskUpdate
   - TaskGet
 maxTurns: 25
-mcpServers:
-  - echo-search
 source: builtin
 priority: 100
 primary_phase: goldmask

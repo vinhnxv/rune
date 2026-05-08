@@ -12,8 +12,6 @@ tools:
   - Grep
   - SendMessage
 maxTurns: 20
-mcpServers:
-  - echo-search
 source: builtin
 priority: 100
 primary_phase: goldmask

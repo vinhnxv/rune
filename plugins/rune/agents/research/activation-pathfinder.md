@@ -15,8 +15,6 @@ tools:
   - Grep
   - SendMessage
 maxTurns: 40
-mcpServers:
-  - echo-search
 source: builtin
 priority: 100
 primary_phase: devise

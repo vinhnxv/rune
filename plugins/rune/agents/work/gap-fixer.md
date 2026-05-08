@@ -46,8 +46,6 @@ tags:
   - inspect
   - atomic
   - correctness
-mcpServers:
-  - echo-search
 ---
 
 ## Bootstrap Context (MANDATORY — Read ALL before any work)

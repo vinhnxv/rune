@@ -294,9 +294,9 @@ Read and execute [tome-aggregation.md](references/tome-aggregation.md) for the f
 - **Phase 5.3 (Diff-Scope Tagging)**: Orchestrator-only. Tags findings with `scope="in-diff"` or `scope="pre-existing"`.
 - **Phase 6 (Truthsight)**: Layer 0 inline checks + Layer 2 verifier for P1 findings.
 
-## Phase 7: Cleanup & Echo Persist
+## Phase 7: Cleanup
 
-Dynamic member discovery → shutdown_request → grace period → TeamDelete with retry-with-backoff (4 attempts) → filesystem fallback → release workflow lock → update state file → persist P1/P2 patterns to echoes → present TOME → auto-mend or interactive prompt.
+Dynamic member discovery → shutdown_request → grace period → TeamDelete with retry-with-backoff (4 attempts) → filesystem fallback → release workflow lock → update state file → present TOME → auto-mend or interactive prompt.
 
 See [phase-7-cleanup.md](references/phase-7-cleanup.md) for full pseudocode.
 

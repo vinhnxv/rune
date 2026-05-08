@@ -86,8 +86,6 @@ Phase 4.6: Blind AC Verification -> AC-only verification by blind agent (optiona
     |
 Phase 4.7: Drift Signals -> Workers write drift signal files to tmp/work/{timestamp}/drift-signals/ when plan-reality mismatches are detected
     |
-Phase 5: Echo Persist -> Save learnings
-    |
 Phase 6: Cleanup -> Shutdown workers, TeamDelete
     |
 Phase 6.5: Ship -> Push + PR creation (optional)
@@ -399,12 +397,6 @@ Read and execute [quality-gates.md](references/quality-gates.md) before proceedi
 **Phase 4.3 — Doc-Consistency**: Non-blocking version/count drift detection. See [doc-consistency.md](../roundtable-circle/references/doc-consistency.md).
 
 **Phase 4.4 — Quick Goldmask**: Compare plan-time CRITICAL file predictions against committed files. Emits WARNINGs only. Non-blocking.
-
-## Phase 5: Echo Persist
-
-Persist implementation patterns and discipline metrics to Rune Echoes. Workers echo records completed/failed task counts and key modified files. Discipline echo records SCR, first-pass rate, convergence iterations, and failure histogram.
-
-See [echo-persist.md](references/echo-persist.md) for the full implementation code.
 
 ## Phase 6: Cleanup & Report
 

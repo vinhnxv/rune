@@ -22,8 +22,6 @@ disallowedTools:
   - TeamDelete
   - TaskCreate
 maxTurns: 40
-mcpServers:
-  - echo-search
 source: builtin
 priority: 100
 primary_phase: utility

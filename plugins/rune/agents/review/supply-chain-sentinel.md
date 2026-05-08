@@ -11,8 +11,6 @@ tools:
   - Grep
   - Bash
 maxTurns: 40
-mcpServers:
-  - echo-search
 source: builtin
 priority: 50
 primary_phase: review

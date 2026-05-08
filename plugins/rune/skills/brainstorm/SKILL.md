@@ -126,16 +126,6 @@ const brainstorms = [
 // If match found: AskUserQuestion to confirm reuse (never auto-use)
 ```
 
-Also check echo search for related brainstorms and architectural knowledge:
-```javascript
-const echoResults = mcp__plugin_rune_echo_search__echo_search({
-  query: `${featureDescription} architecture conventions patterns layers structure`,
-  limit: 5
-})
-// If echo results contain brainstorm-related or architectural entries: inject into context
-// AskUserQuestion to offer reuse of relevant past discoveries
-```
-
 ### Clarity Check
 
 Assess whether brainstorming is actually needed:

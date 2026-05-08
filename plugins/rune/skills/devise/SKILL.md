@@ -87,8 +87,6 @@ Phase 4.5: Technical Review (optional — decree-arbiter + knowledge-keeper)
     ↓
 Phase 4D: Grounding Gate (ALWAYS — evidence-verifier + assumption-slayer, even with --quick)
     ↓
-Phase 5: Echo Persist (save learnings to .rune/echoes/)
-    ↓
 Phase 6: Cleanup & Present (shutdown teammates, TeamDelete, present plan)
     ↓
 Output: plans/YYYY-MM-DD-{type}-{name}-plan.md
@@ -321,55 +319,6 @@ See [plan-review.md](references/plan-review.md) for the full protocol.
 **Agents**: `grounding-evidence-verifier`, `grounding-assumption-slayer`
 
 See [plan-review.md](references/plan-review.md) Phase 4D section for the full protocol.
-
-## Phase 5: Echo Persist
-
-Persist planning learnings to Rune Echoes via `echo-append.sh`:
-
-```javascript
-// Resolve echo-append.sh path once
-const PLUGIN_ROOT = Bash("echo ${RUNE_PLUGIN_ROOT}").trim()
-const ECHO_LIB = `${PLUGIN_ROOT}/scripts/lib/echo-append.sh`
-
-// Persist architectural discoveries from research phase
-const researchFiles = Glob(`tmp/plans/${timestamp}/research/*.md`)
-if (researchFiles.length > 0) {
-  const analysis = Read(`tmp/plans/${timestamp}/research/codebase-analysis.md`)
-  // Extract key patterns (tech stack, conventions)
-  const techStack = extractSection(analysis, "Tech Stack") || ""
-  const conventions = extractSection(analysis, "Conventions") || ""
-  const combined = (techStack + "\n" + conventions).trim()
-
-  if (combined.length > 0) {
-    Bash(`source "${ECHO_LIB}" && rune_echo_append \
-      --role planner --layer inscribed \
-      --source "rune:devise ${timestamp}" \
-      --title "Architecture: ${featureName}" \
-      --content "$(printf '%s' "${combined}" | head -c 1800)" \
-      --confidence HIGH \
-      --tags "architecture,devise,${featureSlug}"`)
-  }
-}
-
-// Persist plan decisions (scope, approach, constraints)
-const planFile = Read(`plans/${planFilename}`)
-const approach = extractSection(planFile, "Approach") || extractSection(planFile, "Tasks") || ""
-if (approach.length > 0) {
-  Bash(`source "${ECHO_LIB}" && rune_echo_append \
-    --role planner --layer inscribed \
-    --source "rune:devise ${timestamp}" \
-    --title "Decision: ${featureName} approach" \
-    --content "$(printf '%s' "${approach}" | head -c 1800)" \
-    --confidence HIGH \
-    --tags "decision,devise,${featureSlug}"`)
-}
-```
-
-**Content schema** (devise):
-- Title: `"Architecture: {feature}"` or `"Decision: {feature} approach"`
-- Layer: `inscribed` (90-day TTL, weight 0.7)
-- Confidence: `HIGH` (backed by research agents)
-- Tags: `architecture` or `decision`, `devise`, `{feature-slug}`
 
 ## Phase 6: Cleanup & Present
 

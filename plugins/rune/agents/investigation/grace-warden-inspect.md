@@ -36,8 +36,6 @@ tags:
   - deviated
   - inspect
   - plan-vs-implementation
-mcpServers:
-  - echo-search
 ---
 
 ## Bootstrap Context (MANDATORY — Read ALL before any work)
