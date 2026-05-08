@@ -78,18 +78,13 @@ The unified review summary after deduplication and prioritization. Findings use 
 
 Utility agent that reviews plans for technical soundness across 9 dimensions: (1) architecture fit, (2) feasibility, (3) security/performance risks, (4) dependency impact, (5) pattern alignment, (6) internal consistency, (7) design anti-pattern risk, (8) consistency convention, (9) documentation impact. Uses Decree Trace evidence format.
 
-## Remembrance Channel
+## Remembrance Channel (REMOVED in v3.0.0-alpha.1)
 
-Human-readable knowledge documents in `docs/solutions/` promoted from high-confidence Rune Echoes. See `rune-echoes/references/remembrance-schema.md` for the promotion rules and YAML frontmatter schema.
-
-## Rune Echoes
-
-Project-level agent memory in `.rune/echoes/` with 3-layer lifecycle:
-1. **Etched**: Permanent project knowledge (architecture, conventions) — never auto-pruned
-2. **Inscribed**: Tactical patterns from reviews/audits — pruned after 90 days unreferenced
-3. **Traced**: Session observations — pruned after 30 days
-
-Agents persist learnings automatically after workflows. Future workflows read echoes to avoid repeating mistakes. See `rune-echoes` skill for full lifecycle.
+> The persistent memory layer (`rune-echoes` skill, `.rune/echoes/` runtime
+> consumer, `docs/solutions/` promotion pipeline) was removed in v3.0.0-alpha.1.
+> Agent output now goes to `tmp/` files (ephemeral) — see CLAUDE.md Core Rule #6.
+> The directory at `.rune/echoes/` may still be present from legacy runs but has
+> no active consumer.
 
 ## Forge Gaze (Topic-Aware Agent Selection)
 

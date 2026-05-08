@@ -40,10 +40,10 @@ The phases below are full-fledged arc phases (registered in `PHASE_ORDER`) but t
 Phase keys in `checkpoint.phases` use snake_case and match PHASE_ORDER entries:
 
 ```
-forge, plan_review, plan_refine, verification, semantic_verification,
+forge, plan_review, plan_refine, verification,
 work, gap_analysis, gap_remediation,
 code_review, mend, verify_mend,
-test, test_coverage_critique, pre_ship_validation, release_quality_check,
+test, pre_ship_validation,
 ship, merge
 ```
 
@@ -51,6 +51,11 @@ ship, merge
 > `bot_review_wait`, `pr_comment_resolution` removed from the default order.
 > Goldmask remains as `/rune:goldmask`; bot-review/PR-comment work moves to
 > external pr-guardian harness territory.
+>
+> **v3.0.0-alpha.2** (codex-strip sync, self-audit 1778278942):
+> `semantic_verification`, `task_decomposition`, `test_coverage_critique`,
+> `release_quality_check` also removed — they were dropped from JS PHASE_ORDER
+> earlier (commit ed157fa4) but lingered in checkpoint key listings.
 
 Conditional phases (gated by talisman):
 ```

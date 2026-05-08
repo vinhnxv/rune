@@ -18,6 +18,10 @@ per-phase reference files (timeout values), arc-resume.md (schema migration)
 // goldmask_correlation, bot_review_wait, pr_comment_resolution. Goldmask remains
 // a standalone command (`/rune:goldmask`); PR-comment + bot-review handling moves
 // to external pr-guardian harness territory.
+// v3.0.0-alpha.2 (codex-strip sync, self-audit 1778278942): bash side now matches —
+// semantic_verification, task_decomposition, test_coverage_critique,
+// release_quality_check were already absent from this JS array but lingered in
+// PHASE_GROUPS and calculateDynamicTimeout(); now also removed from those.
 const PHASE_ORDER = ['forge', 'forge_qa', 'plan_review', 'plan_refine', 'verification', 'work', 'work_qa', 'drift_review', 'gap_analysis', 'gap_analysis_qa', 'gap_remediation', 'inspect', 'inspect_fix', 'verify_inspect', 'code_review', 'code_review_qa', 'verify', 'mend', 'mend_qa', 'verify_mend', 'test', 'test_qa', 'deploy_verify', 'pre_ship_validation', 'ship', 'merge']
 
 // SYNC-CRITICAL: PHASE_GROUPS is duplicated in:
@@ -26,13 +30,13 @@ const PHASE_ORDER = ['forge', 'forge_qa', 'plan_review', 'plan_refine', 'verific
 // These MUST stay in sync. When adding a new phase to PHASE_ORDER,
 // also add it to the appropriate group in PHASE_GROUPS.
 const PHASE_GROUPS = [
-  { id: 'planning',     phases: ['forge', 'forge_qa', 'plan_review', 'plan_refine', 'verification', 'semantic_verification'] },
-  { id: 'work',         phases: ['work', 'work_qa', 'drift_review', 'task_decomposition'] },
+  { id: 'planning',     phases: ['forge', 'forge_qa', 'plan_review', 'plan_refine', 'verification'] },
+  { id: 'work',         phases: ['work', 'work_qa', 'drift_review'] },
   { id: 'verification', phases: ['gap_analysis', 'gap_analysis_qa', 'gap_remediation'] },
   { id: 'inspect',      phases: ['inspect', 'inspect_fix', 'verify_inspect'] },
   { id: 'review',       phases: ['code_review', 'code_review_qa', 'verify', 'mend', 'mend_qa', 'verify_mend'] },
-  { id: 'testing',      phases: ['test', 'test_qa', 'test_coverage_critique'] },
-  { id: 'ship',         phases: ['deploy_verify', 'pre_ship_validation', 'release_quality_check', 'ship', 'merge'] },
+  { id: 'testing',      phases: ['test', 'test_qa'] },
+  { id: 'ship',         phases: ['deploy_verify', 'pre_ship_validation', 'ship', 'merge'] },
 ]
 
 // Preflight assertion: validates all PHASE_ORDER entries appear in exactly one group
@@ -176,7 +180,6 @@ function calculateDynamicTimeout(tier) {
   const basePhaseBudget = PHASE_TIMEOUTS.forge + PHASE_TIMEOUTS.forge_qa +
     PHASE_TIMEOUTS.plan_review +
     PHASE_TIMEOUTS.plan_refine + PHASE_TIMEOUTS.verification +
-    PHASE_TIMEOUTS.semantic_verification + PHASE_TIMEOUTS.task_decomposition +
     PHASE_TIMEOUTS.work + PHASE_TIMEOUTS.work_qa +
     PHASE_TIMEOUTS.drift_review +  // DECR-001 fix: was missing from budget
     PHASE_TIMEOUTS.gap_analysis + PHASE_TIMEOUTS.gap_analysis_qa +
@@ -187,12 +190,16 @@ function calculateDynamicTimeout(tier) {
     PHASE_TIMEOUTS.mend + PHASE_TIMEOUTS.mend_qa +
     PHASE_TIMEOUTS.verify_mend +
     PHASE_TIMEOUTS.test + PHASE_TIMEOUTS.test_qa +
-    PHASE_TIMEOUTS.test_coverage_critique +
     PHASE_TIMEOUTS.deploy_verify +  // DECR-001 fix: was missing from budget
-    PHASE_TIMEOUTS.pre_ship_validation + PHASE_TIMEOUTS.release_quality_check +
+    PHASE_TIMEOUTS.pre_ship_validation +
     PHASE_TIMEOUTS.ship + PHASE_TIMEOUTS.merge
     // v3.0.0-alpha.2: removed goldmask_verification, goldmask_correlation,
     // bot_review_wait, pr_comment_resolution from default budget.
+    // v3.0.0-alpha.2 (codex-strip sync, self-audit 1778278942):
+    // also removed semantic_verification, task_decomposition,
+    // test_coverage_critique, release_quality_check terms — these phases
+    // were dropped from PHASE_ORDER but had been left in the budget sum,
+    // yielding NaN whenever they were referenced.
   const cycle1Budget = CYCLE_BUDGET.pass_1_review + CYCLE_BUDGET.pass_1_mend + CYCLE_BUDGET.convergence
   const cycleNBudget = CYCLE_BUDGET.pass_N_review + CYCLE_BUDGET.pass_N_mend + CYCLE_BUDGET.convergence
   const maxCycles = tier?.maxCycles ?? 3
@@ -303,8 +310,7 @@ const SKIP_REASONS = {
 
 // ── Phase skip classification ──
 // Pre-computable: forge, design_extraction, design_prototype, design_verification*,
-//   design_iteration*, storybook_verification, ux_verification, task_decomposition,
-//   release_quality_check, test*,
+//   design_iteration*, storybook_verification, ux_verification, test*,
 //   browser_test*, browser_test_fix*, verify_browser_test*
 //   (* = conditionally pre-computable — only when parent feature is disabled)
 //
@@ -327,13 +333,15 @@ const DEPTH_PRESETS = {
   // quick: Skip heavy quality gates — fastest path to PR
   // v3.0.0-alpha.2: removed goldmask_verification, goldmask_correlation,
   // bot_review_wait, pr_comment_resolution — they are no longer in PHASE_ORDER.
+  // v3.0.0-alpha.2 (codex-strip sync): removed semantic_verification,
+  // test_coverage_critique, release_quality_check — also no longer in PHASE_ORDER.
   quick: [
-    "forge", "forge_qa", "semantic_verification", "design_extraction",
+    "forge", "forge_qa", "design_extraction",
     "design_prototype", "design_verification", "design_verification_qa",
     "ux_verification", "storybook_verification",
     "inspect", "inspect_fix",
     "verify_inspect", "design_iteration", "browser_test", "browser_test_fix",
-    "verify_browser_test", "test_coverage_critique", "release_quality_check"
+    "verify_browser_test"
   ],
   // standard: Default — skip optional/conditional phases only
   standard: [

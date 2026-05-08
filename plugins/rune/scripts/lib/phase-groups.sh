@@ -20,9 +20,9 @@
 _lookup_phase_group() {
   local phase="$1"
   case "$phase" in
-    forge|forge_qa|plan_review|plan_refine|verification|semantic_verification)
+    forge|forge_qa|plan_review|plan_refine|verification)
       echo "planning" ;;
-    design_extraction|design_prototype|task_decomposition)
+    design_extraction|design_prototype)
       echo "design" ;;
     work|work_qa|drift_review|storybook_verification)
       echo "work" ;;
@@ -32,10 +32,13 @@ _lookup_phase_group() {
       echo "inspect" ;;
     code_review|code_review_qa|verify|mend|mend_qa|verify_mend|design_iteration)
       echo "review" ;;
-    test|test_qa|browser_test|browser_test_fix|verify_browser_test|test_coverage_critique)
+    test|test_qa|browser_test|browser_test_fix|verify_browser_test)
       echo "testing" ;;
     # v3.0.0-alpha.2: bot_review_wait, pr_comment_resolution removed from default order.
-    deploy_verify|pre_ship_validation|release_quality_check|ship|merge)
+    # v3.0.0-alpha.2 (codex-strip sync, self-audit 1778278942): semantic_verification,
+    # task_decomposition, test_coverage_critique, release_quality_check removed —
+    # they are no longer in PHASE_ORDER, so they cannot reach this lookup.
+    deploy_verify|pre_ship_validation|ship|merge)
       echo "ship" ;;
     *)
       echo "" ;;

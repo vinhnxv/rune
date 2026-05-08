@@ -29,7 +29,7 @@ allowed-tools:
 
 # /rune:devise — Multi-Agent Planning Workflow
 
-**Load skills**: `roundtable-circle`, `context-weaving`, `rune-echoes`, `rune-orchestration`, `elicitation`, `team-sdk`, `polling-guard`, `zsh-compat`
+**Load skills**: `roundtable-circle`, `context-weaving`, `rune-orchestration`, `elicitation`, `team-sdk`, `polling-guard`, `zsh-compat`
 
 Orchestrates a planning pipeline using Agent Teams with dependency-aware task scheduling.
 

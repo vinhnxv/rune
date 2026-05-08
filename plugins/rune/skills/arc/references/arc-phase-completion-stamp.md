@@ -183,18 +183,18 @@ function buildCompletionRecord(checkpoint, newStatus, content) {
   const existingRecords = (content.match(/## Arc Completion Record/g) || []).length
 
   // Phase results table
-  // Phase table dynamically matches PHASE_ORDER (45 phases, v2.29.6+)
+  // Phase table dynamically matches PHASE_ORDER (26 default phases, v3.0.0-alpha.2).
+  // Conditional phases (design_*, storybook_*, ux_*, browser_test_*) appear when
+  // their feature flags are enabled — included here so the report covers any
+  // checkpoint regardless of conditional path.
   // WARNING: Order follows PHASE_ORDER (execution order), NOT numeric phase IDs.
-  // Phase 5.8 (GAP REMEDIATION) executes before Phase 5.7 (GOLDMASK VERIFICATION).
   const phases = [
     ['1',    'FORGE',                  'forge'],
     ['2',    'PLAN REVIEW',            'plan_review'],
     ['2.5',  'PLAN REFINEMENT',        'plan_refine'],
     ['2.7',  'VERIFICATION',           'verification'],
-    ['2.8',  'SEMANTIC VERIFICATION',  'semantic_verification'],
     ['3',    'DESIGN EXTRACTION',      'design_extraction'],
     ['3.2',  'DESIGN PROTOTYPE',       'design_prototype'],
-    ['4.5',  'TASK DECOMPOSITION',     'task_decomposition'],
     ['5',    'WORK',                   'work'],
     ['5.1',  'DRIFT REVIEW',           'drift_review'],
     ['3.3',  'STORYBOOK VERIFICATION', 'storybook_verification'],
@@ -206,15 +206,16 @@ function buildCompletionRecord(checkpoint, newStatus, content) {
     ['5.95', 'INSPECT FIX',            'inspect_fix'],
     ['5.99', 'VERIFY INSPECT',         'verify_inspect'],
     // v3.0.0-alpha.2: GOLDMASK VERIFICATION + GOLDMASK CORRELATION removed.
+    // v3.0.0-alpha.2 (codex-strip sync, self-audit 1778278942):
+    // SEMANTIC VERIFICATION, TASK DECOMPOSITION, TEST COVERAGE CRITIQUE,
+    // RELEASE QUALITY CHECK removed — no longer in PHASE_ORDER.
     ['6',    'CODE REVIEW (deep)',      'code_review'],
     ['7',    'MEND',                   'mend'],
     ['7.5',  'VERIFY MEND',            'verify_mend'],
     ['7.6',  'DESIGN ITERATION',       'design_iteration'],
     ['7.7',  'TEST',                   'test'],
-    ['7.8',  'TEST COVERAGE CRITIQUE', 'test_coverage_critique'],
     ['7.9',  'DEPLOY VERIFY',          'deploy_verify'],
     ['8',    'PRE-SHIP VALIDATION',    'pre_ship_validation'],
-    ['8.55', 'RELEASE QUALITY CHECK',  'release_quality_check'],
     ['9',    'SHIP',                   'ship'],
     // v3.0.0-alpha.2: BOT REVIEW WAIT + PR COMMENT RESOLUTION removed.
     ['9.5',  'MERGE',                  'merge'],

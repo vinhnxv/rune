@@ -352,4 +352,5 @@ deferred wiring tasks that would have created dead code.
 - [failure-codes.md](failure-codes.md) — F1-F17 failure code registry
 - [evidence-convention.md](evidence-convention.md) — Evidence directory layout and summary.json schema
 - [anti-rationalization.md](anti-rationalization.md) — Rationalization patterns and detection
-- [../../rune-echoes/SKILL.md](../../rune-echoes/SKILL.md) — Rune Echoes memory lifecycle
+<!-- Rune Echoes memory lifecycle reference removed in v3.0.0-alpha.1 (persistent memory layer retired). -->
+

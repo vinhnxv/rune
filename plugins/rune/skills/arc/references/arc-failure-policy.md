@@ -23,8 +23,6 @@ Extracted from SKILL.md in v1.110.0 for phase-isolated context architecture.
 | DESIGN ITERATION | Non-blocking — fidelity score >= threshold → skip cleanly. Agent-browser unavailable → skip with warning | Conditional (v1.109.0) |
 | TEST | Non-blocking WARN only. Test failures recorded in report | `--no-test` to skip entirely |
 | PRE-SHIP VALIDATION | Non-blocking — BLOCK verdict proceeds with warning in PR body | Orchestrator-only |
-| BOT_REVIEW_WAIT | Non-blocking — timeout or disabled → skip cleanly | Advisory (v1.88.0) |
-| PR_COMMENT_RESOLUTION | Non-blocking — unresolvable comments logged in report | Advisory (v1.88.0) |
 | SHIP | Skip PR creation, proceed to completion report. Branch was pushed | User creates PR manually: `gh pr create` |
 | MERGE | Skip merge, PR remains open. Rebase conflicts → warn with resolution steps | User merges manually: `gh pr merge --squash` |
 

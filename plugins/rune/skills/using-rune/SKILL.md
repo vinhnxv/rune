@@ -41,9 +41,7 @@ Do not auto-invoke heavyweight commands — suggest and let the user confirm.
 | "Configure Rune" / "setup talisman" / "init talisman" / "rune config" | `/rune:talisman` | Initialize, audit, or guide talisman.yml configuration |
 | "Clean up" / "remove temp files" | `/rune:rest` | Remove tmp/ artifacts from completed workflows |
 | "Cancel the review" / "stop the audit" | `/rune:cancel-review` or `/rune:cancel-audit` | Graceful shutdown of active workflows |
-| "Promote echoes" / "elevate learnings" / "global echoes" | `/rune:elevate` | Promote project echoes to global scope |
 | "Track todos" / "file todos" / "manage todos" | `/rune:file-todos` | Structured file-based TODO tracking |
-| "Learn from session" / "extract patterns" / "self-learn" | `/rune:learn` | Session self-learning — extract correction patterns |
 | "Resolve PR comments" / "fix all comments" / "batch resolve" | `/rune:resolve-all-gh-pr-comments` | Batch resolve all open PR review comments |
 | "Fix this PR comment" / "resolve comment" | `/rune:resolve-gh-pr-comment` | Resolve a single GitHub PR review comment |
 | "Resolve TODOs" / "fix TODOs" / "clean up TODOs" | `/rune:resolve-todos` | Resolve file-based TODOs with verify-before-fix pipeline |
@@ -105,9 +103,7 @@ These are common requests that Claude should handle directly — no agent team r
 | `/rune:talisman` | No | 1-3 min | Subcommand (init/audit/update/guide/status) |
 | `/rune:rest` | No | <1 min | None |
 | `/rune:brainstorm` | Yes (0-3 advisors) | 1-8 min | Feature idea |
-| `/rune:elevate` | No | 1-2 min | None (scans echoes) |
 | `/rune:file-todos` | No | <1 min | Subcommand |
-| `/rune:learn` | No | 2-5 min | None (scans session) |
 | `/rune:resolve-all-gh-pr-comments` | Yes (per comment) | 5-20 min | PR number (auto-detected) |
 | `/rune:resolve-gh-pr-comment` | No | 1-3 min | PR comment URL or ID |
 | `/rune:resolve-todos` | Yes (per batch) | 5-15 min | TODO file path |

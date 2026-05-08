@@ -688,20 +688,21 @@ arc:
     mend: 1380000                # 23 minutes (default: inner 15m + 5m setup + 3m ward)
     verify_mend: 240000          # 4 minutes (default, orchestrator-only)
     audit: 1200000               # 20 minutes (default: inner 15m + 5m setup)
-    semantic_verification: 180000  # 3 minutes (default, v1.39.0+)
-    # task_decomposition: 180000       # Phase 4.5: Task decomposition (3 min)
     test: 900000                 # 15 min outer timeout (inner: 600s without E2E, 2100s with E2E)
     # design_extraction: 300000        # Phase D1: Figma design extraction (5 min)
     # design_iteration: 600000         # Phase D2: Design iteration loop (10 min)
     # design_verification: 300000      # Phase D3: Design fidelity review (5 min)
-    goldmask_verification: 900000  # 15 minutes (default, v1.47.0+)
-    goldmask_correlation: 60000    # 1 minute (default, v1.47.0+)
     ship: 300000                 # 5 minutes (default, v1.40.0+)
-    bot_review_wait: 900000      # 15 min (default, v1.88.0+; only when bot_review.enabled)
-    pr_comment_resolution: 1200000  # 20 min (default, v1.88.0+; only when bot_review.enabled)
     merge: 600000                # 10 minutes (default, v1.40.0+)
     # NOTE: Total pipeline timeout is computed dynamically by calculateDynamicTimeout(tier).
     # It is NOT configurable via talisman. See SKILL.md for the formula.
+    #
+    # v3.0.0-alpha.2 — REMOVED (no longer consumed by runtime; remove from your talisman.yml):
+    #   goldmask_verification, goldmask_correlation,
+    #   bot_review_wait, pr_comment_resolution
+    # v3.0.0-alpha.2 (codex-strip sync, self-audit 1778278942) — REMOVED:
+    #   semantic_verification, task_decomposition,
+    #   test_coverage_critique, release_quality_check
 
   # ── Rate Limit Auto-Resume (v1.157.0+) ────────
   # When arc-phase or arc-batch stop hooks detect API rate limits in the

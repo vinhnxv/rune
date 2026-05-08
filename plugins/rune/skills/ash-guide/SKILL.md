@@ -3,8 +3,10 @@ name: ash-guide
 description: |
   Use when summoning Rune agents, when encountering "agent not found" errors, when
   selecting which review agents to use, or when checking agent capabilities and tools.
-  Quick reference for all 109 agents across 6 categories (66 core + 43 extended in
-  review, research, work, utility, investigation, testing). Keywords: agent list, Ash, subagent type, agent not found.
+  Quick reference for all 116 agents across 8 categories (74 core in agents/ —
+  investigation, meta-qa, qa, research, review, utility, work + 42 extended in
+  registry/ — investigation, review, testing, utility, work). Plus 13 shared
+  resources in agents/shared/. Keywords: agent list, Ash, subagent type, agent not found.
 user-invocable: false
 disable-model-invocation: false
 allowed-tools:
@@ -56,7 +58,7 @@ Tool restriction is enforced via prompt instructions (defense-in-depth).
 
 ## Review Agents
 
-35 specialized reviewers that form Ash teams:
+Review-style agents (in `agents/review/`; an additional set lives in `registry/review/` and is loaded on-demand):
 
 | Agent | Role | Perspective |
 |-------|------|-------------|
@@ -81,11 +83,13 @@ Tool restriction is enforced via prompt instructions (defense-in-depth).
 | `rune:review:reality-arbiter` | Production viability truth-telling | Integration honesty, production readiness, data reality, error path honesty |
 | `rune:review:assumption-slayer` | Premise validation truth-telling | Problem-solution fit, cargo cult detection, complexity justification |
 | `rune:review:entropy-prophet` | Long-term consequence truth-telling | Complexity compounding, dependency trajectory, lock-in, maintenance burden |
-| `rune:review:design-system-compliance-reviewer` | Design system compliance review | Token usage, variant patterns, import paths, class merge utilities, dark mode implementation |
-| `rune:review:ux-heuristic-reviewer` | UX heuristic evaluation | Nielsen Norman 10 heuristics at code level, 50+ checklist items (UXH-). Conditional: `ux.enabled` + frontend files |
 | `rune:review:ux-flow-validator` | User flow completeness | Loading states, error boundaries, empty states, confirmation dialogs, undo, graceful degradation (UXF-). Conditional: `ux.enabled` + frontend files |
-| `rune:review:ux-interaction-auditor` | Micro-interaction audit | Hover/focus states, keyboard accessibility, touch targets (44px), animation, prefers-reduced-motion (UXI-). Conditional: `ux.enabled` + frontend files |
 | `rune:review:ux-cognitive-walker` | Cognitive walkthrough | First-time user simulation, discoverability, learnability, error recovery, progressive disclosure (UXC-). Conditional: `ux.enabled` + `cognitive_walkthrough: true` |
+
+> **v3.0.0-alpha.1+alpha.2 removed**: `design-system-compliance-reviewer`,
+> `ux-heuristic-reviewer`, `ux-interaction-auditor`, `design-implementation-reviewer`
+> were retired with their consumers. UX/design review now uses the surviving
+> `ux-flow-validator`, `ux-cognitive-walker`, and `aesthetic-quality-reviewer`.
 
 ## Ash Roles (Consolidated Teammates)
 
@@ -114,7 +118,6 @@ In `/rune:appraise`, agents are grouped into 7 built-in Ashes (extensible via ta
 | `rune:utility:mend-fixer` | Parallel code fixer for /rune:mend findings |
 | `rune:utility:knowledge-keeper` | Documentation coverage reviewer for plans |
 | `rune:utility:veil-piercer-plan` | Plan-level truth-teller (Phase 4C plan review) |
-| `rune:utility:ux-pattern-analyzer` | Codebase UX maturity assessment — inventories loading, error, form, navigation, empty state, confirmation/undo patterns (devise Phase 0.3) |
 
 ## Research Agents
 
@@ -123,8 +126,9 @@ In `/rune:appraise`, agents are grouped into 7 built-in Ashes (extensible via ta
 | `rune:research:practice-seeker` | External best practices research |
 | `rune:research:repo-surveyor` | Codebase/repo exploration |
 | `rune:research:lore-scholar` | Framework documentation research |
-| `rune:research:echo-reader` | Reads Rune Echoes (past learnings) |
 | `rune:research:git-miner` | Git history archaeology |
+| `rune:research:wiring-cartographer` | Maps integration points where new code connects to existing system |
+| `rune:research:activation-pathfinder` | Traces activation and migration paths for new features |
 
 ## Work Agents
 

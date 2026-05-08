@@ -424,7 +424,7 @@ if ! [[ "$ITERATION" =~ ^[0-9]+$ ]]; then
   exit 0
 fi
 
-# ── GUARD 8: Max iterations check (safety cap at 65 — 40 phases + 25 convergence rounds) ──
+# ── GUARD 8: Max iterations check (safety cap at 65 — 26 default phases + ≥25 convergence rounds) ──
 if [[ "$MAX_ITERATIONS" =~ ^[0-9]+$ ]] && [[ "$MAX_ITERATIONS" -gt 0 ]] && [[ "$ITERATION" -ge "$MAX_ITERATIONS" ]]; then
   _trace "EXIT: max iterations reached (${ITERATION} >= ${MAX_ITERATIONS})"
   arc_delete_state_file "$STATE_FILE" 2>/dev/null || true
@@ -467,10 +467,14 @@ fi
 # bot_review_wait, pr_comment_resolution from default order. Goldmask remains as
 # /rune:goldmask standalone; PR-comment + bot-review handling moves to external
 # pr-guardian harness territory.
+# v3.0.0-alpha.2 + codex-strip sync: Removed semantic_verification,
+# task_decomposition, test_coverage_critique, release_quality_check —
+# these were dropped from the JS canonical earlier (commit ed157fa4) but
+# the bash side was not synced until self-audit run 1778278942.
 PHASE_ORDER=(
   forge forge_qa
-  plan_review plan_refine verification semantic_verification
-  task_decomposition work work_qa
+  plan_review plan_refine verification
+  work work_qa
   drift_review gap_analysis gap_analysis_qa
   gap_remediation
   inspect inspect_fix verify_inspect
@@ -478,7 +482,7 @@ PHASE_ORDER=(
   verify mend mend_qa
   verify_mend
   test test_qa
-  test_coverage_critique deploy_verify pre_ship_validation release_quality_check
+  deploy_verify pre_ship_validation
   ship merge
 )
 
@@ -504,7 +508,6 @@ _phase_ref() {
     plan_review)              echo "${base}/arc-phase-plan-review.md" ;;
     plan_refine)              echo "${base}/arc-phase-plan-refine.md" ;;
     verification)             echo "${base}/verification-gate.md" ;;
-    task_decomposition)       echo "${base}/arc-phase-task-decomposition.md" ;;
     work)                     echo "${base}/arc-phase-work.md" ;;
     drift_review)             echo "${base}/arc-phase-drift-review.md" ;;
     gap_analysis)             echo "${base}/gap-analysis.md" ;;
@@ -517,10 +520,8 @@ _phase_ref() {
     mend)                     echo "${base}/arc-phase-mend.md" ;;
     verify_mend)              echo "${base}/verify-mend.md" ;;
     test)                     echo "${base}/arc-phase-test.md" ;;
-    test_coverage_critique)   echo "${base}/arc-phase-test-coverage-critique.md" ;;
     deploy_verify)            echo "${base}/arc-phase-deploy-verify.md" ;;
     pre_ship_validation)      echo "${base}/arc-phase-pre-ship-validation.md" ;;
-    release_quality_check)    echo "${base}/arc-phase-pre-ship-validation.md" ;;
     ship)                     echo "${base}/arc-phase-ship.md" ;;
     merge)                    echo "${base}/arc-phase-merge.md" ;;
     forge_qa|work_qa|gap_analysis_qa|code_review_qa|mend_qa|test_qa)
@@ -533,15 +534,11 @@ _phase_ref() {
 # Required when multiple phases share the same reference file. Without hints,
 # Claude reads the full file and may execute multiple phases in one turn,
 # preventing the Stop hook from firing between them.
-# Shared files: arc-phase-pre-ship-validation.md
+# v3.0.0-alpha.2: no shared files remain after Phase 8.55 removal.
 _phase_section_hint() {
   local phase="$1"
   case "$phase" in
-    semantic_verification)    echo "Execute Phase 2.8 (Semantic Verification) section ONLY. Do NOT execute Phase 5.6." ;;
     test)                     echo "" ;;
-    test_coverage_critique)   echo "" ;;
-    pre_ship_validation)      echo "Execute Phase 8.5 (Pre-Ship Completion Validator) section ONLY. Do NOT execute Phase 8.55 (Release Quality Check)." ;;
-    release_quality_check)    echo "Execute Phase 8.55 (Release Quality Check) section ONLY. Do NOT execute Phase 8.5 (Pre-Ship Completion Validator)." ;;
     *)                        echo "" ;;
   esac
 }

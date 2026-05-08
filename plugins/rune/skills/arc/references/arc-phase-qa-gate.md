@@ -862,8 +862,8 @@ Each `*_qa` phase is inserted into PHASE_ORDER immediately after its parent phas
 const PHASE_ORDER = [
   "forge",
   "forge_qa",              // ← QA gate for forge phase
-  "plan_review", "plan_refine", "verification", "semantic_verification",
-  "design_extraction", "design_prototype", "task_decomposition",
+  "plan_review", "plan_refine", "verification",
+  "design_extraction", "design_prototype",
   "work",
   "work_qa",               // ← QA gate for work phase
   "design_verification",
@@ -877,8 +877,11 @@ const PHASE_ORDER = [
   "verify_mend", "design_iteration",
   "test",
   "test_qa",               // ← QA gate for test phase
-  "pre_ship_validation", "release_quality_check", "ship",
+  "pre_ship_validation", "ship",
   // v3.0.0-alpha.2: bot_review_wait + pr_comment_resolution removed.
+  // v3.0.0-alpha.2 (codex-strip sync, self-audit 1778278942):
+  // semantic_verification, task_decomposition, test_coverage_critique,
+  // release_quality_check also removed.
   "merge"
 ]
 ```
@@ -888,8 +891,8 @@ const PHASE_ORDER = [
 PHASE_ORDER=(
   forge
   forge_qa               # QA gate for forge phase
-  plan_review plan_refine verification semantic_verification
-  design_extraction design_prototype task_decomposition
+  plan_review plan_refine verification
+  design_extraction design_prototype
   work
   work_qa                # QA gate for work phase
   design_verification
@@ -903,8 +906,11 @@ PHASE_ORDER=(
   verify_mend design_iteration
   test
   test_qa                # QA gate for test phase
-  pre_ship_validation release_quality_check ship
+  pre_ship_validation ship
   # v3.0.0-alpha.2: bot_review_wait + pr_comment_resolution removed.
+  # v3.0.0-alpha.2 (codex-strip sync, self-audit 1778278942):
+  # semantic_verification, task_decomposition, test_coverage_critique,
+  # release_quality_check also removed.
   merge
 )
 ```

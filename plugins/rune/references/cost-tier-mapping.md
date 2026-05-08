@@ -51,27 +51,27 @@ Centralized reference for the `cost_tier` system that controls which Claude mode
 
 `breach-hunter`, `truth-seeker`, `fringe-watcher`, `ruin-watcher`, `ruin-prophet`, `grace-warden`, `sight-oracle`, `vigil-keeper`, `ember-seer`, `decay-tracer`, `rot-seeker`, `signal-watcher`, `order-auditor`, `decree-auditor`, `strand-tracer`, `depth-seer`, `blight-seer`, `rune-architect`, `hypothesis-investigator`
 
-### Standard review (20)
+### Standard review
 
-`flaw-hunter`, `void-analyzer`, `wraith-finder`, `mimic-detector`, `pattern-seer`, `tide-watcher`, `trial-oracle`, `type-warden`, `forge-keeper`, `ember-oracle`, `schema-drift-detector`, `phantom-checker`, `refactor-guardian`, `reference-validator`, `naming-intent-analyzer`, `simplicity-warden`, `agent-parity-reviewer`, `ward-sentinel`, `cross-shard-sentinel`, `design-implementation-reviewer`
+`flaw-hunter`, `void-analyzer`, `wraith-finder`, `mimic-detector`, `pattern-seer`, `tide-watcher`, `trial-oracle`, `type-warden`, `forge-keeper`, `ember-oracle`, `schema-drift-detector`, `phantom-checker`, `refactor-guardian`, `reference-validator`, `naming-intent-analyzer`, `simplicity-warden`, `agent-parity-reviewer`, `ward-sentinel`, `cross-shard-sentinel`
 
 > **Note:** Stack specialist reviewers (`python-reviewer`, `typescript-reviewer`, `rust-reviewer`, `php-reviewer`, `axum-reviewer`, `fastapi-reviewer`, `django-reviewer`, `laravel-reviewer`, `sqlalchemy-reviewer`, `tdd-compliance-reviewer`, `ddd-reviewer`, `di-reviewer`) are prompt templates in `specialist-prompts/`, not registered agents. They inherit the Standard review model tier when invoked via `buildAshPrompt()` stack dispatch.
 
-### Code workers (5)
+### Code workers
 
 `rune-smith`, `trial-forger`, `mend-fixer`, `design-sync-agent`, `design-iterator`
 
-### Research (7)
+### Research
 
-`repo-surveyor`, `lore-scholar`, `practice-seeker`, `echo-reader`, `git-miner`, `wiring-cartographer`, `activation-pathfinder`
+`repo-surveyor`, `lore-scholar`, `practice-seeker`, `git-miner`, `wiring-cartographer`, `activation-pathfinder`
 
 ### Tracers (6)
 
 `api-contract-tracer`, `business-logic-tracer`, `config-dependency-tracer`, `data-layer-tracer`, `event-message-tracer`, `lore-analyst`
 
-### Utility (19)
+### Utility
 
-`runebinder`, `scroll-reviewer`, `knowledge-keeper`, `flow-seer`, `elicitation-sage`, `deployment-verifier`, `truthseer-validator`, `evidence-verifier`, `research-verifier`, `todo-verifier`, `state-weaver`, `tome-digest`, `decree-arbiter`, `design-analyst`, `horizon-sage`, `veil-piercer-plan`, `ux-pattern-analyzer`, `mend-fixer`
+`runebinder`, `scroll-reviewer`, `knowledge-keeper`, `flow-seer`, `elicitation-sage`, `deployment-verifier`, `truthseer-validator`, `evidence-verifier`, `research-verifier`, `todo-verifier`, `state-weaver`, `tome-digest`, `decree-arbiter`, `design-analyst`, `horizon-sage`, `veil-piercer-plan`, `mend-fixer`
 
 ### Testing (5)
 

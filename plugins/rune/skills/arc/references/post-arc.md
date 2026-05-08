@@ -1,6 +1,6 @@
 # Post-Arc — Full Algorithm
 
-Post-pipeline lifecycle steps that run after all 45 phases complete (or after the last non-skipped phase). Covers echo persistence, completion report display, and final zombie teammate sweep.
+Post-pipeline lifecycle steps that run after all 26 default phases complete (or after the last non-skipped phase). Covers echo persistence, completion report display, and final zombie teammate sweep.
 
 **Inputs**: completed checkpoint, plan path, echo config, `arcStart` timestamp
 **Outputs**: echoes persisted, completion report displayed to user, stale teams cleaned
@@ -121,9 +121,7 @@ Phases:
   5.   WORK:            {status} — {tasks_completed}/{tasks_total} tasks
   5.5  GAP ANALYSIS:    {status} — {addressed}/{total} criteria addressed
   5.8  GAP REMEDIATION: {status} — gap-remediation-report.md ({fixed_count} fixed, {deferred_count} deferred)
-  5.7  GOLDMASK VERIFY: {status} — goldmask-verification.md ({finding_count} findings, {critical_count} critical)
   6.   CODE REVIEW:     {status} — tome.md ({finding_count} findings)
-  6.5  GOLDMASK CORR:   {status} — goldmask-correlation.md ({correlation_count} correlations, {human_review_count} human review)
   7.   MEND:            {status} — {fixed}/{total} findings resolved
   7.5  VERIFY MEND:     {status} — {convergence_verdict} (cycle {convergence.round + 1}/{convergence.tier.maxCycles})
   7.7  TEST:            {status} — test-report.md ({pass_rate}% pass rate, tiers: {tiers_run})

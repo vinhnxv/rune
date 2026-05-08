@@ -248,15 +248,10 @@ configuration management:
 
 ## Advanced Workflows
 
-### Hierarchical Plans
-For large features, `/rune:devise` can decompose into child plans (Phase 2.5 Shatter).
-Execute with `/rune:arc-hierarchy` for dependency-aware child plan execution.
-
-### Batch Execution
-Run multiple plans overnight: `/rune:arc-batch plans/*.md`
-
-### GitHub Issues Integration
-Auto-generate plans from issues: `/rune:arc-issues --label "rune:ready"`
-
 ### Incremental Audits
 Track audit coverage over time: `/rune:audit --incremental`
+
+> **v3.0.0-alpha.1 removed**: `/rune:arc-batch`, `/rune:arc-issues`, `/rune:arc-hierarchy`,
+> `/rune:design-sync`, `/rune:design-prototype`, `/rune:ux-design-process`,
+> `/rune:elevate`, `/rune:learn`. Run individual `/rune:arc plans/{file}.md`
+> invocations or external orchestration in place of the removed batch commands.

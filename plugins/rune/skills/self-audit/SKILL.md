@@ -79,7 +79,7 @@ On completion (success or error), update state file status to `"completed"` or `
 
 The static analysis pipeline follows 7 phases using Agent Teams for parallel execution.
 
-**Load skills**: `team-sdk`, `polling-guard`, `zsh-compat`, `rune-echoes`
+**Load skills**: `team-sdk`, `polling-guard`, `zsh-compat`
 
 ### Phase 0: Pre-flight
 
