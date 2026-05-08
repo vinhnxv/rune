@@ -310,7 +310,7 @@ if [[ -z "$active_workflow" ]]; then
                "${CWD}"/tmp/forge/*/inscription.json \
                "${CWD}"/tmp/work/*/inscription.json \
                "${CWD}"/tmp/mend/*/inscription.json \
-               "${CWD}"/tmp/inspect/*/inscription.json \
+               "${CWD}"/tmp/inspect/*/inscription.json; do
 
     # Recency guard: skip files older than INSCR_STALE_MIN (tighter than Signal 1)
     if [[ -f "$inscr" ]] && find "$inscr" -maxdepth 0 -mmin -${INSCR_STALE_MIN} -print -quit 2>/dev/null | grep -q .; then

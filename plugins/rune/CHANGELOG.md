@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.69.1] — 2026-05-08
+
+**Fix `enforce-teams.sh` syntax error blocking all Agent calls.**
+
+The Signal 2 inscription scan loop in `scripts/enforce-teams.sh` was missing `; do` after the multi-line glob list (lines 308-313). The trailing `\` on the last glob followed by an empty line broke shell parsing, causing every PreToolUse:Agent invocation to fail with `syntax error near unexpected token 'if'` at line 316. The hook is SECURITY-class fail-closed, so the broken syntax blocked all teammate spawning.
+
+Replaced the trailing `\` on the last glob with `; do` so the for-loop header parses correctly. No behavior change — the loop body and ownership checks were already correct.
+
 ## [2.69.0] — 2026-05-07
 
 **Figma MCP servers removed from plugin manifest.**
