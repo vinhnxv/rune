@@ -1,14 +1,13 @@
 ---
 name: arc
 description: |
-  Full plan-to-merged-PR pipeline — 40 phases with convergence loops, Goldmask
-  risk analysis, pre-ship validation, bot review integration, cross-model
-  verification, and conditional design sync. Use when running end-to-end from
-  plan to merge, resuming an interrupted arc with --resume after a crash or
-  session end, or when any named phase fails (forge, work, code-review, mend,
-  test, ship, merge, etc. — see body for full phase list).
+  Full plan-to-merged-PR pipeline with checkpoint framework, QA phases, and
+  multi-agent orchestration. Use when running end-to-end from plan to merge,
+  resuming an interrupted arc with --resume after a crash or session end, or
+  when any named phase fails (forge, work, code-review, mend, test, ship,
+  merge, etc. — see body for full phase list).
   Keywords: arc, pipeline, --resume, checkpoint, convergence, forge, mend,
-  bot review, PR comments, ship, merge, design sync, Figma, VSM.
+  bot review, PR comments, ship, merge.
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[plan-file-path | --resume]"
@@ -38,7 +37,7 @@ Chains forty-five phases into a single automated pipeline. Each phase runs as it
 
 **Context budget advisory**: Full arc run: 40 phases x ~3.5min avg = ~154 minutes (lower bound). Context compaction is almost guaranteed in a single session. For constrained sessions, use `--no-forge` to skip Phase 1 enrichment, or split into multiple `/rune:arc --resume` sessions. For context optimization, use `--step-groups` to pause at group boundaries — each group gets a fresh context window on resume. The `PreCompact` hook saves checkpoint state automatically.
 
-**Load skills**: `roundtable-circle`, `context-weaving`, `rune-echoes`, `rune-orchestration`, `elicitation`, `team-sdk`, `testing`, `agent-browser`, `polling-guard`, `zsh-compat`, `design-sync`
+**Load skills**: `roundtable-circle`, `context-weaving`, `rune-orchestration`, `elicitation`, `team-sdk`, `testing`, `polling-guard`, `zsh-compat`
 
 ## CRITICAL — No Pipeline Second-Guessing (ARC-NSG-001)
 
@@ -82,16 +81,10 @@ The pipeline uses **named phases** (not numeric IDs) in `PHASE_ORDER`. The numer
 | 2 | 3 | `plan_review` | Team | 15 min | `/rune:appraise` (inspect mode) |
 | 2.5 | 4 | `plan_refine` | Inline | 3 min | — |
 | 2.7 | 5 | `verification` | Inline | 30 sec | — |
-| 3 | 6 | `design_extraction` | Team | 10 min | Conditional: `design_sync.enabled` |
-| 3.2 | 7 | `design_prototype` | Team | 10 min | Conditional: `design_sync.enabled` + VSM files |
-| 5 | 8 | `work` | Team | 35 min | `/rune:strive` |
-| 5.01 | 9 | `work_qa` | Team | 5 min | QA gate (1 agent) |
-| 5.1 | 10 | `drift_review` | Inline | 2 min | — |
-| 3.3 | 11 | `storybook_verification` | Team | 15 min | Conditional: `storybook.enabled` |
-| 5.2 | 12 | `design_verification` | Team | 8 min | Conditional: VSM files |
-| 5.21 | 13 | `design_verification_qa` | Team | 5 min | QA gate (1 agent, conditional) |
-| 5.3 | 14 | `ux_verification` | Team | 5 min | Conditional: `ux.enabled` |
-| 5.5 | 15 | `gap_analysis` | Team | 12 min | — |
+| 5 | 6 | `work` | Team | 35 min | `/rune:strive` |
+| 5.01 | 7 | `work_qa` | Team | 5 min | QA gate (1 agent) |
+| 5.1 | 8 | `drift_review` | Inline | 2 min | — |
+| 5.5 | 9 | `gap_analysis` | Team | 12 min | — |
 | 5.51 | 16 | `gap_analysis_qa` | Team | 5 min | QA gate (1 agent) |
 | 5.8 | 17 | `gap_remediation` | Team | 15 min | — |
 | 5.81 | 18 | `inspect` | Team | 15 min | `/rune:inspect` (4 Inspector Ashes) |
@@ -105,13 +98,9 @@ The pipeline uses **named phases** (not numeric IDs) in `PHASE_ORDER`. The numer
 | 7 | 26 | `mend` | Team | 23 min | `/rune:mend` |
 | 7.01 | 27 | `mend_qa` | Team | 5 min | QA gate (1 agent) |
 | 7.3 | 28 | `verify_mend` | Inline | 4 min | — |
-| 7.4 | 29 | `design_iteration` | Team | 15 min | Conditional: design fidelity |
-| 7.7 | 30 | `test` | Team | 25-50 min | Testing agents |
-| 7.71 | 31 | `test_qa` | Team | 5 min | QA gate (1 agent) |
-| 7.7.5 | 32 | `browser_test` | Team | 15 min | Conditional: frontend + agent-browser |
-| 7.7.6 | 33 | `browser_test_fix` | Team | 15 min | Conditional: browser_test failures |
-| 7.7.7 | 34 | `verify_browser_test` | Inline | 4 min | Convergence controller |
-| 7.9 | 35 | `deploy_verify` | Team | 5 min | Conditional: deployment verification |
+| 7.7 | 22 | `test` | Team | 25-50 min | Testing agents |
+| 7.71 | 23 | `test_qa` | Team | 5 min | QA gate (1 agent) |
+| 7.9 | 24 | `deploy_verify` | Team | 5 min | Conditional: deployment verification |
 | 8.5 | 36 | `pre_ship_validation` | Inline | 6 min | — |
 | 9 | 37 | `ship` | Inline | 5 min | — |
 | 9.1 | 38 | `bot_review_wait` | Inline | 15 min | Conditional: `--bot-review` |
@@ -150,7 +139,6 @@ The pipeline uses **named phases** (not numeric IDs) in `PHASE_ORDER`. The numer
 | `--no-pr` | Skip Phase 9 (PR creation) | Off |
 | `--no-merge` | Skip Phase 9.5 (auto merge) | Off |
 | `--no-test` | Skip Phase 7.7 (testing) | Off |
-| `--no-browser-test` | Skip Phase 7.7.5-7.7.7 (browser test convergence loop) | Off |
 | `--draft` | Create PR as draft | Off |
 | `--accept-external` | Accept external changes (bug fixes, audit commits) on branch without prompting | **On** |
 | `--no-accept-external` | Prompt user when unrelated changes are detected on branch | Off |
@@ -300,7 +288,7 @@ See [arc-phase-qa-gate.md](references/arc-phase-qa-gate.md) for the full QA gate
 
 Execute the first pending phase from the checkpoint. The Stop hook (`arc-phase-stop-hook.sh`) handles all subsequent phases automatically.
 
-**CRITICAL — Single-Phase-Per-Turn Rule**: You MUST execute exactly ONE phase per turn, then STOP responding. Do NOT batch-process multiple phases in a single turn. Do NOT skip conditional phases (semantic_verification, design_extraction, design_prototype, task_decomposition) based on assumptions — each phase has its own gate logic in its reference file that MUST be executed. The Stop hook advances to the next phase automatically. Violating this rule causes phases to be skipped without proper gate evaluation.
+**CRITICAL — Single-Phase-Per-Turn Rule**: You MUST execute exactly ONE phase per turn, then STOP responding. Do NOT batch-process multiple phases in a single turn. Do NOT skip conditional phases (semantic_verification, task_decomposition) based on assumptions — each phase has its own gate logic in its reference file that MUST be executed. The Stop hook advances to the next phase automatically. Violating this rule causes phases to be skipped without proper gate evaluation.
 
 ```javascript
 // ── SAFETY GUARD: Verify phase loop state file exists before first phase ──
@@ -481,7 +469,7 @@ See [post-arc.md](references/post-arc.md) for echo persist and completion report
 
 ### Proof Manifest Persistence (Discipline Integration, v1.173.0)
 
-Persists the proof manifest (SCR + DSR per criterion) as a PR comment after ship/merge. Includes code compliance and design compliance (when `design_sync.enabled`). Uses `--body-file` for injection-safe PR comments.
+Persists the proof manifest (SCR per criterion) as a PR comment after ship/merge. Uses `--body-file` for injection-safe PR comments.
 
 See [arc-proof-manifest.md](references/arc-proof-manifest.md) for the full manifest schema and persistence logic.
 
@@ -512,9 +500,6 @@ See [post-arc.md](references/post-arc.md). 30-second budget. After sweep, **fini
 - [Completion Stamp](references/arc-phase-completion-stamp.md) — Plan file completion record
 - [Result Signal](references/arc-result-signal.md) — Deterministic completion signal for stop hooks
 - [Stagnation Sentinel](references/stagnation-sentinel.md) — Error pattern detection, budget enforcement
-- [Design Extraction](references/arc-phase-design-extraction.md) — Phase 3 (conditional)
-- [Storybook Verification](references/arc-phase-storybook-verification.md) — Phase 3.3 (conditional: `storybook.enabled`)
-- [Design Verification](references/arc-phase-design-verification.md) — Phase 5.2 (conditional)
 - [State Conflict Detection](references/arc-state-conflict.md) — Pre-flight F1-F6 conflict cases
 - [Phase Loop State](references/arc-phase-loop-state.md) — State file template for Stop hook driver
 - [Proof Manifest](references/arc-proof-manifest.md) — Discipline proof manifest persistence (v1.173.0)
