@@ -365,7 +365,9 @@ On resume, validate checkpoint integrity before proceeding:
        checkpoint.reaction_state._meta = checkpoint.reaction_state._meta || {}
        checkpoint.reaction_state._meta.last_resume_at = new Date().toISOString()
      }
-     // ci_status is null until CI checks are evaluated during bot_review_wait phase.
+     // ci_status is null until CI checks are evaluated. (v3.0.0-alpha.2: previously
+     // populated during bot_review_wait phase; the field is now consumed by the
+     // external pr-guardian harness.)
      // Schema: { passed: bool, attempts: int, failed_checks: string[], head_sha: string,
      //   fix_history: [{attempt: int, fixed: string[], remaining: string[]}] }
      if (!checkpoint.ci_status) checkpoint.ci_status = null

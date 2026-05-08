@@ -7,7 +7,7 @@ description: |
   when any named phase fails (forge, work, code-review, mend, test, ship,
   merge, etc. — see body for full phase list).
   Keywords: arc, pipeline, --resume, checkpoint, convergence, forge, mend,
-  bot review, PR comments, ship, merge.
+  ship, merge.
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[plan-file-path | --resume]"
@@ -33,9 +33,9 @@ allowed-tools:
 
 # /rune:arc — End-to-End Orchestration Pipeline
 
-Chains forty-five phases into a single automated pipeline. Each phase runs as its own Claude Code turn with fresh context — the `arc-phase-stop-hook.sh` drives phase iteration via the Stop hook pattern. Artifact-based handoff connects phases. Checkpoint state enables resume after failure.
+Chains 26 phases into a single automated pipeline (v3.0.0-alpha.2 — was 30; goldmask + bot-review + PR-comment resolution moved out of the default order). Each phase runs as its own Claude Code turn with fresh context — the `arc-phase-stop-hook.sh` drives phase iteration via the Stop hook pattern. Artifact-based handoff connects phases. Checkpoint state enables resume after failure.
 
-**Context budget advisory**: Full arc run: 40 phases x ~3.5min avg = ~154 minutes (lower bound). Context compaction is almost guaranteed in a single session. For constrained sessions, use `--no-forge` to skip Phase 1 enrichment, or split into multiple `/rune:arc --resume` sessions. For context optimization, use `--step-groups` to pause at group boundaries — each group gets a fresh context window on resume. The `PreCompact` hook saves checkpoint state automatically.
+**Context budget advisory**: Full arc run: 26 phases x ~3.5min avg = ~91 minutes (lower bound). Context compaction is almost guaranteed in a single session. For constrained sessions, use `--no-forge` to skip Phase 1 enrichment, or split into multiple `/rune:arc --resume` sessions. For context optimization, use `--step-groups` to pause at group boundaries — each group gets a fresh context window on resume. The `PreCompact` hook saves checkpoint state automatically.
 
 **Load skills**: `roundtable-circle`, `context-weaving`, `rune-orchestration`, `elicitation`, `team-sdk`, `testing`, `polling-guard`, `zsh-compat`
 
@@ -90,24 +90,20 @@ The pipeline uses **named phases** (not numeric IDs) in `PHASE_ORDER`. The numer
 | 5.81 | 18 | `inspect` | Team | 15 min | `/rune:inspect` (4 Inspector Ashes) |
 | 5.82 | 19 | `inspect_fix` | Team | 15 min | Gap-fixer agents (FIXABLE findings) |
 | 5.83 | 20 | `verify_inspect` | Inline | 4 min | Convergence evaluation |
-| 5.7 | 21 | `goldmask_verification` | Team | 15 min | `/rune:goldmask` |
-| 6 | 22 | `code_review` | Team | 15 min | `/rune:appraise --deep` |
-| 6.1 | 23 | `code_review_qa` | Team | 5 min | QA gate (1 agent) |
-| 6.5 | 24 | `goldmask_correlation` | Inline | 1 min | — |
-| 6.6 | 25 | `verify` | Team | 10 min | Finding verification gate |
-| 7 | 26 | `mend` | Team | 23 min | `/rune:mend` |
-| 7.01 | 27 | `mend_qa` | Team | 5 min | QA gate (1 agent) |
-| 7.3 | 28 | `verify_mend` | Inline | 4 min | — |
-| 7.7 | 22 | `test` | Team | 25-50 min | Testing agents |
-| 7.71 | 23 | `test_qa` | Team | 5 min | QA gate (1 agent) |
-| 7.9 | 24 | `deploy_verify` | Team | 5 min | Conditional: deployment verification |
-| 8.5 | 36 | `pre_ship_validation` | Inline | 6 min | — |
-| 9 | 37 | `ship` | Inline | 5 min | — |
-| 9.1 | 38 | `bot_review_wait` | Inline | 15 min | Conditional: `--bot-review` |
-| 9.2 | 39 | `pr_comment_resolution` | Inline | 20 min | Conditional: `--bot-review` |
-| 9.5 | 40 | `merge` | Inline | 10 min | — |
+| 6 | 21 | `code_review` | Team | 15 min | `/rune:appraise --deep` |
+| 6.1 | 22 | `code_review_qa` | Team | 5 min | QA gate (1 agent) |
+| 6.6 | 23 | `verify` | Team | 10 min | Finding verification gate |
+| 7 | 24 | `mend` | Team | 23 min | `/rune:mend` |
+| 7.01 | 25 | `mend_qa` | Team | 5 min | QA gate (1 agent) |
+| 7.3 | 26 | `verify_mend` | Inline | 4 min | — |
+| 7.7 | 27 | `test` | Team | 25-50 min | Testing agents |
+| 7.71 | 28 | `test_qa` | Team | 5 min | QA gate (1 agent) |
+| 7.9 | 29 | `deploy_verify` | Team | 5 min | Conditional: deployment verification |
+| 8.5 | 30 | `pre_ship_validation` | Inline | 6 min | — |
+| 9 | 31 | `ship` | Inline | 5 min | — |
+| 9.5 | 32 | `merge` | Inline | 10 min | — |
 
-> **Execution order**: The "Exec Order" column shows the actual sequence. Phase numbers (#) are for human reference only and are **non-monotonic** — e.g., 5.8 (gap_remediation) runs before 5.7 (goldmask_verification). Always use `PHASE_ORDER` array position, not numeric IDs. Total: 40 phases.
+> **Execution order**: The "Exec Order" column shows the actual sequence. Phase numbers (#) are for human reference only. Always use `PHASE_ORDER` array position, not numeric IDs. Total: 26 default phases (v3.0.0-alpha.2 cut goldmask_verification, goldmask_correlation, bot_review_wait, pr_comment_resolution).
 
 ## Usage
 
@@ -121,8 +117,6 @@ The pipeline uses **named phases** (not numeric IDs) in `PHASE_ORDER`. The numer
 /rune:arc <plan_file.md> --no-pr           # Skip PR creation (Phase 9)
 /rune:arc <plan_file.md> --no-merge        # Skip auto-merge (Phase 9.5)
 /rune:arc <plan_file.md> --draft           # Create PR as draft
-/rune:arc <plan_file.md> --bot-review     # Enable bot review wait + comment resolution
-/rune:arc <plan_file.md> --no-bot-review  # Force-disable bot review
 /rune:arc <plan_file.md> --no-accept-external  # Prompt when unrelated changes detected (default: accept)
 /rune:arc <plan_file.md> --step-groups   # Pause at each phase group boundary
 ```
@@ -142,8 +136,6 @@ The pipeline uses **named phases** (not numeric IDs) in `PHASE_ORDER`. The numer
 | `--draft` | Create PR as draft | Off |
 | `--accept-external` | Accept external changes (bug fixes, audit commits) on branch without prompting | **On** |
 | `--no-accept-external` | Prompt user when unrelated changes are detected on branch | Off |
-| `--bot-review` | Enable bot review wait + PR comment resolution (Phase 9.1/9.2) | Off |
-| `--no-bot-review` | Force-disable bot review (overrides both `--bot-review` and talisman) | Off |
 | `--step-groups` | Pause at each phase group boundary for context optimization | Off |
 | `--status` | Show current arc phase, progress, and elapsed time (delegates to rune-status.sh) | Off |
 

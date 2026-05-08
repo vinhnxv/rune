@@ -461,22 +461,25 @@ if [[ -n "$_ARC_ID_FOR_LOG" && "$_ARC_ID_FOR_LOG" =~ ^[a-zA-Z0-9_-]+$ ]]; then
 fi
 
 # ── Phase order (must match SKILL.md PHASE_ORDER exactly) ──
-# WARNING: Non-monotonic execution order — Phase 5.8 (gap_remediation) executes
-# BEFORE Phase 5.7 (goldmask_verification).
+# WARNING: Non-monotonic execution order — gap_remediation executes BEFORE inspect.
 # Must match arc-phase-constants.md PHASE_ORDER exactly (shell-side copy).
+# v3.0.0-alpha.2: Removed goldmask_verification, goldmask_correlation,
+# bot_review_wait, pr_comment_resolution from default order. Goldmask remains as
+# /rune:goldmask standalone; PR-comment + bot-review handling moves to external
+# pr-guardian harness territory.
 PHASE_ORDER=(
   forge forge_qa
   plan_review plan_refine verification semantic_verification
   task_decomposition work work_qa
   drift_review gap_analysis gap_analysis_qa
   gap_remediation
-  inspect inspect_fix verify_inspect goldmask_verification
+  inspect inspect_fix verify_inspect
   code_review code_review_qa
-  goldmask_correlation verify mend mend_qa
+  verify mend mend_qa
   verify_mend
   test test_qa
   test_coverage_critique deploy_verify pre_ship_validation release_quality_check
-  ship bot_review_wait pr_comment_resolution merge
+  ship merge
 )
 
 # Heavy phases that ALWAYS trigger compact interlude (tier 1)
@@ -509,9 +512,7 @@ _phase_ref() {
     inspect)                  echo "${base}/arc-phase-inspect.md" ;;
     inspect_fix)              echo "${base}/arc-phase-inspect-fix.md" ;;
     verify_inspect)           echo "${base}/verify-inspect.md" ;;
-    goldmask_verification)    echo "${base}/arc-phase-goldmask-verification.md" ;;
     code_review)              echo "${base}/arc-phase-code-review.md" ;;
-    goldmask_correlation)     echo "${base}/arc-phase-goldmask-correlation.md" ;;
     verify)                   echo "${base}/arc-phase-verify.md" ;;
     mend)                     echo "${base}/arc-phase-mend.md" ;;
     verify_mend)              echo "${base}/verify-mend.md" ;;
@@ -521,8 +522,6 @@ _phase_ref() {
     pre_ship_validation)      echo "${base}/arc-phase-pre-ship-validation.md" ;;
     release_quality_check)    echo "${base}/arc-phase-pre-ship-validation.md" ;;
     ship)                     echo "${base}/arc-phase-ship.md" ;;
-    bot_review_wait)          echo "${base}/arc-phase-bot-review-wait.md" ;;
-    pr_comment_resolution)    echo "${base}/arc-phase-pr-comment-resolution.md" ;;
     merge)                    echo "${base}/arc-phase-merge.md" ;;
     forge_qa|work_qa|gap_analysis_qa|code_review_qa|mend_qa|test_qa)
                               echo "${base}/arc-phase-qa-gate.md" ;;
@@ -729,7 +728,7 @@ _phase_weight() {
     code_review)                             echo 4 ;;
     forge|mend|test)                         echo 3 ;;
     plan_review|plan_refine)                 echo 3 ;;
-    gap_analysis|gap_remediation|goldmask_verification|goldmask_correlation|verify) echo 2 ;;
+    gap_analysis|gap_remediation|verify)     echo 2 ;;
     verify_mend) echo 2 ;;
     *)                                       echo 1 ;;
   esac

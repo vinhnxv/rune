@@ -37,8 +37,10 @@ Phases added in v1.100+ that require explicit allowed/denied tool contracts:
 | design_iteration (7.6) | Read, Write, Edit, Bash, Glob, Grep + agent-browser | TeamCreate, TeamDelete | 10 min |
 | test_coverage_critique (7.8) | Read, Write, Bash, Agent, TeamCreate, TeamDelete, SendMessage, TaskCreate, TaskUpdate, TaskList | N/A | 15 min |
 | release_quality_check (8.55) | Read, Write, Bash, Agent, TeamCreate, TeamDelete, SendMessage, TaskCreate, TaskUpdate, TaskList | N/A | 10 min |
-| bot_review_wait (9.1) | Bash (gh), Read, Write | Edit, TeamCreate | 15 min |
-| pr_comment_resolution (9.2) | Bash (gh, git, jq), Read, Write, Edit, Glob, Grep | TeamCreate | 20 min |
+
+> v3.0.0-alpha.2: `bot_review_wait` and `pr_comment_resolution` removed from the
+> default arc PHASE_ORDER. Use external pr-guardian harness or
+> `/rune:resolve-all-gh-pr-comments` standalone for PR-comment work.
 
 Worker and fixer agent prompts include: "Do not modify files in `.rune/arc/`". Only the arc orchestrator writes to checkpoint.json.
 

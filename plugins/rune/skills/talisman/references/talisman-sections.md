@@ -176,10 +176,8 @@ All 24 phase timeouts (ms):
 | 5 Work | `work` | 2100000 |
 | 5.5 Gap Analysis | `gap_analysis` | 60000 |
 | 5.8 Gap Remediation | `gap_remediation` | 900000 |
-| 5.9 Goldmask Verify | `goldmask_verification` | 300000 |
 | 6 Code Review | `code_review` | 900000 |
 | 6.2 Audit | `audit` | 1200000 |
-| 6.5 Goldmask Corr. | `goldmask_correlation` | 300000 |
 | 7 Mend | `mend` | 1380000 |
 | 7.5 Verify Mend | `verify_mend` | 240000 |
 | 7.7 Test | `test` | 600000 |
@@ -188,8 +186,11 @@ All 24 phase timeouts (ms):
 | D1 Design Extraction | `design_extraction` | 300000 |
 | D2 Design Iteration | `design_iteration` | 600000 |
 | D3 Design Verification | `design_verification` | 300000 |
-| — Bot Review Wait | `bot_review_wait` | 900000 |
-| — PR Comment Resolution | `pr_comment_resolution` | 1200000 |
+
+> **v3.0.0-alpha.2**: `goldmask_verification`, `goldmask_correlation`,
+> `bot_review_wait`, `pr_comment_resolution` were removed from default arc
+> PHASE_ORDER. Their timeout overrides under `arc.timeouts.*` are no longer
+> consumed; remove them from talisman.yml.
 
 ## MCP Integrations (`integrations.mcp_tools`)
 

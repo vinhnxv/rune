@@ -691,13 +691,14 @@ const PHASE_LABELS = {
   design_extraction: '3 (DESIGN EXTRACTION)', design_prototype: '3.2 (DESIGN PROTOTYPE)', task_decomposition: '4.5 (TASK DECOMPOSITION)',
   work: '5 (WORK)', design_verification: '5.2 (DESIGN VERIFICATION)',
   gap_analysis: '5.5 (GAP ANALYSIS)',
-  gap_remediation: '5.8 (GAP REMEDIATION)', goldmask_verification: '5.7 (GOLDMASK VERIFICATION)',
-  code_review: '6 (CODE REVIEW)', goldmask_correlation: '6.5 (GOLDMASK CORRELATION)',
+  gap_remediation: '5.8 (GAP REMEDIATION)',
+  // v3.0.0-alpha.2: goldmask_verification + goldmask_correlation removed.
+  code_review: '6 (CODE REVIEW)',
   mend: '7 (MEND)', verify_mend: '7.5 (VERIFY MEND)', design_iteration: '7.6 (DESIGN ITERATION)',
   test: '7.7 (TEST)', test_coverage_critique: '7.8 (TEST COVERAGE CRITIQUE)',
   pre_ship_validation: '8.5 (PRE-SHIP VALIDATION)', release_quality_check: '8.55 (RELEASE QUALITY CHECK)',
-  ship: '9 (SHIP)', bot_review_wait: '9.1 (BOT REVIEW WAIT)',
-  pr_comment_resolution: '9.2 (PR COMMENT RESOLUTION)', merge: '9.5 (MERGE)'
+  // v3.0.0-alpha.2: bot_review_wait + pr_comment_resolution removed.
+  ship: '9 (SHIP)', merge: '9.5 (MERGE)'
 }
 
 let report = `Arc pipeline cancelled.\n\n`

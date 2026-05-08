@@ -28,13 +28,14 @@ _lookup_phase_group() {
       echo "work" ;;
     design_verification|design_verification_qa|ux_verification|gap_analysis|gap_analysis_qa|gap_remediation)
       echo "verification" ;;
-    inspect|inspect_fix|verify_inspect|goldmask_verification)
+    inspect|inspect_fix|verify_inspect)
       echo "inspect" ;;
-    code_review|code_review_qa|goldmask_correlation|verify|mend|mend_qa|verify_mend|design_iteration)
+    code_review|code_review_qa|verify|mend|mend_qa|verify_mend|design_iteration)
       echo "review" ;;
     test|test_qa|browser_test|browser_test_fix|verify_browser_test|test_coverage_critique)
       echo "testing" ;;
-    deploy_verify|pre_ship_validation|release_quality_check|ship|bot_review_wait|pr_comment_resolution|merge)
+    # v3.0.0-alpha.2: bot_review_wait, pr_comment_resolution removed from default order.
+    deploy_verify|pre_ship_validation|release_quality_check|ship|merge)
       echo "ship" ;;
     *)
       echo "" ;;

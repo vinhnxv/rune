@@ -8,7 +8,7 @@ Post review findings from TOME to the GitHub PR as a formatted summary comment. 
 **Trigger**: `pr_comment.enabled: true` in talisman AND `checkpoint.pr_url` exists from Phase 9 (SHIP)
 **Inputs**: id (string), checkpoint object (with `pr_url` from ship phase), talisman config
 **Outputs**: PR comment posted via `gh issue comment`, checkpoint updated with `comment_id` and `findings_posted`
-**Error handling**: Non-blocking — proceed to bot_review_wait even if posting fails
+**Error handling**: Non-blocking — proceed to the next phase (`merge`) even if posting fails. (v3.0.0-alpha.2: previously proceeded to `bot_review_wait`, which has been removed.)
 **Consumers**: SKILL.md (Phase 9.05 stub)
 
 > **Note**: `sha256()`, `updateCheckpoint()`, `exists()`, and `warn()` are dispatcher-provided utilities available in the arc orchestrator context. Phase reference files call these without import.
@@ -192,13 +192,13 @@ updateCheckpoint({
 
 ## Failure Policy
 
-**Non-blocking** — if any step fails (parser error, formatter error, API error), the phase is marked `"failed"` in the checkpoint and the arc pipeline proceeds to the next phase (`bot_review_wait`). The PR comment is best-effort output; it should never block the pipeline.
+**Non-blocking** — if any step fails (parser error, formatter error, API error), the phase is marked `"failed"` in the checkpoint and the arc pipeline proceeds to the next phase (`merge`). The PR comment is best-effort output; it should never block the pipeline.
 
 ## Phase Registration
 
 To register this phase in the arc pipeline, the following files must be updated (handled by Worker 3):
 
-1. **`arc-phase-constants.md`** — Add `post_findings` to `PHASE_ORDER` after `ship`, before `bot_review_wait`
+1. **`arc-phase-constants.md`** — Add `post_findings` to `PHASE_ORDER` after `ship`, before `merge`
 2. **`arc-phase-stop-hook.sh`** — Add to PHASE_ORDER array, `_phase_ref()` case, `_phase_weight()` → `1`
 3. **`arc-checkpoint-init.md`** — Add `phases.post_findings` initial shape to checkpoint schema
 4. **`arc-resume.md`** — Add v24 → v25 migration for new phase field

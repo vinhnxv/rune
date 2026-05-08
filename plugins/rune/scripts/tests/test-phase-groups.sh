@@ -78,7 +78,7 @@ assert_eq "gap_remediation → verification" "verification" "$(_lookup_phase_gro
 assert_eq "inspect → inspect" "inspect" "$(_lookup_phase_group "inspect")"
 assert_eq "inspect_fix → inspect" "inspect" "$(_lookup_phase_group "inspect_fix")"
 assert_eq "verify_inspect → inspect" "inspect" "$(_lookup_phase_group "verify_inspect")"
-assert_eq "goldmask_verification → inspect" "inspect" "$(_lookup_phase_group "goldmask_verification")"
+# v3.0.0-alpha.2: goldmask_verification removed from default order.
 
 # Review group
 assert_eq "code_review → review" "review" "$(_lookup_phase_group "code_review")"
@@ -106,19 +106,21 @@ assert_eq "empty string → empty" "" "$(_lookup_phase_group "")"
 assert_eq "nonexistent → empty" "" "$(_lookup_phase_group "nonexistent")"
 
 # ══════════════════════════════════════════════════
-# Test 3: All 45 PHASE_ORDER phases return non-empty group
+# Test 3: All PHASE_ORDER phases return non-empty group
+# v3.0.0-alpha.2: dropped 4 phases (goldmask_verification, goldmask_correlation,
+# bot_review_wait, pr_comment_resolution) from the default order.
 # ══════════════════════════════════════════════════
 echo ""
-echo "=== Coverage: all 45 phases return non-empty group ==="
+echo "=== Coverage: all PHASE_ORDER phases return non-empty group ==="
 PHASE_ORDER=(
   forge forge_qa plan_review plan_refine verification semantic_verification
   design_extraction design_prototype task_decomposition
   work work_qa drift_review storybook_verification
   design_verification design_verification_qa ux_verification gap_analysis gap_analysis_qa gap_remediation
-  inspect inspect_fix verify_inspect goldmask_verification
-  code_review code_review_qa goldmask_correlation verify mend mend_qa verify_mend design_iteration
+  inspect inspect_fix verify_inspect
+  code_review code_review_qa verify mend mend_qa verify_mend design_iteration
   test test_qa browser_test browser_test_fix verify_browser_test test_coverage_critique
-  deploy_verify pre_ship_validation release_quality_check ship bot_review_wait pr_comment_resolution merge
+  deploy_verify pre_ship_validation release_quality_check ship merge
 )
 
 COVERAGE_COUNT=0

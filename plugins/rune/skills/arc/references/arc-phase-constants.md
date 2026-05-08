@@ -14,7 +14,11 @@ per-phase reference files (timeout values), arc-resume.md (schema migration)
 //   2. arc-phase-stop-hook.sh (Bash array for phase dispatch)
 // These MUST stay in sync. Divergence causes silent phase ordering bugs.
 // TODO: Add preflight assertion comparing both arrays.
-const PHASE_ORDER = ['forge', 'forge_qa', 'plan_review', 'plan_refine', 'verification', 'work', 'work_qa', 'drift_review', 'gap_analysis', 'gap_analysis_qa', 'gap_remediation', 'inspect', 'inspect_fix', 'verify_inspect', 'goldmask_verification', 'code_review', 'code_review_qa', 'goldmask_correlation', 'verify', 'mend', 'mend_qa', 'verify_mend', 'test', 'test_qa', 'deploy_verify', 'pre_ship_validation', 'ship', 'bot_review_wait', 'pr_comment_resolution', 'merge']
+// v3.0.0-alpha.2: Removed 4 phases from default order — goldmask_verification,
+// goldmask_correlation, bot_review_wait, pr_comment_resolution. Goldmask remains
+// a standalone command (`/rune:goldmask`); PR-comment + bot-review handling moves
+// to external pr-guardian harness territory.
+const PHASE_ORDER = ['forge', 'forge_qa', 'plan_review', 'plan_refine', 'verification', 'work', 'work_qa', 'drift_review', 'gap_analysis', 'gap_analysis_qa', 'gap_remediation', 'inspect', 'inspect_fix', 'verify_inspect', 'code_review', 'code_review_qa', 'verify', 'mend', 'mend_qa', 'verify_mend', 'test', 'test_qa', 'deploy_verify', 'pre_ship_validation', 'ship', 'merge']
 
 // SYNC-CRITICAL: PHASE_GROUPS is duplicated in:
 //   1. This file (JavaScript reference for group definitions)
@@ -25,10 +29,10 @@ const PHASE_GROUPS = [
   { id: 'planning',     phases: ['forge', 'forge_qa', 'plan_review', 'plan_refine', 'verification', 'semantic_verification'] },
   { id: 'work',         phases: ['work', 'work_qa', 'drift_review', 'task_decomposition'] },
   { id: 'verification', phases: ['gap_analysis', 'gap_analysis_qa', 'gap_remediation'] },
-  { id: 'inspect',      phases: ['inspect', 'inspect_fix', 'verify_inspect', 'goldmask_verification'] },
-  { id: 'review',       phases: ['code_review', 'code_review_qa', 'goldmask_correlation', 'verify', 'mend', 'mend_qa', 'verify_mend'] },
+  { id: 'inspect',      phases: ['inspect', 'inspect_fix', 'verify_inspect'] },
+  { id: 'review',       phases: ['code_review', 'code_review_qa', 'verify', 'mend', 'mend_qa', 'verify_mend'] },
   { id: 'testing',      phases: ['test', 'test_qa', 'test_coverage_critique'] },
-  { id: 'ship',         phases: ['deploy_verify', 'pre_ship_validation', 'release_quality_check', 'ship', 'bot_review_wait', 'pr_comment_resolution', 'merge'] },
+  { id: 'ship',         phases: ['deploy_verify', 'pre_ship_validation', 'release_quality_check', 'ship', 'merge'] },
 ]
 
 // Preflight assertion: validates all PHASE_ORDER entries appear in exactly one group
@@ -107,10 +111,8 @@ const PHASE_TIMEOUTS = {
   test:          talismanTimeouts.test ?? 1_500_000,      // 25 min without E2E. Dynamic: 50 min with E2E (3_000_000)
   deploy_verify: talismanTimeouts.deploy_verify ?? 300_000,  //  5 min (conditional — gated by migration/API/config file changes)
   pre_ship_validation: talismanTimeouts.pre_ship_validation ?? 360_000,  //  6 min (orchestrator-only)
-  bot_review_wait: talismanTimeouts.bot_review_wait ?? 900_000,  // 15 min (orchestrator-only, polling)
-  pr_comment_resolution: talismanTimeouts.pr_comment_resolution ?? 1_200_000,  // 20 min (orchestrator-only)
-  goldmask_verification: talismanTimeouts.goldmask_verification ?? 900_000,  // 15 min (inner 10m + 5m setup)
-  goldmask_correlation:  talismanTimeouts.goldmask_correlation ?? 60_000,    //  1 min (orchestrator-only, no team)
+  // v3.0.0-alpha.2: bot_review_wait, pr_comment_resolution, goldmask_verification,
+  // goldmask_correlation removed — see PHASE_ORDER comment.
   verify:        talismanTimeouts.verify ?? 600_000,        // 10 min (finding verification — spawns verifier agents)
   ship:          talismanTimeouts.ship ?? 300_000,      //  5 min (orchestrator-only)
   merge:         talismanTimeouts.merge ?? 600_000,     // 10 min (orchestrator-only)
@@ -180,9 +182,7 @@ function calculateDynamicTimeout(tier) {
     PHASE_TIMEOUTS.gap_analysis + PHASE_TIMEOUTS.gap_analysis_qa +
     PHASE_TIMEOUTS.gap_remediation +
     PHASE_TIMEOUTS.inspect + PHASE_TIMEOUTS.inspect_fix + PHASE_TIMEOUTS.verify_inspect +
-    PHASE_TIMEOUTS.goldmask_verification +
     PHASE_TIMEOUTS.code_review + PHASE_TIMEOUTS.code_review_qa +
-    PHASE_TIMEOUTS.goldmask_correlation +
     PHASE_TIMEOUTS.verify +
     PHASE_TIMEOUTS.mend + PHASE_TIMEOUTS.mend_qa +
     PHASE_TIMEOUTS.verify_mend +
@@ -190,8 +190,9 @@ function calculateDynamicTimeout(tier) {
     PHASE_TIMEOUTS.test_coverage_critique +
     PHASE_TIMEOUTS.deploy_verify +  // DECR-001 fix: was missing from budget
     PHASE_TIMEOUTS.pre_ship_validation + PHASE_TIMEOUTS.release_quality_check +
-    PHASE_TIMEOUTS.bot_review_wait + PHASE_TIMEOUTS.pr_comment_resolution +
     PHASE_TIMEOUTS.ship + PHASE_TIMEOUTS.merge
+    // v3.0.0-alpha.2: removed goldmask_verification, goldmask_correlation,
+    // bot_review_wait, pr_comment_resolution from default budget.
   const cycle1Budget = CYCLE_BUDGET.pass_1_review + CYCLE_BUDGET.pass_1_mend + CYCLE_BUDGET.convergence
   const cycleNBudget = CYCLE_BUDGET.pass_N_review + CYCLE_BUDGET.pass_N_mend + CYCLE_BUDGET.convergence
   const maxCycles = tier?.maxCycles ?? 3
@@ -293,7 +294,6 @@ const SKIP_REASONS = {
   NO_FIGMA_URLS: "no_figma_urls",                     // design_sync enabled but no figma_urls in plan
   STORYBOOK_DISABLED: "storybook_disabled",           // misc.storybook.enabled !== true
   UX_DISABLED: "ux_disabled",                         // ux.enabled !== true
-  BOT_REVIEW_DISABLED: "bot_review_disabled",         // bot_review not enabled via flag or talisman
   TESTING_DISABLED: "testing_disabled",               // --no-test flag or arc.defaults.no_test
   INSPECT_DISABLED: "inspect_disabled",               // arc.inspect.enabled === false
   VERIFY_DISABLED: "verify_disabled",                 // arc.verify.enabled === false or --no-verify flag
@@ -304,8 +304,7 @@ const SKIP_REASONS = {
 // ── Phase skip classification ──
 // Pre-computable: forge, design_extraction, design_prototype, design_verification*,
 //   design_iteration*, storybook_verification, ux_verification, task_decomposition,
-//   
-//   release_quality_check, bot_review_wait, pr_comment_resolution, test*,
+//   release_quality_check, test*,
 //   browser_test*, browser_test_fix*, verify_browser_test*
 //   (* = conditionally pre-computable — only when parent feature is disabled)
 //
@@ -326,21 +325,22 @@ const SKIP_REASONS = {
 // Usage: /rune:arc --depth quick  →  arc.skip_phases = DEPTH_PRESETS.quick
 const DEPTH_PRESETS = {
   // quick: Skip heavy quality gates — fastest path to PR
+  // v3.0.0-alpha.2: removed goldmask_verification, goldmask_correlation,
+  // bot_review_wait, pr_comment_resolution — they are no longer in PHASE_ORDER.
   quick: [
     "forge", "forge_qa", "semantic_verification", "design_extraction",
     "design_prototype", "design_verification", "design_verification_qa",
     "ux_verification", "storybook_verification",
-    "goldmask_verification", "goldmask_correlation", "inspect", "inspect_fix",
+    "inspect", "inspect_fix",
     "verify_inspect", "design_iteration", "browser_test", "browser_test_fix",
-    "verify_browser_test", "test_coverage_critique", "release_quality_check",
-    "bot_review_wait", "pr_comment_resolution"
+    "verify_browser_test", "test_coverage_critique", "release_quality_check"
   ],
   // standard: Default — skip optional/conditional phases only
   standard: [
     "design_extraction", "design_prototype", "design_verification",
     "design_verification_qa", "ux_verification", "storybook_verification",
     "design_iteration", "browser_test", "browser_test_fix",
-    "verify_browser_test", "bot_review_wait", "pr_comment_resolution"
+    "verify_browser_test"
   ],
   // thorough: Skip nothing — all phases run (empty list)
   thorough: []

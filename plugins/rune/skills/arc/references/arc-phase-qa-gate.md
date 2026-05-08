@@ -878,7 +878,8 @@ const PHASE_ORDER = [
   "test",
   "test_qa",               // ← QA gate for test phase
   "pre_ship_validation", "release_quality_check", "ship",
-  "bot_review_wait", "pr_comment_resolution", "merge"
+  // v3.0.0-alpha.2: bot_review_wait + pr_comment_resolution removed.
+  "merge"
 ]
 ```
 
@@ -903,7 +904,8 @@ PHASE_ORDER=(
   test
   test_qa                # QA gate for test phase
   pre_ship_validation release_quality_check ship
-  bot_review_wait pr_comment_resolution merge
+  # v3.0.0-alpha.2: bot_review_wait + pr_comment_resolution removed.
+  merge
 )
 ```
 

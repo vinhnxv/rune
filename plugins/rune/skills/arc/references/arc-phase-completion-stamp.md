@@ -205,9 +205,8 @@ function buildCompletionRecord(checkpoint, newStatus, content) {
     ['5.9',  'INSPECT',                'inspect'],
     ['5.95', 'INSPECT FIX',            'inspect_fix'],
     ['5.99', 'VERIFY INSPECT',         'verify_inspect'],
-    ['5.7',  'GOLDMASK VERIFICATION',  'goldmask_verification'],
+    // v3.0.0-alpha.2: GOLDMASK VERIFICATION + GOLDMASK CORRELATION removed.
     ['6',    'CODE REVIEW (deep)',      'code_review'],
-    ['6.5',  'GOLDMASK CORRELATION',   'goldmask_correlation'],
     ['7',    'MEND',                   'mend'],
     ['7.5',  'VERIFY MEND',            'verify_mend'],
     ['7.6',  'DESIGN ITERATION',       'design_iteration'],
@@ -217,8 +216,7 @@ function buildCompletionRecord(checkpoint, newStatus, content) {
     ['8',    'PRE-SHIP VALIDATION',    'pre_ship_validation'],
     ['8.55', 'RELEASE QUALITY CHECK',  'release_quality_check'],
     ['9',    'SHIP',                   'ship'],
-    ['9.1',  'BOT REVIEW WAIT',        'bot_review_wait'],
-    ['9.2',  'PR COMMENT RESOLUTION',  'pr_comment_resolution'],
+    // v3.0.0-alpha.2: BOT REVIEW WAIT + PR COMMENT RESOLUTION removed.
     ['9.5',  'MERGE',                  'merge'],
   ]
 

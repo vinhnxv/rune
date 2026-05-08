@@ -176,7 +176,9 @@ Orchestrator-only phase — no delegation, no team creation. Reads Phase 5.7 + P
 
 ### Convergence cycle behavior
 
-On re-review rounds (`round > 0`), `goldmask_correlation` is reset to `pending` by verify-mend.md so it re-correlates with the new TOME. Goldmask verification is NOT re-run (blast radius doesn't change between mend cycles).
+> v3.0.0-alpha.2: `goldmask_correlation` and `goldmask_verification` were removed
+> from the default arc PHASE_ORDER. Goldmask is now run on demand via `/rune:goldmask`.
+> The convergence loop no longer touches goldmask state during re-review rounds.
 
 ## Phase 6.7: VERIFY — Finding Verification Gate → `/rune:verify`
 

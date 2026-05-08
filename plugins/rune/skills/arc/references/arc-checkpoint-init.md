@@ -294,13 +294,9 @@ function computeSkipMap(arcConfig, designSync, storybook, ux, planMeta, planFile
     map.verify_inspect = "inspect_disabled"
   }
 
-  // ── Bot review (2 phases) ──
-  const botReviewEnabled = arcConfig.bot_review === true
-    && arcConfig.no_bot_review !== true
-  if (!botReviewEnabled) {
-    map.bot_review_wait = "bot_review_disabled"
-    map.pr_comment_resolution = "bot_review_disabled"
-  }
+  // ── Bot review phases removed in v3.0.0-alpha.2 ──
+  // bot_review_wait + pr_comment_resolution moved out of default PHASE_ORDER.
+  // Use external pr-guardian harness or /rune:resolve-all-gh-pr-comments.
 
   // ── Test phase ──
   if (arcConfig.no_test) {
@@ -488,10 +484,9 @@ Write(checkpointPath, {
     inspect: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, completion_pct: null, p1_count: null, verdict: null, demotion_revert_count: 0 },
     inspect_fix: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, fixed_count: null, deferred_count: null, demotion_revert_count: 0 },
     verify_inspect: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
-    goldmask_verification: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
+    // v3.0.0-alpha.2: goldmask_verification + goldmask_correlation removed from default order.
     code_review:  { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
     code_review_qa: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, retry_count: 0, demotion_revert_count: 0 },
-    goldmask_correlation: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
     verify:       { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
     mend:         { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
     mend_qa:      { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, retry_count: 0, demotion_revert_count: 0 },
@@ -506,8 +501,7 @@ Write(checkpointPath, {
     pre_ship_validation: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
     release_quality_check: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
     ship:         { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
-    bot_review_wait: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
-    pr_comment_resolution: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
+    // v3.0.0-alpha.2: bot_review_wait + pr_comment_resolution removed from default order.
     merge:        { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
     // Design phases (design_extraction, design_verification, design_iteration) are
     // interleaved at their PHASE_ORDER positions above. Conditionally set to "skipped"
@@ -596,7 +590,9 @@ Write(checkpointPath, {
     per_event_counters: {},
     _meta: { last_resume_at: null }
   },
-  // Schema v26 addition: CI status tracking for CI fix loop in bot_review_wait phase.
+  // Schema v26 addition: CI status tracking for CI fix loop.
+  // v3.0.0-alpha.2: bot_review_wait phase removed; the field is preserved for the
+  // external pr-guardian harness to populate.
   // null until CI checks are evaluated. When populated:
   // { passed: bool, attempts: int, failed_checks: string[], head_sha: string,
   //   fix_history: [{attempt: int, fixed: string[], remaining: string[]}] }

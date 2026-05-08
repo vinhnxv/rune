@@ -192,9 +192,7 @@ See [docs/guides/mcp-integration-spec.en.md](../../../docs/guides/mcp-integratio
 | `arc.timeouts.work` | number | `2100000` | Phase 5: Work (35 min) |
 | `arc.timeouts.gap_analysis` | number | `720000` | Phase 5.5: Gap analysis (12 min) |
 | `arc.timeouts.gap_remediation` | number | `900000` | Phase 5.8: Remediation (15 min) |
-| `arc.timeouts.goldmask_verification` | number | `900000` | Phase 5.9: Goldmask verify (15 min) |
 | `arc.timeouts.code_review` | number | `900000` | Phase 6: Code review (15 min) |
-| `arc.timeouts.goldmask_correlation` | number | `60000` | Phase 6.5: Correlation (1 min) |
 | `arc.timeouts.mend` | number | `1380000` | Phase 7: Mend (23 min) |
 | `arc.timeouts.verify_mend` | number | `240000` | Phase 7.5: Verify mend (4 min) |
 | `arc.timeouts.test` | number | `900000` | Phase 7.7: Test (15 min) |

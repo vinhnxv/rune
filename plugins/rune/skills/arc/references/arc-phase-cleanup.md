@@ -48,7 +48,7 @@ const PHASE_PREFIX_MAP = {
   gap_remediation:        ["arc-gap-fix-"],
   inspect:                ["arc-inspect-full-"],
   inspect_fix:            ["arc-inspect-fix-"],
-  goldmask_verification:  ["goldmask-"],
+  // v3.0.0-alpha.2: goldmask_verification removed — goldmask is now /rune:goldmask only.
   code_review:            ["rune-review-"],
   verify:                 ["arc-fv-", "rune-verify-"],            // Phase 6.7 (finding verification — conditional on arc.verify.enabled) + standalone /rune:verify
   mend:                   ["rune-mend-", "rune-mend-deep-", "arc-sage-"],  // mend sub-command + deep mend + ephemeral elicitation sage
@@ -71,8 +71,8 @@ const PHASE_PREFIX_MAP = {
 // Multi-prefix entries: plan_review has Layer 2 inspect team (arc-plan-inspect-), mend has ephemeral sage team (arc-sage-).
 // Design phases are conditional — only create teams when design_sync.enabled === true.
 // UX verification is conditional — only creates teams when ux.enabled === true + frontend files detected.
-// Orchestrator-only phases (plan_refine, verification,
-// goldmask_correlation, verify_mend, ship, merge) do not create teams — no entries needed.
+// Orchestrator-only phases (plan_refine, verification, verify_mend, ship,
+// merge) do not create teams — no entries needed.
 //
 ```
 

@@ -1,7 +1,7 @@
 # Phase 5.99: Verify Inspect (Inspect Convergence Controller) — Full Algorithm
 
 Evaluates inspect results and determines whether to loop back for another
-inspect cycle or proceed to goldmask_verification. Follows the same convergence
+inspect cycle or proceed to code_review. Follows the same convergence
 pattern as verify-mend.md but uses inspect-specific metrics.
 
 **Team**: None (orchestrator-only evaluation)
@@ -124,7 +124,7 @@ if (verdict === 'converge') {
     artifact: `tmp/arc/${id}/inspect-verdict.md`,
     artifact_hash: sha256(verdictContent),
   })
-  // → Dispatcher proceeds to goldmask_verification
+  // → Dispatcher proceeds to code_review
 
 } else if (verdict === 'retry') {
   // Build progressive focus scope for next inspect round
@@ -187,14 +187,14 @@ if (verdict === 'converge') {
 
 } else if (verdict === 'halt') {
   const round = checkpoint.inspect_convergence.round
-  warn(`Inspect convergence halted after ${round + 1} cycle(s): ${completionPct}% complete, ${p1Markers} P1 findings remain. Proceeding to goldmask_verification.`)
+  warn(`Inspect convergence halted after ${round + 1} cycle(s): ${completionPct}% complete, ${p1Markers} P1 findings remain. Proceeding to code_review.`)
 
   updateCheckpoint({
     phase: 'verify_inspect', status: 'completed', phase_sequence: 5.99, team_name: null,
     artifact: `tmp/arc/${id}/inspect-verdict.md`,
     artifact_hash: sha256(verdictContent),
   })
-  // → Dispatcher proceeds to goldmask_verification with warning
+  // → Dispatcher proceeds to code_review with warning
 }
 ```
 
@@ -206,4 +206,4 @@ The defensive assertion in STEP 3 (retry branch) verifies the PHASE_ORDER invari
 
 **Output**: Convergence verdict stored in checkpoint. On retry, phases reset to "pending" and dispatcher loops back.
 
-**Failure policy**: Non-blocking. Halting proceeds to goldmask_verification with warning. The convergence gate never blocks the pipeline permanently; it either retries or gives up gracefully.
+**Failure policy**: Non-blocking. Halting proceeds to code_review with warning. The convergence gate never blocks the pipeline permanently; it either retries or gives up gracefully.

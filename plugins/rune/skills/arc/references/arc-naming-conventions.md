@@ -42,10 +42,15 @@ Phase keys in `checkpoint.phases` use snake_case and match PHASE_ORDER entries:
 ```
 forge, plan_review, plan_refine, verification, semantic_verification,
 work, gap_analysis, gap_remediation,
-goldmask_verification, code_review, goldmask_correlation, mend, verify_mend,
+code_review, mend, verify_mend,
 test, test_coverage_critique, pre_ship_validation, release_quality_check,
-bot_review_wait, pr_comment_resolution, ship, merge
+ship, merge
 ```
+
+> **v3.0.0-alpha.2**: `goldmask_verification`, `goldmask_correlation`,
+> `bot_review_wait`, `pr_comment_resolution` removed from the default order.
+> Goldmask remains as `/rune:goldmask`; bot-review/PR-comment work moves to
+> external pr-guardian harness territory.
 
 Conditional phases (gated by talisman):
 ```
