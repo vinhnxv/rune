@@ -161,13 +161,7 @@ Used by `/rune:debug` skill:
 
 | Agent | Purpose |
 |-------|---------|
-| phase-qa-verifier | Independent arc phase completion artifact verification — PASS/FAIL verdict |
-| code-review-qa-verifier | Code review phase TOME existence, finding structure, Ash prefix validity |
-| forge-qa-verifier | Forge phase enriched plan existence, enrichment depth/quality |
-| gap-analysis-qa-verifier | Gap analysis compliance matrix, per-criterion status, code evidence |
-| mend-qa-verifier | Mend phase resolution report, per-finding status, commit SHA references |
-| test-qa-verifier | Test phase test report, SEAL markers, strategy ordering, tier coverage |
-| work-qa-verifier | Work phase delegation manifests, task files, worker reports, evidence quality |
+| phase-qa-verifier | Parametric arc phase completion verifier (single source) — phase identifier and full checklist (`qa-manifests/{phase}.yaml`) injected via spawn prompt; emits unified PASS/FAIL verdict covering artifact, quality, and completeness dimensions |
 
 ## Meta-QA Agents (`agents/meta-qa/`)
 
