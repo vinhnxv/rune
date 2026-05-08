@@ -1,7 +1,7 @@
 {
   "name": "rune",
-  "version": "3.0.0-alpha.1",
-  "description": "Multi-agent engineering orchestration for Claude Code. Plan, work, review, mend, ship via /rune:arc with checkpoint framework, QA phases, Discipline Engineering, and Agent Teams. v3.0.0-alpha.1: lean rebuild on the four-pillar essence.",
+  "version": "3.0.0-alpha.2",
+  "description": "Multi-agent engineering orchestration for Claude Code. Plan, work, review, mend, ship via /rune:arc with checkpoint framework, QA phases, Discipline Engineering, and Agent Teams. v3.0.0-alpha.2: Day 2 lean rebuild — collapsed inspector mode-variants and QA verifiers, trimmed default arc phases.",
   "author": {
     "name": "vinhnxv",
     "email": "vinh.ngxv@gmail.com",

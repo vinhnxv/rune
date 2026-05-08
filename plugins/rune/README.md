@@ -203,7 +203,7 @@ For the full command reference with all flags and options, see the [Command Refe
 | Tarnished | Orchestrator | The lead agent that coordinates workflows |
 | Forge | Plan enrichment | Research phase that deepens a plan |
 | Mend | Auto-fix findings | Parallel resolution of review findings |
-| Arc | End-to-end pipeline | 45-phase automated workflow |
+| Arc | End-to-end pipeline | 26-phase automated workflow (default; v3.0.0-alpha.2) |
 | Echoes | Persistent memory | Cross-session project knowledge |
 | Roundtable Circle | Parallel review | Pattern for orchestrating multiple Ash (review agent) teammates |
 

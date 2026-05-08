@@ -1,5 +1,63 @@
 # Changelog
 
+## [3.0.0-alpha.2] — 2026-05-09
+
+**Day 2 lean rebuild — agent and arc phase consolidation.** Three zero-architecture-change refactors continuing the v3.x essence-first rebuild from `[3.0.0-alpha.1]`. Net delta: **−15 agents** (104 → 89) and **−4 arc phases** (30 → 26 default).
+
+The four essence pillars (`/rune:arc` + checkpoint, QA phases, Discipline Engineering, multi-agent orchestration) are intact — every cut is duplicate or dead surface, not capability.
+
+**Day 2 cuts:**
+
+- **Inspector mode-variant collapse (−8 agents)** — 4 base inspector agents (`grace-warden`, `ruin-prophet`, `sight-oracle`, `vigil-keeper`) absorb their `*-inspect` and `*-plan-review` mode variants. Mode is dispatched via the `MODE: <mode>` first line of the spawn-prompt body. Default mode is `review`. Frontmatter merged using union of tools and max maxTurns (so all three modes work). 12 files → 4.
+- **QA verifier consolidation (−7 agents)** — 7 specialist `*-qa-verifier` files were copy-paste duplications of checklists already encoded in `qa-manifests/{phase}.yaml`. The parametric `phase-qa-verifier` (already present) becomes the single QA agent; `runQAGate()` continues to inject the per-phase manifest content via spawn prompt. `design-qa-verifier` was already orphan after Day 1 design phase cuts.
+- **Arc phase trim (−4 default phases)** — `goldmask_verification`, `goldmask_correlation`, `bot_review_wait`, `pr_comment_resolution` removed from the default `PHASE_ORDER`. `/rune:goldmask` remains as a standalone command for on-demand impact analysis. PR-comment work moves to external `pr-guardian` harness territory; `/rune:resolve-all-gh-pr-comments` standalone is unaffected.
+
+**Files removed (19 total):**
+
+- 8 inspector variants: `agents/investigation/{grace-warden,ruin-prophet,sight-oracle,vigil-keeper}-{inspect,plan-review}.md`
+- 7 specialist QA verifiers: `agents/qa/{forge,work,code-review,mend,test,gap-analysis,design}-qa-verifier.md`
+- 4 arc phase reference files: `skills/arc/references/arc-phase-{goldmask-verification,goldmask-correlation,bot-review-wait,pr-comment-resolution}.md`
+
+**SYNC-CRITICAL files updated together (PHASE_ORDER drift detection):**
+
+- `skills/arc/references/arc-phase-constants.md` — PHASE_ORDER, PHASE_GROUPS, PHASE_TIMEOUTS, calculateDynamicTimeout(), DEPTH_PRESETS
+- `scripts/arc-phase-stop-hook.sh` — bash PHASE_ORDER array, `_phase_ref()` dispatch case, `_phase_weight()`
+- `scripts/rune-status.sh` — mirrored PHASE_ORDER
+- `scripts/lib/phase-groups.sh` — phase-to-group lookup
+- `scripts/tests/test-phase-groups.sh` — coverage assertion array
+- `scripts/lib/known-rune-agents.sh` — allowlist (152 → 137 names)
+
+**Inspector spawn protocol change:**
+
+Spawn-prompt builders MUST prepend `MODE: <mode>\n\n` when invoking inspectors in `inspect` or `plan-review` mode. Without the MODE prefix the base agent defaults to `review` mode (current `/rune:appraise`, `/rune:audit`, `/rune:goldmask` behavior).
+
+**QA verifier dispatch change:**
+
+`runQAGate()` in `arc-phase-qa-gate.md` now dispatches the parametric `rune:qa:phase-qa-verifier` for ALL gated phases instead of mapping to phase-specific specialists. The phase identifier and full `qa-manifests/{phase}.yaml` content are injected into the spawn prompt — phase-specific behavior comes from the manifest, not from a separate agent file.
+
+**Breaking changes (v3.x is intentionally not v2.x compatible):**
+
+- Removed `--bot-review` and `--no-bot-review` flags on `/rune:arc`. Replaced by external `pr-guardian` harness (separate project).
+- Removed inspector mode-variant subagent_type names (`rune:investigation:grace-warden-inspect`, etc.). Spawn the base agent and prepend `MODE: <mode>\n\n` instead.
+- Removed specialist QA verifier subagent_type names (`rune:qa:forge-qa-verifier`, `rune:qa:work-qa-verifier`, etc.). Spawn `rune:qa:phase-qa-verifier` and rely on the orchestrator's manifest injection.
+- Removed `arc.timeouts.goldmask_verification`, `arc.timeouts.goldmask_correlation`, `arc.timeouts.bot_review_wait`, `arc.timeouts.pr_comment_resolution` talisman keys. Drop them from `talisman.yml` — they are no longer consumed.
+- `draft_until_ready: true` on `arc.ship` no longer auto-flips the PR to ready (no in-pipeline phase consumes it). Use the external `pr-guardian` harness or open the PR as ready.
+
+**Net component delta after Day 2:**
+
+| Metric | Day 1 end (alpha.1) | Day 2 end (alpha.2) | v3.0 target |
+|---|---:|---:|---:|
+| Skills | 45 | 45 | ≤15 |
+| Agents | 104 | **89** (−15) | ≤30 |
+| Scripts | 192 | 192 | ≤50 |
+| Arc phases (default) | 30 | **26** (−4) | ≤15 |
+
+Day 3 owns the Talisman complete removal (178 inline call sites, 1 skill, 4 scripts/libs).
+
+**Predecessor:** `[3.0.0-alpha.1]` (Day 1 cuts).
+**Plan:** `plans/2026-05-09-chore-rune-v3-day2-agent-phase-consolidation-plan.md`.
+**Brainstorm source:** `docs/brainstorms/2026-05-09-rune-v3-lean-rebuild-brainstorm.md`.
+
 ## [3.0.0-alpha.1] — 2026-05-09
 
 **Lean rebuild on the four-pillar essence.** Major version reset that strips two years of accumulated bloat and rebuilds on Rune's load-bearing core: `/rune:arc` with checkpoint framework, QA phases, Discipline Engineering, and multi-agent orchestration via Agent Teams.
