@@ -99,7 +99,7 @@ case "$AGENT_NAME" in
     ;;
 
   # Research agents: should produce output in tmp/plans/*/research/
-  repo-surveyor|echo-reader|git-miner|practice-seeker|lore-scholar)
+  repo-surveyor|git-miner|practice-seeker|lore-scholar)
     FOUND=0
     while IFS= read -r f; do
       [[ -f "$f" ]] || continue

@@ -29,7 +29,7 @@ allowed-tools:
 
 Orchestrate a multi-agent inspection that measures implementation completeness and quality against a plan. Each Inspector Ash gets its own dedicated context window via Agent Teams.
 
-**Load skills**: `roundtable-circle`, `context-weaving`, `rune-echoes`, `rune-orchestration`, `team-sdk`, `polling-guard`, `zsh-compat`, `goldmask`
+**Load skills**: `roundtable-circle`, `context-weaving`, `rune-orchestration`, `team-sdk`, `polling-guard`, `zsh-compat`, `goldmask`
 
 ## Flags
 
@@ -102,20 +102,17 @@ if mcp_available:
   Bash("mkdir -p tmp/.rune-signals && touch tmp/.rune-signals/.agent-search-called")
 
 if not inspectors or len(inspectors) < 4:
-  # Fallback: use hardcoded inspector list
+  # Fallback: use hardcoded inspector list (base agents with mode dispatch)
   inspectors = [
-    { name: "grace-warden-inspect", mode: "inspect" },
-    { name: "ruin-prophet-inspect", mode: "inspect" },
-    { name: "sight-oracle-inspect", mode: "inspect" },
-    { name: "vigil-keeper-inspect", mode: "inspect" }
+    { name: "grace-warden", mode: "inspect" },
+    { name: "ruin-prophet", mode: "inspect" },
+    { name: "sight-oracle", mode: "inspect" },
+    { name: "vigil-keeper", mode: "inspect" }
   ]
 
-# For plan-review mode, swap "-inspect" variants with "-plan-review":
+# For plan-review mode, just change the mode field — the base agent dispatches via the MODE: line in the spawn prompt:
 if mode == "plan-review":
-  inspectors = inspectors.map(i => {
-    name: i.name.replace("-inspect", "-plan-review"),
-    mode: "plan-review"
-  })
+  inspectors = inspectors.map(i => ({ ...i, mode: "plan-review" }))
 ```
 
 This allows users to register custom inspectors (e.g., "compliance-inspector" for regulatory projects)
@@ -135,7 +132,7 @@ Read and execute [inspector-prompts.md](references/inspector-prompts.md) for the
 - Summon all inspectors in a **single message** (parallel, `run_in_background: true`)
 - All inspectors get full `scopeFiles` — they filter by relevance internally
 - `model: resolveModelForAgent(inspector, talisman)` for each inspector (cost tier mapping)
-- Template path: `agents/investigation/{inspector}-inspect.md` (or `{inspector}-plan-review.md` for `--mode plan`)
+- Template path: `agents/investigation/{inspector}.md` (single base agent — mode is dispatched via `MODE: <mode>` first line of spawn prompt body)
 
 ### Step 3.1 — Risk Context Injection (Goldmask Enhancement)
 

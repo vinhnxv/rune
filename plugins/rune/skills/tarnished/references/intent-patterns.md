@@ -22,11 +22,7 @@ These keywords at the START of `$ARGUMENTS` trigger immediate routing (no classi
 | `goldmask` | `/rune:goldmask` | Yes |
 | `elicit` | `/rune:elicit` | Yes |
 | `rest` | `/rune:rest` | Yes |
-| `echoes` | `/rune:echoes` | Yes |
 | `clean` | `/rune:rest` | Yes |
-| `arc-batch` | `/rune:arc-batch` | Yes |
-| `arc-issues` | `/rune:arc-issues` | Yes |
-| `arc-hierarchy` | `/rune:arc-hierarchy` | Yes |
 | `ship` | `/rune:arc` | Yes |
 | `fix` | `/rune:mend` | Yes — check for TOME prerequisite |
 | `brainstorm` | `/rune:brainstorm` | Yes |
@@ -36,19 +32,12 @@ These keywords at the START of `$ARGUMENTS` trigger immediate routing (no classi
 | `config` | `/rune:talisman` | Yes — alias for talisman |
 | `setup` | `/rune:talisman` | Yes — alias for talisman init |
 | `mcp` | `/rune:talisman guide integrations` | Yes — MCP integration guidance |
-| `mcp setup` / `setup mcp` / `add mcp` | `/rune:talisman guide integrations` | MCP integration setup walkthrough |
-| `untitledui` / `untitled-ui` | `/rune:talisman guide integrations` | UntitledUI MCP integration guidance |
-| `design-sync` / `figma-sync` | `/rune:design-sync` | Yes |
-| `elevate` / `promote echoes` | `/rune:elevate` | Yes |
 | `file-todos` / `todos` | `/rune:file-todos` | Yes |
-| `learn` / `self-learn` | `/rune:learn` | Yes |
 | `resolve-comments` / `fix comments` / `pr comments` | `/rune:resolve-all-gh-pr-comments` | Yes |
 | `resolve-comment` / `fix comment` | `/rune:resolve-gh-pr-comment` | Yes |
 | `resolve-todos` / `fix todos` | `/rune:resolve-todos` | Yes |
 | `skill-testing` / `test skill` / `eval skill` | `/rune:skill-testing` | Yes |
 | `team-status` / `team health` | `/rune:team-status` | Yes |
-| `test-browser` / `browser test` / `e2e` | `/rune:test-browser` | Yes |
-| `ux` / `ux-review` / `heuristic` | `/rune:ux-design-process` | Yes |
 | `self-audit` / `meta-qa` / `lint agents` / `check rune health` / `rune health` | `/rune:self-audit` | Yes |
 | `variant-hunt` / `find similar` / `find more like this` / `variant analysis` | `/rune:variant-hunt` | Yes |
 | `supply-chain-audit` / `dependency risk` / `check dependencies` / `package security` | `/rune:supply-chain-audit` | Yes |
@@ -129,8 +118,6 @@ User seeks knowledge about Rune or recommendations.
 | "when to use X vs Y" / "khi nào dùng X" | Read skill-catalog.md → compare and recommend |
 | "best practice" / "nên làm thế nào" | Read rune-knowledge.md → provide guidance |
 | "troubleshoot" / "bị lỗi" / "failed" | Read rune-knowledge.md pitfalls → diagnose |
-| "how to add mcp" / "mcp integration" / "setup untitledui" | Read rune-knowledge.md MCP section → guide setup |
-| "tích hợp mcp" / "cách thêm mcp" / "untitledui là gì" | Read rune-knowledge.md MCP section → guide setup |
 | "add agent" / "custom reviewer" / "custom ash" / "thêm agent" | Guide: add `ashes.custom[]` in talisman.yml → `/rune:talisman guide` |
 | "which agents" / "agent list" / "list agents" / "danh sách agent" | → `/rune:ash-guide` |
 | "force agent" / "always use agent" / "always run agent" / "luôn dùng agent" | Guide: use `trigger.always: true` in talisman.yml `ashes.custom[].trigger` |

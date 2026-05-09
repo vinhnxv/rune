@@ -645,24 +645,15 @@ async function runQAGate(id, parentPhase, checkpoint) {
   TeamCreate({ team_name: qaTeamName })
 
   try {
-    // Design decision: 1 DEDICATED agent per gate, not 3 generic agents.
-    // Each gated phase spawns exactly 1 dedicated QA agent (e.g., work-qa-verifier
-    // for work phase). This agent covers all 3 dimensions (artifact, quality,
-    // completeness) because it has phase-specific domain knowledge — it knows what
-    // "quality" means for work output vs test output.
-    // 3 generic agents would be shallower (no domain expertise) and 3× more expensive.
-
-    // Map parentPhase to dedicated agent subagent_type
-    const QA_AGENT_MAP = {
-      forge:        "rune:qa:forge-qa-verifier",
-      work:         "rune:qa:work-qa-verifier",
-      code_review:  "rune:qa:code-review-qa-verifier",
-      mend:         "rune:qa:mend-qa-verifier",
-      test:         "rune:qa:test-qa-verifier",
-      gap_analysis: "rune:qa:gap-analysis-qa-verifier",
-      design_verification: "rune:qa:design-qa-verifier",
-    }
-    const agentType = QA_AGENT_MAP[parentPhase] ?? "rune:qa:phase-qa-verifier"
+    // Design decision: 1 parametric agent per gate (v3.0.0-alpha.2+).
+    // Each gated phase spawns the parametric `phase-qa-verifier`, which receives the
+    // phase identifier and full checklist (qa-manifests/{phase}.yaml) via
+    // `buildQAAgentPrompt()`. The agent covers all 3 dimensions (artifact, quality,
+    // completeness) per the injected checklist — phase-specific behavior comes from
+    // the manifest content, not from a separate specialist agent file. The earlier
+    // `QA_AGENT_MAP` of specialist agents (forge-qa-verifier, work-qa-verifier, etc.)
+    // was pure duplication of the per-phase manifests and was removed.
+    const agentType = "rune:qa:phase-qa-verifier"
     const agentName = `qa-${parentPhase}-verifier`
 
     TaskCreate({ team_name: qaTeamName, subject: `QA: Verify ${parentPhase} phase (all dimensions)` })
@@ -866,53 +857,41 @@ Adding QA sub-phases requires updating TWO synchronized copies of PHASE_ORDER.
 **Gated phases**: `forge_qa`, `work_qa`, `gap_analysis_qa`, `code_review_qa`, `mend_qa`, `test_qa`.
 Each `*_qa` phase is inserted into PHASE_ORDER immediately after its parent phase.
 
+> **NOTE**: This file's PHASE_ORDER example MUST mirror `arc-phase-constants.md`.
+> Update both files together — `validate-phase-consistency.sh` (when added)
+> will assert symmetry.
+
 ```javascript
-// arc-phase-constants.md — JavaScript PHASE_ORDER (QA gates after each parent phase)
+// arc-phase-constants.md — JavaScript PHASE_ORDER (26 phases, v3.0.0-alpha.2)
 const PHASE_ORDER = [
-  "forge",
-  "forge_qa",              // ← QA gate for forge phase
-  "plan_review", "plan_refine", "verification", "semantic_verification",
-  "design_extraction", "design_prototype", "task_decomposition",
-  "work",
-  "work_qa",               // ← QA gate for work phase
-  "design_verification",
-  "design_verification_qa", // ← QA gate for design_verification phase
-  "gap_analysis",
-  "gap_analysis_qa",       // ← QA gate for gap analysis phase
-  "code_review",
-  "code_review_qa",        // ← QA gate for code review phase
-  "mend",
-  "mend_qa",               // ← QA gate for mend phase
-  "verify_mend", "design_iteration",
-  "test",
-  "test_qa",               // ← QA gate for test phase
-  "pre_ship_validation", "release_quality_check", "ship",
-  "bot_review_wait", "pr_comment_resolution", "merge"
+  "forge", "forge_qa",
+  "plan_review", "plan_refine", "verification",
+  "work", "work_qa", "drift_review",
+  "gap_analysis", "gap_analysis_qa", "gap_remediation",
+  "inspect", "inspect_fix", "verify_inspect",
+  "code_review", "code_review_qa",
+  "verify",
+  "mend", "mend_qa", "verify_mend",
+  "test", "test_qa",
+  "deploy_verify", "pre_ship_validation",
+  "ship", "merge",
 ]
 ```
 
 ```bash
-# arc-phase-stop-hook.sh — bash PHASE_ORDER array (QA gates after each parent phase)
+# arc-phase-stop-hook.sh — bash PHASE_ORDER array (26 phases, v3.0.0-alpha.2)
 PHASE_ORDER=(
-  forge
-  forge_qa               # QA gate for forge phase
-  plan_review plan_refine verification semantic_verification
-  design_extraction design_prototype task_decomposition
-  work
-  work_qa                # QA gate for work phase
-  design_verification
-  design_verification_qa # QA gate for design_verification phase
-  gap_analysis
-  gap_analysis_qa        # QA gate for gap analysis phase
-  code_review
-  code_review_qa         # QA gate for code review phase
-  mend
-  mend_qa                # QA gate for mend phase
-  verify_mend design_iteration
-  test
-  test_qa                # QA gate for test phase
-  pre_ship_validation release_quality_check ship
-  bot_review_wait pr_comment_resolution merge
+  forge forge_qa
+  plan_review plan_refine verification
+  work work_qa drift_review
+  gap_analysis gap_analysis_qa gap_remediation
+  inspect inspect_fix verify_inspect
+  code_review code_review_qa
+  verify
+  mend mend_qa verify_mend
+  test test_qa
+  deploy_verify pre_ship_validation
+  ship merge
 )
 ```
 
@@ -1139,8 +1118,7 @@ function generateDashboardMarkdown(summary) {
 - [arc-phase-work.md](arc-phase-work.md) — Work phase algorithm and backward compatibility notes
 - [arc-phase-cleanup.md](arc-phase-cleanup.md) — Inter-phase cleanup and PHASE_PREFIX_MAP
 - [arc-phase-constants.md](arc-phase-constants.md) — PHASE_ORDER and PHASE_TIMEOUTS
-- [phase-qa-verifier.md](../../../agents/qa/phase-qa-verifier.md) — Generic QA agent (fallback)
-- Dedicated QA agents: [forge-qa-verifier](../../../agents/qa/forge-qa-verifier.md), [work-qa-verifier](../../../agents/qa/work-qa-verifier.md), [code-review-qa-verifier](../../../agents/qa/code-review-qa-verifier.md), [mend-qa-verifier](../../../agents/qa/mend-qa-verifier.md), [test-qa-verifier](../../../agents/qa/test-qa-verifier.md), [gap-analysis-qa-verifier](../../../agents/qa/gap-analysis-qa-verifier.md)
+- [phase-qa-verifier.md](../../../agents/qa/phase-qa-verifier.md) — Parametric QA agent (single source; phase + checklist injected via spawn prompt from `qa-manifests/{phase}.yaml`)
 - [discipline-work-loop.md](../../strive/references/discipline-work-loop.md) — Coverage matrix and worker report verification
 
 ---

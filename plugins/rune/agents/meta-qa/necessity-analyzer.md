@@ -138,7 +138,7 @@ NEC-SKIP-01: {phase} — skip rate: {rate} ({skipped}/{total} runs)
 
 ### NEC-UNIQUE-01: Cross-Phase Redundancy Detection
 
-For phases that produce findings (code_review, goldmask_verification, etc.):
+For phases that produce findings (code_review, inspect, gap_analysis, etc.):
 
 1. Extract finding IDs from each phase's output across all runs
 2. Compare finding ID sets between all phase pairs

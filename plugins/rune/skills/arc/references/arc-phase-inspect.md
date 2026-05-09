@@ -58,7 +58,7 @@ const inspectorContext = {
 
 // STEP 1.5: Extract wiring map requirements for inspector context (v2.2.0+)
 // When the plan contains `## Integration & Wiring Map`, parse the tables and inject
-// into inspectorContext so grace-warden-inspect can verify wiring completeness.
+// into inspectorContext so grace-warden (in inspect mode) can verify wiring completeness.
 let wiringRequirements = null
 const wiringMatch = planContent.match(/## Integration & Wiring Map([\s\S]*?)(?=\n## [^#]|\n---|\Z)/)
 if (wiringMatch) {
@@ -98,11 +98,13 @@ TeamCreate({ team_name: teamName })
 updateCheckpoint({ phase: 'inspect', team_name: teamName })
 
 // 4 Inspector Ashes — each evaluates different dimensions
+// Inspectors are single base agents with mode dispatch; spawn-prompt prepends `MODE: inspect\n\n`
+// to route the base agent to its `## Mode: inspect` section.
 const inspectors = [
-  { name: 'grace-warden-inspect', desc: 'Correctness and completeness inspector — COMPLETE/PARTIAL/MISSING/DEVIATED status per requirement' },
-  { name: 'ruin-prophet-inspect', desc: 'Failure modes and security inspector — error handling, security posture, operational readiness' },
-  { name: 'sight-oracle-inspect', desc: 'Design and architecture inspector — architectural alignment, coupling analysis, performance profile' },
-  { name: 'vigil-keeper-inspect', desc: 'Observability and testing inspector — test coverage gaps, logging/metrics, code quality, documentation' },
+  { name: 'grace-warden', desc: 'Correctness and completeness inspector — COMPLETE/PARTIAL/MISSING/DEVIATED status per requirement' },
+  { name: 'ruin-prophet', desc: 'Failure modes and security inspector — error handling, security posture, operational readiness' },
+  { name: 'sight-oracle', desc: 'Design and architecture inspector — architectural alignment, coupling analysis, performance profile' },
+  { name: 'vigil-keeper', desc: 'Observability and testing inspector — test coverage gaps, logging/metrics, code quality, documentation' },
 ]
 
 // Create tasks + spawn agents
@@ -115,7 +117,7 @@ for (const inspector of inspectors) {
     team_name: teamName,
     name: inspector.name,
     subagent_type: `rune:investigation:${inspector.name}`,
-    prompt: `You are ${inspector.name} in arc inspect phase. Read tmp/arc/${id}/inspect-context.json for the enriched plan and implementation diff. Evaluate plan-vs-implementation alignment from your dimension. Write structured findings to tmp/arc/${id}/${inspector.name}-findings.md. Claim your task via TaskList + TaskUpdate (status: completed) when done.`,
+    prompt: `MODE: inspect\n\nYou are ${inspector.name} in arc inspect phase. Read tmp/arc/${id}/inspect-context.json for the enriched plan and implementation diff. Evaluate plan-vs-implementation alignment from your dimension. Write structured findings to tmp/arc/${id}/${inspector.name}-findings.md. Claim your task via TaskList + TaskUpdate (status: completed) when done.`,
   })
 }
 
@@ -156,9 +158,10 @@ try {
   allMembers = members.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
 } catch (e) {
   // Fallback: hardcoded list of every inspector + verdict-binder
+  // Inspectors use base agent names — mode is dispatched via the spawn-prompt MODE: prefix.
   allMembers = [
-    "grace-warden-inspect", "ruin-prophet-inspect",
-    "sight-oracle-inspect", "vigil-keeper-inspect",
+    "grace-warden", "ruin-prophet",
+    "sight-oracle", "vigil-keeper",
     "verdict-binder",
   ]
 }

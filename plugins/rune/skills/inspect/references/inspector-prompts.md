@@ -4,14 +4,16 @@ This reference covers the 4 Inspector Ash prompt templates and protocols for `/r
 
 ## Agent Definitions
 
-Each inspector has 3 mode variants as separate agent files in `agents/investigation/`:
+Each inspector is a **single base agent file** in `agents/investigation/` with built-in mode dispatch. The base agent reads the first line of its spawn-prompt body (`MODE: <mode>`) and routes to the matching `## Mode: <mode>` section internally.
 
-| Base Agent | Inspect Mode | Plan Review Mode |
-|------------|-------------|-----------------|
-| `grace-warden` | `grace-warden-inspect` | `grace-warden-plan-review` |
-| `ruin-prophet` | `ruin-prophet-inspect` | `ruin-prophet-plan-review` |
-| `sight-oracle` | `sight-oracle-inspect` | `sight-oracle-plan-review` |
-| `vigil-keeper` | `vigil-keeper-inspect` | `vigil-keeper-plan-review` |
+| Base Agent | Modes Supported |
+|------------|-----------------|
+| `grace-warden` | `review` (default), `inspect`, `plan-review` |
+| `ruin-prophet` | `review` (default), `inspect`, `plan-review` |
+| `sight-oracle` | `review` (default), `inspect`, `plan-review` |
+| `vigil-keeper` | `review` (default), `inspect`, `plan-review` |
+
+The spawn-prompt builder MUST prepend `MODE: <mode>\n\n` as the first line of the user prompt body when invoking these agents in `inspect` or `plan-review` mode. When mode is omitted, the base agent defaults to `review`.
 
 ## Inspector Ash Overview
 
@@ -250,20 +252,16 @@ for (const { inspector, taskId, reqIds } of tasks) {
 
   const fileList = scopeFiles.join("\n")
 
-  // Load prompt template — mode-aware selection
-  const templateSuffix = inspectMode === "plan" ? "plan-review" : "inspect"
-  let templatePath = `agents/investigation/${inspector}-${templateSuffix}.md`
-
-  // CONCERN 3: fileExists guard before loadTemplate
+  // Load prompt template — single base agent file; mode dispatched via MODE: prefix
+  const templatePath = `agents/investigation/${inspector}.md`
   if (!exists(templatePath)) {
-    warn(`Template not found: ${templatePath} — falling back to default inspect template`)
-    templatePath = `agents/investigation/${inspector}-inspect.md`
-    if (!exists(templatePath)) {
-      error(`Default template also missing: ${templatePath}`)
-    }
+    error(`Inspector base template missing: ${templatePath}`)
   }
 
-  const prompt = loadTemplate(templatePath, {
+  // The mode the base agent will dispatch on
+  const promptMode = inspectMode === "plan" ? "plan-review" : "inspect"
+
+  const renderedTemplate = loadTemplate(templatePath, {
     plan_path: planPath || "(inline plan embedded below)",
     output_path: `${outputDir}/${inspector}.md`,
     task_id: taskId,
@@ -275,6 +273,10 @@ for (const { inspector, taskId, reqIds } of tasks) {
     ).join("\n\n") : "",
     timestamp: new Date().toISOString()
   })
+
+  // Prepend MODE: line so the base agent's mode dispatch routes to the correct section.
+  // The base agent reads the FIRST line of the prompt body for `MODE: <mode>`. Defaults to `review` if absent.
+  let prompt = `MODE: ${promptMode}\n\n${renderedTemplate}`
 
   // If inline mode, append plan content to prompt with sanitization delimiter
   // SEC-004: Wrap inline content with data boundary to prevent prompt structure interference

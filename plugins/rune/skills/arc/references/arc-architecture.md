@@ -5,54 +5,66 @@ Extracted from SKILL.md in v1.110.0 for phase-isolated context architecture.
 
 ## Pipeline Overview
 
+> v3.0.0-alpha.2 default order is 26 phases. Goldmask verification/correlation,
+> bot-review-wait, pr-comment-resolution, semantic_verification, task_decomposition,
+> test_coverage_critique, release_quality_check were removed (alpha.1+alpha.2).
+> Goldmask remains a standalone command (`/rune:goldmask`); PR-comment work moves
+> to external pr-guardian or `/rune:resolve-all-gh-pr-comments`.
+
 ```
 Phase 1:   FORGE → Research-enrich plan sections
     ↓ (enriched-plan.md)
+Phase 1.5: FORGE QA → Independent forge artifact verification
+    ↓ (forge-qa-verdict.json) — retry forge on FAIL
 Phase 2:   PLAN REVIEW → 3 parallel reviewers + circuit breaker
     ↓ (plan-review.md) — HALT on BLOCK
 Phase 2.5: PLAN REFINEMENT → Extract CONCERNs, write concern context (conditional)
     ↓ (concern-context.md) — WARN on all-CONCERN (auto-proceed; --confirm to pause)
 Phase 2.7: VERIFICATION GATE → Deterministic plan checks (zero LLM)
     ↓ (verification-report.md)
-Phase 3:   DESIGN EXTRACTION → Figma VSM extraction (conditional, v1.109.0)
-    ↓ (tmp/arc/{id}/vsm/) — conditional: design_sync.enabled + Figma URL in plan
-    ↓ (task-validation.md) — advisory, non-blocking
 Phase 5:   WORK → Swarm implementation + incremental commits
     ↓ (work-summary.md + committed code)
-Phase 5.2: DESIGN VERIFICATION → VSM fidelity check (conditional, v1.109.0)
-    ↓ (design-verification.md) — conditional: VSM files exist from Phase 3
+Phase 5.1: WORK QA → Independent work artifact verification
+    ↓ (work-qa-verdict.json) — retry work on FAIL
+Phase 5.2: DRIFT REVIEW → Off-task code detection (advisory)
+    ↓ (drift-review.md) — non-blocking
 Phase 5.5: GAP ANALYSIS → Check plan criteria vs committed code (deterministic + LLM)
     ↓ (gap-analysis.md) — WARN only, never halts
-Phase 5.8: GAP REMEDIATION → Auto-fix FIXABLE findings from Inspector Ashes VERDICT (v1.51.0)
+Phase 5.6: GAP ANALYSIS QA → Independent gap-analysis verification
+    ↓ (gap_analysis-qa-verdict.json) — retry on FAIL
+Phase 5.8: GAP REMEDIATION → Auto-fix FIXABLE findings from VERDICT (v1.51.0)
     ↓ (gap-remediation-report.md) — conditional; WARN only, never halts
-Phase 5.7: GOLDMASK VERIFICATION → Blast-radius analysis via investigation agents (v1.47.0)
-    ↓ (goldmask-verification.md) — 5 impact tracers + wisdom sage + lore analyst
+Phase 5.9: INSPECT → Plan-vs-code Inspector Ashes deep audit (4 inspectors, 11 dimensions)
+    ↓ (VERDICT.md)
+Phase 5.95: INSPECT FIX → Auto-fix FIXABLE findings from VERDICT
+    ↓ (inspect-fix-report.md)
+Phase 5.97: VERIFY INSPECT → Convergence check (orchestrator-only)
+    ↓ converged → proceed | re-inspect → loop
 Phase 6:   CODE REVIEW (deep) → Multi-wave Roundtable Circle review (--deep)
-    ↓ (tome.md)
-Phase 6.5: GOLDMASK CORRELATION → Synthesize investigation findings into GOLDMASK.md (v1.47.0)
-    ↓ (GOLDMASK.md) — orchestrator-only
+    ↓ (TOME.md)
+Phase 6.5: CODE REVIEW QA → Independent code-review artifact verification
+    ↓ (code_review-qa-verdict.json) — retry on FAIL
+Phase 6.7: VERIFY (findings) → Classify TOME findings TRUE_POSITIVE/FALSE_POSITIVE/NEEDS_CONTEXT
+    ↓ (VERDICTS.md) — conditional on arc.verify.enabled
 Phase 7:   MEND → Parallel finding resolution
     ↓ (resolution-report.md) — HALT on >3 FAILED
+Phase 7.3: MEND QA → Independent mend artifact verification
+    ↓ (mend-qa-verdict.json) — retry mend on FAIL
 Phase 7.5: VERIFY MEND → Convergence controller (adaptive review-mend loop)
     ↓ converged → proceed | retry → loop to Phase 6+7 | halted → warn + proceed
-Phase 7.6: DESIGN ITERATION → Screenshot→analyze→fix loop (conditional, v1.109.0)
-    ↓ (design-iteration.md) — conditional: design_verification fidelity score < threshold
-Phase 7.7: TEST → 3-tier QA gate: unit → integration → E2E/browser (v1.43.0)
+Phase 7.7: TEST → 4-tier QA gate: unit → property → integration → E2E/browser
     ↓ (test-report.md) — WARN only, never halts
-    ↓ (test-critique.md) — advisory, non-blocking
+Phase 7.8: TEST QA → Independent test artifact verification
+    ↓ (test-qa-verdict.json) — retry on FAIL
+Phase 8:   DEPLOY VERIFY → Conditional deployment-relevant validation
+    ↓ (deploy-verify-report.md) — conditional on deployment-relevant files
 Phase 8.5: PRE-SHIP VALIDATION → Dual-gate completion check (v1.80.0)
     ↓ (pre-ship-report.md) — non-blocking, proceeds with diagnostics in PR body
-    ↓ (release-quality.md) — advisory, non-blocking
-Phase 9.1: BOT_REVIEW_WAIT → Poll for bot reviews before shipping (v1.88.0)
-    ↓ (bot-review-wait.md) — non-blocking, skippable via talisman
-Phase 9.2: PR_COMMENT_RESOLUTION → Resolve bot/human PR review comments (v1.88.0)
-    ↓ (pr-comment-resolution.md) — non-blocking, multi-round loop
 Phase 9:   SHIP → Push branch + create PR (orchestrator-only)
     ↓ (pr-body.md + checkpoint.pr_url)
 Phase 9.5: MERGE → Rebase + conflict check + auto-merge (orchestrator-only)
     ↓ (merge-report.md)
 Post-arc: PLAN STAMP → Append completion record to plan file
-Post-arc: ECHO PERSIST → Save arc metrics to echoes
 Post-arc: COMPLETION REPORT → Display summary to user
 Output: Implemented, reviewed, fixed, shipped, and merged feature
 ```
@@ -77,22 +89,21 @@ The arc orchestrator is a **lightweight dispatcher**, not a monolithic agent. Wi
 | FORGE | PLAN REVIEW | `enriched-plan.md` | Markdown plan with enriched sections |
 | PLAN REVIEW | PLAN REFINEMENT | `plan-review.md` | 3 reviewer verdicts (PASS/CONCERN/BLOCK) |
 | PLAN REFINEMENT | VERIFICATION | `concern-context.md` | Extracted concern list. Plan not modified |
-| VERIFICATION | SEMANTIC VERIFICATION | `verification-report.md` | Deterministic check results (PASS/WARN) |
-| DESIGN EXTRACTION | TASK DECOMPOSITION | `tmp/arc/{id}/vsm/`, `tmp/arc/{id}/design/` | VSM files per component (or skipped) |
-| TASK DECOMPOSITION | WORK | `task-validation.md` | Task granularity/dependency validation (or skip) |
-| WORK | DESIGN VERIFICATION | Working tree + `work-summary.md` | Git diff of committed changes + task summary |
-| DESIGN VERIFICATION | GAP ANALYSIS | `design-verification-report.md` | Fidelity report + design-findings.json (or skipped) |
-| GAP REMEDIATION | GOLDMASK VERIFICATION | `gap-remediation-report.md` | Fixed findings list + deferred list |
-| CODE REVIEW | MEND | `tome.md` | TOME with `<!-- RUNE:FINDING ... -->` markers |
+| VERIFICATION | WORK | `verification-report.md` | Deterministic check results (PASS/WARN) |
+| WORK | DRIFT REVIEW | Working tree + `work-summary.md` | Git diff of committed changes + task summary |
+| DRIFT REVIEW | GAP ANALYSIS | `drift-review.md` | Off-task code report (advisory) |
+| GAP ANALYSIS | GAP REMEDIATION | `gap-analysis.md` | Plan criteria gap report |
+| GAP REMEDIATION | INSPECT | `gap-remediation-report.md` | Fixed findings list + deferred list |
+| INSPECT | INSPECT FIX | `VERDICT.md` | Inspector Ashes verdict (completion %, dimensions, gaps) |
+| INSPECT FIX | VERIFY INSPECT | `inspect-fix-report.md` | Fixed gap list (or skipped) |
+| VERIFY INSPECT | CODE REVIEW | Convergence verdict | converged → proceed (or re-inspect loop) |
+| CODE REVIEW | VERIFY (findings) | `TOME.md` | TOME with `<!-- RUNE:FINDING ... -->` markers |
+| VERIFY (findings) | MEND | `VERDICTS.md` | Per-finding TRUE_POSITIVE/FALSE_POSITIVE/NEEDS_CONTEXT classification |
 | MEND | VERIFY MEND | `resolution-report.md` | Fixed/FP/Failed finding list |
 | VERIFY MEND | MEND (retry) | `review-focus-round-{N}.json` | Phase 6+7 reset to pending |
-| VERIFY MEND | DESIGN ITERATION | `resolution-report.md` + checkpoint convergence | Convergence verdict |
-| DESIGN ITERATION | TEST | `design-iteration-report.md` | Improved fidelity report (or skipped) |
-| TEST | TEST COVERAGE CRITIQUE | `test-report.md` | Test results with pass_rate, coverage_pct |
-| TEST COVERAGE CRITIQUE | PRE-SHIP VALIDATION | `test-critique.md` | CDX-TEST findings (or skip) |
-| PRE-SHIP VALIDATION | RELEASE QUALITY CHECK | `pre-ship-report.md` | Dual-gate validation verdict |
-| RELEASE QUALITY CHECK | SHIP | `release-quality.md` | CDX-RELEASE findings (advisory, or skip) |
-| SHIP | BOT_REVIEW_WAIT | `pr-body.md` + `checkpoint.pr_url` | PR created, URL stored |
-| BOT_REVIEW_WAIT | PR_COMMENT_RESOLUTION | `bot-review-wait-report.md` | Bot review status |
-| PR_COMMENT_RESOLUTION | MERGE | `pr-comment-resolution-report.md` | Resolved/deferred comment list |
+| VERIFY MEND | TEST | `resolution-report.md` + checkpoint convergence | Convergence verdict |
+| TEST | DEPLOY VERIFY | `test-report.md` | Test results with pass_rate, coverage_pct |
+| DEPLOY VERIFY | PRE-SHIP VALIDATION | `deploy-verify-report.md` | Conditional verdict (or skipped) |
+| PRE-SHIP VALIDATION | SHIP | `pre-ship-report.md` | Dual-gate validation verdict |
+| SHIP | MERGE | `pr-body.md` + `checkpoint.pr_url` | PR created, URL stored |
 | MERGE | Done | `merge-report.md` | Merged or auto-merge enabled |

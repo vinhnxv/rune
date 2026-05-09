@@ -114,7 +114,9 @@ for _pattern in "tmp/.rune-arc-phase-*.json" "tmp/.rune-strive-*.json" "tmp/.run
 done
 
 # Also check YAML frontmatter state files (.md)
-for _sf in .rune/arc-phase-loop.local.md .rune/arc-batch-loop.local.md .rune/arc-hierarchy-loop.local.md .rune/arc-issues-loop.local.md; do
+# v3.0.0-alpha.2 (audit 1778280306): batch/hierarchy/issues loop files removed
+# (parent skills cut in v3.0.0-alpha.1) — only arc-phase-loop remains.
+for _sf in .rune/arc-phase-loop.local.md; do
   [[ -f "$_sf" ]] || continue
   _state_count=$(( _state_count + 1 ))
   _sf_sid=$(grep "^session_id:" "$_sf" 2>/dev/null | head -1 | sed 's/session_id: *//' || echo "<missing>")

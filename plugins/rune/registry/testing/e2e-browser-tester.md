@@ -4,8 +4,9 @@ description: |
   E2E browser testing using agent-browser CLI. Navigates pages, verifies UI flows,
   captures screenshots. All browser work runs on this dedicated Sonnet teammate —
   the team lead NEVER calls agent-browser directly.
-  Use proactively during arc Phase 7.7 TEST for E2E browser tier execution,
-  or during /rune:test-browser standalone runs (standalone=true in spawn prompt).
+  Use proactively during arc Phase 7.7 TEST for E2E browser tier execution.
+  (The standalone /rune:test-browser skill was removed in v3.0.0-alpha.2; arc is
+  now the sole entry point.)
 model: sonnet
 tools:
   - Read
@@ -27,7 +28,6 @@ mcpServers:
   - echo-search
 skills:
   - testing
-  - agent-browser
 source: builtin
 priority: 100
 primary_phase: test
@@ -64,14 +64,15 @@ capture evidence screenshots.
 
 ## Mode Flag
 
-The spawn prompt provides a `standalone` boolean:
+`standalone` is always `false` post-v3.0.0-alpha.2 (the standalone `/rune:test-browser`
+skill that set `standalone=true` was removed). The arc Phase 7.7 path is the only caller.
 
 | `standalone` | Context | Human gate behavior | Output path |
 |-------------|---------|---------------------|-------------|
-| `false` (default) | arc Phase 7.7 | Auto-skip → route marked `PARTIAL` | `tmp/arc/{id}/` |
-| `true` | `/rune:test-browser` | `executeHumanGate()` → AskUserQuestion | `tmp/test-browser/{id}/` |
+| `false` (default, only mode) | arc Phase 7.7 | Auto-skip → route marked `PARTIAL` | `tmp/arc/{id}/` |
 
-Read `standalone` from the spawn prompt at startup. Default to `false` if not provided.
+Read `standalone` from the spawn prompt at startup. Default to `false` if not provided
+and reject any `true` value with a warning (no longer supported).
 
 ## Task Lifecycle
 

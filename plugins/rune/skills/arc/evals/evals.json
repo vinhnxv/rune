@@ -18,13 +18,12 @@
     },
     {
       "id": 2,
-      "prompt": "I had an arc run that crashed midway. The checkpoint file is at plugins/rune/skills/arc/evals/files/sample-checkpoint.json. Analyze this checkpoint and tell me: (1) What phases completed successfully? (2) What phases were skipped and why? (3) What is the next phase that would execute on --resume? (4) What validation would the resume logic perform before continuing? (5) Are there any concerns about the checkpoint state (e.g., schema version, session ownership, convergence config)?",
-      "expected_output": "Analysis showing: 8 phases completed (forge through gap_remediation), 5 phases skipped (design_extraction, storybook_verification, design_verification, ux_verification, design_iteration — all due to disabled features), next phase is goldmask_verification (first pending in PHASE_ORDER), resume validation includes session_nonce format check, config_dir comparison, owner_pid liveness check, and schema version migration if needed. Should note the owner_pid 99999 is likely dead and would be claimed by the new session.",
+      "prompt": "I had an arc run that crashed midway. The checkpoint file is at plugins/rune/skills/arc/evals/files/sample-checkpoint.json. Analyze this checkpoint and tell me: (1) What phases completed successfully? (2) What is the next phase that would execute on --resume? (3) What validation would the resume logic perform before continuing? (4) Are there any concerns about the checkpoint state (e.g., schema version, session ownership)?",
+      "expected_output": "Analysis showing: phases completed (forge through gap_remediation), next pending phase identified from PHASE_ORDER, resume validation includes session_nonce format check, config_dir comparison, owner_pid liveness check, and schema version migration if needed. Should note the owner_pid 99999 is likely dead and would be claimed by the new session.",
       "files": ["evals/files/sample-checkpoint.json"],
       "expectations": [
-        "Correctly identifies 8 completed phases (forge, plan_review, plan_refine, verification, semantic_verification, task_decomposition, work, gap_analysis, gap_remediation)",
-        "Correctly identifies all skipped phases and their skip_reason values",
-        "Correctly identifies goldmask_verification as the next pending phase",
+        "Correctly identifies completed phases up through gap_remediation",
+        "Correctly identifies the next pending phase from PHASE_ORDER",
         "Mentions session_nonce validation (hex format /^[0-9a-f]{12}$/)",
         "Mentions config_dir comparison for cross-session safety",
         "Mentions owner_pid liveness check (kill -0) and orphan recovery for dead PIDs",
@@ -34,29 +33,26 @@
     },
     {
       "id": 3,
-      "prompt": "I want to run an arc pipeline with these flags: --no-forge --draft --no-test --bot-review on plans/feat-notifications-plan.md. Explain exactly how each flag affects the phase execution. Which phases get skipped? Which phases get modified behavior? What's the effective PHASE_ORDER after applying these flags? Also explain how --bot-review interacts with the ship and merge phases.",
-      "expected_output": "Detailed flag analysis: --no-forge skips Phase 1 (forge) entirely, using the plan as-is. --draft makes Phase 9 (ship) create a draft PR instead of a regular PR. --no-test skips Phase 7.7 (test). --bot-review enables Phase 9.1 (bot_review_wait) and Phase 9.2 (pr_comment_resolution) which are otherwise skipped. The effective pipeline runs 24-25 phases (28 minus forge, test, and any conditional phases). Bot review wait polls for external bot comments after PR creation, then pr_comment_resolution resolves them before merge.",
+      "prompt": "I want to run an arc pipeline with these flags: --no-forge --draft --no-test on plans/feat-notifications-plan.md. Explain exactly how each flag affects the phase execution. Which phases get skipped? Which phases get modified behavior? What's the effective PHASE_ORDER after applying these flags?",
+      "expected_output": "Detailed flag analysis: --no-forge skips Phase 1 (forge) entirely, using the plan as-is. --draft makes Phase 9 (ship) create a draft PR instead of a regular PR. --no-test skips Phase 7.7 (test). The effective pipeline runs the 26 default phases minus forge and test (≈ 24 phases).",
       "files": [],
       "expectations": [
         "Correctly identifies --no-forge skips the forge phase (Phase 1)",
         "Correctly identifies --draft modifies ship phase to create draft PR (not skip it)",
         "Correctly identifies --no-test skips the test phase",
-        "Correctly identifies --bot-review enables bot_review_wait and pr_comment_resolution phases",
-        "Explains that bot_review_wait polls for external bot comments after ship (PR creation)",
-        "Explains that pr_comment_resolution resolves bot comments before merge",
-        "Notes that --draft and --bot-review interact with ship/merge phases but don't skip them",
-        "Mentions that conditional phases (design_*, storybook_*, ux_*) are gated by talisman config, not flags"
+        "Notes that --draft modifies ship behavior but doesn't skip it",
+        "Mentions that bot_review_wait, pr_comment_resolution, design_*, storybook_*, ux_* phases were removed in v3.0.0-alpha.1/alpha.2 — they no longer exist in PHASE_ORDER and the --bot-review flag was retired"
       ]
     },
     {
       "id": 4,
       "prompt": "Analyze this checkpoint at plugins/rune/skills/arc/evals/files/convergence-checkpoint.json. The arc completed its first code_review → mend → verify_mend cycle (convergence round 1). The convergence history shows 2 P1 findings were found and resolved, plus 8 P2 findings with 3 resolved. (1) Should the convergence loop continue to round 2? Explain the decision logic including tier config, minCycles, and the evaluateConvergence algorithm. (2) If it loops back, which phases get reset to 'pending' and which keep their 'completed' status? (3) What happens to the team_name fields of reset phases? (4) How does the progressive focus mechanism change what review looks at in round 2?",
-      "expected_output": "Detailed convergence analysis with exact values: (1) STANDARD tier (minCycles=2, maxCycles=3). evaluateConvergence 3-step cascade: minCycles gate → P1+P2 threshold (default p2Threshold=0, any P2 blocks) → computeConvergenceScore with 4 weights (0.4*p3Ratio + 0.3*preExistingRatio + 0.2*trendDecreasing + 0.1*base) against convergenceThreshold=0.7. Round 1 < minCycles=2 → mandatory continuation. (2) ALL 4 phases reset: code_review, mend, verify_mend, goldmask_correlation. team_name cleared to null. prePhaseCleanup runs before re-review. (3) buildProgressiveFocus() outputs to review-focus-round-{N}.json: mend-modified + unfixed P2 paths + 1-hop deps (max 10). (4) convergence_score 0.72 would pass 0.7 threshold but minCycles gate prevents early convergence.",
+      "expected_output": "Detailed convergence analysis with exact values: (1) STANDARD tier (minCycles=2, maxCycles=3). evaluateConvergence 3-step cascade: minCycles gate → P1+P2 threshold (default p2Threshold=0, any P2 blocks) → computeConvergenceScore with 4 weights (0.4*p3Ratio + 0.3*preExistingRatio + 0.2*trendDecreasing + 0.1*base) against convergenceThreshold=0.7. Round 1 < minCycles=2 → mandatory continuation. (2) Phases reset on loop-back: code_review, mend, verify_mend (goldmask_correlation was removed in v3.0.0-alpha.2). team_name cleared to null. prePhaseCleanup runs before re-review. (3) buildProgressiveFocus() outputs to review-focus-round-{N}.json: mend-modified + unfixed P2 paths + 1-hop deps (max 10). (4) convergence_score 0.72 would pass 0.7 threshold but minCycles gate prevents early convergence.",
       "files": ["evals/files/convergence-checkpoint.json"],
       "expectations": [
         "States STANDARD tier defaults: minCycles=2, maxCycles=3 — and that round 1 < minCycles=2 forces continuation regardless of convergence score",
         "Describes evaluateConvergence as a 3-step cascade: (1) minCycles gate, (2) P1 AND P2 threshold check (both must pass), (3) smart scoring via computeConvergenceScore when diff-scope enabled",
-        "Identifies ALL 4 phases that reset to 'pending': code_review, mend, verify_mend, AND goldmask_correlation — not just the first 3",
+        "Identifies the phases that reset to 'pending': code_review, mend, verify_mend (goldmask_correlation was removed in v3.0.0-alpha.2)",
         "States default p2Threshold is 0 (from arc_convergence_p2_threshold config) meaning ANY P2 finding blocks convergence at step 2",
         "References prePhaseCleanup by name (not generic 'cleanup') as running before each re-review round to clean stale teams",
         "Describes computeConvergenceScore 4-component formula with exact weights: 0.4*p3Ratio + 0.3*preExistingRatio + 0.2*trendDecreasing + 0.1*base (sum=1.0)",
@@ -126,22 +122,6 @@
         "Explains cancel-arc 3-layer discovery: (1) checkpoint.phases.work.team_name primary, (2) legacy fallback map, (3) state file scan of tmp/.rune-work-*.json",
         "References prePhaseCleanup (4-strategy escalation) before and postPhaseCleanup (prefix-based orphan scan) after the work phase",
         "Describes that arc stamps checkpoint with team_name: null before delegation, then discovers actual team name post-delegation from strive's state file"
-      ]
-    },
-    {
-      "id": 9,
-      "prompt": "After the work phase completes, the arc runs Goldmask Verification (Phase 5.7) and then Goldmask Correlation (Phase 6.5). The goldmask findings file is at plugins/rune/skills/arc/evals/files/goldmask-findings.json. Explain: (1) How does Phase 5.7 invoke the goldmask skill and what agents does it summon? (2) How does it compare plan-time predictions with actual findings? (3) After code review produces a TOME, how does Phase 6.5 correlate TOME findings with goldmask findings? (4) What triggers human review flagging in the correlation? (5) Looking at the findings file, which findings would be flagged for human review and why? (6) What happens to goldmask_correlation during a convergence loop-back?",
-      "expected_output": "Goldmask walkthrough: (1) Phase 5.7 delegates via Skill('rune:goldmask', diffSpec). 8 agents by name: api-contract-tracer, business-logic-tracer, data-layer-tracer, config-dependency-tracer, event-message-tracer (Haiku), wisdom-sage (Sonnet), lore-analyst (Haiku), goldmask-coordinator (Sonnet). (2) Prediction comparison: reads risk-map.json from tmp/plans/{timestamp}/, categorizes as confirmed/missed/unexpected. (3) Phase 6.5 orchestrator-only (no team). Parses TOME via TOME_FINDING_REGEX for [PREFIX-NNN] patterns, correlates by file path. (4) Exact threshold: caution >= 0.75 OR blast_radius === 'WIDE'. (5) Flagged with threshold citation: GM-IMP-001 (0.88 >= 0.75 + WIDE), GM-IMP-004 (0.80 >= 0.75), GM-LORE-001 (0.85 >= 0.75 + WIDE). (6) goldmask_correlation resets to pending but goldmask_verification does NOT (diff unchanged, only TOME is new).",
-      "files": ["evals/files/goldmask-findings.json"],
-      "expectations": [
-        "States Phase 5.7 delegates via Skill('rune:goldmask', diffSpec) or equivalent invocation",
-        "Lists all 8 goldmask agents by name: api-contract-tracer, business-logic-tracer, data-layer-tracer, config-dependency-tracer, event-message-tracer, wisdom-sage, lore-analyst, goldmask-coordinator",
-        "Describes prediction comparison: reads plan-time risk-map.json from tmp/plans/{timestamp}/ and categorizes findings as confirmed, missed, or unexpected",
-        "Notes Phase 6.5 is orchestrator-only (no team spawned, deterministic correlation)",
-        "References TOME_FINDING_REGEX by name as the parsing mechanism for extracting [PREFIX-NNN] patterns from TOME",
-        "States the exact human review threshold: caution >= 0.75 OR blast_radius === 'WIDE' (not approximate values like 0.80 or 0.85)",
-        "Identifies flagged findings AND cites the threshold value as justification: GM-IMP-001 (0.88 >= 0.75 + WIDE), GM-LORE-001 (0.85 >= 0.75 + WIDE), GM-IMP-004 (0.80 >= 0.75)",
-        "Explains goldmask_correlation resets to pending on loop-back BUT goldmask_verification does NOT reset (the underlying diff hasn't changed, only the TOME is new)"
       ]
     }
   ]

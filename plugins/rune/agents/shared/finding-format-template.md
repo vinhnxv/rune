@@ -1,5 +1,5 @@
 <!-- Source: Extracted from agents/review/ward-sentinel.md, agents/review/pattern-seer.md,
-     agents/review/flaw-hunter.md, agents/investigation/grace-warden-inspect.md,
+     agents/review/flaw-hunter.md, agents/investigation/grace-warden.md (Mode: inspect),
      agents/utility/knowledge-keeper.md -->
 
 # Finding Format Template — Shared Reference
@@ -41,10 +41,15 @@ Each agent uses a unique prefix for its findings:
 | GRACE | grace-warden | Correctness, completeness |
 | SIGHT | sight-oracle | Architecture, performance |
 | WIRE | grace-warden | Wiring map verification |
-| UXH | ux-heuristic-reviewer | UX heuristics |
-| UXI | ux-interaction-auditor | Micro-interactions |
+| UXF | ux-flow-validator | User flow completeness |
+| UXC | ux-cognitive-walker | Cognitive walkthrough |
 | FLOW | flow-integrity-tracer | Data flow integrity |
-| DES | design-implementation-reviewer | Design fidelity |
+| DES | aesthetic-quality-reviewer | Design fidelity / aesthetic quality (v3.0.0-alpha.2 reassignment from removed design-implementation-reviewer) |
+
+> **v3.0.0-alpha.1+alpha.2 removed**: `UXH` (ux-heuristic-reviewer),
+> `UXI` (ux-interaction-auditor) — agents retired with their consumers.
+> If `UXH-` or `UXI-` findings appear in a TOME from older runs, treat them as
+> historical and route to `aesthetic-quality-reviewer` for triage.
 
 ### Confidence Calibration
 

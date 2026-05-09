@@ -328,10 +328,9 @@ if (verdict === 'converged') {
   Write(`tmp/arc/${id}/review-focus-round-${nextRound}.json`, JSON.stringify(focusResult))
   checkpoint.convergence.round = nextRound
 
-  // CRITICAL: Reset code_review, goldmask_correlation, mend, and verify_mend phases to "pending"
+  // CRITICAL: Reset code_review, mend, and verify_mend phases to "pending"
   // The dispatcher scans PHASE_ORDER for the first "pending" phase.
-  // Resetting code_review (index 6) ensures the dispatcher loops back to Phase 6
-  // before reaching verify_mend (index 8).
+  // Resetting code_review ensures the dispatcher loops back to it before reaching verify_mend.
   // NOTE: prePhaseCleanup(checkpoint) runs automatically before the re-review round
   // (called by the dispatcher for every delegated phase) to clean stale teams from
   // the prior round. This is what prevents team name collisions between rounds.
@@ -342,23 +341,13 @@ if (verdict === 'converged') {
     throw new Error(`PHASE_ORDER invariant violated: code_review (${crIdx}) must precede verify_mend (${vmIdx})`)
   }
 
-  // NOTE: goldmask_verification is intentionally NOT reset on convergence retry.
-  // Rationale: mend only touches files already in the diff scope — it does not introduce
-  // new files. The blast-radius analysis from goldmask_verification remains valid because
-  // the set of changed files is unchanged (only their content differs after mend fixes).
-  // Re-running goldmask would produce the same file-level risk tiers.
+  // v3.0.0-alpha.2: goldmask_verification + goldmask_correlation removed from default
+  // PHASE_ORDER, so no reset logic needed here. Goldmask is now /rune:goldmask only.
 
   checkpoint.phases.code_review.status = 'pending'
   checkpoint.phases.code_review.artifact = null
   checkpoint.phases.code_review.artifact_hash = null
   checkpoint.phases.code_review.team_name = null      // BUG FIX: Clear stale team from prior round
-  // QUAL-101 FIX: Reset goldmask_correlation so it re-correlates with new TOME on next cycle
-  if (checkpoint.phases.goldmask_correlation) {
-    checkpoint.phases.goldmask_correlation.status = 'pending'
-    checkpoint.phases.goldmask_correlation.artifact = null
-    checkpoint.phases.goldmask_correlation.artifact_hash = null
-    checkpoint.phases.goldmask_correlation.team_name = null
-  }
   checkpoint.phases.mend.status = 'pending'
   checkpoint.phases.mend.artifact = null
   checkpoint.phases.mend.artifact_hash = null

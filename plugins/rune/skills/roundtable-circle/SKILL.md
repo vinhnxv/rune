@@ -30,7 +30,7 @@ allowed-tools:
 
 # Roundtable Circle Skill
 
-**Load skills**: `rune-orchestration`, `context-weaving`, `rune-echoes`, `team-sdk`, `polling-guard`, `zsh-compat`
+**Load skills**: `rune-orchestration`, `context-weaving`, `team-sdk`, `polling-guard`, `zsh-compat`
 
 Orchestrates multi-agent code reviews using Claude Code Agent Teams. Each Ash teammate gets its own dedicated context window, eliminating single-context bottlenecks.
 

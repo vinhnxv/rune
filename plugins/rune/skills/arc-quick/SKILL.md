@@ -18,7 +18,7 @@ argument-hint: "[prompt or plan-path] [--force]"
 # /rune:arc-quick --- Lightweight 4-Phase Pipeline
 
 Runs **Plan -> Work -> Review -> Mend** (`devise --quick` -> `strive` -> `appraise` -> `mend`) in one command.
-A simplified alternative to `/rune:arc` (45 phases) for small-to-medium features.
+A simplified alternative to `/rune:arc` (26 phases, v3.0.0-alpha.2) for small-to-medium features.
 
 **Load skills**: `polling-guard`, `zsh-compat`
 
@@ -170,7 +170,7 @@ if (isComplex && !force) {
   AskUserQuestion({
     question: `This plan has ${taskCount} tasks and ${sectionCount} sections --- it looks complex.\n\nThe quick pipeline (plan -> work -> review -> mend) skips forge enrichment, gap analysis, testing, and ship/merge. For complex plans, these steps catch issues early.\n\nWhat would you like to do?`,
     options: [
-      { label: "Switch to /rune:arc (full 45-phase pipeline)",
+      { label: "Switch to /rune:arc (full 26-phase pipeline)",
         description: "Recommended for complex plans --- thorough but takes 1-3 hours" },
       { label: "Continue with quick pipeline",
         description: "Plan -> Work -> Review -> Mend --- faster but less thorough" }
@@ -338,7 +338,7 @@ ${iterationRows}
 
 ### Next Steps
 
-- \`/rune:arc ${planPath}\` --- run full 45-phase pipeline if needed
+- \`/rune:arc ${planPath}\` --- run full 26-phase pipeline if needed
 - \`git push\` --- push your changes
 - \`/rune:rest\` --- clean up tmp/ artifacts
 `

@@ -200,7 +200,9 @@ _rune_migrate_legacy() {
   fi
 
   # Loop state files (if session crashed and left them behind)
-  for loop_file in arc-phase-loop.local.md arc-batch-loop.local.md arc-hierarchy-loop.local.md arc-issues-loop.local.md arc-hierarchy-exec-table.json; do
+  # v3.0.0-alpha.2 (audit 1778280306): batch/hierarchy/issues loop files removed
+  # (parent skills cut in v3.0.0-alpha.1) — only arc-phase-loop remains.
+  for loop_file in arc-phase-loop.local.md; do
     if [[ -f "${legacy}/${loop_file}" ]] && [[ ! -L "${legacy}/${loop_file}" ]] && [[ ! -f "${target}/${loop_file}" ]]; then
       _migrate_item "${legacy}/${loop_file}" "${target}/${loop_file}" ".claude/${loop_file}"
     fi

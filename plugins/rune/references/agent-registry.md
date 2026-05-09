@@ -1,10 +1,11 @@
 # Agent Registry
 
-**Total: 153 agent definitions** (110 CORE in agents/ + 43 EXTENDED in registry/, 13 shared)
+**Total: 116 active agent definitions** (74 CORE in agents/ + 42 EXTENDED in registry/, plus 13 shared resources)
 
-> Agent count verified by `find agents/ registry/ -name "*.md" -type f | wc -l` on 2026-04-13.
-> CORE agents (agents/): 17 review + 9 research + 7 work + 16 utility + 31 investigation + 0 testing + 8 qa + 9 meta-qa + 13 shared (incl. README, TEMPLATE) = 110
-> EXTENDED agents (registry/): 25 review + 4 work + 6 utility + 2 investigation + 6 testing = 43
+> Agent count verified by `find agents/ registry/ -name "*.md" -type f -not -path "*/references/*" -not -name TEMPLATE.md -not -name README.md -not -path "*/shared/*" | wc -l` on 2026-05-09 (self-audit run 1778278942).
+> CORE agents (agents/, excl. shared/): review + research + work + utility + investigation + qa + meta-qa = 74
+> EXTENDED agents (registry/): review + work + utility + investigation + testing = 42
+> Shared resources (agents/shared/, not standalone agents): 13 files
 
 > **Stack specialist reviewers** (python-reviewer, typescript-reviewer, rust-reviewer, php-reviewer, axum-reviewer, fastapi-reviewer, django-reviewer, laravel-reviewer, sqlalchemy-reviewer, tdd-compliance-reviewer, ddd-reviewer, di-reviewer) are NOT registered agents. They are prompt templates at `skills/roundtable-circle/references/specialist-prompts/`, loaded on-demand by `buildAshPrompt()` via stack detection.
 
@@ -43,14 +44,14 @@ Shared resources: [Review Checklist](../skills/roundtable-circle/references/agen
 | agent-parity-reviewer | Agent-native parity — orphan features, context starvation, sandbox isolation (PARITY-001 through PARITY-005) |
 | senior-engineer-reviewer | Persona-based senior engineer review — production thinking, temporal reasoning (SENIOR-001 through SENIOR-010) |
 | cross-shard-sentinel | Cross-shard consistency analysis — reads only shard summary JSONs, detects import mismatches, auth boundary gaps, naming drift (XSH-001+). Active only when Inscription Sharding is enabled (v1.98.0+) |
-| design-implementation-reviewer | Design-to-code fidelity — token compliance, layout matching, responsive coverage, accessibility, variant completeness (FIDE-001 through FIDE-010) |
-| ux-heuristic-reviewer | UX heuristic evaluation — Nielsen Norman 10 heuristics at code level, 50+ checklist items (UXH-). Conditional: `ux.enabled` + frontend files |
 | ux-flow-validator | User flow completeness — loading states, error boundaries, empty states, confirmation dialogs, undo mechanisms, graceful degradation (UXF-). Conditional: `ux.enabled` + frontend files |
-| ux-interaction-auditor | Micro-interaction audit — hover/focus states, keyboard accessibility, touch targets (44px), animation performance, prefers-reduced-motion, scroll behavior (UXI-). Conditional: `ux.enabled` + frontend files |
 | ux-cognitive-walker | Cognitive walkthrough — first-time user simulation, discoverability, learnability, error recovery, progressive disclosure (UXC-). Model: opus. Off by default (`cognitive_walkthrough: true` to enable) |
-| aesthetic-quality-reviewer | Aesthetic quality beyond pixel fidelity — anti-slop detection, visual coherence, typography, whitespace balance, design personality scoring (0-100). Complements design-implementation-reviewer |
-| design-system-compliance-reviewer | Design system convention enforcement — token usage, variant patterns (CVA), import paths, class merge utilities, dark mode. Conditional: frontend stack + design system detected (confidence >= 0.70) |
+| aesthetic-quality-reviewer | Aesthetic quality beyond pixel fidelity — anti-slop detection, visual coherence, typography, whitespace balance, design personality scoring (0-100) |
 | flow-integrity-tracer | Field-level data flow verification across UI↔API↔DB layers — field phantoms, persistence gaps, roundtrip asymmetry, display ghosts, schema drift (FLOW-). Conditional: `data_flow.enabled` + 2+ stack layers in diff |
+
+> **v3.0.0-alpha.1+alpha.2 removed**: design-implementation-reviewer,
+> design-system-compliance-reviewer, ux-heuristic-reviewer, ux-interaction-auditor,
+> ux-pattern-analyzer (utility), echo-reader (research) — see CHANGELOG.
 
 ## Research Agents (`agents/research/`)
 
@@ -60,7 +61,6 @@ Shared resources: [Review Checklist](../skills/roundtable-circle/references/agen
 | repo-surveyor | Codebase exploration and pattern discovery |
 | lore-scholar | Framework documentation and API research |
 | git-miner | Git history analysis and code archaeology |
-| echo-reader | Reads Rune Echoes to surface relevant past learnings |
 | wiring-cartographer | Maps integration points where new code connects to existing system (entry points, layers, registration patterns) |
 | activation-pathfinder | Traces activation and migration paths for new features (config, migrations, deployment steps) |
 
@@ -71,7 +71,8 @@ Shared resources: [Review Checklist](../skills/roundtable-circle/references/agen
 | rune-smith | Code implementation (TDD-aware swarm worker) |
 | trial-forger | Test generation (swarm worker) |
 | design-sync-agent | Figma extraction and VSM creation (design swarm worker) |
-| design-iterator | Design fidelity iteration — screenshot→analyze→improve loop (design swarm worker) |
+| design-iterator | Design fidelity iteration — screenshot→analyze→improve loop (registry/work) |
+| blind-verifier | Independent gap-analysis verifier with no diff/worker context (registry/work) |
 | storybook-reviewer | Storybook component verification (read-only) — screenshot capture, Mode A (Design Fidelity) / Mode B (UI Quality Audit), structured findings for storybook-fixer |
 | storybook-fixer | Storybook finding fixer — applies one fix per round (SBK-001), re-verifies via screenshot, three-signal stop convergence detection |
 
@@ -96,7 +97,6 @@ Shared resources: [Review Checklist](../skills/roundtable-circle/references/agen
 | state-weaver | Plan state machine validation — extracts phases, builds transition graphs, validates completeness (10 STSM checks), verifies I/O contracts, generates mermaid diagrams |
 | design-analyst | Figma frame relationship classifier — 5-signal weighted composite (name 0.35, component set 0.25, structure 0.20, dimension 0.10, shared instances 0.10), single-linkage clustering. Used by arc Phase 3 (Design Extraction) |
 | evidence-verifier | Evidence-based plan claim validation — systematic per-claim verification against codebase/docs/external sources with grounding scores. Used by /rune:devise |
-| ux-pattern-analyzer | Codebase UX maturity assessment — inventories loading, error handling, form validation, navigation, empty state, confirmation/undo, and feedback patterns. 4-level maturity scale. Used by devise Phase 0.3 |
 | tome-digest | TOME finding extraction — counts P1/P2/P3 severity, extracts recurring prefixes, top findings. Shell-based extraction via artifact-extract.sh (zero LLM tokens). Used by arc Phase 7 (Mend) |
 
 ## Investigation Agents (`agents/investigation/`)
@@ -161,13 +161,7 @@ Used by `/rune:debug` skill:
 
 | Agent | Purpose |
 |-------|---------|
-| phase-qa-verifier | Independent arc phase completion artifact verification — PASS/FAIL verdict |
-| code-review-qa-verifier | Code review phase TOME existence, finding structure, Ash prefix validity |
-| forge-qa-verifier | Forge phase enriched plan existence, enrichment depth/quality |
-| gap-analysis-qa-verifier | Gap analysis compliance matrix, per-criterion status, code evidence |
-| mend-qa-verifier | Mend phase resolution report, per-finding status, commit SHA references |
-| test-qa-verifier | Test phase test report, SEAL markers, strategy ordering, tier coverage |
-| work-qa-verifier | Work phase delegation manifests, task files, worker reports, evidence quality |
+| phase-qa-verifier | Parametric arc phase completion verifier (single source) — phase identifier and full checklist (`qa-manifests/{phase}.yaml`) injected via spawn prompt; emits unified PASS/FAIL verdict covering artifact, quality, and completeness dimensions |
 
 ## Meta-QA Agents (`agents/meta-qa/`)
 

@@ -11,22 +11,24 @@ Extracted from SKILL.md in v1.110.0 for phase-isolated context architecture.
 | PLAN REVIEW | Halt if any BLOCK verdict | User fixes plan, `/rune:arc --resume` |
 | PLAN REFINEMENT | Non-blocking — proceed with deferred concerns | Advisory phase |
 | VERIFICATION | Non-blocking — proceed with warnings | Informational |
-| DESIGN EXTRACTION | Non-blocking — design_sync disabled or no Figma URL → skip cleanly. Timeout/MCP error → skip with warning | Conditional (v1.109.0) |
 | WORK | evaluateReaction("work_incomplete", ctx) — halt if min_completion not met after retries. Partial commits preserved | `/rune:arc --resume` |
 | DRIFT REVIEW | Non-blocking — skip on error (non-critical) | Advisory phase — pipeline continues |
-| DESIGN VERIFICATION | Non-blocking — no VSM files from design_extraction → skip cleanly. Reviewer failure → skip with warning | Conditional (v1.109.0) |
 | GAP ANALYSIS | Non-blocking — WARN only | Advisory context for code review |
 | GAP REMEDIATION | Non-blocking — gate miss → skip cleanly. Fixer timeout → partial fixes, proceed | Advisory (v1.51.0) |
+| INSPECT | Non-blocking — produces VERDICT.md with completion %. P1 gaps surfaced as findings | Advisory — feeds inspect_fix |
+| INSPECT FIX | Non-blocking — gate miss → skip cleanly. Fixer timeout → partial fixes, proceed | Advisory |
+| VERIFY INSPECT | Non-blocking — orchestrator-only convergence check | Advisory |
 | CODE REVIEW | Does not halt | Produces findings or clean report |
+| VERIFY (findings) | Non-blocking — classifies TOME findings TRUE_POSITIVE/FALSE_POSITIVE/NEEDS_CONTEXT | Pre-mend filter (conditional on `arc.verify.enabled`) |
 | MEND | evaluateReaction("mend_findings_exceeded", ctx) — halt if max_failed_findings exceeded after retries | User fixes, `/rune:arc --resume` |
 | VERIFY MEND | Non-blocking — retries up to tier max cycles, then proceeds | Convergence gate is advisory (DECREE-002: max_rounds enforced in evaluateConvergence()) |
-| DESIGN ITERATION | Non-blocking — fidelity score >= threshold → skip cleanly. Agent-browser unavailable → skip with warning | Conditional (v1.109.0) |
 | TEST | Non-blocking WARN only. Test failures recorded in report | `--no-test` to skip entirely |
+| DEPLOY VERIFY | Non-blocking — conditional on deployment-relevant files in diff | Advisory |
 | PRE-SHIP VALIDATION | Non-blocking — BLOCK verdict proceeds with warning in PR body | Orchestrator-only |
-| BOT_REVIEW_WAIT | Non-blocking — timeout or disabled → skip cleanly | Advisory (v1.88.0) |
-| PR_COMMENT_RESOLUTION | Non-blocking — unresolvable comments logged in report | Advisory (v1.88.0) |
 | SHIP | Skip PR creation, proceed to completion report. Branch was pushed | User creates PR manually: `gh pr create` |
 | MERGE | Skip merge, PR remains open. Rebase conflicts → warn with resolution steps | User merges manually: `gh pr merge --squash` |
+
+> **Removed phases (v3.0.0-alpha.1+)**: DESIGN EXTRACTION, DESIGN VERIFICATION, DESIGN ITERATION, STORYBOOK VERIFICATION, UX VERIFICATION, BROWSER TEST/FIX/VERIFY, GOLDMASK VERIFICATION/CORRELATION, BOT REVIEW WAIT, PR COMMENT RESOLUTION, SEMANTIC VERIFICATION, TASK DECOMPOSITION, TEST COVERAGE CRITIQUE, RELEASE QUALITY CHECK. Their failure rows were removed from this matrix as those phases no longer dispatch.
 
 ## Error Handling Table
 

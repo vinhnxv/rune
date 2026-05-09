@@ -427,7 +427,7 @@ function countExpectedArtifacts(arcId, expectedAgents) {
 
 **Contract with agents**: phase agents MUST write a sentinel to `tmp/arc/{arcId}/.done/{agent-name}.done` with a one-line JSON payload:
 ```json
-{"agent":"work-qa-verifier","status":"completed","verdict_path":"tmp/arc/{id}/qa/work-verdict.json","timestamp":"<ISO8601>"}
+{"agent":"qa-work-verifier","status":"completed","verdict_path":"tmp/arc/{id}/qa/work-verdict.json","timestamp":"<ISO8601>"}
 ```
 See `arc-phase-qa-gate.md` Completion Contract section for the full agent-side obligation.
 

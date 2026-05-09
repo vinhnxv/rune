@@ -121,16 +121,11 @@ log("═════════════════════════
 ```javascript
 // FALLBACK: config.json read failed — use exhaustive list of all possible inspect agents.
 // Safe to send shutdown_request to absent members — SendMessage is a no-op for unknown names.
-// Include BOTH base names (from classifyRequirements/inspectorAssignments) and suffixed names
-// (from SKILL.md MCP discovery path) to cover all spawn code paths.
+// As of v3.0.0-alpha.2, mode-variant files (`*-inspect`, `*-plan-review`) were collapsed into
+// the 4 base agents with mode dispatch. Spawn names ALWAYS use the base names below.
 allMembers = [
-  // Base names (inspector-prompts.md spawns with `name: inspector` from inspectorAssignments)
+  // Base inspector agents (mode dispatched via spawn-prompt MODE: prefix)
   "grace-warden", "ruin-prophet", "sight-oracle", "vigil-keeper",
-  // Suffixed names (SKILL.md MCP discovery path uses suffixed names)
-  "grace-warden-inspect", "ruin-prophet-inspect",
-  "sight-oracle-inspect", "vigil-keeper-inspect",
-  "grace-warden-plan-review", "ruin-prophet-plan-review",
-  "sight-oracle-plan-review", "vigil-keeper-plan-review",
   // Aggregator + conditional agents
   "verdict-binder", "gap-fixer", "lore-analyst"
 ]

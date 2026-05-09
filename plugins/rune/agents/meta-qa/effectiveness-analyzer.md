@@ -101,9 +101,13 @@ For each Ash that contributed findings to the TOME (identified by finding prefix
 | `CORR-` | truth-seeker |
 | `PERF-` | ember-oracle |
 | `QUAL-` | pattern-seer |
-| `DES-` | design-implementation-reviewer |
-| `UXH-` | ux-heuristic-reviewer |
-| `UXI-` | ux-interaction-auditor |
+| `DES-` | aesthetic-quality-reviewer |
+| `UXF-` | ux-flow-validator |
+| `UXC-` | ux-cognitive-walker |
+
+> **v3.0.0-alpha.1+alpha.2**: `UXH-`, `UXI-` prefix owners removed.
+> Historical findings under those prefixes are not counted in current
+> effectiveness reports — they belong to retired agents.
 
 ### Per-Phase Metrics (from checkpoint)
 

@@ -344,7 +344,7 @@ List all requirements that are NOT COMPLETE, showing classification impact on sc
 | (AC-id) | (DEVIATED/PARTIAL/MISSING) | (INTENTIONAL/DRIFT/EXCLUDED/FP/UNCLASSIFIED) | (file:line or comment) | (N)% | (N)% |
 
 - Only include requirements where status is NOT COMPLETE
-- Classification comes from grace-warden-inspect classification data
+- Classification comes from grace-warden (inspect mode) classification data
 - If no classification exists for a requirement, use UNCLASSIFIED
 - Raw % = STATUS_TO_PCT[status], Adjusted % = adjusted_score (or raw if unclassified)
 

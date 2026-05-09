@@ -20,15 +20,27 @@ fi
 # Extract agent names from the registry (pipe-separated pattern → one per line)
 REGISTRY_NAMES=$(grep '^KNOWN_RUNE_AGENTS=' "$LIB_FILE" | sed 's/^KNOWN_RUNE_AGENTS="//' | sed 's/"$//' | tr '|' '\n' | sort)
 
-# Extract agent names from agents/**/*.md and registry/**/*.md (excluding references/)
-AGENT_NAMES=$(find "$PLUGIN_DIR/agents" -name '*.md' -not -path '*/references/*' -print0 2>/dev/null \
+# Extract agent names from agents/**/*.md and registry/**/*.md
+# Exclude: references/ (helper docs), shared/ (protocol fragments — not standalone
+# agents), README.md and TEMPLATE.md (skeleton files).
+# Self-audit run 1778278942 fix: prior version did not exclude shared/ → reported
+# protocol fragments (iron-law-protocol, truthbinding-protocol, etc.) as missing
+# agents, generating false positives.
+AGENT_NAMES=$(find "$PLUGIN_DIR/agents" -name '*.md' \
+  -not -path '*/references/*' -not -path '*/shared/*' \
+  -not -name 'README.md' -not -name 'TEMPLATE.md' \
+  -print0 2>/dev/null \
   | xargs -0 -I{} basename {} .md \
   | sort -u)
 
 # REF-001 FIX: Also scan registry/ directory for extended agents
+# Self-audit run 1778278942 fix: also exclude shared/, TEMPLATE.md.
 REGISTRY_AGENT_NAMES=""
 if [[ -d "$PLUGIN_DIR/registry" ]]; then
-  REGISTRY_AGENT_NAMES=$(find "$PLUGIN_DIR/registry" -name '*.md' -not -path '*/references/*' -not -name 'README*' -print0 2>/dev/null \
+  REGISTRY_AGENT_NAMES=$(find "$PLUGIN_DIR/registry" -name '*.md' \
+    -not -path '*/references/*' -not -path '*/shared/*' \
+    -not -name 'README*' -not -name 'TEMPLATE.md' \
+    -print0 2>/dev/null \
     | xargs -0 -I{} basename {} .md \
     | sort -u)
 fi
@@ -47,10 +59,14 @@ for sp_dir in "$PLUGIN_DIR/specialist-prompts" \
 done
 
 # Extract additional agent names from agents/ (dedup with AGENT_NAMES)
+# Self-audit run 1778278942 fix: also exclude shared/, references/, TEMPLATE.md.
 EXTRA_AGENT_NAMES=""
 ASH_DIR="$PLUGIN_DIR/agents"
 if [[ -d "$ASH_DIR" ]]; then
-  EXTRA_AGENT_NAMES=$(find "$ASH_DIR" -name '*.md' -not -name 'README*' -not -name '*template*' -print0 2>/dev/null \
+  EXTRA_AGENT_NAMES=$(find "$ASH_DIR" -name '*.md' \
+    -not -path '*/references/*' -not -path '*/shared/*' \
+    -not -name 'README*' -not -name '*template*' -not -name 'TEMPLATE.md' \
+    -print0 2>/dev/null \
     | xargs -0 -I{} basename {} .md \
     | sort -u)
 fi

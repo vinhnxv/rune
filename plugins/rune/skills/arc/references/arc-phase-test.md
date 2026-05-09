@@ -48,7 +48,7 @@ const scopeInput = prFromGh || ""  // "" → falls through to current-branch dif
 
 const { files: diffFiles, scopeLabel } = resolveTestScope(scopeInput)
 // resolveTestScope: { files: string[], source: "pr"|"branch"|"current", label: string }
-// Defined in testing/references/scope-detection.md — shared with /rune:test-browser
+// Defined in testing/references/scope-detection.md (post-alpha.2: arc-only consumer; standalone /rune:test-browser was removed)
 
 if (diffFiles.length === 0) {
   Write(`tmp/arc/${id}/test-report.md`, `Phase 7.7 skipped: No changed files (scope: ${scopeLabel}).\n<!-- SEAL: test-report-complete -->`)

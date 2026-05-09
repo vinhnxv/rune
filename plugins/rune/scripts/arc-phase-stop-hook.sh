@@ -424,7 +424,7 @@ if ! [[ "$ITERATION" =~ ^[0-9]+$ ]]; then
   exit 0
 fi
 
-# ── GUARD 8: Max iterations check (safety cap at 65 — 40 phases + 25 convergence rounds) ──
+# ── GUARD 8: Max iterations check (safety cap at 65 — 26 default phases + ≥25 convergence rounds) ──
 if [[ "$MAX_ITERATIONS" =~ ^[0-9]+$ ]] && [[ "$MAX_ITERATIONS" -gt 0 ]] && [[ "$ITERATION" -ge "$MAX_ITERATIONS" ]]; then
   _trace "EXIT: max iterations reached (${ITERATION} >= ${MAX_ITERATIONS})"
   arc_delete_state_file "$STATE_FILE" 2>/dev/null || true
@@ -461,22 +461,29 @@ if [[ -n "$_ARC_ID_FOR_LOG" && "$_ARC_ID_FOR_LOG" =~ ^[a-zA-Z0-9_-]+$ ]]; then
 fi
 
 # ── Phase order (must match SKILL.md PHASE_ORDER exactly) ──
-# WARNING: Non-monotonic execution order — Phase 5.8 (gap_remediation) executes
-# BEFORE Phase 5.7 (goldmask_verification).
+# WARNING: Non-monotonic execution order — gap_remediation executes BEFORE inspect.
 # Must match arc-phase-constants.md PHASE_ORDER exactly (shell-side copy).
+# v3.0.0-alpha.2: Removed goldmask_verification, goldmask_correlation,
+# bot_review_wait, pr_comment_resolution from default order. Goldmask remains as
+# /rune:goldmask standalone; PR-comment + bot-review handling moves to external
+# pr-guardian harness territory.
+# v3.0.0-alpha.2 + codex-strip sync: Removed semantic_verification,
+# task_decomposition, test_coverage_critique, release_quality_check —
+# these were dropped from the JS canonical earlier (commit ed157fa4) but
+# the bash side was not synced until self-audit run 1778278942.
 PHASE_ORDER=(
   forge forge_qa
-  plan_review plan_refine verification semantic_verification
-  task_decomposition work work_qa
+  plan_review plan_refine verification
+  work work_qa
   drift_review gap_analysis gap_analysis_qa
   gap_remediation
-  inspect inspect_fix verify_inspect goldmask_verification
+  inspect inspect_fix verify_inspect
   code_review code_review_qa
-  goldmask_correlation verify mend mend_qa
+  verify mend mend_qa
   verify_mend
   test test_qa
-  test_coverage_critique deploy_verify pre_ship_validation release_quality_check
-  ship bot_review_wait pr_comment_resolution merge
+  deploy_verify pre_ship_validation
+  ship merge
 )
 
 # Heavy phases that ALWAYS trigger compact interlude (tier 1)
@@ -501,7 +508,6 @@ _phase_ref() {
     plan_review)              echo "${base}/arc-phase-plan-review.md" ;;
     plan_refine)              echo "${base}/arc-phase-plan-refine.md" ;;
     verification)             echo "${base}/verification-gate.md" ;;
-    task_decomposition)       echo "${base}/arc-phase-task-decomposition.md" ;;
     work)                     echo "${base}/arc-phase-work.md" ;;
     drift_review)             echo "${base}/arc-phase-drift-review.md" ;;
     gap_analysis)             echo "${base}/gap-analysis.md" ;;
@@ -509,20 +515,14 @@ _phase_ref() {
     inspect)                  echo "${base}/arc-phase-inspect.md" ;;
     inspect_fix)              echo "${base}/arc-phase-inspect-fix.md" ;;
     verify_inspect)           echo "${base}/verify-inspect.md" ;;
-    goldmask_verification)    echo "${base}/arc-phase-goldmask-verification.md" ;;
     code_review)              echo "${base}/arc-phase-code-review.md" ;;
-    goldmask_correlation)     echo "${base}/arc-phase-goldmask-correlation.md" ;;
     verify)                   echo "${base}/arc-phase-verify.md" ;;
     mend)                     echo "${base}/arc-phase-mend.md" ;;
     verify_mend)              echo "${base}/verify-mend.md" ;;
     test)                     echo "${base}/arc-phase-test.md" ;;
-    test_coverage_critique)   echo "${base}/arc-phase-test-coverage-critique.md" ;;
     deploy_verify)            echo "${base}/arc-phase-deploy-verify.md" ;;
     pre_ship_validation)      echo "${base}/arc-phase-pre-ship-validation.md" ;;
-    release_quality_check)    echo "${base}/arc-phase-pre-ship-validation.md" ;;
     ship)                     echo "${base}/arc-phase-ship.md" ;;
-    bot_review_wait)          echo "${base}/arc-phase-bot-review-wait.md" ;;
-    pr_comment_resolution)    echo "${base}/arc-phase-pr-comment-resolution.md" ;;
     merge)                    echo "${base}/arc-phase-merge.md" ;;
     forge_qa|work_qa|gap_analysis_qa|code_review_qa|mend_qa|test_qa)
                               echo "${base}/arc-phase-qa-gate.md" ;;
@@ -534,15 +534,11 @@ _phase_ref() {
 # Required when multiple phases share the same reference file. Without hints,
 # Claude reads the full file and may execute multiple phases in one turn,
 # preventing the Stop hook from firing between them.
-# Shared files: arc-phase-pre-ship-validation.md
+# v3.0.0-alpha.2: no shared files remain after Phase 8.55 removal.
 _phase_section_hint() {
   local phase="$1"
   case "$phase" in
-    semantic_verification)    echo "Execute Phase 2.8 (Semantic Verification) section ONLY. Do NOT execute Phase 5.6." ;;
     test)                     echo "" ;;
-    test_coverage_critique)   echo "" ;;
-    pre_ship_validation)      echo "Execute Phase 8.5 (Pre-Ship Completion Validator) section ONLY. Do NOT execute Phase 8.55 (Release Quality Check)." ;;
-    release_quality_check)    echo "Execute Phase 8.55 (Release Quality Check) section ONLY. Do NOT execute Phase 8.5 (Pre-Ship Completion Validator)." ;;
     *)                        echo "" ;;
   esac
 }
@@ -729,7 +725,7 @@ _phase_weight() {
     code_review)                             echo 4 ;;
     forge|mend|test)                         echo 3 ;;
     plan_review|plan_refine)                 echo 3 ;;
-    gap_analysis|gap_remediation|goldmask_verification|goldmask_correlation|verify) echo 2 ;;
+    gap_analysis|gap_remediation|verify)     echo 2 ;;
     verify_mend) echo 2 ;;
     *)                                       echo 1 ;;
   esac
@@ -1908,20 +1904,10 @@ if [[ -z "$NEXT_PHASE" ]]; then
 
   _trace "All phases complete — removing state file"
 
-  # Check if an outer loop (batch/hierarchy/issues) is active.
-  # If so, use a lightweight prompt — the outer loop's Stop hook will fire next
-  # and handle the plan-to-plan transition. Still need post-arc steps (completion
-  # stamp writes to plan file, which must happen before the next arc starts).
-  _BATCH_STATE="${CWD}/${RUNE_STATE}/arc-batch-loop.local.md"
-  _HIERARCHY_STATE="${CWD}/${RUNE_STATE}/arc-hierarchy-loop.local.md"
-  _ISSUES_STATE="${CWD}/${RUNE_STATE}/arc-issues-loop.local.md"
-  _HAS_OUTER_LOOP=false
-  if [[ -f "$_BATCH_STATE" && ! -L "$_BATCH_STATE" ]] \
-     || [[ -f "$_HIERARCHY_STATE" && ! -L "$_HIERARCHY_STATE" ]] \
-     || [[ -f "$_ISSUES_STATE" && ! -L "$_ISSUES_STATE" ]]; then
-    _HAS_OUTER_LOOP=true
-    _trace "Outer loop active — will inject post-arc steps with minimal summary"
-  fi
+  # v3.0.0-alpha.2 (audit 1778280306): outer-loop detection removed.
+  # arc-batch / arc-hierarchy / arc-issues skills + their stop hooks were cut in
+  # v3.0.0-alpha.1, so no outer loop can ever be active. Always emit the standard
+  # post-arc prompt with the explicit "present a brief summary" instruction.
 
   # Context exhaustion check — if critical, skip post-arc (best effort)
   if _check_context_critical 2>/dev/null; then
@@ -1939,17 +1925,7 @@ if [[ -z "$NEXT_PHASE" ]]; then
   # 2. Echo Persist + Completion Report
   # 3. Lock release + ARC-9 sweep
   # Without explicit instructions, the model skips these steps and just summarizes.
-  if [[ "$_HAS_OUTER_LOOP" == "true" ]]; then
-    _POST_ARC_PROMPT="Arc pipeline complete — all phases finished. Checkpoint: ${CHECKPOINT_PATH}
-
-MANDATORY post-arc steps — execute ALL before stopping:
-1. Read and execute [arc-phase-completion-stamp.md](references/arc-phase-completion-stamp.md) — writes Arc Completion Record to plan file
-2. Read and execute [post-arc.md](references/post-arc.md) — echo persist, state file update, ARC-9 sweep
-3. Release workflow locks
-
-After completing these steps, STOP responding immediately (outer loop will continue)."
-  else
-    _POST_ARC_PROMPT="Arc pipeline complete — all phases finished. Checkpoint: ${CHECKPOINT_PATH}
+  _POST_ARC_PROMPT="Arc pipeline complete — all phases finished. Checkpoint: ${CHECKPOINT_PATH}
 
 MANDATORY post-arc steps — execute ALL before presenting summary:
 1. Read and execute [arc-phase-completion-stamp.md](references/arc-phase-completion-stamp.md) — writes Arc Completion Record to plan file
@@ -1957,7 +1933,6 @@ MANDATORY post-arc steps — execute ALL before presenting summary:
 3. Release workflow locks
 
 After completing these steps, present a brief summary of the arc execution and STOP responding."
-  fi
   arc_stop_continue "$_POST_ARC_PROMPT"
 fi
 

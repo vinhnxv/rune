@@ -1,5 +1,5 @@
-<!-- Source: Extracted from agents/investigation/grace-warden-inspect.md,
-     agents/investigation/sight-oracle-inspect.md -->
+<!-- Source: Extracted from agents/investigation/grace-warden.md (Mode: inspect),
+     agents/investigation/sight-oracle.md (Mode: inspect) -->
 
 # Phase Inspect — Shared Reference
 
@@ -21,12 +21,14 @@ Common patterns for inspect-mode agents (plan-vs-implementation assessment).
 
 Four Inspector Ashes assess implementation from different dimensions:
 
+Each inspector is a single base agent file with mode dispatch. Spawn-prompt prepends `MODE: inspect\n\n` to route to the agent's `## Mode: inspect` section.
+
 | Inspector | Dimensions | Finding Prefix |
 |-----------|-----------|----------------|
-| grace-warden-inspect | Correctness, Completeness | GRACE, WIRE |
-| sight-oracle-inspect | Architecture, Performance | SIGHT |
-| ruin-prophet-inspect | Failure Modes, Security | RUIN |
-| vigil-keeper-inspect | Observability, Maintainability | VIGIL |
+| grace-warden (Mode: inspect) | Correctness, Completeness | GRACE, WIRE |
+| sight-oracle (Mode: inspect) | Architecture, Performance | SIGHT |
+| ruin-prophet (Mode: inspect) | Failure Modes, Security | RUIN |
+| vigil-keeper (Mode: inspect) | Observability, Maintainability | VIGIL |
 
 ## Assessment Criteria (grace-warden)
 

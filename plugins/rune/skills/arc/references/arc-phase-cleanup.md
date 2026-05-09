@@ -39,25 +39,15 @@ Multi-prefix entries cover both arc-owned and sub-command-owned team variants (E
 const PHASE_PREFIX_MAP = {
   forge:                  ["rune-forge-", "arc-forge-"],        // /rune:forge + arc variant
   plan_review:            ["arc-plan-review-", "arc-plan-inspect-"],  // Layer 1 + Layer 2 inspect (conditional)
-  design_extraction:      ["arc-design-"],                       // Phase 3 (conditional — design_sync)
   work:                   ["rune-work-"],
-  storybook_verification: ["arc-storybook-"],                   // Phase 3.3 (conditional — storybook.enabled)
-  design_verification:    ["arc-design-verify-"],               // Phase 5.2 (conditional — VSM fidelity check)
-  ux_verification:        ["arc-ux-"],                           // Phase 5.3 (conditional — ux.enabled + frontend files)
   gap_analysis:           ["rune-inspect-", "arc-inspect-"],    // both prefix variants
   gap_remediation:        ["arc-gap-fix-"],
   inspect:                ["arc-inspect-full-"],
   inspect_fix:            ["arc-inspect-fix-"],
-  goldmask_verification:  ["goldmask-"],
   code_review:            ["rune-review-"],
   verify:                 ["arc-fv-", "rune-verify-"],            // Phase 6.7 (finding verification — conditional on arc.verify.enabled) + standalone /rune:verify
   mend:                   ["rune-mend-", "rune-mend-deep-", "arc-sage-"],  // mend sub-command + deep mend + ephemeral elicitation sage
-  design_iteration:       ["arc-design-iter-"],                 // Phase 7.6 (conditional — fidelity < threshold)
   test:                   ["arc-test-"],
-  browser_test:           ["arc-browser-test-"],               // Phase 7.7.5 (conditional — frontend + agent-browser)
-  browser_test_fix:       ["arc-browser-fix-"],                // Phase 7.7.6 (conditional — browser_test failures)
-  verify_browser_test:    [],                                   // Phase 7.7.7 (no team — orchestrator-only convergence check)
-  design_prototype:       ["arc-prototype-", "rune-prototype-"],  // Phase 3.2 arc prototype + /rune:design-prototype standalone (conditional — design_sync.enabled)
   deploy_verify:          ["arc-deploy-"],                        // Phase 7.9 (conditional — deployment-relevant files in diff)
   forge_qa:               ["arc-qa-"],                             // QA gate for forge phase (conditional — qa_gates.enabled)
   work_qa:                ["arc-qa-"],                             // QA gate for work phase
@@ -65,15 +55,14 @@ const PHASE_PREFIX_MAP = {
   code_review_qa:         ["arc-qa-"],                             // QA gate for code_review phase
   mend_qa:                ["arc-qa-"],                             // QA gate for mend phase
   test_qa:                ["arc-qa-"],                             // QA gate for test phase
-  design_verification_qa: ["arc-qa-"],                             // QA gate for design_verification phase
 }
-// NOTE: Delegated phases — exact count matches keys in PHASE_PREFIX_MAP above. Includes base lifecycle phases, QA gates, design sync phases (design_extraction, design_prototype, design_verification, design_iteration, ux_verification), storybook_verification, browser_test/browser_test_fix, deploy_verify, and inspect phases. Phases removed in v1.67.0 (audit, audit_mend) are NOT listed.
+// NOTE: PHASE_PREFIX_MAP keys mirror the live PHASE_ORDER (26 phases as of v3.0.0-alpha.2).
+// Removed in alpha.1+: design_extraction, design_prototype, design_verification, design_verification_qa,
+// design_iteration, storybook_verification, ux_verification, browser_test/browser_test_fix/verify_browser_test,
+// goldmask_verification.
 // Multi-prefix entries: plan_review has Layer 2 inspect team (arc-plan-inspect-), mend has ephemeral sage team (arc-sage-).
-// Design phases are conditional — only create teams when design_sync.enabled === true.
-// UX verification is conditional — only creates teams when ux.enabled === true + frontend files detected.
-// Orchestrator-only phases (plan_refine, verification,
-// goldmask_correlation, verify_mend, ship, merge) do not create teams — no entries needed.
-//
+// Orchestrator-only phases (plan_refine, verification, verify_mend, verify_inspect, drift_review,
+// pre_ship_validation, ship, merge) do not create teams — no entries needed.
 ```
 
 ## postPhaseCleanup(checkpoint, phaseName)

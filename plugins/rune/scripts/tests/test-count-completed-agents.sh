@@ -48,8 +48,8 @@ _count_glob() {
 # Invariant 1: sentinel glob works under arc-scoped dir
 # ---------------------------------------------------------------------------
 mkdir -p "tmp/arc/$ARC_ID/.done"
-printf '{"agent":"work-qa-verifier","status":"completed","verdict_path":"tmp/arc/%s/qa/work-verdict.json","timestamp":"2026-04-19T04:21:30.000Z"}\n' "$ARC_ID" \
-  > "tmp/arc/$ARC_ID/.done/work-qa-verifier.done"
+printf '{"agent":"qa-work-verifier","status":"completed","verdict_path":"tmp/arc/%s/qa/work-verdict.json","timestamp":"2026-04-19T04:21:30.000Z"}\n' "$ARC_ID" \
+  > "tmp/arc/$ARC_ID/.done/qa-work-verifier.done"
 printf '{"agent":"gap-analysis-qa","status":"completed","verdict_path":"tmp/arc/%s/qa/gap-analysis-verdict.json","timestamp":"2026-04-19T04:21:31.000Z"}\n' "$ARC_ID" \
   > "tmp/arc/$ARC_ID/.done/gap-analysis-qa.done"
 
@@ -83,7 +83,7 @@ artifact_count=$((qa_count + findings_count + reviews_count))
 # Invariant 3: team-signal path (S3) — works when dir exists
 # ---------------------------------------------------------------------------
 mkdir -p "tmp/.rune-signals/$TEAM_NAME"
-echo '' > "tmp/.rune-signals/$TEAM_NAME/work-qa-verifier.done"
+echo '' > "tmp/.rune-signals/$TEAM_NAME/qa-work-verifier.done"
 team_signal_count=$(_count_glob "tmp/.rune-signals/$TEAM_NAME" '*.done')
 [[ "$team_signal_count" -ne 1 ]] && { echo "FAIL: team_signal_count expected 1, got $team_signal_count"; exit 1; }
 

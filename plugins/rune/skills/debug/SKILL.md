@@ -58,7 +58,7 @@ debug:
   timeout_ms: 420_000         # 7 min per investigation round
   model: sonnet               # default investigators model; overridden by cost_tier via resolveModelForAgent()
   re_triage_rounds: 1         # max re-triage rounds before escalating to user
-  echo_on_verdict: true       # persist verdict to rune-echoes after resolution
+  # echo_on_verdict removed in v3.0.0-alpha.1: persistent memory layer was retired
 ```
 
 Read config via `readTalismanSection("misc")` — see [read-talisman.md](../../references/read-talisman.md).
@@ -393,11 +393,11 @@ If fix fails:
 Apply defensive layers per the failure category mapping in [ach-methodology.md](references/ach-methodology.md).
 Reference [defense-in-depth.md](../systematic-debugging/references/defense-in-depth.md) for layer implementation details.
 
-### Step 3.4 — Echo Persistence
+### Step 3.4 — Echo Persistence (DEPRECATED)
 
-If `talisman?.debug?.echo_on_verdict`:
-- Persist the verdict summary to rune-echoes for future debugging reference
-- Include: bug description, winning hypothesis, category, fix applied
+> **v3.0.0-alpha.1**: persistent memory layer (`rune-echoes` skill) was removed.
+> The `echo_on_verdict` flag is retained for forward compatibility but is a no-op.
+> A future version may reintroduce a lighter-weight verdict log.
 
 ---
 

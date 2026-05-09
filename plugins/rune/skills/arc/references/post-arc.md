@@ -1,6 +1,6 @@
 # Post-Arc — Full Algorithm
 
-Post-pipeline lifecycle steps that run after all 45 phases complete (or after the last non-skipped phase). Covers echo persistence, completion report display, and final zombie teammate sweep.
+Post-pipeline lifecycle steps that run after all 26 default phases complete (or after the last non-skipped phase). Covers echo persistence, completion report display, and final zombie teammate sweep.
 
 **Inputs**: completed checkpoint, plan path, echo config, `arcStart` timestamp
 **Outputs**: echoes persisted, completion report displayed to user, stale teams cleaned
@@ -25,83 +25,11 @@ if (stateExists === "yes") {
 }
 ```
 
-## Post-Arc Echo Persist
-
-After the plan stamp, persist arc quality metrics to echoes for cross-session learning:
-
-```javascript
-if (exists(".rune/echoes/")) {
-  // CDX-009 FIX: totalDuration is in milliseconds (Date.now() - arcStart), so divide by 60_000 for minutes.
-  const totalDuration = Date.now() - arcStart  // milliseconds
-  const metrics = {
-    plan: checkpoint.plan_file,
-    duration_minutes: Math.round(totalDuration / 60_000),
-    phases_completed: Object.values(checkpoint.phases).filter(p => p.status === "completed").length,
-    tome_findings: { p1: p1Count, p2: p2Count, p3: p3Count },
-    convergence_cycles: checkpoint.convergence.history.length,
-    mend_fixed: mendFixedCount,
-    gap_addressed: addressedCount,
-    gap_missing: missingCount,
-  }
-
-  const echoLib = `\${RUNE_PLUGIN_ROOT}/scripts/lib/echo-append.sh`
-  const planName = checkpoint.plan_file?.split('/').pop()?.replace('.md', '') || id
-  const echoContent = `Phases: ${metrics.phases_completed}/${PHASE_ORDER.length}, ` +
-    `P1: ${metrics.tome_findings.p1}, Convergence: ${metrics.convergence_cycles}, ` +
-    `Duration: ${metrics.duration_minutes}min`
-  Bash(`source "${echoLib}" && rune_echo_append \
-    --role planner --layer inscribed \
-    --source "rune:arc ${id}" \
-    --title "Pipeline: ${planName} outcomes" \
-    --content "${echoContent}" \
-    --confidence HIGH \
-    --tags "arc,pipeline,${planName}"`)
-}
-```
-
-## Domain Decision Echo Persist
-
-After persisting quality metrics, extract domain decisions from worker logs for cross-session learning:
-
-```javascript
-// Discover worker logs via work phase artifact path (not workTimestamp — unavailable in post-arc)
-const workDir = checkpoint.phases.work?.artifact?.replace(/\/[^\/]+$/, '') // e.g., "tmp/work/1773088881455"
-const workerLogs = workDir ? Glob(`${workDir}/worker-logs/*.md`) : []
-const decisions = []
-for (const log of workerLogs) {
-  const content = Read(log)
-  // Extract ### Decisions sections — handles EOF without trailing newline
-  const decisionBlocks = content.match(/### Decisions\n([\s\S]*?)(?=\n## [^\n]|\s*$)/g)
-  if (decisionBlocks) {
-    decisions.push(...decisionBlocks.map(b => b.replace(/^### Decisions\n/, "").trim()).filter(Boolean))
-  }
-}
-
-if (decisions.length > 0) {
-  // Deduplicate by exact string match, keep first 5 unique (preserve chronological order)
-  const unique = [...new Set(decisions)]
-  const topDecisions = unique.slice(0, 5)
-
-  // Write to planner/ echoes (same as existing post-arc echo) so /rune:devise echo-reader surfaces them
-  const echoLib = `\${RUNE_PLUGIN_ROOT}/scripts/lib/echo-append.sh`
-  const planName2 = checkpoint.plan_file?.split('/').pop()?.replace('.md', '') || id
-  const decisionContent = topDecisions.map(d => `- ${d}`).join("\\n")
-  Bash(`source "${echoLib}" && rune_echo_append \
-    --role planner --layer inscribed \
-    --source "rune:arc ${id} decisions" \
-    --title "Decisions: ${planName2}" \
-    --content "${decisionContent}" \
-    --confidence HIGH \
-    --tags "arc,decisions,${planName2}"`)
-}
-```
-
-> **Design notes**:
-> - Uses `checkpoint.phases.work.artifact` to find work dir — `workTimestamp` is not available in post-arc context
-> - Regex `(?=\n## [^\n]|\s*$)` handles EOF without trailing newline and only stops at `## ` headings (not `###` or `####`)
-> - Writes to `.rune/echoes/planner/MEMORY.md` (same target as existing post-arc echo) — NOT `workers/` — so `/rune:devise` echo-reader surfaces decisions during planning
-> - Chronological order preserved instead of word-count sorting (longer ≠ more important)
-> - Max 5 decisions per arc (prevent echo bloat)
+<!-- Post-Arc Echo Persist + Domain Decision Echo Persist removed in v3.0.0-alpha.3.
+     v3.0.0-alpha.1 removed the persistent memory layer (no rune-echoes skill,
+     no .rune/echoes/ runtime consumer). The blocks here previously sourced
+     `scripts/lib/echo-append.sh` and called `rune_echo_append` — both no-ops
+     post-alpha.1. Restore only if the echo runtime is reintroduced. -->
 > - Graceful: if no `### Decisions` sections exist → skip, zero side effect
 
 ## Completion Report
@@ -121,9 +49,7 @@ Phases:
   5.   WORK:            {status} — {tasks_completed}/{tasks_total} tasks
   5.5  GAP ANALYSIS:    {status} — {addressed}/{total} criteria addressed
   5.8  GAP REMEDIATION: {status} — gap-remediation-report.md ({fixed_count} fixed, {deferred_count} deferred)
-  5.7  GOLDMASK VERIFY: {status} — goldmask-verification.md ({finding_count} findings, {critical_count} critical)
   6.   CODE REVIEW:     {status} — tome.md ({finding_count} findings)
-  6.5  GOLDMASK CORR:   {status} — goldmask-correlation.md ({correlation_count} correlations, {human_review_count} human review)
   7.   MEND:            {status} — {fixed}/{total} findings resolved
   7.5  VERIFY MEND:     {status} — {convergence_verdict} (cycle {convergence.round + 1}/{convergence.tier.maxCycles})
   7.7  TEST:            {status} — test-report.md ({pass_rate}% pass rate, tiers: {tiers_run})

@@ -28,7 +28,7 @@ allowed-tools:
 
 Parses a TOME file for structured findings, groups them by file, spawns finding-verifier teammates to classify each as TRUE_POSITIVE / FALSE_POSITIVE / NEEDS_CONTEXT, and produces a VERDICTS.md with evidence chains.
 
-**Load skills**: `context-weaving`, `rune-echoes`, `rune-orchestration`, `team-sdk`, `polling-guard`, `zsh-compat`
+**Load skills**: `context-weaving`, `rune-orchestration`, `team-sdk`, `polling-guard`, `zsh-compat`
 
 ## Usage
 

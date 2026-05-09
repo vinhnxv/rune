@@ -1,7 +1,8 @@
 # Scope Detection Algorithm — resolveTestScope()
 
-Shared scope resolution used by both `/rune:test-browser` (standalone) and arc Phase 7.7 TEST.
-Determines the set of changed files for diff-scoped test selection.
+Scope resolution used by arc Phase 7.7 TEST. Determines the set of changed files for
+diff-scoped test selection. (Previously also shared with the standalone `/rune:test-browser`
+skill — removed in v3.0.0-alpha.2.)
 
 ## Function Signature
 

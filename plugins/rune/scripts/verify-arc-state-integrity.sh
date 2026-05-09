@@ -121,8 +121,10 @@ if ! printf '%s' "$_file_path" | grep -Eq '\.rune/arc/arc-[0-9]+/checkpoint\.jso
 fi
 
 # ─── R16 guard: refuse if file_path IS the state file ───
+# v3.0.0-alpha.2 (audit 1778280306): batch/hierarchy/issues loop files removed
+# (parent skills cut in v3.0.0-alpha.1) — only arc-phase-loop remains.
 case "$_file_path" in
-  *arc-phase-loop.local.md|*arc-batch-loop.local.md|*arc-hierarchy-loop.local.md|*arc-issues-loop.local.md)
+  *arc-phase-loop.local.md)
     printf '{"hookSpecificOutput":{"hookEventName":"PostToolUse"}}'
     exit 0
     ;;

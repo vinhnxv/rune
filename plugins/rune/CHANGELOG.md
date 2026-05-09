@@ -1,5 +1,113 @@
 # Changelog
 
+## [3.0.0-alpha.3] — 2026-05-09
+
+**Self-audit-driven drift fix (run 1778278942).** `/rune:self-audit --mode static` produced 49 findings (20 P1 / 20 P2 / 9 P3) across workflow, prompt, rule, and hook dimensions. Verdict: CRITICAL (overall 19/100). All valid findings fixed in this release. 37 files changed, registry now passes `audit-agent-registry.sh`.
+
+**Critical runtime fix (P0):**
+
+- `scripts/arc-phase-stop-hook.sh` — bash `PHASE_ORDER` had drifted 4 phases ahead of JS canonical (`semantic_verification`, `task_decomposition`, `test_coverage_critique`, `release_quality_check` — these were dropped from JS in commit `ed157fa4` "strip codex phases" but never synced to bash). Two of those (`task_decomposition`, `test_coverage_critique`) had `_phase_ref()` cases pointing to **deleted** reference files — any arc run would hit them. Bash `PHASE_ORDER` is now 26 entries, matching JS canonical exactly.
+- `scripts/lib/phase-groups.sh` — phantom phases purged from group lookup.
+- `skills/arc/references/arc-phase-constants.md` — `PHASE_GROUPS` and `calculateDynamicTimeout()` no longer reference undefined `PHASE_TIMEOUTS` keys (this had been silently corrupting the dynamic timeout to NaN). `DEPTH_PRESETS.quick` updated.
+- `skills/arc/references/arc-phase-post-findings.md` — orphan Phase 9.05 reference file deleted (never wired to PHASE_ORDER, _phase_ref(), PHASE_TIMEOUTS, or PHASE_GROUPS).
+
+**Doc-count refresh (P1):** verified ground truth = **116 agents** (74 in `agents/` excluding shared/references, plus 42 in `registry/`), **45 skills**, **11 commands**, **3 MCP servers**. Updated:
+
+- `plugins/rune/README.md:9` — was 152 / 69 / 16 / 5
+- `plugins/rune/references/agent-registry.md:3` — was 153 (110 + 43)
+- `plugins/rune/skills/ash-guide/SKILL.md:6` — was 109 (66 + 43) / 6 categories
+- `plugins/rune/scripts/lib/known-rune-agents.sh` — pattern rebuilt from filesystem (134 entries; previously 137 with phantoms). Added 8 actually-live but missing names (`blind-verifier`, `design-iterator`, `pattern-weaver`, `glyph-scribe`, `refactor-guardian-extended`, `type-warden-extended`, `wraith-finder-extended`, `design-inventory-agent`).
+
+**Phantom agent purge (P1):** removed live citations of 6 deleted/never-existing agents (`echo-reader`, `ux-heuristic-reviewer`, `ux-interaction-auditor`, `ux-pattern-analyzer`, `design-system-compliance-reviewer`, `design-implementation-reviewer`, `proto-worker`) from `agent-registry.md`, `ash-guide/SKILL.md`, `cost-tier-mapping.md`, `known-rune-agents.sh`, `finding-format-template.md`, `effectiveness-analyzer.md`. Prefix maps reassigned: `DES` → `aesthetic-quality-reviewer`; `UXH`, `UXI` annotated as retired prefixes.
+
+**Skill ghost cleanup (P1):** stripped `rune-echoes` from "Load skills" directive in 11 SKILL.md files (`appraise`, `audit`, `brainstorm`, `debug`, `devise`, `forge`, `inspect`, `mend`, `roundtable-circle`, `self-audit`, `verify`). The `rune-echoes` skill was removed in alpha.1 along with the persistent memory layer. Annotated removal in `discipline/references/accountability-protocol.md` and `references/key-concepts.md` (Remembrance Channel section retired).
+
+**Marketplace.json drift fix (P1, found during fix):** marketplace skills array contained 21 phantom entries for skills removed in alpha.1 (`agent-browser`, `arc-batch`, `arc-hierarchy`, `arc-issues`, `design-prototype`, `design-sync`, `design-system-discovery`, `elevate`, `figma-to-react`, `frontend-design-patterns`, `learn`, `react-composition-patterns`, `react-native-patterns`, `react-performance-rules`, `react-view-transitions`, `rune-echoes`, `storybook`, `test-browser`, `untitledui-mcp`, `ux-design-process`, `web-interface-rules`). Array regenerated from filesystem — now 45 entries matching `ls plugins/rune/skills/`.
+
+**CLAUDE.md alignment (P1):**
+
+- Stale `v3.0.0-alpha.2` references in CLAUDE.md (lines 5, 100, 218) updated to `v3.0.0-alpha.3` so the plugin-level guide tracks plugin.json (initial alpha.3 self-audit fix bundle missed these — corrected in this release).
+- L51 `iron-law-protocol` row removed from Skills table — file lives under `agents/shared/`, not `skills/`. Skill tool cannot load it.
+- Added `talisman` skill row to Core Workflows (was missing despite being user-invocable).
+- L208 SECURITY hooks list trimmed: `validate-mend-fixer-paths.sh`, `validate-strive-worker-paths.sh`, `validate-gap-fixer-paths.sh` reclassified as OPERATIONAL (their `trap '_rune_fail_forward' ERR` confirms fail-open per SEC-003 / VEIL-002 self-classification). Only `validate-resolve-fixer-paths.sh` is genuinely SECURITY (uses `trap 'exit 2' ERR`).
+- New "Hook Events — Coverage Note" section documents `PostCompact`, `StopFailure`, `WorktreeCreate`, `WorktreeRemove` (all OPERATIONAL).
+- Pre-commit checklist gained `bash scripts/audit-agent-registry.sh` (gate that would have caught registry drift before this release) and a reverse rule for purging removed user-invocable skills from routing tables.
+
+**Config + routers (P1):**
+
+- `talisman.example.yml` — removed 4 dead phase timeout keys (`goldmask_verification`, `goldmask_correlation`, `bot_review_wait`, `pr_comment_resolution`) plus inline migration note documenting the codex strip.
+- `using-rune/SKILL.md`, `tarnished/references/intent-patterns.md`, `tarnished/references/rune-knowledge.md` — removed routes to 8 dead commands (`/rune:elevate`, `/rune:learn`, `/rune:arc-batch`, `/rune:arc-issues`, `/rune:arc-hierarchy`, `/rune:design-sync`, `/rune:design-prototype`, `/rune:ux-design-process`).
+
+**P2 doc sweep:** stripped phantom phase rows from 7 arc reference files: `arc-architecture.md` (Pipeline Overview ASCII + Transition Contracts table), `arc-failure-policy.md`, `phase-tool-matrix.md` (Per-Phase Tool table + Time Budget table), `arc-phase-completion-stamp.md` (phase array + "45 phases" comment), `arc-naming-conventions.md` (checkpoint key list), `arc-phase-qa-gate.md` (JS+bash sample arrays), `post-arc.md` (completion-report template + "45 phases" line).
+
+**Audit script hardening (P3):**
+
+- `scripts/audit-agent-registry.sh` — added `shared/`, `TEMPLATE.md`, `references/` exclusions to all three find loops. Previous version emitted false positives for protocol fragments (`iron-law-protocol`, `truthbinding-protocol`, etc.) treated as missing agents. Script now reports `OK: Registry in sync (134 agents, 134 expected)`.
+
+**Caught-during-fix correction:** the prompt-linter and rule-consistency-auditor both flagged `design-iterator` as deleted — **incorrectly**. The agent moved to `registry/work/design-iterator.md` in alpha.1 and remains live. Restored to `agent-registry.md`, `cost-tier-mapping.md`, and `known-rune-agents.sh`. The CHANGELOG line for alpha.1 ("5 dependent agents removed: ... design-iterator ...") was about removal from `agents/`, not deletion. Audit run finding upgraded.
+
+**Self-audit artifacts** (under `tmp/self-audit/1778278942/`): `SELF-AUDIT-REPORT.md`, `workflow-findings.md`, `prompt-findings.md`, `rule-findings.md`, `hook-findings.md`, `findings.json`, `metrics.json`. Echo entries (filesystem only) at `.rune/echoes/meta-qa/MEMORY.md`.
+
+**Net delta** (alpha.2 `ad025e65` → alpha.3 HEAD): 57 files changed, 420 insertions, 1060 deletions. Single fix bundle commit `b927ac87` accounts for 40 of those files; remaining 17 are scope/cleanup work split across the alpha.3 series. No new agents, no new skills, no new commands.
+
+## [3.0.0-alpha.2] — 2026-05-09
+
+**Day 2 lean rebuild — agent and arc phase consolidation.** Three zero-architecture-change refactors continuing the v3.x essence-first rebuild from `[3.0.0-alpha.1]`. Net delta: **−15 agents** (104 → 89) and **−4 arc phases** (30 → 26 default).
+
+The four essence pillars (`/rune:arc` + checkpoint, QA phases, Discipline Engineering, multi-agent orchestration) are intact — every cut is duplicate or dead surface, not capability.
+
+**Day 2 cuts:**
+
+- **Inspector mode-variant collapse (−8 agents)** — 4 base inspector agents (`grace-warden`, `ruin-prophet`, `sight-oracle`, `vigil-keeper`) absorb their `*-inspect` and `*-plan-review` mode variants. Mode is dispatched via the `MODE: <mode>` first line of the spawn-prompt body. Default mode is `review`. Frontmatter merged using union of tools and max maxTurns (so all three modes work). 12 files → 4.
+- **QA verifier consolidation (−7 agents)** — 7 specialist `*-qa-verifier` files were copy-paste duplications of checklists already encoded in `qa-manifests/{phase}.yaml`. The parametric `phase-qa-verifier` (already present) becomes the single QA agent; `runQAGate()` continues to inject the per-phase manifest content via spawn prompt. `design-qa-verifier` was already orphan after Day 1 design phase cuts.
+- **Arc phase trim (−4 default phases)** — `goldmask_verification`, `goldmask_correlation`, `bot_review_wait`, `pr_comment_resolution` removed from the default `PHASE_ORDER`. `/rune:goldmask` remains as a standalone command for on-demand impact analysis. PR-comment work moves to external `pr-guardian` harness territory; `/rune:resolve-all-gh-pr-comments` standalone is unaffected.
+
+**Files removed (19 total):**
+
+- 8 inspector variants: `agents/investigation/{grace-warden,ruin-prophet,sight-oracle,vigil-keeper}-{inspect,plan-review}.md`
+- 7 specialist QA verifiers: `agents/qa/{forge,work,code-review,mend,test,gap-analysis,design}-qa-verifier.md`
+- 4 arc phase reference files: `skills/arc/references/arc-phase-{goldmask-verification,goldmask-correlation,bot-review-wait,pr-comment-resolution}.md`
+
+**SYNC-CRITICAL files updated together (PHASE_ORDER drift detection):**
+
+- `skills/arc/references/arc-phase-constants.md` — PHASE_ORDER, PHASE_GROUPS, PHASE_TIMEOUTS, calculateDynamicTimeout(), DEPTH_PRESETS
+- `scripts/arc-phase-stop-hook.sh` — bash PHASE_ORDER array, `_phase_ref()` dispatch case, `_phase_weight()`
+- `scripts/rune-status.sh` — mirrored PHASE_ORDER
+- `scripts/lib/phase-groups.sh` — phase-to-group lookup
+- `scripts/tests/test-phase-groups.sh` — coverage assertion array
+- `scripts/lib/known-rune-agents.sh` — allowlist (152 → 137 names)
+
+**Inspector spawn protocol change:**
+
+Spawn-prompt builders MUST prepend `MODE: <mode>\n\n` when invoking inspectors in `inspect` or `plan-review` mode. Without the MODE prefix the base agent defaults to `review` mode (current `/rune:appraise`, `/rune:audit`, `/rune:goldmask` behavior).
+
+**QA verifier dispatch change:**
+
+`runQAGate()` in `arc-phase-qa-gate.md` now dispatches the parametric `rune:qa:phase-qa-verifier` for ALL gated phases instead of mapping to phase-specific specialists. The phase identifier and full `qa-manifests/{phase}.yaml` content are injected into the spawn prompt — phase-specific behavior comes from the manifest, not from a separate agent file.
+
+**Breaking changes (v3.x is intentionally not v2.x compatible):**
+
+- Removed `--bot-review` and `--no-bot-review` flags on `/rune:arc`. Replaced by external `pr-guardian` harness (separate project).
+- Removed inspector mode-variant subagent_type names (`rune:investigation:grace-warden-inspect`, etc.). Spawn the base agent and prepend `MODE: <mode>\n\n` instead.
+- Removed specialist QA verifier subagent_type names (`rune:qa:forge-qa-verifier`, `rune:qa:work-qa-verifier`, etc.). Spawn `rune:qa:phase-qa-verifier` and rely on the orchestrator's manifest injection.
+- Removed `arc.timeouts.goldmask_verification`, `arc.timeouts.goldmask_correlation`, `arc.timeouts.bot_review_wait`, `arc.timeouts.pr_comment_resolution` talisman keys. Drop them from `talisman.yml` — they are no longer consumed.
+- `draft_until_ready: true` on `arc.ship` no longer auto-flips the PR to ready (no in-pipeline phase consumes it). Use the external `pr-guardian` harness or open the PR as ready.
+
+**Net component delta after Day 2:**
+
+| Metric | Day 1 end (alpha.1) | Day 2 end (alpha.2) | v3.0 target |
+|---|---:|---:|---:|
+| Skills | 45 | 45 | ≤15 |
+| Agents | 104 | **89** (−15) | ≤30 |
+| Scripts | 192 | 192 | ≤50 |
+| Arc phases (default) | 30 | **26** (−4) | ≤15 |
+
+Day 3 owns the Talisman complete removal (178 inline call sites, 1 skill, 4 scripts/libs).
+
+**Predecessor:** `[3.0.0-alpha.1]` (Day 1 cuts).
+**Plan:** `plans/2026-05-09-chore-rune-v3-day2-agent-phase-consolidation-plan.md`.
+**Brainstorm source:** `docs/brainstorms/2026-05-09-rune-v3-lean-rebuild-brainstorm.md`.
+
 ## [3.0.0-alpha.1] — 2026-05-09
 
 **Lean rebuild on the four-pillar essence.** Major version reset that strips two years of accumulated bloat and rebuilds on Rune's load-bearing core: `/rune:arc` with checkpoint framework, QA phases, Discipline Engineering, and multi-agent orchestration via Agent Teams.

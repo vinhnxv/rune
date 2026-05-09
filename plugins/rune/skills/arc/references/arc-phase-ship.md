@@ -321,7 +321,10 @@ Write(`tmp/arc/${id}/pr-body.md`, prBody)
 // 5. Create PR
 // Validate labels array before .map() (SEC-DECREE-002 / concern #13)
 const labelsArray = Array.isArray(arcConfig.ship.labels) ? arcConfig.ship.labels : []
-// draft_until_ready: true → create as draft, auto-mark ready after bot_review_wait passes
+// draft_until_ready: true → create as draft. v3.0.0-alpha.2: bot_review_wait was
+//   removed from arc — there is no in-pipeline phase to flip the PR to ready.
+//   Users who want auto-ready after CI/bot review should run the external
+//   pr-guardian harness or `/rune:resolve-all-gh-pr-comments`.
 // draft: true → create as draft, stay draft (manual ready)
 // neither → create as non-draft (ready immediately)
 const draftUntilReady = arcConfig.ship.draft_until_ready ?? false
@@ -359,7 +362,7 @@ if (!/^https:\/\//.test(prUrl)) {
 }
 log(`PR created: ${prUrl}`)
 
-// 6. Update checkpoint (include draft_until_ready for bot_review_wait to consume)
+// 6. Update checkpoint (draft_until_ready persisted for external harness consumption)
 checkpoint.pr_url = prUrl
 checkpoint.draft_until_ready = draftUntilReady
 updateCheckpoint({
