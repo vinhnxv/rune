@@ -107,6 +107,9 @@ else
   # is_known_rune_agent() is undefined → non-Rune exemption (line ~450) silently
   # skips → ALL named agents denied during active workflows (false positives).
   is_known_rune_agent() { return 1; }
+  # BACK-008 fallback: identity stub so suffix-strip call sites still produce
+  # a name (they degrade to no stripping rather than crashing under set -u).
+  rune_strip_agent_suffix() { printf '%s\n' "${1:-}"; }
 fi
 
 # Check for active Rune workflows
@@ -436,7 +439,8 @@ if [[ -z "$active_workflow" ]]; then
     if is_known_rune_agent "$AGENT_NAME"; then
       # No corroborating signals — emit advisory and allow
       # Infer workflow type for targeted suggestion
-      _s4_match_name=$(printf '%s\n' "$AGENT_NAME" | sed -E 's/(-[0-9]+|-deep|-exhaustive|-plan|-inspect|-review|-w[0-9]+)*$//')
+      # BACK-008 fix: shared helper from lib/known-rune-agents.sh (single source of truth)
+      _s4_match_name=$(rune_strip_agent_suffix "$AGENT_NAME")
       _s4_skill=""
       case "$_s4_match_name" in
         ward-sentinel|forge-warden|pattern-weaver|pattern-seer|wraith-finder|flaw-hunter|ember-oracle|rune-architect|forge-keeper|runebinder|doubt-seer|shard-reviewer)
@@ -518,9 +522,10 @@ if [[ -n "$detected_team_name" ]]; then
   # Extract workflow from team prefix: rune-review-xxx -> review, rune-audit-xxx -> audit
   WORKFLOW_TYPE=$(printf '%s\n' "$detected_team_name" | sed -n 's/^rune-\([a-z]*\)-.*/\1/p')
 elif [[ -n "${AGENT_NAME:-}" ]]; then
-  # Infer workflow from agent name -> category mapping
-  # Strip numbered/named suffixes for matching: ward-sentinel-1 -> ward-sentinel
-  _match_name=$(printf '%s\n' "$AGENT_NAME" | sed -E 's/(-[0-9]+|-deep|-exhaustive|-plan|-inspect|-review|-w[0-9]+)*$//')
+  # Infer workflow from agent name -> category mapping.
+  # BACK-008 fix: shared helper from lib/known-rune-agents.sh — single source of truth
+  # for the suffix allowlist (was duplicated regex prone to drift).
+  _match_name=$(rune_strip_agent_suffix "$AGENT_NAME")
   case "$_match_name" in
     # Review/Audit Ashes (built-in + specialist + UX + design)
     ward-sentinel|forge-warden|pattern-weaver|pattern-seer|veil-piercer|glyph-scribe|\
@@ -591,7 +596,7 @@ if [[ -n "$SUGGESTED_TEAM" ]]; then
   # (A) Active workflow with known team name — guide manual team creation
   RECOVERY_STEPS="STOP. Do NOT write a state file — that does not create a team. Do NOT retry Agent() immediately. Follow these steps EXACTLY: Step 1: Read the phase reference file from the checkpoint to find the correct algorithm. Step 2: Call TeamCreate({ team_name: '${SUGGESTED_TEAM}' }) — this is the SDK call that registers the team. Step 3: Call TaskCreate() for each agent you plan to spawn. Step 4: THEN retry Agent() calls with team_name: '${SUGGESTED_TEAM}' on each call."
 else
-  # (C) Fallback: active workflow detected but no team name known
+  # (B) Fallback: active workflow detected but no team name known
   RECOVERY_STEPS="STOP. Do NOT write a state file — that does not create a team. Do NOT retry Agent() immediately. Follow these steps EXACTLY: Step 1: Read the phase reference file from the checkpoint to find the correct team name and algorithm. Step 2: Call TeamCreate({ team_name: 'the-team-name-from-reference' }) — this is the SDK call that registers the team. Step 3: Call TaskCreate() for each agent you plan to spawn. Step 4: THEN retry Agent() calls with the team_name parameter on each call."
 fi
 

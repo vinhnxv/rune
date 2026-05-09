@@ -1,22 +1,6 @@
 {
   "_schema_version": 1,
   "arc": {
-    "batch": {
-      "auto_merge": true,
-      "max_budget": 15.0,
-      "max_retries": 3,
-      "max_turns": 200,
-      "smart_ordering": {
-        "enabled": true,
-        "mode": "ask"
-      },
-      "stop_on_divergence": false,
-      "summaries": {
-        "enabled": true
-      },
-      "total_budget": null,
-      "total_timeout": null
-    },
     "consistency": {
       "checks": []
     },
@@ -107,9 +91,6 @@
       "verify_mend": 240000,
       "work": 2100000
     }
-  },
-  "arc_hierarchy": {
-    "cleanup_child_branches": true
   },
   "ashes": {
     "custom": [
@@ -290,7 +271,6 @@
     }
   },
   "debug": {
-    "echo_on_verdict": true,
     "max_investigators": 4,
     "model": "sonnet",
     "re_triage_rounds": 1,
@@ -328,11 +308,6 @@
       "review",
       "audit"
     ]
-  },
-  "echoes": {
-    "auto_observation": true,
-    "fts_enabled": true,
-    "version_controlled": false
   },
   "elicitation": {
     "enabled": true
@@ -429,8 +404,7 @@
     "assumption_gate": {
       "enabled": true,
       "min_assumptions": 3,
-      "block_on_missing": true,
-      "persist_to_echoes": true
+      "block_on_missing": true
     },
     "block_on_fail": false,
     "completeness_scoring": {
@@ -636,7 +610,6 @@
     },
     "auto_suggest_debounce_hours": 24,
     "auto_suggest_threshold": 3,
-    "echo_persist": true,
     "effectiveness": {
       "regression_alert": true,
       "track": true
@@ -797,19 +770,6 @@
     "commit_format": "rune: {subject} [ward-checked]",
     "consistency": {
       "checks": []
-    },
-    "hierarchy": {
-      "cleanup_child_branches": true,
-      "conflict_resolution": "pause",
-      "enabled": true,
-      "integration_failure": "pause",
-      "max_backtracks": 1,
-      "max_children": 12,
-      "merge_strategy": "merge",
-      "missing_prerequisite": "pause",
-      "require_all_children": true,
-      "sync_main_before_pr": true,
-      "test_timeout_ms": 300000
     },
     "max_workers": 3,
     "pr_monitoring": false,

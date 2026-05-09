@@ -22,15 +22,15 @@ _lookup_phase_group() {
   case "$phase" in
     forge|forge_qa|plan_review|plan_refine|verification)
       echo "planning" ;;
-    work|work_qa|drift_review|storybook_verification)
+    work|work_qa|drift_review)
       echo "work" ;;
-    ux_verification|gap_analysis|gap_analysis_qa|gap_remediation)
+    gap_analysis|gap_analysis_qa|gap_remediation)
       echo "verification" ;;
     inspect|inspect_fix|verify_inspect)
       echo "inspect" ;;
     code_review|code_review_qa|verify|mend|mend_qa|verify_mend)
       echo "review" ;;
-    test|test_qa|browser_test|browser_test_fix|verify_browser_test)
+    test|test_qa)
       echo "testing" ;;
     # v3.0.0-alpha.2: bot_review_wait, pr_comment_resolution removed from default order.
     # v3.0.0-alpha.2 (codex-strip sync, self-audit 1778278942): semantic_verification,
@@ -39,6 +39,10 @@ _lookup_phase_group() {
     # v3.0.0-alpha.2 (audit 1778280306): design_extraction, design_prototype,
     # design_verification, design_verification_qa, design_iteration removed —
     # the design family was cut in v3.0.0-alpha.1; bash side now matches.
+    # v3.0.0-alpha.3 (TOME pr523-524-1778336733): storybook_verification,
+    # ux_verification, browser_test, browser_test_fix, verify_browser_test
+    # removed — these were never canonical post-alpha.1 but lingered as dead
+    # case arms.
     deploy_verify|pre_ship_validation|ship|merge)
       echo "ship" ;;
     *)

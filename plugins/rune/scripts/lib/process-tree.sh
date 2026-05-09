@@ -65,10 +65,15 @@ _is_mcp_server() {
 
   # ── Layer 1: Known binary whitelist (MCP-PROTECT-004) ──
   # Comprehensive whitelist of known MCP/LSP server binaries and paths.
-  # Organized by: Rune → Anthropic official → npm scoped → third-party → LSP.
+  # Organized by: Rune-adjacent → Anthropic official → npm scoped → third-party → LSP.
   # When adding new entries, place them in the correct category.
+  # v3.0.0-alpha.1 removed Rune's bundled MCP servers — these patterns remain
+  # because users may install the same servers manually via ~/.claude/mcp.json
+  # (also relevant for stale child processes from older plugin caches that
+  # users haven't yet pruned).
   case "$cmdline" in
-    # ─ Rune plugin MCP servers (plugins/rune/.mcp.json) ─
+    # ─ Rune-adjacent MCP server name patterns (user-installable; bundled
+    #   versions removed in v3.0.0-alpha.1) ─
     *echo-search/server.py*) return 0 ;;
     *agent-search/server.py*) return 0 ;;
     *pace_mcp_server*) return 0 ;;
@@ -139,8 +144,14 @@ _is_mcp_server() {
   # Covers any process with "mcp" as a hyphenated/underscored component in its path/args.
   # Both directions: "mcp-foo" (prefix, e.g. mcp-remote) and "foo-mcp" (suffix, e.g. context7-mcp).
   # Safe: teammate processes (node claude-code args) never have "mcp" in their cmdline.
+  # BACK-010 fix: match common boundaries after `-mcp`/`_mcp` (space, slash, dot,
+  # end-of-string) so the suffix variant catches `context7-mcp/sub`,
+  # `foo-mcp.js`, and `foo-mcp\nbar` reliably regardless of whether `cmdline`
+  # came from `tr '\0' ' '` (/proc) or `ps -o args=` (BSD/macOS).
   case "$cmdline" in
-    *mcp-*|*mcp_*|*-mcp|*-mcp\ *|*_mcp|*_mcp\ *) return 0 ;;
+    *mcp-*|*mcp_*) return 0 ;;
+    *-mcp|*_mcp) return 0 ;;
+    *-mcp[\ /.]*|*_mcp[\ /.]*) return 0 ;;
   esac
 
   # Python processes running MCP servers (uvicorn, python -m mcp, FastMCP)

@@ -3,12 +3,15 @@
 # SELF-AUDIT-001: Advisory suggestion to run /rune:self-audit after repeated
 # marginal QA scores. Non-blocking. Talisman-gated via self_audit.auto_suggest_threshold.
 #
-# Hook event: Stop
-# Exit 0: No suggestion needed (stdout/stderr discarded)
-# Exit 2: Suggestion emitted via stderr (plain text, non-blocking advisory)
+# Hook event: Stop (Claude Code 2.1.116+ JSON-on-stdout protocol)
+# Exit 0 always — emit either an empty stdout (no suggestion) or
+# `{"decision":"block","reason":"..."}` via arc_stop_continue (suggestion).
+# Per CLAUDE.md "Stop Hook Output Format": stderr+exit 2 is no longer supported;
+# legacy code that returned exit 2 had its advisory silently dropped on 2.1.116+.
+# QUAL-001 (TOME pr523-524-1778336733) fix.
 #
 # Fast-path exits:
-#   - No jq available → exit 0
+#   - No jq available → exit 0 (no stdout)
 #   - Active arc loop → exit 0
 #   - <3 QA verdict files → exit 0
 #   - Already suggested this session (debounce) → exit 0
@@ -27,6 +30,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/platform.sh
 if [[ -f "${SCRIPT_DIR}/lib/platform.sh" ]]; then
   source "${SCRIPT_DIR}/lib/platform.sh"
+fi
+
+# Source arc-stop-hook-common.sh for arc_stop_continue (QUAL-001 fix)
+# shellcheck source=lib/arc-stop-hook-common.sh
+if [[ -f "${SCRIPT_DIR}/lib/arc-stop-hook-common.sh" ]]; then
+  source "${SCRIPT_DIR}/lib/arc-stop-hook-common.sh"
 fi
 
 # ── Fast-path: jq required ──
@@ -117,10 +126,17 @@ _suggest_threshold=$(( _checked * 60 / 100 ))
 # ── Write debounce marker ──
 echo "$(date +%s)" > "$_debounce_file" 2>/dev/null || true
 
-# ── Emit suggestion ──
-cat >&2 <<'SUGGESTION'
-[SELF-AUDIT ADVISORY] Multiple recent arc runs have marginal QA scores.
+# ── Emit suggestion via spec-compliant JSON-on-stdout ──
+# QUAL-001 fix: Claude Code 2.1.116+ ignores stdout JSON when exit 2;
+# stderr+exit 2 silently drops the advisory. arc_stop_continue emits
+# {"decision":"block","reason":...} + exit 0 to re-inject the advisory
+# into Claude's next turn (matches sibling Stop hooks).
+if declare -f arc_stop_continue >/dev/null 2>&1; then
+  arc_stop_continue "[SELF-AUDIT ADVISORY] Multiple recent arc runs have marginal QA scores.
 Consider running /rune:self-audit to analyze recurring quality patterns
-and generate improvement recommendations. This is a non-blocking suggestion.
-SUGGESTION
-exit 2
+and generate improvement recommendations. This is a non-blocking suggestion."
+fi
+# Defensive fallback if arc-stop-hook-common.sh failed to source (still
+# spec-compliant — emits valid JSON on stdout, exit 0).
+printf '%s\n' '{"decision":"block","reason":"[SELF-AUDIT ADVISORY] Multiple recent arc runs have marginal QA scores. Consider running /rune:self-audit to analyze recurring quality patterns."}'
+exit 0

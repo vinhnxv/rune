@@ -233,7 +233,12 @@ _rune_epoch_ms() {
     # pure digits; BSD date prints literal "%3N" as a trailing suffix.
     local _probe
     _probe=$(date +%s%3N 2>/dev/null)
-    if [[ "$_probe" =~ ^[0-9]+$ ]]; then
+    # BACK-011 fix: require ≥13 digits (current ms timestamps are 13 digits
+    # since 2001-09-09; year 2286 hits 14). A pure `^[0-9]+$` check would
+    # silently accept seconds (10-11 digits) on platforms where BSD date
+    # quietly drops `%3N` instead of leaving the literal — producing
+    # millisecond values that are ×1000 too small.
+    if [[ "$_probe" =~ ^[0-9]{13,}$ ]]; then
       printf '%s' "$_probe"
     else
       # Degraded fallback: seconds * 1000. Preserves cap semantics but with

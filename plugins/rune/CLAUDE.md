@@ -239,7 +239,7 @@ Before choosing `trap 'exit 2' ERR` (fail-closed) vs `_rune_fail_forward` (fail-
 3. Is user-facing productivity blocked if the hook crashes?
 4. Is the hook purely observational?
 
-A SECURITY hook MUST set `trap 'exit 2' ERR` from line 1. An OPERATIONAL hook MUST source `lib/fail-forward.sh` and install `_rune_fail_forward`.
+A SECURITY hook MUST set `trap 'exit 2' ERR` from line 1. An OPERATIONAL hook MUST define `_rune_fail_forward()` (inline in each script — no shared lib) and install it via `trap '_rune_fail_forward' ERR`. See `verify-agent-deliverables.sh:16` or `enforce-sleep-background.sh:22` for canonical inline implementations.
 
 **Trace logging**: Set `RUNE_TRACE=1` to enable append-mode trace output to `/tmp/rune-hook-trace.log`. **Dry-run**: Set `RUNE_CLEANUP_DRY_RUN=1` to make cleanup hooks log without acting.
 
