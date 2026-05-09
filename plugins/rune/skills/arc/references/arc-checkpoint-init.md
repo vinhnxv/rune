@@ -237,45 +237,11 @@ function computeSkipMap(arcConfig, designSync, storybook, ux, planMeta, planFile
   const designEnabled = designSync.enabled === true
   const hasFigmaUrls = Array.isArray(planMeta?.figma_urls) && planMeta.figma_urls.length > 0
 
-  // Fallback: scan plan body for Figma URLs when frontmatter is empty.
-  // This handles arc-issues generated plans where URLs are in the body but not frontmatter.
-  const hasFigmaUrlsInBody = (() => {
-    if (hasFigmaUrls) return false  // Frontmatter has URLs — no need to scan body
-    try {
-      const planContent = Read(planFile)
-      const bodyStart = planContent.indexOf('---', planContent.indexOf('---') + 3)
-      if (bodyStart < 0) return false
-      const planBody = planContent.substring(bodyStart + 3)
-      // Strip code blocks before scanning
-      const bodyClean = planBody.replace(/```[\s\S]*?```/g, '')
-      return /https:\/\/(www\.)?figma\.com\/(design|file)\/[A-Za-z0-9]+/.test(bodyClean)
-    } catch (e) { return false }
-  })()
-
-  if (!designEnabled) {
-    map.design_extraction = "design_sync_disabled"
-    map.design_prototype = "design_sync_disabled"
-    // When design_sync is disabled, no VSM files will ever be produced,
-    // so design_verification, design_verification_qa, and design_iteration are also deterministically skippable.
-    map.design_verification = "design_sync_disabled"
-    map.design_verification_qa = "design_sync_disabled"
-    map.design_iteration = "design_sync_disabled"
-  } else if (!hasFigmaUrls && !hasFigmaUrlsInBody) {
-    map.design_extraction = "no_figma_urls"
-    map.design_prototype = "no_figma_urls"
-    // design_verification: runtime-dependent (VSM files may come from other sources)
-    // design_iteration: runtime-dependent (depends on verification result)
-  }
-
-  // ── Storybook (1 phase) ──
-  if (storybook.enabled !== true) {
-    map.storybook_verification = "storybook_disabled"
-  }
-
-  // ── UX verification (1 phase) ──
-  if (ux.enabled !== true) {
-    map.ux_verification = "ux_disabled"
-  }
+  // ── Design / Storybook / UX phases removed in v3.0.0-alpha.1 ──
+  // No design_extraction, design_prototype, design_verification(_qa),
+  // design_iteration, storybook_verification, ux_verification entries —
+  // those phases are gone from PHASE_ORDER. Skip-map keys for non-existent
+  // phases would be rejected by the defense-in-depth check at the bottom.
 
   // ── Verify phase (1 phase) ──
   if (arcConfig.verify_enabled === false) {
@@ -299,17 +265,13 @@ function computeSkipMap(arcConfig, designSync, storybook, ux, planMeta, planFile
     map.test = "testing_disabled"
   }
 
-  // ── Browser test phases ──
-  // Skip all 3 browser test loop phases when --no-browser-test or --no-test
-  if (arcConfig.no_browser_test || arcConfig.no_test) {
-    map.browser_test = "browser_test_disabled"
-    map.browser_test_fix = "browser_test_disabled"
-    map.verify_browser_test = "browser_test_disabled"
-  }
+  // ── Browser test phases removed in v3.0.0-alpha.1 ──
+  // browser_test / browser_test_fix / verify_browser_test no longer in PHASE_ORDER.
+  // Use /rune:test-browser standalone or arc Phase 7.7 testing pipeline.
 
   // ── QA gate phase skip propagation ──
   // QUAL-001 FIX: Order matches PHASE_ORDER canonical sequence
-  const QA_GATED_PHASES = ['forge', 'work', 'gap_analysis', 'code_review', 'mend', 'test', 'design_verification']
+  const QA_GATED_PHASES = ['forge', 'work', 'gap_analysis', 'code_review', 'mend', 'test']
   // readTalismanSection: "gates"
   const gatesConfig = readTalismanSection("gates") ?? {}
   const qaEnabled = gatesConfig?.qa_gates?.enabled !== false  // default: true
@@ -459,10 +421,6 @@ Write(checkpointPath, {
     plan_review:  { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
     plan_refine:  { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
     verification: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
-    semantic_verification: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
-    design_extraction: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
-    design_prototype: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
-    task_decomposition: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
     work:         { status: "pending", artifact: null, artifact_hash: null, team_name: null,
                     // Schema v16 (v1.106.0): suspended tasks from context preservation protocol.
                     // Each entry: { task_id, context_path, reason }
@@ -470,10 +428,6 @@ Write(checkpointPath, {
                     suspended_tasks: [], started_at: null, completed_at: null, demotion_revert_count: 0 },
     work_qa:      { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, retry_count: 0, demotion_revert_count: 0 },
     drift_review: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
-    storybook_verification: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
-    design_verification: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
-    design_verification_qa: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, retry_count: 0, demotion_revert_count: 0 },
-    ux_verification: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
     gap_analysis: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
     gap_analysis_qa: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, retry_count: 0, demotion_revert_count: 0 },
     gap_remediation: { status: "pending", artifact: null, artifact_hash: null, team_name: null, fixed_count: null, deferred_count: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
@@ -487,21 +441,16 @@ Write(checkpointPath, {
     mend:         { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
     mend_qa:      { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, retry_count: 0, demotion_revert_count: 0 },
     verify_mend:  { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
-    design_iteration: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
     test:         { status: "pending", artifact: null, artifact_hash: null, team_name: null, tiers_run: [], pass_rate: null, coverage_pct: null, has_frontend: false, started_at: null, completed_at: null, demotion_revert_count: 0 },
     test_qa:      { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, retry_count: 0, demotion_revert_count: 0 },
-    browser_test:         { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, routes_tested: 0, routes_passed: 0, routes_failed: 0, demotion_revert_count: 0 },
-    browser_test_fix:     { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, fixed_count: null, demotion_revert_count: 0 },
-    verify_browser_test:  { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
-    test_coverage_critique: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
+    deploy_verify: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
     pre_ship_validation: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
-    release_quality_check: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
     ship:         { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
-    // v3.0.0-alpha.2: bot_review_wait + pr_comment_resolution removed from default order.
     merge:        { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
-    // Design phases (design_extraction, design_verification, design_iteration) are
-    // interleaved at their PHASE_ORDER positions above. Conditionally set to "skipped"
-    // at runtime when design_sync.enabled === false.
+    // Defense-in-depth: every key here MUST be in PHASE_ORDER (26 entries as of v3.0.0-alpha.2).
+    // Phantom keys (semantic_verification, design_*, storybook_verification, ux_verification,
+    // task_decomposition, browser_test*, test_coverage_critique, release_quality_check,
+    // bot_review_wait, pr_comment_resolution) were removed in alpha.1/alpha.2 — do not re-add.
   },
   // Schema v19 addition (v1.111.0): timing totals — per-phase durations and overall arc metrics
   // phase_times is populated from two sources:

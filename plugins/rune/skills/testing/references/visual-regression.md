@@ -157,7 +157,8 @@ testing:
     update_baselines: true   # Captures new baselines instead of comparing
 ```
 
-Or via CLI: `/rune:test-browser --update-baselines`
+<!-- /rune:test-browser standalone skill removed in v3.0.0-alpha.2.
+     Set update_baselines: true in talisman.yml; arc Phase 7.7 picks it up automatically. -->
 
 ### Storage & Git
 

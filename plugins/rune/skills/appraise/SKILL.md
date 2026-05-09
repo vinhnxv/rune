@@ -1,7 +1,7 @@
 ---
 name: appraise
 description: |
-  Multi-agent code review using Agent Teams. Summons up to 8 built-in Ashes
+  Multi-agent code review using Agent Teams. Summons up to 7 built-in Ashes in standard mode
   (plus custom Ash from talisman.yml), each with their own dedicated context window.
   Handles scope selection, team creation, review orchestration, aggregation, verification, and cleanup.
   Optional `--deep` runs multi-wave deep review with up to 18 Ashes across 3 waves.
@@ -88,7 +88,7 @@ const params = {
 | `--deep` | Run multi-wave deep review: Wave 1 (core, up to 7 Ashes) + Wave 2 (investigation, 4 Ashes) + Wave 3 (dimension, up to 7 Ashes). Each wave runs as a full Roundtable Circle pass. | Off |
 | `--partial` | Review only staged files (`git diff --cached`) instead of full branch diff | Off |
 | `--dry-run` | Execute Phase 0 (Pre-flight) and Phase 1 (Rune Gaze) only. Display changed files, Ash selections, chunk plan, then exit. Does NOT create teams, tasks, state files, or spawn agents. | Off |
-| `--max-agents <N>` | Limit total Ash summoned (1-8). Priority: Ward Sentinel > Forge Warden > Veil Piercer > Pattern Weaver > Glyph Scribe > Knowledge Keeper | All selected |
+| `--max-agents <N>` | Limit total Ash summoned (1-7 in standard mode; up to 18 in `--deep`). Priority: Ward Sentinel > Forge Warden > Veil Piercer > Pattern Weaver > Glyph Scribe > Knowledge Keeper > Doubt Seer | All selected |
 | `--no-chunk` | Force single-pass review (disable chunking) | Off |
 | `--chunk-size <N>` | Override chunk threshold — file count that triggers chunking (default: 20) | 20 |
 | `--no-converge` | Disable convergence loop — single review pass per chunk | Off |
@@ -289,7 +289,7 @@ Read and execute [tome-aggregation.md](references/tome-aggregation.md) for the f
 
 **Summary of phases:**
 - **Phase 4.5 (Doubt Seer)**: Conditional. Strict opt-in (`talisman.doubt_seer.enabled = true`). Cross-examines P1/P2 findings. 5-min timeout. VERDICT: BLOCK sets `workflow_blocked` flag.
-- **Phase 5 (Runebinder)**: Aggregates all Ash findings. Deduplicates using `SEC > BACK > VEIL > DOUBT > FLOW > DOC > QUAL > FRONT > DES > AESTH > UXH > UXF > UXI > UXC > CDX` hierarchy. Writes `TOME.md`. Every finding MUST be wrapped in `<!-- RUNE:FINDING ... -->` markers for mend parsing.
+- **Phase 5 (Runebinder)**: Aggregates all Ash findings. Deduplicates using the canonical hierarchy in `talisman-defaults.json` → `settings.dedup_hierarchy` (default order: `SEC > BACK > VEIL > DOUBT > PY > TSR > RST > PHP > FAPI > DJG > LARV > SQLA > TDD > DDD > DI > API > DOM > PERF > FLOW > DOC > QUAL > FRONT > DES > AESTH > UXF > UXC > CDX`). Writes `TOME.md`. Every finding MUST be wrapped in `<!-- RUNE:FINDING ... -->` markers for mend parsing. (UXH/UXI retired in v3.0.0-alpha.3 — see CHANGELOG.)
 - **Phase 5.3 (Diff-Scope Tagging)**: Orchestrator-only. Tags findings with `scope="in-diff"` or `scope="pre-existing"`.
 - **Phase 6 (Truthsight)**: Layer 0 inline checks + Layer 2 verifier for P1 findings.
 

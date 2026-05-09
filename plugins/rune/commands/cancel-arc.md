@@ -4,11 +4,8 @@ description: |
   Cancel an active arc pipeline and gracefully shutdown all phase teammates.
   Completed phase artifacts are preserved. Only the currently-active phase is cancelled.
 
-  Also cancels arc-batch, arc-hierarchy, and arc-issues loop state files owned by this session.
-
   Use --status to inspect arc pipeline health without cancelling (runs rune-status.sh).
   Use --list-active to list all active arc-related state files without cancelling anything.
-  Use --variant=batch|hierarchy|issues to cancel only a specific loop type (thin alias support).
 user-invocable: true
 disable-model-invocation: true
 allowed-tools:
@@ -27,17 +24,12 @@ allowed-tools:
 
 Cancel an active arc pipeline and gracefully shutdown all phase teammates. Completed phase artifacts are preserved.
 
-Also cancels arc-batch, arc-hierarchy, and arc-issues loop state files owned by this session.
-
 ## Flags
 
 | Flag | Description |
 |------|-------------|
 | `--status` | Display arc pipeline diagnostic status without cancelling. Runs `rune-status.sh` and returns. |
 | `--list-active` | List all active arc-related state files without cancelling anything. Early return. |
-| `--variant=batch` | Cancel only the arc-batch loop (thin alias — same as `/rune:cancel-arc-batch`). |
-| `--variant=hierarchy` | Cancel only the arc-hierarchy loop (thin alias — same as `/rune:cancel-arc-hierarchy`). |
-| `--variant=issues` | Cancel only the arc-issues loop (thin alias — same as `/rune:cancel-arc-issues`). |
 
 ## Step -1. Handle --status Flag (Early Return)
 
@@ -104,164 +96,13 @@ if (args.includes('--list-active')) {
 
 If `--list-active` is detected, list active state files with ownership info and return — no cancellation.
 
-## Step -0.3. Handle --variant Flag (Thin Alias Support, Early Return)
-
-```javascript
-const args = "$ARGUMENTS"
-const variantMatch = args.match(/--variant=(\w+)/)
-const variant = variantMatch ? variantMatch[1].toLowerCase() : null
-
-if (variant === "batch") {
-  // Cancel only the arc-batch loop — delete state file (same logic as Step 0 batch section)
-  _cancelBatchOnly()
-  return
-}
-if (variant === "hierarchy") {
-  // Cancel only the arc-hierarchy loop — mark as cancelled, don't delete
-  _cancelHierarchyOnly()
-  return
-}
-if (variant === "issues") {
-  // Cancel only the arc-issues loop — delete state file
-  _cancelIssuesOnly()
-  return
-}
-```
-
-When `--variant` is set, only the matching loop type is cancelled. The arc pipeline itself is not touched.
-
-**`_cancelHierarchyOnly()` logic:**
-
-```javascript
-function _cancelHierarchyOnly() {
-  const stateFile = ".rune/arc-hierarchy-loop.local.md"
-  const exists = Bash(`test -f "${stateFile}" && echo "yes" || echo "no"`).trim()
-  if (exists !== "yes") {
-    log("No active arc-hierarchy loop found.")
-    return
-  }
-  const content = Read(stateFile)
-  const ownerPidMatch = content.match(/owner_pid:\s*(\d+)/)
-  const configDirMatch = content.match(/config_dir:\s*(.+)/)
-  const ownerPid = ownerPidMatch ? ownerPidMatch[1].trim() : null
-  const storedCfg = configDirMatch ? configDirMatch[1].trim() : null
-  const currentCfg = Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && cd "$CHOME" 2>/dev/null && pwd -P`).trim()
-  const currentPid = Bash(`echo $PPID`).trim()
-
-  let foreignSession = false
-  if (storedCfg && storedCfg !== currentCfg) {
-    foreignSession = true
-  } else if (ownerPid && /^\d+$/.test(ownerPid) && ownerPid !== currentPid) {
-    const alive = Bash(`kill -0 "${ownerPid}" 2>/dev/null && echo "alive" || echo "dead"`).trim()
-    if (alive === "alive") foreignSession = true
-  }
-  if (foreignSession) {
-    warn(`Arc-hierarchy loop belongs to another session (PID: ${ownerPid}). Skipping.`)
-    return
-  }
-
-  // Preserve EXEC_TABLE_JSON — mark cancelled, don't delete
-  const cancelled = content
-    .replace(/^active:\s*true/m, "active: false")
-    .replace(/^---/, `---\ncancelled: true\ncancelled_at: "${new Date().toISOString()}"`)
-  Write(stateFile, cancelled)
-
-  const parentPlanMatch = content.match(/parent_plan:\s*(.+)/)
-  const parentPlanRaw = parentPlanMatch ? parentPlanMatch[1].trim() : "unknown"
-  const parentPlan = /^[a-zA-Z0-9._\/-]+$/.test(parentPlanRaw) ? parentPlanRaw : "unknown"
-  log(`Arc hierarchy loop cancelled. Parent plan: ${parentPlan}`)
-  log("The current child arc run (if any) will finish normally. No further child plans will be executed.")
-  log(`To see what was completed: Read the execution table in ${parentPlan}`)
-  log("To also cancel the currently-running child arc: /rune:cancel-arc")
-}
-```
-
-**`_cancelIssuesOnly()` logic:**
-
-```javascript
-function _cancelIssuesOnly() {
-  const stateFile = ".rune/arc-issues-loop.local.md"
-  const exists = Bash(`test -f "${stateFile}" && echo "yes" || echo "no"`).trim()
-  if (exists !== "yes") {
-    log("No active arc-issues loop found.")
-    return
-  }
-  const content = Read(stateFile)
-  const iterMatch = content.match(/iteration:\s*(\d+)/)
-  const totalMatch = content.match(/total_plans:\s*(\d+)/)
-  const iteration = iterMatch ? iterMatch[1] : "?"
-  const totalPlans = totalMatch ? totalMatch[1] : "?"
-  const ownerPidMatch = content.match(/owner_pid:\s*(\d+)/)
-  const configDirMatch = content.match(/config_dir:\s*(.+)/)
-  const ownerPid = ownerPidMatch ? ownerPidMatch[1].trim() : null
-  const storedCfg = configDirMatch ? configDirMatch[1].trim() : null
-  const currentCfg = Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && cd "$CHOME" 2>/dev/null && pwd -P`).trim()
-  const currentPid = Bash(`echo $PPID`).trim()
-
-  let foreignSession = false
-  if (storedCfg && storedCfg !== currentCfg) {
-    foreignSession = true
-  } else if (ownerPid && /^\d+$/.test(ownerPid) && ownerPid !== currentPid) {
-    const alive = Bash(`kill -0 "${ownerPid}" 2>/dev/null && echo "alive" || echo "dead"`).trim()
-    if (alive === "alive") foreignSession = true
-  }
-  if (foreignSession) {
-    warn(`Arc-issues loop belongs to another session (PID: ${ownerPid}). Skipping.`)
-    return
-  }
-
-  Bash("rm -f .rune/arc-issues-loop.local.md")
-  log(`Arc issues loop cancelled at iteration ${iteration}/${totalPlans}.`)
-  log("The current arc run will finish normally. No further issues will be started.")
-  log("To see batch progress: Read tmp/gh-issues/batch-progress.json")
-  log("To also cancel the current arc run: /rune:cancel-arc")
-}
-```
-
-**`_cancelBatchOnly()` logic:**
-
-```javascript
-function _cancelBatchOnly() {
-  const stateFile = ".rune/arc-batch-loop.local.md"
-  const exists = Bash(`test -f "${stateFile}" && echo "yes" || echo "no"`).trim()
-  if (exists !== "yes") {
-    log("No active arc-batch loop found.")
-    return
-  }
-  const content = Read(stateFile)
-  const iterMatch = content.match(/iteration:\s*(\d+)/)
-  const totalMatch = content.match(/total_plans:\s*(\d+)/)
-  const iteration = iterMatch ? iterMatch[1] : "?"
-  const total = totalMatch ? totalMatch[1] : "?"
-  const ownerPidMatch = content.match(/owner_pid:\s*(\d+)/)
-  const configDirMatch = content.match(/config_dir:\s*(.+)/)
-  const ownerPid = ownerPidMatch ? ownerPidMatch[1].trim() : null
-  const storedCfg = configDirMatch ? configDirMatch[1].trim() : null
-  const currentCfg = Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && cd "$CHOME" 2>/dev/null && pwd -P`).trim()
-  const currentPid = Bash(`echo $PPID`).trim()
-
-  let foreignSession = false
-  if (storedCfg && storedCfg !== currentCfg) {
-    foreignSession = true
-  } else if (ownerPid && /^\d+$/.test(ownerPid) && ownerPid !== currentPid) {
-    const alive = Bash(`kill -0 "${ownerPid}" 2>/dev/null && echo "alive" || echo "dead"`).trim()
-    if (alive === "alive") foreignSession = true
-  }
-  if (foreignSession) {
-    warn(`Arc-batch loop belongs to another session (PID: ${ownerPid}). Skipping.`)
-    return
-  }
-
-  Bash("rm -f .rune/arc-batch-loop.local.md")
-  log(`Arc batch loop cancelled at iteration ${iteration}/${total}.`)
-  log("The current arc run will finish normally. No further plans will be started.")
-  log("To also cancel the current arc run: /rune:cancel-arc")
-}
-```
+<!-- v3.0.0-alpha.1: --variant=batch|hierarchy|issues handling removed.
+     `/rune:cancel-arc-batch`, `/rune:cancel-arc-hierarchy`, `/rune:cancel-arc-issues`
+     and the parent commands they aliased were deleted in alpha.1. -->
 
 ## Steps
 
-### 0. Cancel Arc Loop State Files (Phase → Batch → Hierarchy → Issues, innermost first)
+### 0. Cancel Arc Phase Loop State File
 
 ```javascript
 // Check for active arc-phase loop state file (innermost loop — check first)
@@ -299,122 +140,8 @@ if (phaseExists === "yes") {
 }
 ```
 
-#### Cancel Arc-Batch Loop (if active and owned by this session)
-
-```javascript
-// Check for active arc-batch loop state file
-const batchStateFile = ".rune/arc-batch-loop.local.md"
-const batchExists = Bash(`test -f "${batchStateFile}" && echo "yes" || echo "no"`).trim()
-
-if (batchExists === "yes") {
-  // Read iteration info and ownership before removing
-  const batchContent = Read(batchStateFile)
-  const iterMatch = batchContent.match(/iteration:\s*(\d+)/)
-  const totalMatch = batchContent.match(/total_plans:\s*(\d+)/)
-  const iteration = iterMatch ? iterMatch[1] : "?"
-  const total = totalMatch ? totalMatch[1] : "?"
-
-  // Check ownership — don't cancel another session's batch silently
-  const ownerPidMatch = batchContent.match(/owner_pid:\s*(\d+)/)
-  const configDirMatch = batchContent.match(/config_dir:\s*(.+)/)
-  const ownerPid = ownerPidMatch ? ownerPidMatch[1].trim() : null
-  const storedCfg = configDirMatch ? configDirMatch[1].trim() : null
-  const currentCfg = Bash(`cd "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" 2>/dev/null && pwd -P`).trim()
-  const currentPid = Bash(`echo $PPID`).trim()
-
-  let isOwner = true
-  if (storedCfg && storedCfg !== currentCfg) isOwner = false
-  if (isOwner && ownerPid && /^\d+$/.test(ownerPid) && ownerPid !== currentPid) {
-    const alive = Bash(`kill -0 "${ownerPid}" 2>/dev/null && echo "alive" || echo "dead"`).trim()
-    if (alive === "alive") isOwner = false
-  }
-
-  if (isOwner) {
-    // Remove state file to stop the batch loop
-    Bash('rm -f .rune/arc-batch-loop.local.md')
-    log(`Arc-batch loop also cancelled (was at iteration ${iteration}/${total})`)
-  } else {
-    warn(`Arc-batch loop belongs to another session (PID: ${ownerPid}). Skipping batch cancellation.`)
-    warn("Use /rune:cancel-arc-batch from the owning session to cancel it.")
-  }
-}
-```
-
-#### Cancel Arc-Hierarchy Loop (if active and owned by this session)
-
-```javascript
-// Check for active arc-hierarchy loop state file
-const hierarchyStateFile = ".rune/arc-hierarchy-loop.local.md"
-const hierarchyExists = Bash(`test -f "${hierarchyStateFile}" && echo "yes" || echo "no"`).trim()
-
-if (hierarchyExists === "yes") {
-  const hierarchyContent = Read(hierarchyStateFile)
-  const ownerPidMatch = hierarchyContent.match(/owner_pid:\s*(\d+)/)
-  const configDirMatch = hierarchyContent.match(/config_dir:\s*(.+)/)
-  const ownerPid = ownerPidMatch ? ownerPidMatch[1].trim() : null
-  const storedCfg = configDirMatch ? configDirMatch[1].trim() : null
-  const currentCfg = Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && cd "$CHOME" 2>/dev/null && pwd -P`).trim()
-  const currentPid = Bash(`echo $PPID`).trim()
-
-  let isOwner = true
-  if (storedCfg && storedCfg !== currentCfg) isOwner = false
-  if (isOwner && ownerPid && /^\d+$/.test(ownerPid) && ownerPid !== currentPid) {
-    const alive = Bash(`kill -0 "${ownerPid}" 2>/dev/null && echo "alive" || echo "dead"`).trim()
-    if (alive === "alive") isOwner = false
-  }
-
-  if (isOwner) {
-    // Mark cancelled — do NOT delete (EXEC_TABLE_JSON must be preserved for resume)
-    const cancelledContent = hierarchyContent
-      .replace(/^active:\s*true/m, "active: false")
-      .replace(/^---/, `---\ncancelled: true\ncancelled_at: "${new Date().toISOString()}"`)
-    Write(hierarchyStateFile, cancelledContent)
-    log("Arc-hierarchy loop also cancelled (marked active: false; state file preserved for resume)")
-  } else {
-    warn(`Arc-hierarchy loop belongs to another session (PID: ${ownerPid}). Skipping.`)
-    warn("Use /rune:cancel-arc-hierarchy from the owning session to cancel it.")
-  }
-}
-```
-
-#### Cancel Arc-Issues Loop (if active and owned by this session)
-
-```javascript
-// Check for active arc-issues loop state file
-const issuesStateFile = ".rune/arc-issues-loop.local.md"
-const issuesExists = Bash(`test -f "${issuesStateFile}" && echo "yes" || echo "no"`).trim()
-
-if (issuesExists === "yes") {
-  const issuesContent = Read(issuesStateFile)
-  const iterMatch = issuesContent.match(/iteration:\s*(\d+)/)
-  const totalMatch = issuesContent.match(/total_plans:\s*(\d+)/)
-  const issuesIteration = iterMatch ? iterMatch[1] : "?"
-  const issuesTotal = totalMatch ? totalMatch[1] : "?"
-
-  const ownerPidMatch = issuesContent.match(/owner_pid:\s*(\d+)/)
-  const configDirMatch = issuesContent.match(/config_dir:\s*(.+)/)
-  const ownerPid = ownerPidMatch ? ownerPidMatch[1].trim() : null
-  const storedCfg = configDirMatch ? configDirMatch[1].trim() : null
-  const currentCfg = Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && cd "$CHOME" 2>/dev/null && pwd -P`).trim()
-  const currentPid = Bash(`echo $PPID`).trim()
-
-  let isOwner = true
-  if (storedCfg && storedCfg !== currentCfg) isOwner = false
-  if (isOwner && ownerPid && /^\d+$/.test(ownerPid) && ownerPid !== currentPid) {
-    const alive = Bash(`kill -0 "${ownerPid}" 2>/dev/null && echo "alive" || echo "dead"`).trim()
-    if (alive === "alive") isOwner = false
-  }
-
-  if (isOwner) {
-    // Remove state file to stop the issues loop (same as batch — Stop hook checks for file presence)
-    Bash("rm -f .rune/arc-issues-loop.local.md")
-    log(`Arc-issues loop also cancelled (was at iteration ${issuesIteration}/${issuesTotal})`)
-  } else {
-    warn(`Arc-issues loop belongs to another session (PID: ${ownerPid}). Skipping.`)
-    warn("Use /rune:cancel-arc-issues from the owning session to cancel it.")
-  }
-}
-```
+<!-- v3.0.0-alpha.1: arc-batch / arc-hierarchy / arc-issues sub-cancellation removed.
+     Those parent commands no longer exist; their state files are no longer written. -->
 
 ### 1. Find Active Arc
 
@@ -503,7 +230,6 @@ Delegate cancellation based on the currently-active phase:
 | **VERIFICATION** (Phase 2.7) | No-op — orchestrator-only, no team to cancel. Skip to Step 4 |
 | **WORK** (Phase 5) | Shutdown work team — broadcast cancellation, send shutdown requests to all rune-smith workers |
 | **GAP ANALYSIS** (Phase 5.5) | No-op — orchestrator-only, no team to cancel. Skip to Step 4 |
-| **GOLDMASK VERIFICATION** (Phase 5.7) | Shutdown goldmask team (`goldmask-*`) — broadcast cancellation, send shutdown requests. Cleanup goldmask state files (`tmp/.rune-goldmask-*.json`) |
 | **CODE REVIEW** (Phase 6) | Delegate to `/rune:cancel-review` logic — broadcast, shutdown Ash, cleanup |
 | **MEND** (Phase 7) | Shutdown mend team — broadcast cancellation, send shutdown requests to all mend-fixer workers |
 | **VERIFY MEND** (Phase 7.5) | No-op — orchestrator-only, no team to cancel. Skip to Step 4 |
@@ -551,19 +277,18 @@ try {
     // Plan review agents
     "scroll-reviewer", "decree-arbiter", "knowledge-keeper", "veil-piercer-plan",
     "evidence-verifier",
-    // Inspect/gap analysis agents (base agents only — mode-variant files removed in v3.0.0-alpha.2)
+    // Inspect/gap analysis agents (base agents — mode-variant files consolidated in v3.0.0-alpha.2)
     "grace-warden", "ruin-prophet", "sight-oracle", "vigil-keeper",
     "verdict-binder", "gap-fixer",
     // Code review agents (delegated to appraise — unlikely here but safe)
     "forge-warden", "ward-sentinel", "pattern-weaver", "veil-piercer",
-    "glyph-scribe", "knowledge-keeper", "runebinder",
+    "glyph-scribe", "runebinder",
     // Test agents
     ...Array.from({length: 6}, (_, i) => `batch-runner-${i + 1}`),
     // Mend agents
     ...Array.from({length: 8}, (_, i) => `mend-fixer-${i + 1}`),
-    // QA verifier (single agent per gate)
-    "qa-forge-verifier", "qa-work-verifier", "qa-code_review-verifier",
-    "qa-mend-verifier", "qa-test-verifier", "qa-gap_analysis-verifier"
+    // QA verifier (consolidated to single phase-qa-verifier in v3.0.0 Day-2 — replaces 7 specialist verifiers)
+    "phase-qa-verifier",
   ]
 }
 
@@ -684,20 +409,21 @@ Do NOT delete any files from completed phases:
 ### 6. Report
 
 ```javascript
-// Dynamically iterate PHASE_ORDER for the report (no hardcoded phase names)
+// PHASE_LABELS mirrors the live PHASE_ORDER (26 phases as of v3.0.0-alpha.2).
+// Removed in alpha.1+: design_*, semantic_verification, task_decomposition, storybook_verification,
+// ux_verification, browser_test*, test_coverage_critique, release_quality_check,
+// goldmask_verification, goldmask_correlation, bot_review_wait, pr_comment_resolution.
 const PHASE_LABELS = {
-  forge: '1 (FORGE)', plan_review: '2 (PLAN REVIEW)', plan_refine: '2.5 (PLAN REFINEMENT)',
-  verification: '2.7 (VERIFICATION)', semantic_verification: '2.8 (SEMANTIC VERIFICATION)',
-  design_extraction: '3 (DESIGN EXTRACTION)', design_prototype: '3.2 (DESIGN PROTOTYPE)', task_decomposition: '4.5 (TASK DECOMPOSITION)',
-  work: '5 (WORK)', design_verification: '5.2 (DESIGN VERIFICATION)',
-  gap_analysis: '5.5 (GAP ANALYSIS)',
-  gap_remediation: '5.8 (GAP REMEDIATION)',
-  // v3.0.0-alpha.2: goldmask_verification + goldmask_correlation removed.
-  code_review: '6 (CODE REVIEW)',
-  mend: '7 (MEND)', verify_mend: '7.5 (VERIFY MEND)', design_iteration: '7.6 (DESIGN ITERATION)',
-  test: '7.7 (TEST)', test_coverage_critique: '7.8 (TEST COVERAGE CRITIQUE)',
-  pre_ship_validation: '8.5 (PRE-SHIP VALIDATION)', release_quality_check: '8.55 (RELEASE QUALITY CHECK)',
-  // v3.0.0-alpha.2: bot_review_wait + pr_comment_resolution removed.
+  forge: '1 (FORGE)', forge_qa: '1.5 (FORGE QA)',
+  plan_review: '2 (PLAN REVIEW)', plan_refine: '2.5 (PLAN REFINEMENT)', verification: '2.7 (VERIFICATION)',
+  work: '5 (WORK)', work_qa: '5.1 (WORK QA)', drift_review: '5.2 (DRIFT REVIEW)',
+  gap_analysis: '5.5 (GAP ANALYSIS)', gap_analysis_qa: '5.6 (GAP ANALYSIS QA)', gap_remediation: '5.8 (GAP REMEDIATION)',
+  inspect: '5.9 (INSPECT)', inspect_fix: '5.95 (INSPECT FIX)', verify_inspect: '5.97 (VERIFY INSPECT)',
+  code_review: '6 (CODE REVIEW)', code_review_qa: '6.5 (CODE REVIEW QA)',
+  verify: '6.7 (VERIFY)',
+  mend: '7 (MEND)', mend_qa: '7.3 (MEND QA)', verify_mend: '7.5 (VERIFY MEND)',
+  test: '7.7 (TEST)', test_qa: '7.8 (TEST QA)',
+  deploy_verify: '8 (DEPLOY VERIFY)', pre_ship_validation: '8.5 (PRE-SHIP VALIDATION)',
   ship: '9 (SHIP)', merge: '9.5 (MERGE)'
 }
 

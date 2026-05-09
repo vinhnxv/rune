@@ -309,47 +309,7 @@
     "monitoring_stack": null,
     "output_dir": "tmp/deploy/"
   },
-  "design_sync": {
-    "backend_impact": {
-      "auto_scope": "frontend-only",
-      "enabled": false
-    },
-    "enabled": false,
-    "fidelity_threshold": 80,
-    "figma_cache_ttl": 1800,
-    "iterate_enabled": false,
-    "max_extraction_timeout": 900000,
-    "max_extraction_workers": 2,
-    "max_implementation_workers": 3,
-    "max_iteration_workers": 2,
-    "max_iterations": 5,
-    "max_total_components": 40,
-    "max_urls": 10,
-    "multi_url": true,
-    "relationship_confirmation": true,
-    "state_detection_ambiguous": 0.5,
-    "state_detection_threshold": 0.75,
-    "token_snap_distance": 20,
-    "trust_hierarchy": {
-      "enabled": true,
-      "high_confidence_threshold": 0.8,
-      "low_confidence_threshold": 0.6
-    },
-    "verification_gate": {
-      "block_threshold": 40,
-      "enabled": true,
-      "warn_threshold": 20
-    }
-  },
-  "devise": {
-    "design_system_discovery": {
-      "confidence_threshold": 0.5,
-      "domain_inference": {
-        "enabled": true
-      },
-      "enabled": true
-    }
-  },
+  "devise": {},
   "discipline": {
     "block_on_fail": true,
     "context_isolation": true,
@@ -711,9 +671,14 @@
       "API",
       "DOM",
       "PERF",
+      "FLOW",
       "DOC",
       "QUAL",
       "FRONT",
+      "DES",
+      "AESTH",
+      "UXF",
+      "UXC",
       "CDX"
     ],
     "max_ashes": 9,
@@ -737,13 +702,6 @@
   },
   "state_weaver": {
     "enabled": true
-  },
-  "storybook": {
-    "auto_start": true,
-    "dir": "tmp/storybook",
-    "enabled": false,
-    "max_rounds": 3,
-    "port": 6006
   },
   "strive": {
     "frontend_component_context": {

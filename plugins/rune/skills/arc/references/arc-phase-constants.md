@@ -295,16 +295,13 @@ the stop hook's single-pass auto-skip logic (see `arc-phase-stop-hook.sh`).
 // Empty map ({}) = no pre-skipping (all features enabled).
 
 // ── Canonical skip reasons ──
+// v3.0.0-alpha.1+ removed: DESIGN_SYNC_DISABLED, NO_FIGMA_URLS, STORYBOOK_DISABLED,
+// UX_DISABLED, BROWSER_TEST_DISABLED — those phases are no longer in PHASE_ORDER.
 const SKIP_REASONS = {
   FORGE_DISABLED: "forge_disabled",                   // --no-forge flag or arc.defaults.no_forge
-  DESIGN_SYNC_DISABLED: "design_sync_disabled",       // misc.design_sync.enabled !== true
-  NO_FIGMA_URLS: "no_figma_urls",                     // design_sync enabled but no figma_urls in plan
-  STORYBOOK_DISABLED: "storybook_disabled",           // misc.storybook.enabled !== true
-  UX_DISABLED: "ux_disabled",                         // ux.enabled !== true
   TESTING_DISABLED: "testing_disabled",               // --no-test flag or arc.defaults.no_test
   INSPECT_DISABLED: "inspect_disabled",               // arc.inspect.enabled === false
   VERIFY_DISABLED: "verify_disabled",                 // arc.verify.enabled === false or --no-verify flag
-  BROWSER_TEST_DISABLED: "browser_test_disabled",     // --no-browser-test flag or arc.defaults.no_browser_test
   USER_SKIP: "user_skip",                             // arc.skip_phases[] or --depth preset
 }
 

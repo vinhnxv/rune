@@ -113,22 +113,6 @@ No delegation. Runs inline in arc orchestrator context.
 - **Pre-flight steps**: N/A
 - **Post-phase cleanup**: Standard checkpoint update
 
-## Phase 3: DESIGN EXTRACTION — ORCHESTRATOR-ONLY
-
-No delegation. Runs inline in arc orchestrator context.
-
-- **Delegation**: None (orchestrator-only)
-- **Pre-flight steps**: N/A
-- **Post-phase cleanup**: Standard checkpoint update
-
-## Phase 5.2: DESIGN VERIFICATION — ORCHESTRATOR-ONLY
-
-No delegation. Runs inline in arc orchestrator context.
-
-- **Delegation**: None (orchestrator-only)
-- **Pre-flight steps**: N/A
-- **Post-phase cleanup**: Standard checkpoint update
-
 ## Phase 5.5: GAP ANALYSIS — ORCHESTRATOR-ONLY
 
 No delegation. Runs inline in arc orchestrator context.
@@ -145,40 +129,6 @@ Delegated to the respective gap-fix team (`arc-gap-fix-{id}`). Uses the same RUN
 |------|--------|--------|
 | Team lifecycle | **RUN** | Gap remediation creates `arc-gap-fix-{id}` team with fixers |
 | File scope | **ADAPT** | Scope limited to FIXABLE gaps from VERDICT.md (not full task list) |
-
-## Phase 5.7: GOLDMASK VERIFICATION → `/rune:goldmask`
-
-Delegates to the standalone `/rune:goldmask` skill, which manages its own team and agents.
-
-| Step | Action | Reason |
-|------|--------|--------|
-| Team lifecycle | **SKIP** | Goldmask skill creates/deletes its own team with `goldmask-` prefix |
-| Agent summoning | **SKIP** | Goldmask skill summons its own investigation agents |
-| Output collection | **RUN** | Arc copies `tmp/goldmask/GOLDMASK.md` → `tmp/arc/{id}/goldmask-verification.md` |
-| Prediction comparison | **RUN** | If plan-time `risk-map.json` exists, compare predictions vs actuals |
-| Cleanup | **ADAPT** | `prePhaseCleanup()` handles `goldmask-` prefixed teams via ARC_TEAM_PREFIXES |
-
-### Arc context adaptations for Phase 5.7
-
-- User-facing prompt: **SKIP** — arc is automated, goldmask runs silently
-- Output path: **ADAPT** — copy goldmask output to arc artifact directory
-
-## Phase 6.5: GOLDMASK CORRELATION (orchestrator-only)
-
-Orchestrator-only phase — no delegation, no team creation. Reads Phase 5.7 + Phase 6 outputs.
-
-| Step | Action | Reason |
-|------|--------|--------|
-| prePhaseCleanup | **SKIP** | Orchestrator-only, no team to clean |
-| TOME path resolution | **ADAPT** | Use round-aware path (`tome-round-{N}.md`) for convergence cycles |
-| Correlation logic | **RUN** | Deterministic file-level matching between TOME and Goldmask findings |
-| Human review flagging | **RUN** | Caution >= 0.75 or WIDE blast radius → flag for Phase 7 mend |
-
-### Convergence cycle behavior
-
-> v3.0.0-alpha.2: `goldmask_correlation` and `goldmask_verification` were removed
-> from the default arc PHASE_ORDER. Goldmask is now run on demand via `/rune:goldmask`.
-> The convergence loop no longer touches goldmask state during re-review rounds.
 
 ## Phase 6.7: VERIFY — Finding Verification Gate → `/rune:verify`
 
@@ -208,14 +158,6 @@ No delegation. Runs inline in arc orchestrator context.
 - **Pre-flight steps**: N/A
 - **Post-phase cleanup**: Standard checkpoint update
 
-## Phase 7.6: DESIGN ITERATION — ORCHESTRATOR-ONLY
-
-No delegation. Runs inline in arc orchestrator context.
-
-- **Delegation**: None (orchestrator-only)
-- **Pre-flight steps**: N/A
-- **Post-phase cleanup**: Standard checkpoint update
-
 ## Phase 7.7: TEST → `/rune:*` (test team)
 
 Delegated to the respective test team (`arc-test-{id}`).
@@ -227,22 +169,6 @@ Delegated to the respective test team (`arc-test-{id}`).
 | E2E detection | **RUN** | Detects E2E tests and applies extended timeout (dynamic 40 min) |
 
 ## Phase 8.5: PRE-SHIP VALIDATION — ORCHESTRATOR-ONLY
-
-No delegation. Runs inline in arc orchestrator context.
-
-- **Delegation**: None (orchestrator-only)
-- **Pre-flight steps**: N/A
-- **Post-phase cleanup**: Standard checkpoint update
-
-## Phase 9.1: BOT REVIEW WAIT — ORCHESTRATOR-ONLY
-
-No delegation. Runs inline in arc orchestrator context.
-
-- **Delegation**: None (orchestrator-only)
-- **Pre-flight steps**: N/A
-- **Post-phase cleanup**: Standard checkpoint update
-
-## Phase 9.2: PR COMMENT RESOLUTION — ORCHESTRATOR-ONLY
 
 No delegation. Runs inline in arc orchestrator context.
 
@@ -269,3 +195,26 @@ No delegation. Runs inline in arc orchestrator context.
 <!-- Phase 8 (AUDIT) delegation removed in v1.67.0. Audit coverage is now handled by
      Phase 6 `/rune:appraise --deep` (multi-wave review with investigation + dimension Ashes).
      See arc-phase-code-review.md for the updated delegation contract. -->
+
+## Removed phases (historical reference)
+
+The following phases were removed from PHASE_ORDER and no longer have delegation contracts.
+Their full RUN/SKIP/ADAPT sections were stripped in v3.0.0-alpha.3 to keep this checklist in
+sync with the live PHASE_ORDER.
+
+| Removed phase | Removed in | Replacement / migration |
+|---------------|-----------|-------------------------|
+| DESIGN EXTRACTION (Phase 3) | v3.0.0-alpha.1 | None bundled — design pipeline runs externally |
+| DESIGN VERIFICATION (Phase 5.2) | v3.0.0-alpha.1 | External design review tooling |
+| DESIGN ITERATION (Phase 7.6) | v3.0.0-alpha.1 | External design iteration |
+| GOLDMASK VERIFICATION (Phase 5.7) | v3.0.0-alpha.2 | Standalone `/rune:goldmask` |
+| GOLDMASK CORRELATION (Phase 6.5) | v3.0.0-alpha.2 | Standalone `/rune:goldmask` |
+| BOT REVIEW WAIT (Phase 9.1) | v3.0.0-alpha.2 | External `/rune:pr-guardian` cron loop |
+| PR COMMENT RESOLUTION (Phase 9.2) | v3.0.0-alpha.2 | Standalone `/rune:resolve-all-gh-pr-comments` |
+| SEMANTIC VERIFICATION (Phase 2.8) | v3.0.0-alpha.1 | Folded into Phase 2.7 VERIFICATION |
+| TASK DECOMPOSITION (Phase 4.5) | v3.0.0-alpha.1 | Plan-level shatter (devise Phase 2.5) |
+| TEST COVERAGE CRITIQUE (Phase 7.8) | v3.0.0-alpha.1 | Folded into Phase 7.7 TEST tier reporting |
+| RELEASE QUALITY CHECK (Phase 8.55) | v3.0.0-alpha.1 | Folded into Phase 8.5 PRE-SHIP VALIDATION |
+| BROWSER TEST/FIX/VERIFY (Phase 7.7.5–7.7.7) | v3.0.0-alpha.1 | Folded into Phase 7.7 TEST E2E tier |
+| STORYBOOK VERIFICATION (Phase 3.3) | v3.0.0-alpha.1 | None |
+| UX VERIFICATION (Phase 5.3) | v3.0.0-alpha.1 | None |

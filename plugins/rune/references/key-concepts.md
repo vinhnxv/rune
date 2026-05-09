@@ -7,7 +7,7 @@ the protagonist who journeys through the Lands Between. In Rune, the Tarnished:
 - Convenes the Roundtable Circle (review/audit orchestration)
 - Coordinates Ashes and summons research agents
 - Collects findings into the TOME
-- Guides the arc pipeline from forge to audit
+- Guides the arc pipeline from forge to merge
 - Runs deterministic gap analysis between work and code review
 
 The Tarnished is the lead agent in every team. Machine identifier: `team-lead`.
@@ -43,9 +43,9 @@ Plans with pseudocode include contract headers (Inputs/Outputs/Preconditions/Err
 
 Each Ash is an Agent Teams teammate with its own dedicated context window. An Ash embeds multiple review agent perspectives into a single teammate to reduce team size.
 
-Forge Warden, Ward Sentinel, Pattern Weaver, and Veil Piercer embed dedicated review agent files from `agents/review/` (21 agents distributed across 4 Ashes — see circle-registry.md for mapping). Glyph Scribe and Knowledge Keeper use inline perspective definitions in their Ash prompts.
+Forge Warden, Ward Sentinel, Pattern Weaver, and Veil Piercer embed dedicated review agent files from `agents/review/` (13 agents distributed across 4 Ashes — see circle-registry.md for mapping). Glyph Scribe and Knowledge Keeper use inline perspective definitions in their Ash prompts.
 
-The "Perspectives" column lists review focus areas aligned with dedicated agent files (e.g., Forge Warden's 8 perspectives map to 8 agents in `agents/review/`). Duplication detection (mimic-detector) is part of Forge Warden, not Pattern Weaver.
+The "Perspectives" column lists review focus areas aligned with dedicated agent files. Duplication detection (mimic-detector) is part of Forge Warden, not Pattern Weaver.
 
 | Ash | Perspectives | Agent Source | When Summoned |
 |-----------|-------------|-------------|-------------|
@@ -108,7 +108,11 @@ Line-level diff intelligence for review and mend workflows. Generates expanded l
 
 ## Arc Pipeline
 
-End-to-end orchestration: forge (research enrichment), plan review (3-reviewer circuit breaker), plan refinement (concern extraction, orchestrator-only), verification gate (deterministic checks, zero-LLM), work (swarm implementation), gap analysis (plan-to-code compliance, deterministic, orchestrator-only), code review (Roundtable Circle), mend (parallel finding resolution), verify mend (convergence gate with smart scoring, scope-aware signals, and adaptive retry cycles based on tier), test (diff-scoped unit/integration/E2E execution, v1.43.0+), goldmask verification (blast-radius analysis via investigation agents, v1.47.0+), goldmask correlation (synthesis of investigation findings, v1.47.0+), audit (final gate), ship (auto PR creation via `gh pr create`, v1.40.0+), and merge (rebase + squash-merge with pre-merge checklist, v1.40.0+). Each delegated phase summons a fresh team. Checkpoint-based resume (`.rune/arc/{id}/checkpoint.json`) with artifact integrity validation (SHA-256 hashes). Per-phase tool restrictions and time budgets enforce least privilege. Config resolution follows 3-layer priority: hardcoded defaults → talisman.yml → CLI flags.
+End-to-end orchestration (26 phases as of v3.0.0-alpha.2): forge (research enrichment) → forge_qa → plan review (3-reviewer circuit breaker) → plan refinement (concern extraction, orchestrator-only) → verification gate (deterministic checks, zero-LLM) → work (swarm implementation) → work_qa → drift_review → gap analysis (plan-to-code compliance) → gap_analysis_qa → gap_remediation → inspect (4 Inspector Ashes against plan) → inspect_fix → verify_inspect → code review (Roundtable Circle, deep) → code_review_qa → verify (TOME finding classification) → mend (parallel finding resolution) → mend_qa → verify_mend (convergence gate with smart scoring, scope-aware signals, and adaptive retry cycles based on tier) → test (diff-scoped unit/property/integration/E2E execution) → test_qa → deploy_verify → pre_ship_validation → ship (auto PR creation via `gh pr create`) → merge (rebase + squash-merge with pre-merge checklist).
+
+Each delegated phase summons a fresh team. Checkpoint-based resume (`.rune/arc/{id}/checkpoint.json`) with artifact integrity validation (SHA-256 hashes). Per-phase tool restrictions and time budgets enforce least privilege. Config resolution follows 3-layer priority: hardcoded defaults → talisman.yml → CLI flags.
+
+> **Removed from arc PHASE_ORDER**: goldmask verification, goldmask correlation (alpha.2 — `/rune:goldmask` remains standalone), bot review wait, pr comment resolution (alpha.2 — external pr-guardian), design extraction/verification/iteration, semantic verification, task decomposition, test coverage critique, release quality check, browser test/fix/verify, storybook verification, ux verification (alpha.1).
 
 ## Mend
 

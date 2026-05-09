@@ -443,7 +443,7 @@ if [[ -z "$active_workflow" ]]; then
           _s4_skill="/rune:appraise or /rune:audit" ;;
         rune-smith|gap-fixer) _s4_skill="/rune:strive <plan-file>" ;;
         mend-fixer) _s4_skill="/rune:mend <TOME-file>" ;;
-        repo-surveyor|echo-reader|git-miner|practice-seeker|lore-scholar|flow-seer|scroll-reviewer|decree-arbiter)
+        repo-surveyor|git-miner|practice-seeker|lore-scholar|flow-seer|scroll-reviewer|decree-arbiter)
           _s4_skill="/rune:devise" ;;
         grace-warden|sight-oracle|ruin-prophet|vigil-keeper|verdict-binder) _s4_skill="/rune:inspect <plan-file>" ;;
         goldmask-coordinator|lore-analyst|wisdom-sage) _s4_skill="/rune:goldmask" ;;
@@ -526,8 +526,7 @@ elif [[ -n "${AGENT_NAME:-}" ]]; then
     ward-sentinel|forge-warden|pattern-weaver|pattern-seer|veil-piercer|glyph-scribe|\
     knowledge-keeper|wraith-finder|void-analyzer|flaw-hunter|blight-seer|\
     simplicity-warden|runebinder|doubt-seer|ember-oracle|rune-architect|forge-keeper|\
-    design-implementation-reviewer|design-system-compliance-reviewer|\
-    ux-heuristic-reviewer|ux-interaction-auditor|ux-cognitive-walker|ux-flow-validator|\
+    ux-cognitive-walker|ux-flow-validator|\
     aesthetic-quality-reviewer|shard-reviewer|senior-engineer-reviewer|\
     naming-intent-analyzer|phantom-checker|phantom-warden|mimic-detector|\
     type-warden|refactor-guardian|cross-shard-sentinel|\
@@ -552,10 +551,10 @@ elif [[ -n "${AGENT_NAME:-}" ]]; then
     mend-fixer)
       WORKFLOW_TYPE="mend" ;;
     # Plan/Devise Ashes
-    repo-surveyor|echo-reader|git-miner|practice-seeker|lore-scholar|\
+    repo-surveyor|git-miner|practice-seeker|lore-scholar|\
     flow-seer|scroll-reviewer|decree-arbiter|research-verifier|\
     evidence-verifier|veil-piercer-plan|horizon-sage|elicitation-sage|\
-    ux-pattern-analyzer|state-weaver|\
+    state-weaver|\
     design-analyst|design-inventory-agent)
       WORKFLOW_TYPE="plan" ;;
     # Inspect Ashes

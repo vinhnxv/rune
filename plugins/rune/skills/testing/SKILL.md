@@ -69,7 +69,7 @@ Summary:
 - Output: `{ files: string[], source: "pr"|"branch"|"current", label: string }`
 - Priority: PR files (via `gh`) → branch diff → current-branch diff → fallback warn
 - Security: PR numbers must be digit-only; branch names validated against `[a-zA-Z0-9._/-]+`
-- Shared between arc Phase 7.7 and `/rune:test-browser` standalone
+- Used by arc Phase 7.7 TEST. (Note: standalone `/rune:test-browser` skill was removed in v3.0.0-alpha.2; algorithm now lives only inside the arc test phase.)
 
 ## Diff-Scoped Test Discovery
 

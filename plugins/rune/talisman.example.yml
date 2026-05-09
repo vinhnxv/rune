@@ -543,14 +543,14 @@ arc:
     heal_enabled: true           # Gate for heal action library — strike-2 clean-state, strike-3 rebuild
 
   # ── Shard Execution (v1.66.0+) ─────────────
-  # Controls shard-aware behavior in arc and arc-batch.
+  # Controls shard-aware behavior in arc.
   # Shard plans are detected via -shard-N- filename regex.
   sharding:
     enabled: true                # Master toggle for all shard awareness (default: true)
-    auto_sort: true              # Auto-sort shards by number in arc-batch (default: true)
     exclude_parent: true         # Auto-exclude parent plans with shattered: true (default: true)
     prerequisite_check: true     # Verify prerequisite shards before arc run (default: true)
     shared_branch: true          # Share feature branch across shards (default: true)
+    # auto_sort removed in v3.0.0-alpha.1 — was specific to /rune:arc-batch (now removed)
 
   # ── Ship settings (Phase 9) ────────────────
   # Controls PR creation after audit passes.
@@ -619,33 +619,11 @@ arc:
   #   max_retries: 3               # Max retry attempts per arc run (default: 3, range: 1-10)
   #   max_budget_cents: 500        # Max budget in cents before halting retries (default: 500)
 
-  # ── Batch settings (v1.42.0+, talisman support v1.49.0+) ──
-  # Per-plan and batch-level limits for /rune:arc-batch.
-  # 3-layer priority: hardcoded defaults → talisman.yml → (future CLI flags).
-  batch:
-    auto_merge: true           # Auto-merge PRs after each arc run (default: true, CLI --no-merge overrides)
-    max_retries: 3             # Retry count per plan (default: 3, range: 1-10)
-    max_budget: 15.0           # Max budget per arc run in USD (default: 15.0, range: 1.0-100.0)
-    max_turns: 200             # Max turns per arc run (default: 200, range: 50-1000)
-    total_budget: null         # Total batch budget in USD (default: null = no limit, range: 1.0-500.0)
-    total_timeout: null        # Total batch timeout in ms (default: null = no limit)
-    stop_on_divergence: false  # Stop batch if main diverges between runs (default: false)
-
-    # Inter-iteration summaries (v1.72.0)
-    # Write structured summary files between arc iterations for
-    # improved compact recovery and inter-arc context awareness.
-    summaries:
-      enabled: true              # Kill switch — set false to disable all summary behavior (default: true)
-      # max_content_lines: 30   # Reserved — currently hardcoded
-      # dir: tmp/arc-batch/summaries  # Reserved — currently hardcoded
-
-    # Smart plan ordering (v1.104.0)
-    # Reorders plans by file overlap isolation and version_target to reduce merge conflicts.
-    # Runs as Phase 1.5 (after preflight, before dry-run). Memory-only — no file writes.
-    # CLI: --no-smart-sort overrides this setting.
-    smart_ordering:
-      enabled: true              # Enable smart plan ordering (default: true)
-      mode: "ask"                # "ask" (default: prompt on glob input), "auto" (always apply), "off" (disable)
+  # ── Batch settings — REMOVED in v3.0.0-alpha.1 ──
+  # `/rune:arc-batch` was removed in alpha.1. The arc.batch:* sub-tree (auto_merge,
+  # max_retries, max_budget, max_turns, total_budget, total_timeout, stop_on_divergence,
+  # summaries, smart_ordering) no longer has a runtime consumer.
+  # If batch behavior is reintroduced, restore this section then.
 
   # ── Gap Analysis settings (v1.51.0+) ──
   gap_analysis:
@@ -689,8 +667,9 @@ arc:
     #   test_coverage_critique, release_quality_check
 
   # ── Rate Limit Auto-Resume (v1.157.0+) ────────
-  # When arc-phase or arc-batch stop hooks detect API rate limits in the
-  # transcript tail, they inject a wait instruction before re-injection.
+  # When the arc-phase stop hook detects API rate limits in the
+  # transcript tail, it injects a wait instruction before re-injection.
+  # (Note: arc-batch stop hook removed in v3.0.0-alpha.1 — only arc-phase remains.)
   rate_limit:
     enabled: true                  # Enable rate limit detection and auto-wait (default: true)
     default_wait_seconds: 60       # Wait duration when no retry-after header found (default: 60)
@@ -1136,32 +1115,10 @@ work:
   #   conflict_resolution: "escalate"   # "escalate" (ask user) | "abort"
   #   sparse_paths: []                   # empty = disabled; specify paths for cone-mode checkout
 
-  # ── Hierarchical Plan Support (v1.79.0+) ──────────────
-  # Controls behavior when running /rune:arc-hierarchy (parent + child plans).
-  # Opt-in feature — existing strive/arc workflows are unaffected.
-  # hierarchy:
-  #   enabled: true                    # Enable hierarchical plan support (default: true)
-  #   max_children: 12                 # Maximum children per parent plan (default: 12, range: 2-30)
-  #   max_backtracks: 1               # Max backtrack attempts per child on prerequisite failure (default: 1, range: 0-3)
-  #   missing_prerequisite: "pause"   # Strategy when a required artifact is missing:
-  #                                   #   pause      — halt and ask user (default, safest)
-  #                                   #   self-heal  — inject [SELF-HEAL] tasks to recreate the artifact
-  #                                   #   backtrack  — re-run the sibling that should have provided it
-  #   conflict_resolution: "pause"    # Merge conflict strategy when integrating child branch:
-  #                                   #   pause      — halt and ask user (default)
-  #                                   #   child-wins — accept all child branch changes
-  #                                   #   feature-wins — accept all feature branch changes
-  #   integration_failure: "pause"    # Strategy when post-child integration tests fail:
-  #                                   #   pause      — halt and ask user (default)
-  #                                   #   skip       — mark child as partial and continue
-  #                                   #   retry      — retry the child arc run (once)
-  #   sync_main_before_pr: true       # Merge main into feature branch before creating PR (default: true)
-  #   cleanup_child_branches: true    # Delete child sub-branches after they merge to feature (default: true)
-  #   require_all_children: true      # Block PR creation if any child has status failed or partial (default: true)
-  #   test_timeout_ms: 300000         # Timeout for integration tests run between children (default: 300000 = 5 min)
-  #   merge_strategy: "merge"         # Strategy for merging child branches into feature branch:
-  #                                   #   merge  — standard merge commit (default, preserves child history)
-  #                                   #   squash — squash child commits into one commit per child
+  # ── Hierarchical Plan Support — REMOVED in v3.0.0-alpha.1 ──────────────
+  # `/rune:arc-hierarchy` was removed in alpha.1. The arc.hierarchy:* sub-tree
+  # had no other consumer, so the entire block is gone. Restore here only if
+  # the parent/child arc workflow is reintroduced.
 
   # ── Task Decomposition (v2.5.0+) ──────────────
   # LLM-driven classification and decomposition of complex tasks.

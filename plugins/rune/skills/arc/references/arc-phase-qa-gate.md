@@ -857,61 +857,41 @@ Adding QA sub-phases requires updating TWO synchronized copies of PHASE_ORDER.
 **Gated phases**: `forge_qa`, `work_qa`, `gap_analysis_qa`, `code_review_qa`, `mend_qa`, `test_qa`.
 Each `*_qa` phase is inserted into PHASE_ORDER immediately after its parent phase.
 
+> **NOTE**: This file's PHASE_ORDER example MUST mirror `arc-phase-constants.md`.
+> Update both files together — `validate-phase-consistency.sh` (when added)
+> will assert symmetry.
+
 ```javascript
-// arc-phase-constants.md — JavaScript PHASE_ORDER (QA gates after each parent phase)
+// arc-phase-constants.md — JavaScript PHASE_ORDER (26 phases, v3.0.0-alpha.2)
 const PHASE_ORDER = [
-  "forge",
-  "forge_qa",              // ← QA gate for forge phase
+  "forge", "forge_qa",
   "plan_review", "plan_refine", "verification",
-  "design_extraction", "design_prototype",
-  "work",
-  "work_qa",               // ← QA gate for work phase
-  "design_verification",
-  "design_verification_qa", // ← QA gate for design_verification phase
-  "gap_analysis",
-  "gap_analysis_qa",       // ← QA gate for gap analysis phase
-  "code_review",
-  "code_review_qa",        // ← QA gate for code review phase
-  "mend",
-  "mend_qa",               // ← QA gate for mend phase
-  "verify_mend", "design_iteration",
-  "test",
-  "test_qa",               // ← QA gate for test phase
-  "pre_ship_validation", "ship",
-  // v3.0.0-alpha.2: bot_review_wait + pr_comment_resolution removed.
-  // v3.0.0-alpha.2 (codex-strip sync, self-audit 1778278942):
-  // semantic_verification, task_decomposition, test_coverage_critique,
-  // release_quality_check also removed.
-  "merge"
+  "work", "work_qa", "drift_review",
+  "gap_analysis", "gap_analysis_qa", "gap_remediation",
+  "inspect", "inspect_fix", "verify_inspect",
+  "code_review", "code_review_qa",
+  "verify",
+  "mend", "mend_qa", "verify_mend",
+  "test", "test_qa",
+  "deploy_verify", "pre_ship_validation",
+  "ship", "merge",
 ]
 ```
 
 ```bash
-# arc-phase-stop-hook.sh — bash PHASE_ORDER array (QA gates after each parent phase)
+# arc-phase-stop-hook.sh — bash PHASE_ORDER array (26 phases, v3.0.0-alpha.2)
 PHASE_ORDER=(
-  forge
-  forge_qa               # QA gate for forge phase
+  forge forge_qa
   plan_review plan_refine verification
-  design_extraction design_prototype
-  work
-  work_qa                # QA gate for work phase
-  design_verification
-  design_verification_qa # QA gate for design_verification phase
-  gap_analysis
-  gap_analysis_qa        # QA gate for gap analysis phase
-  code_review
-  code_review_qa         # QA gate for code review phase
-  mend
-  mend_qa                # QA gate for mend phase
-  verify_mend design_iteration
-  test
-  test_qa                # QA gate for test phase
-  pre_ship_validation ship
-  # v3.0.0-alpha.2: bot_review_wait + pr_comment_resolution removed.
-  # v3.0.0-alpha.2 (codex-strip sync, self-audit 1778278942):
-  # semantic_verification, task_decomposition, test_coverage_critique,
-  # release_quality_check also removed.
-  merge
+  work work_qa drift_review
+  gap_analysis gap_analysis_qa gap_remediation
+  inspect inspect_fix verify_inspect
+  code_review code_review_qa
+  verify
+  mend mend_qa verify_mend
+  test test_qa
+  deploy_verify pre_ship_validation
+  ship merge
 )
 ```
 

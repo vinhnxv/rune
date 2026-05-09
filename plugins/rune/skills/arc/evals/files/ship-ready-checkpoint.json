@@ -89,39 +89,11 @@
       "status": "completed",
       "phase_sequence": 2.7
     },
-    "semantic_verification": {
-      "status": "completed",
-      "phase_sequence": 2.8
-    },
-    "design_extraction": {
-      "status": "skipped",
-      "phase_sequence": 3,
-      "skip_reason": "design_sync not enabled"
-    },
-    "task_decomposition": {
-      "status": "completed",
-      "phase_sequence": 4.5
-    },
     "work": {
       "status": "completed",
       "phase_sequence": 5,
       "team_name": "rune-work-1709856123",
       "branch": "feat/user-auth-shard-2"
-    },
-    "storybook_verification": {
-      "status": "skipped",
-      "phase_sequence": 3.3,
-      "skip_reason": "storybook not enabled"
-    },
-    "design_verification": {
-      "status": "skipped",
-      "phase_sequence": 3.5,
-      "skip_reason": "design_sync not enabled"
-    },
-    "ux_verification": {
-      "status": "skipped",
-      "phase_sequence": 3.7,
-      "skip_reason": "ux not enabled"
     },
     "gap_analysis": {
       "status": "completed",
@@ -131,18 +103,10 @@
       "status": "completed",
       "phase_sequence": 5.6
     },
-    "goldmask_verification": {
-      "status": "completed",
-      "phase_sequence": 5.7
-    },
     "code_review": {
       "status": "completed",
       "phase_sequence": 6,
       "team_name": null
-    },
-    "goldmask_correlation": {
-      "status": "completed",
-      "phase_sequence": 6.5
     },
     "mend": {
       "status": "completed",
@@ -153,38 +117,17 @@
       "status": "completed",
       "phase_sequence": 7.5
     },
-    "design_iteration": {
-      "status": "skipped",
-      "phase_sequence": 7.6,
-      "skip_reason": "design_sync not enabled"
-    },
     "test": {
       "status": "completed",
       "phase_sequence": 7.7
-    },
-    "test_coverage_critique": {
-      "status": "completed",
-      "phase_sequence": 7.8
     },
     "pre_ship_validation": {
       "status": "completed",
       "phase_sequence": 8
     },
-    "release_quality_check": {
-      "status": "completed",
-      "phase_sequence": 8.5
-    },
     "ship": {
       "status": "pending",
       "phase_sequence": 9
-    },
-    "bot_review_wait": {
-      "status": "pending",
-      "phase_sequence": 9.1
-    },
-    "pr_comment_resolution": {
-      "status": "pending",
-      "phase_sequence": 9.2
     },
     "merge": {
       "status": "pending",

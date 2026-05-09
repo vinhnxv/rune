@@ -84,15 +84,26 @@ When ready to plan, brainstorm hands off to `/rune:devise --brainstorm-context` 
 - Use devise directly when requirements are clear and specific
 
 ### Ashes (Agents)
-Each "Ash" is a specialized AI agent with its own context window. Rune has 109 agents (66 core + 43 extended):
-- **35+ review agents** — code quality, security, architecture, performance, design fidelity, UX, etc.
-- **5 research agents** — codebase analysis, git history, best practices
-- **24 investigation agents** — impact analysis, business logic tracing, hypothesis investigation
-- **23+ utility agents** — aggregation, deployment verification, reasoning, condensing, design analysis
-- **6+ work agents** — implementation (rune-smith, trial-forger, design-sync-agent, design-iterator, storybook-reviewer, storybook-fixer)
-- **6 testing agents** — unit, integration, E2E, failure analysis, extended test runner, contract validator
+Each "Ash" is a specialized AI agent with its own context window. Rune has 116 agents (74 core + 42 extended, plus 13 shared resources):
 
-Core agents live in `agents/` (always loaded). Extended agents live in `registry/` (discovered via MCP agent_search).
+Core agents in `agents/`:
+- **13 review agents** — code quality, security, architecture, performance, type safety, etc.
+- **23 investigation agents** — impact analysis, business logic tracing, hypothesis investigation
+- **16 utility agents** — aggregation, deployment verification, reasoning, condensing
+- **7 research agents** — codebase analysis, git history, best practices
+- **5 work agents** — implementation (rune-smith, trial-forger, gap-fixer, blind-verifier, micro-evaluator)
+- **1 qa agent** — `phase-qa-verifier` (consolidated from 7 specialist verifiers in v3.0.0 Day-2)
+- **9 meta-qa agents** — convergence-analyzer, effectiveness-analyzer, hallucination-detector, hook-integrity-auditor, improvement-advisor, necessity-analyzer, prompt-linter, rule-consistency-auditor, workflow-auditor
+
+Extended agents in `registry/`:
+- **25 review agents** — language/framework specialists
+- **6 testing agents** — unit, integration, E2E, contract validator, etc.
+- **5 utility agents**, **4 work agents**, **2 investigation agents**
+
+Plus **13 shared resources** in `agents/shared/` (templates and protocols, not standalone agents).
+
+Core agents live in `agents/` (always loaded). Extended agents live in `registry/` (discovered via agent_search MCP).
+See [agent-registry.md](../../../references/agent-registry.md) for the full per-agent listing.
 
 ### TOME (Review Output)
 The "TOME" is the unified review summary after all agents complete their analysis.
@@ -111,14 +122,12 @@ topic-aware agent matching that assigns domain experts to plan sections.
 The Arc is Rune's end-to-end pipeline: forge → plan review → work → gap analysis →
 code review → mend → test → ship → merge. It's the "do everything" command.
 
-### Rune Echoes (Project Memory)
-Agents persist learnings to `.rune/echoes/` after workflows. Future workflows
-read these to avoid repeating mistakes. Five tiers:
-- **Etched** — permanent project knowledge
-- **Notes** — working notes (no TTL)
-- **Inscribed** — tactical patterns (90-day TTL)
-- **Observations** — auto-promoted patterns (60-day TTL)
-- **Traced** — session observations (30-day TTL)
+### Persistent Memory — Removed in v3.0.0-alpha.1
+
+Earlier versions of Rune had a "Rune Echoes" project-memory layer (`.rune/echoes/`) with a 5-tier
+lifecycle (Etched, Notes, Inscribed, Observations, Traced). v3.0.0-alpha.1 **removed** that runtime:
+no `rune-echoes` skill, no `.rune/echoes/` runtime consumer, no `/rune:echoes` command. Agent
+output is now ephemeral (`tmp/`). Restore from CLAUDE.md Core Rule #6 if/when reintroduced.
 
 ## MCP Integration — Extending Rune with External Tools
 
@@ -148,7 +157,8 @@ Level 3 (Full): + companion skill + rules files + metadata
 ├── Dedicated skill with deep domain knowledge
 ├── Project-specific rules for quality enforcement
 ├── Metadata for discoverability (library name, homepage, MCP endpoint)
-└── Example: untitledui-mcp skill (canonical reference implementation)
+└── No bundled reference implementation (the prior untitledui-mcp example
+    was removed in v3.0.0-alpha.1; pattern documented but not shipped)
 ```
 
 ### Setting Up an MCP Integration
@@ -182,28 +192,14 @@ integrations:
 **Step 3** (optional): Use `/rune:talisman init` — it auto-detects custom MCP servers
 in `.mcp.json` and scaffolds the integrations section for you.
 
-### UntitledUI — Canonical MCP Integration Example
-
-UntitledUI is the first full Level 3 MCP integration in Rune. It provides:
-- **6 MCP tools**: `search_components`, `list_components`, `get_component`, `get_component_bundle`, `get_page_templates`, `get_page_template_files`
-- **Companion skill**: `untitledui-mcp` (auto-loaded by design-system-discovery)
-- **Agent conventions**: React Aria `Aria*` prefix, Tailwind v4.1 semantic colors, kebab-case files
-- **Builder Protocol**: Structured SEARCH → GET → CUSTOMIZE → VALIDATE workflow
-
-**Setup**:
-```bash
-# Free tier (no auth needed)
-claude mcp add --transport http untitledui https://www.untitledui.com/react/api/mcp
-
-# PRO tier (with API key)
-claude mcp add --transport http untitledui https://www.untitledui.com/react/api/mcp \
-  --header "Authorization: Bearer YOUR_API_KEY"
-```
+<!-- Removed in v3.0.0-alpha.1: UntitledUI Canonical MCP Integration Example.
+     The companion skill `untitledui-mcp` and the dependent `design-system-discovery`
+     skill were both removed in alpha.1. Level 3 MCP integration tier currently has
+     no shipped reference implementation. -->
 
 **Key functions** (used by strive, devise, forge):
 - `resolveMCPIntegrations(phase, context)` — triple-gated activation (config + phase + trigger)
 - `buildMCPContextBlock(integrations)` — generates prompt injection for agents
-- `buildBuilderWorkflowBlock(uiBuilder)` — generates structured workflow guidance
 
 ### MCP Integration Tips
 

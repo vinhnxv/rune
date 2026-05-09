@@ -184,27 +184,42 @@ See [docs/guides/mcp-integration-spec.en.md](../../../docs/guides/mcp-integratio
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `arc.timeouts.forge` | number | `900000` | Phase 1: Forge (15 min) |
+| `arc.timeouts.forge_qa` | number | `300000` | Phase 1.5: Forge QA (5 min) |
 | `arc.timeouts.plan_review` | number | `900000` | Phase 2: Plan review (15 min) |
 | `arc.timeouts.plan_refine` | number | `180000` | Phase 2.5: Refinement (3 min) |
 | `arc.timeouts.verification` | number | `30000` | Phase 2.7: Verification (30s) |
-| `arc.timeouts.semantic_verification` | number | `180000` | Phase 2.8: Semantic (3 min) |
-| `arc.timeouts.task_decomposition` | number | `180000` | Phase 4.5: Task decomposition (3 min) |
 | `arc.timeouts.work` | number | `2100000` | Phase 5: Work (35 min) |
+| `arc.timeouts.work_qa` | number | `300000` | Phase 5.1: Work QA (5 min) |
+| `arc.timeouts.drift_review` | number | `120000` | Phase 5.2: Drift review (2 min) |
 | `arc.timeouts.gap_analysis` | number | `720000` | Phase 5.5: Gap analysis (12 min) |
+| `arc.timeouts.gap_analysis_qa` | number | `300000` | Phase 5.6: Gap analysis QA (5 min) |
 | `arc.timeouts.gap_remediation` | number | `900000` | Phase 5.8: Remediation (15 min) |
+| `arc.timeouts.inspect` | number | `900000` | Phase 5.9: Inspect (15 min) |
+| `arc.timeouts.inspect_fix` | number | `900000` | Phase 5.95: Inspect fix (15 min) |
+| `arc.timeouts.verify_inspect` | number | `240000` | Phase 5.97: Verify inspect (4 min) |
 | `arc.timeouts.code_review` | number | `900000` | Phase 6: Code review (15 min) |
+| `arc.timeouts.code_review_qa` | number | `300000` | Phase 6.5: Code review QA (5 min) |
+| `arc.timeouts.verify` | number | `600000` | Phase 6.7: Finding verification (10 min) |
 | `arc.timeouts.mend` | number | `1380000` | Phase 7: Mend (23 min) |
+| `arc.timeouts.mend_qa` | number | `300000` | Phase 7.3: Mend QA (5 min) |
 | `arc.timeouts.verify_mend` | number | `240000` | Phase 7.5: Verify mend (4 min) |
 | `arc.timeouts.test` | number | `900000` | Phase 7.7: Test (15 min) |
-| `arc.timeouts.browser_test` | number | `900000` | Phase 7.7.5: Browser E2E test (15 min) |
-| `arc.timeouts.browser_test_fix` | number | `900000` | Phase 7.7.6: Browser test fix (15 min) |
-| `arc.timeouts.verify_browser_test` | number | `240000` | Phase 7.7.7: Verify browser test (4 min) |
+| `arc.timeouts.test_qa` | number | `300000` | Phase 7.8: Test QA (5 min) |
+| `arc.timeouts.deploy_verify` | number | `300000` | Phase 8: Deploy verify (5 min, conditional) |
+| `arc.timeouts.pre_ship_validation` | number | `360000` | Phase 8.5: Pre-ship validation (6 min) |
 | `arc.timeouts.ship` | number | `300000` | Phase 9: Ship (5 min) |
 | `arc.timeouts.merge` | number | `600000` | Phase 9.5: Merge (10 min) |
-| `arc.timeouts.design_extraction` | number | `300000` | Phase 3: Design extraction (5 min) |
-| `arc.timeouts.design_prototype` | number | `600000` | Phase 3.2: Design prototype generation (10 min) |
-| `arc.timeouts.design_verification` | number | `300000` | Phase 5.2: Design fidelity (5 min) |
-| `arc.timeouts.design_iteration` | number | `600000` | Phase 7.6: Design iteration (10 min) |
+
+> Removed in v3.0.0-alpha.1+ (no runtime consumer; remove from your talisman.yml):
+> `arc.timeouts.semantic_verification`, `arc.timeouts.task_decomposition`,
+> `arc.timeouts.design_extraction`, `arc.timeouts.design_prototype`,
+> `arc.timeouts.design_verification`, `arc.timeouts.design_iteration`,
+> `arc.timeouts.browser_test`, `arc.timeouts.browser_test_fix`,
+> `arc.timeouts.verify_browser_test`, `arc.timeouts.test_coverage_critique`,
+> `arc.timeouts.release_quality_check`, `arc.timeouts.goldmask_verification`,
+> `arc.timeouts.goldmask_correlation`, `arc.timeouts.bot_review_wait`,
+> `arc.timeouts.pr_comment_resolution`, `arc.timeouts.storybook_verification`,
+> `arc.timeouts.ux_verification`.
 
 ### `solution_arena` — Devise Arena Phase
 

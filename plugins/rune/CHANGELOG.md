@@ -26,7 +26,7 @@
 
 **CLAUDE.md alignment (P1):**
 
-- v3.0.0-alpha.1 → alpha.2 references (lines 5, 100) — now alpha.2/alpha.3.
+- Stale `v3.0.0-alpha.2` references in CLAUDE.md (lines 5, 100, 218) updated to `v3.0.0-alpha.3` so the plugin-level guide tracks plugin.json (initial alpha.3 self-audit fix bundle missed these — corrected in this release).
 - L51 `iron-law-protocol` row removed from Skills table — file lives under `agents/shared/`, not `skills/`. Skill tool cannot load it.
 - Added `talisman` skill row to Core Workflows (was missing despite being user-invocable).
 - L208 SECURITY hooks list trimmed: `validate-mend-fixer-paths.sh`, `validate-strive-worker-paths.sh`, `validate-gap-fixer-paths.sh` reclassified as OPERATIONAL (their `trap '_rune_fail_forward' ERR` confirms fail-open per SEC-003 / VEIL-002 self-classification). Only `validate-resolve-fixer-paths.sh` is genuinely SECURITY (uses `trap 'exit 2' ERR`).
@@ -48,7 +48,7 @@
 
 **Self-audit artifacts** (under `tmp/self-audit/1778278942/`): `SELF-AUDIT-REPORT.md`, `workflow-findings.md`, `prompt-findings.md`, `rule-findings.md`, `hook-findings.md`, `findings.json`, `metrics.json`. Echo entries (filesystem only) at `.rune/echoes/meta-qa/MEMORY.md`.
 
-**Net delta:** 37 files changed, 220 insertions, 404 deletions. No new agents, no new skills, no new commands.
+**Net delta** (alpha.2 `ad025e65` → alpha.3 HEAD): 57 files changed, 420 insertions, 1060 deletions. Single fix bundle commit `b927ac87` accounts for 40 of those files; remaining 17 are scope/cleanup work split across the alpha.3 series. No new agents, no new skills, no new commands.
 
 ## [3.0.0-alpha.2] — 2026-05-09
 

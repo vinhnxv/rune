@@ -2,11 +2,11 @@
 
 Multi-agent engineering orchestration for [Claude Code](https://claude.ai/claude-code). Plan features, implement with swarm workers, review code, and ship — all with parallel AI agents that each get their own dedicated context window.
 
-**Current version**: [2.65.2](CHANGELOG.md) — Arc Stop hook dual-protocol hardening (CC-STOP-API-OSC-001): v2.65.1 added a Protocol A stdout JSON rescue path for Claude Code versions where PAT-011 `stderr + exit 2` re-injection has regressed, but the initial shape used `hookSpecificOutput.additionalContext` — invalid for Stop hooks — and was rejected by the CLI validator. v2.65.2 switches Protocol A to the schema-compliant `{"decision":"block","reason":...}` shape so the rescue path actually survives validation. Prior v2.65.0 audit 20260420-171018 hardening remains in force: session nonce upgraded 48→128 bits (ARC-SEC-004) with backward-compatible validator; `_safe_jq` helper in `lib/platform.sh` for pipefail contexts (ARC-SEC-005); `team-shutdown.sh` trace when `grace_seconds` falls back to legacy 5s default (TEAM-SEC-002); CLAUDE.md jq-missing policy (HOOKS-SEC-002) and ERR trap classification checklist (HOOKS-SEC-003); `validate-resolve-fixer-paths.sh` comment-vs-behavior drift resolved (HOOKS-SEC-007). See [CHANGELOG.md](CHANGELOG.md) for details.
+**Current version**: [3.0.0-alpha.3](CHANGELOG.md) — v3 lean rebuild. Day-2 consolidations land: 7 specialist QA verifiers → 1 `phase-qa-verifier`, 12 inspector mode-variants → 4 base inspectors, 4 arc phases trimmed (Goldmask correlation/verification, bot review wait, PR comment resolution). Self-audit run 1778278942 produced a 40-file drift fix bundle. PHASE_ORDER bash↔JS now both at 26 entries. See [CHANGELOG.md](CHANGELOG.md) for details.
 
 ## What Is This?
 
-This is the **Rune plugin** — the detailed component reference for the Rune multi-agent orchestration system. It documents all 116 agents (74 core + 42 extended), 45 skills, 11 commands, and the hook infrastructure that powers Rune's workflows.
+This is the **Rune plugin** — the detailed component reference for the Rune multi-agent orchestration system. It documents all 116 agents (74 core + 42 extended, plus 13 shared resources), 45 skills, 11 commands, and the hook infrastructure that powers Rune's workflows.
 
 For the high-level overview, see the [root README](../../README.md).
 
@@ -170,20 +170,16 @@ Rune is a token-intensive multi-agent system. Each workflow summons multiple age
 | `/rune:debug` | Parallel hypothesis-based debugging |
 | `/rune:tarnished` | Intelligent router — figures out which command to run |
 
-### Batch & Automation
+### Quick Pipeline
 
 | Command | What It Does |
 |---------|-------------|
-| `/rune:arc-batch plans/*.md` | Run Arc (end-to-end pipeline) on multiple plans sequentially |
-| `/rune:arc-issues --label "rune:ready"` | Process GitHub Issues → Plans → PRs automatically |
-| `/rune:arc-hierarchy plans/parent.md` | Execute hierarchical child plans in dependency order |
 | `/rune:arc-quick` | Quick 4-phase pipeline: plan -> work -> review -> mend (25-60 min) |
 
 ### Utilities
 
 | Command | What It Does |
 |---------|-------------|
-| `/rune:echoes` | Manage persistent agent memory |
 | `/rune:rest` | Clean up tmp/ artifacts |
 | `/rune:talisman` | Configure Rune settings |
 | `/rune:elicit` | Structured reasoning (Tree of Thoughts, Pre-mortem, etc.) |
@@ -203,8 +199,9 @@ For the full command reference with all flags and options, see the [Command Refe
 | Forge | Plan enrichment | Research phase that deepens a plan |
 | Mend | Auto-fix findings | Parallel resolution of review findings |
 | Arc | End-to-end pipeline | 26-phase automated workflow (default; v3.0.0-alpha.2) |
-| Echoes | Persistent memory | Cross-session project knowledge |
 | Roundtable Circle | Parallel review | Pattern for orchestrating multiple Ash (review agent) teammates |
+
+> Persistent memory was removed in v3.0.0-alpha.1; agent output is now ephemeral (`tmp/`).
 
 See the [Glossary](../../docs/guides/rune-glossary.en.md) for the complete terminology reference.
 
@@ -244,11 +241,10 @@ Key settings: review depth, convergence tiers, cost optimization, custom Ash (re
 | Guide | Topics |
 |-------|--------|
 | [Getting Started](../../docs/guides/rune-getting-started.en.md) | Plan → Work → Review in 3 commands |
-| [Arc & Batch Guide](../../docs/guides/rune-arc-and-batch-guide.en.md) | Full pipeline, batch mode, arc-issues |
+| [Arc Guide](../../docs/guides/rune-arc-and-batch-guide.en.md) | Full pipeline, arc phases, checkpoint resume |
 | [Planning Guide](../../docs/guides/rune-planning-and-plan-quality-guide.en.md) | devise, forge, plan-review, inspect |
 | [Code Review & Audit](../../docs/guides/rune-code-review-and-audit-guide.en.md) | appraise, audit, mend |
 | [Work Execution](../../docs/guides/rune-work-execution-guide.en.md) | strive, goldmask |
-| [Advanced Workflows](../../docs/guides/rune-advanced-workflows-guide.en.md) | arc-hierarchy, arc-issues, echoes |
 | [Talisman Configuration](../../docs/guides/rune-talisman-deep-dive-guide.en.md) | All configuration options |
 | [Troubleshooting](../../docs/guides/rune-troubleshooting-and-optimization-guide.en.md) | Common issues and optimization |
 | [FAQ](../../docs/guides/rune-faq.en.md) | Frequently asked questions |
@@ -269,13 +265,7 @@ Vietnamese guides are also available — see `docs/guides/*-vi.md`.
 <details>
 <summary>MCP Servers</summary>
 
-| Server | Purpose |
-|--------|---------|
-| `echo-search` | Full-text search over Echoes (persistent memory) using SQLite FTS5 |
-| `figma-to-react` | Convert Figma designs to React + Tailwind CSS v4 components |
-| `agent-search` | Agent registry search for workflow orchestrators |
-| `context7` | Live framework documentation via Context7 |
-| `figma-context` | AI-optimized Figma data extraction (~90% compression vs raw API) |
+MCP servers are now opt-in at the user level via `~/.claude/mcp.json`. None are bundled with the plugin. (v3.0.0-alpha.1 removed all bundled MCP servers — `echo-search`, `agent-search`, `context7`, `figma-context`. `figma-to-react` was removed earlier in v2.69.0.)
 
 **MCP/LSP Process Protection (MCP-PROTECT-004):** All MCP and LSP server processes are protected from accidental cleanup kills via a 3-layer detection strategy in `scripts/lib/process-tree.sh`:
 1. **Known binary whitelist** — 60+ named MCP servers (Rune, Anthropic official, database, cloud, browser, search, UI) + 18+ LSP servers
@@ -296,13 +286,6 @@ Rune uses 10 Stop hooks for arc phase loop driving, workflow cleanup, and stale 
 </details>
 
 <details>
-<summary>Design Workflow</summary>
-
-Rune includes domain-aware design intelligence: automatic project domain inference (ecommerce, saas, healthcare, fintech, media, social, education, productivity), industry-weighted UX scoring, and domain-specific design recommendations. The design system discovery pipeline (`discoverDesignSystem()`) detects installed component libraries, token systems, and project domain to provide contextual design guidance during planning and review. See reference files: [domain-inference.md](skills/design-system-discovery/references/domain-inference.md), [domain-design-guide.md](skills/frontend-design-patterns/references/domain-design-guide.md), [industry-weights.md](skills/ux-design-process/references/industry-weights.md).
-
-</details>
-
-<details>
 <summary>Discipline Engineering</summary>
 
 Rune implements proof-based orchestration ensuring specification compliance. Plans with YAML acceptance criteria (`AC-*` blocks) activate the Discipline Work Loop — an 8-phase convergence cycle. See [Discipline Engineering](../../docs/discipline-engineering.md).
@@ -312,7 +295,7 @@ Rune implements proof-based orchestration ensuring specification compliance. Pla
 <details>
 <summary>Agent Architecture</summary>
 
-Rune includes 152 specialized agents across 8 categories — 109 core (in `agents/`: 17 review + 31 investigation + 17 utility + 8 research + 7 work + 8 QA + 9 meta-QA + 12 shared) + 43 extended (in `registry/`) — spanning review, research, work, utility, investigation, testing, qa, and meta-qa. Each agent gets its own dedicated context window via Agent Teams. Custom agents can be defined via `talisman.yml`. See the [Ash Guide skill](skills/ash-guide/SKILL.md) for the full registry.
+Rune includes 116 specialized agents — 74 core (in `agents/`: 13 review + 23 investigation + 16 utility + 7 research + 5 work + 1 qa + 9 meta-qa) + 42 extended (in `registry/`: 25 review + 6 testing + 5 utility + 4 work + 2 investigation), plus 13 shared resources in `agents/shared/`. Each agent gets its own dedicated context window via Agent Teams. Custom agents can be defined via `talisman.yml`. See the [Ash Guide skill](skills/ash-guide/SKILL.md) and [agent-registry.md](references/agent-registry.md) for the full registry.
 
 </details>
 

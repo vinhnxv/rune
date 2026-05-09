@@ -85,25 +85,25 @@ The pipeline uses **named phases** (not numeric IDs) in `PHASE_ORDER`. The numer
 | 5.01 | 7 | `work_qa` | Team | 5 min | QA gate (1 agent) |
 | 5.1 | 8 | `drift_review` | Inline | 2 min | — |
 | 5.5 | 9 | `gap_analysis` | Team | 12 min | — |
-| 5.51 | 16 | `gap_analysis_qa` | Team | 5 min | QA gate (1 agent) |
-| 5.8 | 17 | `gap_remediation` | Team | 15 min | — |
-| 5.81 | 18 | `inspect` | Team | 15 min | `/rune:inspect` (4 Inspector Ashes) |
-| 5.82 | 19 | `inspect_fix` | Team | 15 min | Gap-fixer agents (FIXABLE findings) |
-| 5.83 | 20 | `verify_inspect` | Inline | 4 min | Convergence evaluation |
-| 6 | 21 | `code_review` | Team | 15 min | `/rune:appraise --deep` |
-| 6.1 | 22 | `code_review_qa` | Team | 5 min | QA gate (1 agent) |
-| 6.6 | 23 | `verify` | Team | 10 min | Finding verification gate |
-| 7 | 24 | `mend` | Team | 23 min | `/rune:mend` |
-| 7.01 | 25 | `mend_qa` | Team | 5 min | QA gate (1 agent) |
-| 7.3 | 26 | `verify_mend` | Inline | 4 min | — |
-| 7.7 | 27 | `test` | Team | 25-50 min | Testing agents |
-| 7.71 | 28 | `test_qa` | Team | 5 min | QA gate (1 agent) |
-| 7.9 | 29 | `deploy_verify` | Team | 5 min | Conditional: deployment verification |
-| 8.5 | 30 | `pre_ship_validation` | Inline | 6 min | — |
-| 9 | 31 | `ship` | Inline | 5 min | — |
-| 9.5 | 32 | `merge` | Inline | 10 min | — |
+| 5.51 | 10 | `gap_analysis_qa` | Team | 5 min | QA gate (1 agent) |
+| 5.8 | 11 | `gap_remediation` | Team | 15 min | — |
+| 5.81 | 12 | `inspect` | Team | 15 min | `/rune:inspect` (4 Inspector Ashes) |
+| 5.82 | 13 | `inspect_fix` | Team | 15 min | Gap-fixer agents (FIXABLE findings) |
+| 5.83 | 14 | `verify_inspect` | Inline | 4 min | Convergence evaluation |
+| 6 | 15 | `code_review` | Team | 15 min | `/rune:appraise --deep` |
+| 6.1 | 16 | `code_review_qa` | Team | 5 min | QA gate (1 agent) |
+| 6.6 | 17 | `verify` | Team | 10 min | Finding verification gate |
+| 7 | 18 | `mend` | Team | 23 min | `/rune:mend` |
+| 7.01 | 19 | `mend_qa` | Team | 5 min | QA gate (1 agent) |
+| 7.3 | 20 | `verify_mend` | Inline | 4 min | — |
+| 7.7 | 21 | `test` | Team | 25-50 min | Testing agents |
+| 7.71 | 22 | `test_qa` | Team | 5 min | QA gate (1 agent) |
+| 7.9 | 23 | `deploy_verify` | Team | 5 min | Conditional: deployment verification |
+| 8.5 | 24 | `pre_ship_validation` | Inline | 6 min | — |
+| 9 | 25 | `ship` | Inline | 5 min | — |
+| 9.5 | 26 | `merge` | Inline | 10 min | — |
 
-> **Execution order**: The "Exec Order" column shows the actual sequence. Phase numbers (#) are for human reference only. Always use `PHASE_ORDER` array position, not numeric IDs. Total: 26 default phases (v3.0.0-alpha.2 cut goldmask_verification, goldmask_correlation, bot_review_wait, pr_comment_resolution).
+> **Execution order**: The "Exec Order" column shows the actual sequence (1–26). Phase numbers (#) are for human reference only — always use `PHASE_ORDER` array position. Total: 26 default phases (v3.0.0-alpha.2 cut goldmask_verification, goldmask_correlation, bot_review_wait, pr_comment_resolution; alpha.1 cut design_*, semantic_verification, task_decomposition, test_coverage_critique, release_quality_check, browser_test*, storybook_verification, ux_verification).
 
 ## Usage
 
@@ -453,11 +453,13 @@ See [arc-phase-completion-stamp.md](references/arc-phase-completion-stamp.md). R
 
 Written automatically by `arc-result-signal-writer.sh` PostToolUse hook. No manual call needed. See [arc-result-signal.md](references/arc-result-signal.md).
 
-### Echo Persist + Completion Report
+### Completion Report
 
-See [post-arc.md](references/post-arc.md) for echo persist and completion report template.
+See [post-arc.md](references/post-arc.md) for the completion report template.
 
-**Discipline accountability echo**: When `discipline.enabled: true` and convergence metrics exist in the arc checkpoint, write a pipeline-level discipline echo to `.rune/echoes/discipline/MEMORY.md` with aggregate SCR, first-pass rate, failure code distribution, and trend detection vs historical averages. See [discipline/references/accountability-protocol.md](../discipline/references/accountability-protocol.md) for the full echo format and trend detection algorithm.
+> **Echo persist removed**: v3.0.0-alpha.1 removed the persistent memory layer
+> (no rune-echoes skill, no `.rune/echoes/` runtime consumer). Post-arc no longer
+> writes echoes — agent output is now ephemeral (`tmp/`).
 
 ### Proof Manifest Persistence (Discipline Integration, v1.173.0)
 

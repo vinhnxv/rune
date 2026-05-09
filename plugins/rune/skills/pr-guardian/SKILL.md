@@ -246,7 +246,7 @@ gh pr diff <PR_NUMBER> --name-only
 ```
 
 - If **frontend files changed** (components, pages, views, styles):
-  - Run `/rune:test-browser` skill for the PR
+  - Run targeted browser tests on changed routes (use the testing skill's resolveTestScope() to pick routes — the standalone `/rune:test-browser` skill was removed in v3.0.0-alpha.2; trigger `/rune:arc` Phase 7.7 or invoke the `e2e-browser-tester` agent directly if a fresh harness is available)
 - If **backend/API-only files changed**:
   - Identify related frontend pages that consume the changed APIs
   - Run targeted browser tests on those related frontend flows

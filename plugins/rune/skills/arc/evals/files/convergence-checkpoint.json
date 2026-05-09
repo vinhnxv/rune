@@ -53,51 +53,11 @@
       "artifact_hash": null,
       "team_name": null
     },
-    "semantic_verification": {
-      "status": "completed",
-      "artifact": null,
-      "artifact_hash": null,
-      "team_name": null
-    },
-    "design_extraction": {
-      "status": "skipped",
-      "artifact": null,
-      "artifact_hash": null,
-      "team_name": null,
-      "skip_reason": "design_sync disabled"
-    },
-    "task_decomposition": {
-      "status": "completed",
-      "artifact": "tmp/arc/20260305-091500/task-decomposition.md",
-      "artifact_hash": null,
-      "team_name": null
-    },
     "work": {
       "status": "completed",
       "artifact": "tmp/work/20260305-091500/",
       "artifact_hash": null,
       "team_name": "work-20260305"
-    },
-    "storybook_verification": {
-      "status": "skipped",
-      "artifact": null,
-      "artifact_hash": null,
-      "team_name": null,
-      "skip_reason": "storybook disabled"
-    },
-    "design_verification": {
-      "status": "skipped",
-      "artifact": null,
-      "artifact_hash": null,
-      "team_name": null,
-      "skip_reason": "no VSM"
-    },
-    "ux_verification": {
-      "status": "skipped",
-      "artifact": null,
-      "artifact_hash": null,
-      "team_name": null,
-      "skip_reason": "ux disabled"
     },
     "gap_analysis": {
       "status": "completed",
@@ -111,23 +71,11 @@
       "artifact_hash": null,
       "team_name": null
     },
-    "goldmask_verification": {
-      "status": "completed",
-      "artifact": "tmp/arc/20260305-091500/goldmask.md",
-      "artifact_hash": null,
-      "team_name": "goldmask-20260305"
-    },
     "code_review": {
       "status": "completed",
       "artifact": "tmp/reviews/20260305-091500/TOME.md",
       "artifact_hash": null,
       "team_name": "review-20260305-r1"
-    },
-    "goldmask_correlation": {
-      "status": "completed",
-      "artifact": null,
-      "artifact_hash": null,
-      "team_name": null
     },
     "mend": {
       "status": "completed",
@@ -141,20 +89,7 @@
       "artifact_hash": null,
       "team_name": null
     },
-    "design_iteration": {
-      "status": "skipped",
-      "artifact": null,
-      "artifact_hash": null,
-      "team_name": null,
-      "skip_reason": "design_sync disabled"
-    },
     "test": {
-      "status": "pending",
-      "artifact": null,
-      "artifact_hash": null,
-      "team_name": null
-    },
-    "test_coverage_critique": {
       "status": "pending",
       "artifact": null,
       "artifact_hash": null,
@@ -166,25 +101,7 @@
       "artifact_hash": null,
       "team_name": null
     },
-    "release_quality_check": {
-      "status": "pending",
-      "artifact": null,
-      "artifact_hash": null,
-      "team_name": null
-    },
     "ship": {
-      "status": "pending",
-      "artifact": null,
-      "artifact_hash": null,
-      "team_name": null
-    },
-    "bot_review_wait": {
-      "status": "pending",
-      "artifact": null,
-      "artifact_hash": null,
-      "team_name": null
-    },
-    "pr_comment_resolution": {
       "status": "pending",
       "artifact": null,
       "artifact_hash": null,
