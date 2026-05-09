@@ -651,9 +651,6 @@ arc:
     verify_mend: 240000          # 4 minutes (default, orchestrator-only)
     audit: 1200000               # 20 minutes (default: inner 15m + 5m setup)
     test: 900000                 # 15 min outer timeout (inner: 600s without E2E, 2100s with E2E)
-    # design_extraction: 300000        # Phase D1: Figma design extraction (5 min)
-    # design_iteration: 600000         # Phase D2: Design iteration loop (10 min)
-    # design_verification: 300000      # Phase D3: Design fidelity review (5 min)
     ship: 300000                 # 5 minutes (default, v1.40.0+)
     merge: 600000                # 10 minutes (default, v1.40.0+)
     # NOTE: Total pipeline timeout is computed dynamically by calculateDynamicTimeout(tier).
@@ -665,6 +662,8 @@ arc:
     # v3.0.0-alpha.2 (codex-strip sync, self-audit 1778278942) — REMOVED:
     #   semantic_verification, task_decomposition,
     #   test_coverage_critique, release_quality_check
+    # v3.0.0-alpha.3 (TOME pr523-524-1778336733) — REMOVED:
+    #   design_extraction, design_iteration, design_verification, design_prototype
 
   # ── Rate Limit Auto-Resume (v1.157.0+) ────────
   # When the arc-phase stop hook detects API rate limits in the
@@ -1572,11 +1571,14 @@ context_weaving:
 #     boost_factor: 1.5                    # Score multiplier for matching agents (default: 1.5, range: 1.0-3.0)
 
 # ── Figma Design Sync (v1.97.0+) ──
-# Controls the /rune:design-sync pipeline and arc design phases.
-# Requires Figma MCP server configured in .mcp.json for extraction.
+# Controls the standalone /rune:design-sync pipeline.
+# Requires a Figma MCP server configured in user-level mcp.json.
+# v3.0.0-alpha.3: Arc no longer runs design extraction/iteration/verification
+# phases (cut in v3.0.0-alpha.1) — keys related to those arc phases below
+# (max_iteration_workers, max_iterations, iterate_enabled, fidelity_threshold,
+# proof_validation, etc.) only apply when /rune:design-sync is invoked directly.
 # design_sync:
-#   enabled: false                           # Master switch — must be true for design-sync to run (default: false)
-#                                            # When false, arc design phases (3, 5.2, 7.6) are skipped entirely.
+#   enabled: false                           # Master switch — must be true for /rune:design-sync to run (default: false)
 #   max_extraction_workers: 2                # Maximum design-sync-agent workers for extraction phase (default: 2)
 #   max_implementation_workers: 3            # Maximum rune-smith workers for design implementation (default: 3)
 #   max_iteration_workers: 2                 # Maximum design-iterator workers per iteration round (default: 2)
@@ -1823,15 +1825,16 @@ context_weaving:
 #         access_token_env: "UNTITLEDUI_ACCESS_TOKEN"  # env var for PRO API key (optional — free tier works without it)
 
 # ──────────────────────────────────────────────
-# Storybook — Component visual verification (arc Phase 3.3) (v1.128.0+)
+# Storybook — Component visual verification (v1.128.0+)
 # ──────────────────────────────────────────────
-# Opt-in Storybook integration for arc pipeline. When enabled, Phase 3.3 captures
-# component screenshots via agent-browser, runs Mode A (Design Fidelity with VSM)
-# or Mode B (UI Quality Audit heuristics), and produces scored findings.
+# Opt-in Storybook integration. v3.0.0-alpha.1 cut the arc storybook_verification
+# phase; the keys below now apply only to the standalone /rune:storybook skill
+# (referenced by /rune:design-prototype) for component screenshot capture and
+# Mode A (Design Fidelity with VSM) or Mode B (UI Quality Audit heuristics).
 # Disabled by default — enable when your project uses Storybook for component development.
 #
 # storybook:
-#   enabled: false                           # Master switch — must be true for Phase 3.3 to run (default: false)
+#   enabled: false                           # Master switch — must be true for /rune:storybook to run (default: false)
 #   port: 6006                               # Storybook dev server port (default: 6006, range: 1024-65535)
 #   auto_start: false                        # Auto-start Storybook if not running (default: false)
 #                                            # When true, runs `npx storybook dev --port {port} --ci --no-open` in background.
@@ -1842,15 +1845,16 @@ context_weaving:
 #                                            # Below threshold: FAIL if P1 findings, NEEDS_ATTENTION otherwise.
 
 # ──────────────────────────────────────────────
-# UX Verification — UX heuristic review (arc Phase 5.3) (v1.140.0+)
+# UX Verification — UX heuristic review (v1.140.0+)
 # ──────────────────────────────────────────────
-# Opt-in UX verification for arc pipeline. When enabled AND frontend files are
-# detected in the diff, Phase 5.3 spawns up to 4 UX review agents to evaluate
-# usability heuristics, user flow integrity, interaction patterns, and cognitive load.
+# Opt-in UX verification. v3.0.0-alpha.1 cut the arc ux_verification phase; UX
+# review agents (ux-heuristic-reviewer, ux-flow-validator, ux-interaction-auditor,
+# ux-cognitive-walker) are now used by the standalone /rune:ux-design-process and
+# /rune:appraise (when frontend files are detected in the diff and ux.enabled is true).
 # Disabled by default — enable for projects with user-facing UI.
 #
 # ux:
-#   enabled: false                             # Master switch — must be true for Phase 5.3 to run (default: false)
+#   enabled: false                             # Master switch — must be true to summon UX review agents (default: false)
 #   blocking: false                            # When true, P1 UX findings halt the pipeline (default: false, non-blocking)
 #   cognitive_walkthrough: false               # Enable cognitive walker agent for cognitive load analysis (default: false)
 #   industry: null                             # Manual domain override for UXH scoring weights (default: null = auto-detect)
@@ -1910,7 +1914,8 @@ context_stop_guard:
 #   timeout_ms: 420000          # Per-investigation-round timeout in ms (7 min)
 #   model: sonnet               # Default investigator model; overridden by cost_tier
 #   re_triage_rounds: 1         # Max re-triage rounds before escalating to user
-#   echo_on_verdict: true       # Persist verdict to rune-echoes after resolution
+# (v3.0.0-alpha.1 removed the rune-echoes persistence layer; the `echo_on_verdict`
+# key is no longer consumed by /rune:debug and was dropped from the example.)
 
 # ──────────────────────────────────────────────
 # Environment — Subprocess isolation and security

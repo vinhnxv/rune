@@ -11,11 +11,11 @@
   "freshness": {
     "score": 0.95,
     "signals": {
-      "structural": true,
-      "dependency": true,
-      "api": true,
-      "config": true,
-      "test": true
+      "commit_distance": 0.10,
+      "file_drift": 0.05,
+      "identifier_loss": 0.02,
+      "branch_divergence": 0.0,
+      "time_decay": 0.01
     }
   },
   "flags": {

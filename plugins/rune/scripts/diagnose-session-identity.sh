@@ -83,11 +83,24 @@ else
 fi
 
 # ── Active State Files ──
+# QUAL-005 fix: prefix list now mirrors enforce-teams.sh:269-279 (the canonical
+# allowlist for live workflow detection). Previously only 4 prefixes were scanned
+# here, so 9+ workflow types were invisible to diagnostics.
+# SEC-001/BACK-003 fix: enable nullglob + use shopt-protected loop so an
+# attacker-controlled CWD can't inject filenames via glob word-splitting; an
+# empty pattern collapses to no iterations rather than the literal pattern.
 printf "\nACTIVE STATE FILES\n"
 _state_count=0
-for _pattern in "tmp/.rune-arc-phase-*.json" "tmp/.rune-strive-*.json" "tmp/.rune-appraise-*.json" "tmp/.rune-audit-*.json"; do
-  for _sf in ${_pattern}; do
-    [[ -f "$_sf" ]] || continue
+shopt -s nullglob
+for _sf in "tmp/.rune-arc-phase-"*.json "tmp/.rune-arc-"*.json \
+           "tmp/.rune-review-"*.json "tmp/.rune-audit-"*.json \
+           "tmp/.rune-work-"*.json "tmp/.rune-inspect-"*.json \
+           "tmp/.rune-mend-"*.json "tmp/.rune-plan-"*.json \
+           "tmp/.rune-forge-"*.json "tmp/.rune-goldmask-"*.json \
+           "tmp/.rune-brainstorm-"*.json "tmp/.rune-debug-"*.json \
+           "tmp/.rune-design-sync-"*.json "tmp/.rune-gap-fix-"*.json \
+           "tmp/.rune-resolve-todos-"*.json "tmp/.rune-self-audit-"*.json; do
+  [[ -f "$_sf" ]] || continue
     _state_count=$(( _state_count + 1 ))
     _sf_sid=$(grep -o '"session_id"[[:space:]]*:[[:space:]]*"[^"]*"' "$_sf" 2>/dev/null | head -1 | sed 's/.*: *"\([^"]*\)"/\1/' || echo "<missing>")
     _sf_pid=$(grep -o '"owner_pid"[[:space:]]*:[[:space:]]*[0-9]*' "$_sf" 2>/dev/null | head -1 | sed 's/.*: *//' || echo "<missing>")
@@ -110,8 +123,8 @@ for _pattern in "tmp/.rune-arc-phase-*.json" "tmp/.rune-strive-*.json" "tmp/.run
     else
       printf "    ownership:  UNKNOWN\n"
     fi
-  done
 done
+shopt -u nullglob
 
 # Also check YAML frontmatter state files (.md)
 # v3.0.0-alpha.2 (audit 1778280306): batch/hierarchy/issues loop files removed

@@ -103,26 +103,28 @@ _status_sym() {
 }
 
 # ── Phase order ──
-# ARCH-001 fix: synced with arc-phase-stop-hook.sh PHASE_ORDER (canonical) plus
-# conditional/optional phases (design family, ux/storybook, browser test) that
-# may appear in checkpoints when their feature flags are enabled.
+# SYNC-CRITICAL: Mirrors arc-phase-constants.md PHASE_ORDER (canonical JS) and
+# arc-phase-stop-hook.sh PHASE_ORDER (canonical bash). When updating, update all
+# three together. test-phase-groups.sh asserts the count.
 # v3.0.0-alpha.2: Removed goldmask_verification, goldmask_correlation,
 # bot_review_wait, pr_comment_resolution from default order.
 # v3.0.0-alpha.2 (codex-strip sync, self-audit 1778280306): semantic_verification,
 # task_decomposition, test_coverage_critique, release_quality_check removed —
 # they are no longer in any PHASE_ORDER definition.
+# v3.0.0-alpha.3 (TOME pr523-524-1778336733): design_extraction,
+# design_prototype, design_verification, design_verification_qa,
+# design_iteration, storybook_verification, ux_verification, browser_test,
+# browser_test_fix, verify_browser_test removed — design/storybook/browser-test
+# families were cut in alpha.1 but lingered here as "conditional" entries.
 PHASE_ORDER=(
   forge forge_qa
   plan_review plan_refine verification
-  design_extraction design_prototype work work_qa
-  drift_review storybook_verification design_verification design_verification_qa
-  ux_verification gap_analysis gap_analysis_qa
-  gap_remediation
+  work work_qa drift_review
+  gap_analysis gap_analysis_qa gap_remediation
   inspect inspect_fix verify_inspect
   code_review code_review_qa
-  mend mend_qa
-  verify_mend design_iteration
-  test test_qa browser_test browser_test_fix verify_browser_test
+  verify mend mend_qa verify_mend
+  test test_qa
   deploy_verify pre_ship_validation
   ship merge
 )

@@ -301,10 +301,24 @@ ESCALATION_TIMEOUT=5
 
 TALISMAN="${CWD}/${RUNE_STATE}/talisman.yml"
 if [[ -f "$TALISMAN" ]]; then
-  CLEANUP_ENABLED=$(grep -A5 'cleanup:' "$TALISMAN" 2>/dev/null | grep 'enabled:' | awk '{print $2}' | head -1 || echo "true")
+  # BACK-009 fix: scope to the teammate_lifecycle block before matching `cleanup:`.
+  # Prior `grep -A5 'cleanup:'` would grab whichever cleanup block came first if a
+  # user added a sibling cleanup section (e.g., `arc.cleanup:` or `audit.cleanup:`).
+  # This awk extracts only the teammate_lifecycle.cleanup subtree by tracking
+  # 2-space indentation levels.
+  _tl_cleanup=$(awk '
+    /^teammate_lifecycle:[[:space:]]*$/ { in_tl=1; next }
+    in_tl && /^[a-zA-Z_]/ { in_tl=0 }
+    in_tl && /^[[:space:]]+cleanup:[[:space:]]*$/ { in_cu=1; next }
+    in_tl && in_cu && /^[[:space:]]{4,}[a-zA-Z_]/ { print; next }
+    in_tl && in_cu && /^[[:space:]]{0,2}[a-zA-Z_]/ { in_cu=0 }
+  ' "$TALISMAN" 2>/dev/null)
+  CLEANUP_ENABLED=$(printf '%s\n' "$_tl_cleanup" | grep 'enabled:' | awk '{print $2}' | head -1)
+  : "${CLEANUP_ENABLED:=true}"
   # NOTE: escalation_timeout_seconds must stay < 23s to fit within 30s hook timeout budget (GAP-DOC-4)
   # BACK-005: grace_period_seconds removed — not used in hook context (SDK-based grace period unavailable)
-  ESCALATION_TIMEOUT=$(grep -A5 'cleanup:' "$TALISMAN" 2>/dev/null | grep 'escalation_timeout_seconds:' | awk '{print $2}' | head -1 || echo "5")
+  ESCALATION_TIMEOUT=$(printf '%s\n' "$_tl_cleanup" | grep 'escalation_timeout_seconds:' | awk '{print $2}' | head -1)
+  : "${ESCALATION_TIMEOUT:=5}"
 fi
 
 # SEC-002: Validate and clamp talisman-sourced numeric values

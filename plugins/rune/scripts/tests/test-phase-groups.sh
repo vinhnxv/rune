@@ -61,7 +61,6 @@ assert_eq "verification → planning" "planning" "$(_lookup_phase_group "verific
 assert_eq "work → work" "work" "$(_lookup_phase_group "work")"
 assert_eq "work_qa → work" "work" "$(_lookup_phase_group "work_qa")"
 assert_eq "drift_review → work" "work" "$(_lookup_phase_group "drift_review")"
-assert_eq "storybook_verification → work" "work" "$(_lookup_phase_group "storybook_verification")"
 
 # Verification group
 assert_eq "gap_analysis → verification" "verification" "$(_lookup_phase_group "gap_analysis")"
@@ -82,7 +81,7 @@ assert_eq "verify_mend → review" "review" "$(_lookup_phase_group "verify_mend"
 
 # Testing group
 assert_eq "test → testing" "testing" "$(_lookup_phase_group "test")"
-assert_eq "browser_test → testing" "testing" "$(_lookup_phase_group "browser_test")"
+assert_eq "test_qa → testing" "testing" "$(_lookup_phase_group "test_qa")"
 
 # Ship group
 assert_eq "deploy_verify → ship" "ship" "$(_lookup_phase_group "deploy_verify")"
@@ -105,13 +104,15 @@ assert_eq "nonexistent → empty" "" "$(_lookup_phase_group "nonexistent")"
 # ══════════════════════════════════════════════════
 echo ""
 echo "=== Coverage: all PHASE_ORDER phases return non-empty group ==="
+# SYNC-CRITICAL: must match arc-phase-constants.md PHASE_ORDER (canonical, 26 entries).
+# Any divergence indicates drift between bash/JS phase definitions.
 PHASE_ORDER=(
   forge forge_qa plan_review plan_refine verification
-  work work_qa drift_review storybook_verification
-  ux_verification gap_analysis gap_analysis_qa gap_remediation
+  work work_qa drift_review
+  gap_analysis gap_analysis_qa gap_remediation
   inspect inspect_fix verify_inspect
   code_review code_review_qa verify mend mend_qa verify_mend
-  test test_qa browser_test browser_test_fix verify_browser_test
+  test test_qa
   deploy_verify pre_ship_validation ship merge
 )
 
@@ -122,8 +123,8 @@ for phase in "${PHASE_ORDER[@]}"; do
   COVERAGE_COUNT=$(( COVERAGE_COUNT + 1 ))
 done
 
-# Verify we tested exactly 31 phases (26 canonical + 5 conditional)
-assert_eq "phase count is 31" "31" "$COVERAGE_COUNT"
+# Verify we tested exactly 26 phases (canonical PHASE_ORDER, no conditional extras)
+assert_eq "phase count is 26" "26" "$COVERAGE_COUNT"
 
 # ══════════════════════════════════════════════════
 # Results
