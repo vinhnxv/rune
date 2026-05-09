@@ -56,12 +56,6 @@ assert_eq "forge_qa → planning" "planning" "$(_lookup_phase_group "forge_qa")"
 assert_eq "plan_review → planning" "planning" "$(_lookup_phase_group "plan_review")"
 assert_eq "plan_refine → planning" "planning" "$(_lookup_phase_group "plan_refine")"
 assert_eq "verification → planning" "planning" "$(_lookup_phase_group "verification")"
-assert_eq "semantic_verification → planning" "planning" "$(_lookup_phase_group "semantic_verification")"
-
-# Design group
-assert_eq "design_extraction → design" "design" "$(_lookup_phase_group "design_extraction")"
-assert_eq "design_prototype → design" "design" "$(_lookup_phase_group "design_prototype")"
-assert_eq "task_decomposition → design" "design" "$(_lookup_phase_group "task_decomposition")"
 
 # Work group
 assert_eq "work → work" "work" "$(_lookup_phase_group "work")"
@@ -70,7 +64,6 @@ assert_eq "drift_review → work" "work" "$(_lookup_phase_group "drift_review")"
 assert_eq "storybook_verification → work" "work" "$(_lookup_phase_group "storybook_verification")"
 
 # Verification group
-assert_eq "design_verification → verification" "verification" "$(_lookup_phase_group "design_verification")"
 assert_eq "gap_analysis → verification" "verification" "$(_lookup_phase_group "gap_analysis")"
 assert_eq "gap_remediation → verification" "verification" "$(_lookup_phase_group "gap_remediation")"
 
@@ -79,17 +72,17 @@ assert_eq "inspect → inspect" "inspect" "$(_lookup_phase_group "inspect")"
 assert_eq "inspect_fix → inspect" "inspect" "$(_lookup_phase_group "inspect_fix")"
 assert_eq "verify_inspect → inspect" "inspect" "$(_lookup_phase_group "verify_inspect")"
 # v3.0.0-alpha.2: goldmask_verification removed from default order.
+# v3.0.0-alpha.1: design family (design_extraction, design_prototype,
+# design_verification*, design_iteration) removed.
 
 # Review group
 assert_eq "code_review → review" "review" "$(_lookup_phase_group "code_review")"
 assert_eq "mend → review" "review" "$(_lookup_phase_group "mend")"
 assert_eq "verify_mend → review" "review" "$(_lookup_phase_group "verify_mend")"
-assert_eq "design_iteration → review" "review" "$(_lookup_phase_group "design_iteration")"
 
 # Testing group
 assert_eq "test → testing" "testing" "$(_lookup_phase_group "test")"
 assert_eq "browser_test → testing" "testing" "$(_lookup_phase_group "browser_test")"
-assert_eq "test_coverage_critique → testing" "testing" "$(_lookup_phase_group "test_coverage_critique")"
 
 # Ship group
 assert_eq "deploy_verify → ship" "ship" "$(_lookup_phase_group "deploy_verify")"
@@ -113,14 +106,13 @@ assert_eq "nonexistent → empty" "" "$(_lookup_phase_group "nonexistent")"
 echo ""
 echo "=== Coverage: all PHASE_ORDER phases return non-empty group ==="
 PHASE_ORDER=(
-  forge forge_qa plan_review plan_refine verification semantic_verification
-  design_extraction design_prototype task_decomposition
+  forge forge_qa plan_review plan_refine verification
   work work_qa drift_review storybook_verification
-  design_verification design_verification_qa ux_verification gap_analysis gap_analysis_qa gap_remediation
+  ux_verification gap_analysis gap_analysis_qa gap_remediation
   inspect inspect_fix verify_inspect
-  code_review code_review_qa verify mend mend_qa verify_mend design_iteration
-  test test_qa browser_test browser_test_fix verify_browser_test test_coverage_critique
-  deploy_verify pre_ship_validation release_quality_check ship merge
+  code_review code_review_qa verify mend mend_qa verify_mend
+  test test_qa browser_test browser_test_fix verify_browser_test
+  deploy_verify pre_ship_validation ship merge
 )
 
 COVERAGE_COUNT=0
@@ -130,8 +122,8 @@ for phase in "${PHASE_ORDER[@]}"; do
   COVERAGE_COUNT=$(( COVERAGE_COUNT + 1 ))
 done
 
-# Verify we tested exactly 45 phases
-assert_eq "phase count is 45" "45" "$COVERAGE_COUNT"
+# Verify we tested exactly 31 phases (26 canonical + 5 conditional)
+assert_eq "phase count is 31" "31" "$COVERAGE_COUNT"
 
 # ══════════════════════════════════════════════════
 # Results

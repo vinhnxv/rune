@@ -461,15 +461,15 @@ cmd_create() {
   local _ckpt_rel
   _ckpt_rel="${_cp#${CWD}/}"
   local _flags_line=""
-  local _flag_no_forge _flag_approve _flag_no_test _flag_bot
+  local _flag_no_forge _flag_approve _flag_no_test
   _flag_no_forge=$(_ck_field "$_cp" 'flags.no_forge')
   _flag_approve=$(_ck_field "$_cp" 'flags.approve')
   _flag_no_test=$(_ck_field "$_cp" 'flags.no_test')
-  _flag_bot=$(_ck_field "$_cp" 'flags.bot_review')
   [ "$_flag_no_forge" = "true" ] && _flags_line="${_flags_line}--no-forge "
   [ "$_flag_approve" = "true" ]  && _flags_line="${_flags_line}--approve "
   [ "$_flag_no_test" = "true" ]  && _flags_line="${_flags_line}--no-test "
-  [ "$_flag_bot" = "true" ]      && _flags_line="${_flags_line}--bot-review "
+  # v3.0.0-alpha.2: --bot-review removed; pre-alpha.2 checkpoints carry flags.bot_review
+  # but the flag is no longer accepted by /rune:arc — silently dropped from resume command.
   _flags_line="${_flags_line% }"
 
   local _state_dir

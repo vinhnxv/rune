@@ -102,14 +102,19 @@ _status_sym() {
   esac
 }
 
-# ── Phase order (must match arc-phase-stop-hook.sh PHASE_ORDER exactly) ──
-# ARCH-001 fix: synced with arc-phase-stop-hook.sh PHASE_ORDER
+# ── Phase order ──
+# ARCH-001 fix: synced with arc-phase-stop-hook.sh PHASE_ORDER (canonical) plus
+# conditional/optional phases (design family, ux/storybook, browser test) that
+# may appear in checkpoints when their feature flags are enabled.
 # v3.0.0-alpha.2: Removed goldmask_verification, goldmask_correlation,
 # bot_review_wait, pr_comment_resolution from default order.
+# v3.0.0-alpha.2 (codex-strip sync, self-audit 1778280306): semantic_verification,
+# task_decomposition, test_coverage_critique, release_quality_check removed —
+# they are no longer in any PHASE_ORDER definition.
 PHASE_ORDER=(
   forge forge_qa
-  plan_review plan_refine verification semantic_verification
-  design_extraction design_prototype task_decomposition work work_qa
+  plan_review plan_refine verification
+  design_extraction design_prototype work work_qa
   drift_review storybook_verification design_verification design_verification_qa
   ux_verification gap_analysis gap_analysis_qa
   gap_remediation
@@ -118,7 +123,7 @@ PHASE_ORDER=(
   mend mend_qa
   verify_mend design_iteration
   test test_qa browser_test browser_test_fix verify_browser_test
-  test_coverage_critique deploy_verify pre_ship_validation release_quality_check
+  deploy_verify pre_ship_validation
   ship merge
 )
 

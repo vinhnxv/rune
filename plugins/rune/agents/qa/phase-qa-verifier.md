@@ -20,10 +20,44 @@ description: |
     - Full process manifest content (qa-manifests/{phase}.yaml) — phase-specific checklist
     - Full execution log (last 500 lines)
     - Expected artifact paths for the phase
-tools: Read, Glob, Grep, TaskList, TaskGet, TaskUpdate, SendMessage
-disallowedTools: Edit, Bash, NotebookEdit, Agent, TeamCreate, TeamDelete
+tools:
+  - Read
+  - Glob
+  - Grep
+  - TaskList
+  - TaskGet
+  - TaskUpdate
+  - SendMessage
+disallowedTools:
+  - Edit
+  - Bash
+  - NotebookEdit
+  - Agent
+  - TeamCreate
+  - TeamDelete
 model: sonnet
 maxTurns: 25
+source: builtin
+priority: 100
+primary_phase: qa
+compatible_phases:
+  - arc
+  - forge_qa
+  - work_qa
+  - gap_analysis_qa
+  - code_review_qa
+  - mend_qa
+  - test_qa
+categories:
+  - qa
+  - verification
+  - testing
+tags:
+  - qa-gate
+  - parametric
+  - manifest-driven
+  - verdict
+  - phase-completion
 ---
 
 # Phase QA Verifier

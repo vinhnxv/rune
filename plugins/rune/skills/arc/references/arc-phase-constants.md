@@ -309,14 +309,16 @@ const SKIP_REASONS = {
 }
 
 // ── Phase skip classification ──
-// Pre-computable: forge, design_extraction, design_prototype, design_verification*,
-//   design_iteration*, storybook_verification, ux_verification, test*,
+// Pre-computable: forge, storybook_verification, ux_verification, test*,
 //   browser_test*, browser_test_fix*, verify_browser_test*
 //   (* = conditionally pre-computable — only when parent feature is disabled)
 //
 // Runtime-dependent (NOT in skip_map): plan_refine (depends on Phase 2 verdicts),
 //   drift_review (depends on worker drift signal files — zero overhead when none exist),
 //   deploy_verify (depends on post-work diff analysis)
+//
+// v3.0.0-alpha.1 removed the design family (design_extraction, design_prototype,
+// design_verification*, design_iteration*) so they are no longer pre-computable.
 //
 // computeSkipMap() signature:
 //   function computeSkipMap(arcConfig, designSync, storybook, ux, planMeta) → object
@@ -335,19 +337,20 @@ const DEPTH_PRESETS = {
   // bot_review_wait, pr_comment_resolution — they are no longer in PHASE_ORDER.
   // v3.0.0-alpha.2 (codex-strip sync): removed semantic_verification,
   // test_coverage_critique, release_quality_check — also no longer in PHASE_ORDER.
+  // v3.0.0-alpha.1 removed the design family (design_extraction,
+  // design_prototype, design_verification*, design_iteration*) — also removed
+  // from these presets to keep the list a strict subset of live phases.
   quick: [
-    "forge", "forge_qa", "design_extraction",
-    "design_prototype", "design_verification", "design_verification_qa",
+    "forge", "forge_qa",
     "ux_verification", "storybook_verification",
     "inspect", "inspect_fix",
-    "verify_inspect", "design_iteration", "browser_test", "browser_test_fix",
+    "verify_inspect", "browser_test", "browser_test_fix",
     "verify_browser_test"
   ],
   // standard: Default — skip optional/conditional phases only
   standard: [
-    "design_extraction", "design_prototype", "design_verification",
-    "design_verification_qa", "ux_verification", "storybook_verification",
-    "design_iteration", "browser_test", "browser_test_fix",
+    "ux_verification", "storybook_verification",
+    "browser_test", "browser_test_fix",
     "verify_browser_test"
   ],
   // thorough: Skip nothing — all phases run (empty list)

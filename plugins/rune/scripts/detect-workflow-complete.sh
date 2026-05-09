@@ -172,15 +172,14 @@ if [[ ${#STATE_FILES[@]} -eq 0 ]]; then
   exit 0
 fi
 
-# ── GUARD 2: Defer to arc loop hooks — NOW session-scoped ──
+# ── GUARD 2: Defer to arc loop hook — NOW session-scoped ──
 # REC-1 FIX: Loop files live at ${CWD}/${RUNE_STATE}/ (.rune/), NOT ${CHOME}/
-# If OUR session's arc loop is active, this hook must NOT interfere — the loop hooks handle transitions.
+# If OUR session's arc loop is active, this hook must NOT interfere — the loop hook handles transitions.
 # Other sessions' loop files are skipped so their cleanup hooks can run independently.
+# v3.0.0-alpha.2 (audit 1778280306): batch/hierarchy/issues loop files removed —
+# parent skills cut in v3.0.0-alpha.1; only arc-phase-loop remains.
 for loop_file in \
-  "${CWD}/${RUNE_STATE}/arc-phase-loop.local.md" \
-  "${CWD}/${RUNE_STATE}/arc-batch-loop.local.md" \
-  "${CWD}/${RUNE_STATE}/arc-hierarchy-loop.local.md" \
-  "${CWD}/${RUNE_STATE}/arc-issues-loop.local.md"; do
+  "${CWD}/${RUNE_STATE}/arc-phase-loop.local.md"; do
   if [[ -f "$loop_file" ]] && [[ ! -L "$loop_file" ]]; then
     # Session ownership check: only defer for OUR loop files
     _loop_fm=$(sed -n '/^---$/,/^---$/p' "$loop_file" 2>/dev/null | sed '1d;$d')

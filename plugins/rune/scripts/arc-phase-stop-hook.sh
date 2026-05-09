@@ -1904,20 +1904,10 @@ if [[ -z "$NEXT_PHASE" ]]; then
 
   _trace "All phases complete — removing state file"
 
-  # Check if an outer loop (batch/hierarchy/issues) is active.
-  # If so, use a lightweight prompt — the outer loop's Stop hook will fire next
-  # and handle the plan-to-plan transition. Still need post-arc steps (completion
-  # stamp writes to plan file, which must happen before the next arc starts).
-  _BATCH_STATE="${CWD}/${RUNE_STATE}/arc-batch-loop.local.md"
-  _HIERARCHY_STATE="${CWD}/${RUNE_STATE}/arc-hierarchy-loop.local.md"
-  _ISSUES_STATE="${CWD}/${RUNE_STATE}/arc-issues-loop.local.md"
-  _HAS_OUTER_LOOP=false
-  if [[ -f "$_BATCH_STATE" && ! -L "$_BATCH_STATE" ]] \
-     || [[ -f "$_HIERARCHY_STATE" && ! -L "$_HIERARCHY_STATE" ]] \
-     || [[ -f "$_ISSUES_STATE" && ! -L "$_ISSUES_STATE" ]]; then
-    _HAS_OUTER_LOOP=true
-    _trace "Outer loop active — will inject post-arc steps with minimal summary"
-  fi
+  # v3.0.0-alpha.2 (audit 1778280306): outer-loop detection removed.
+  # arc-batch / arc-hierarchy / arc-issues skills + their stop hooks were cut in
+  # v3.0.0-alpha.1, so no outer loop can ever be active. Always emit the standard
+  # post-arc prompt with the explicit "present a brief summary" instruction.
 
   # Context exhaustion check — if critical, skip post-arc (best effort)
   if _check_context_critical 2>/dev/null; then
@@ -1935,17 +1925,7 @@ if [[ -z "$NEXT_PHASE" ]]; then
   # 2. Echo Persist + Completion Report
   # 3. Lock release + ARC-9 sweep
   # Without explicit instructions, the model skips these steps and just summarizes.
-  if [[ "$_HAS_OUTER_LOOP" == "true" ]]; then
-    _POST_ARC_PROMPT="Arc pipeline complete — all phases finished. Checkpoint: ${CHECKPOINT_PATH}
-
-MANDATORY post-arc steps — execute ALL before stopping:
-1. Read and execute [arc-phase-completion-stamp.md](references/arc-phase-completion-stamp.md) — writes Arc Completion Record to plan file
-2. Read and execute [post-arc.md](references/post-arc.md) — echo persist, state file update, ARC-9 sweep
-3. Release workflow locks
-
-After completing these steps, STOP responding immediately (outer loop will continue)."
-  else
-    _POST_ARC_PROMPT="Arc pipeline complete — all phases finished. Checkpoint: ${CHECKPOINT_PATH}
+  _POST_ARC_PROMPT="Arc pipeline complete — all phases finished. Checkpoint: ${CHECKPOINT_PATH}
 
 MANDATORY post-arc steps — execute ALL before presenting summary:
 1. Read and execute [arc-phase-completion-stamp.md](references/arc-phase-completion-stamp.md) — writes Arc Completion Record to plan file
@@ -1953,7 +1933,6 @@ MANDATORY post-arc steps — execute ALL before presenting summary:
 3. Release workflow locks
 
 After completing these steps, present a brief summary of the arc execution and STOP responding."
-  fi
   arc_stop_continue "$_POST_ARC_PROMPT"
 fi
 

@@ -6,7 +6,7 @@ Multi-agent engineering orchestration for [Claude Code](https://claude.ai/claude
 
 ## What Is This?
 
-This is the **Rune plugin** — the detailed component reference for the Rune multi-agent orchestration system. It documents all 116 agents (74 core + 42 extended), 45 skills, 11 commands, 3 MCP servers, and the hook infrastructure that powers Rune's workflows.
+This is the **Rune plugin** — the detailed component reference for the Rune multi-agent orchestration system. It documents all 116 agents (74 core + 42 extended), 45 skills, 11 commands, and the hook infrastructure that powers Rune's workflows.
 
 For the high-level overview, see the [root README](../../README.md).
 
@@ -38,7 +38,7 @@ New to Rune? Three commands to go from idea to reviewed code:
 
 These are beginner-friendly aliases for `/rune:devise`, `/rune:strive`, and `/rune:appraise`.
 
-**Want the full pipeline?** Run `/rune:arc plans/my-plan.md` for an automated 45-phase pipeline: plan enrichment → code review → auto-fix → testing → PR → merge.
+**Want the full pipeline?** Run `/rune:arc plans/my-plan.md` for an automated 26-phase pipeline (default; v3.0.0-alpha.2): plan enrichment → code review → auto-fix → testing → PR → merge.
 
 **Not sure which command?** Use `/rune:tarnished` — the intelligent entry point that routes natural language to the right workflow (English and Vietnamese supported).
 
@@ -126,7 +126,8 @@ For the full workflow state machines, see [docs/state-machine.md](../../docs/sta
 2. **Enable Agent Teams** — add `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: "1"` to settings
 3. **Include output directories** — add `includedGitignorePatterns` for `plans/`, `tmp/`, `.rune/`
 4. **(Optional) Initialize talisman** — run `/rune:talisman init` to generate `.rune/talisman.yml` tailored to your stack
-5. **(Optional) Enable MCP servers** — Rune's 5 MCP servers (echo-search, figma-to-react, agent-search, context7, figma-context) auto-install dependencies on first use
+
+> v3.0.0-alpha.1 removed all bundled MCP servers (echo-search, agent-search, context7, figma-to-react, figma-context). MCP integrations are now opt-in at the user level via `~/.claude/mcp.json`.
 
 ## Platform Requirements & Compatibility
 
@@ -135,8 +136,6 @@ For the full workflow state machines, see [docs/state-machine.md](../../docs/sta
 | OS | macOS 12+, Linux (Ubuntu 20.04+) | macOS 14+, Ubuntu 22.04+ |
 | Shell | bash 3.2+ or zsh 5.0+ | zsh (macOS default) |
 | Claude Code | **2.1.81+** | Latest |
-| Python | 3.11+ (for MCP servers) | 3.12+ |
-| Node.js | 18+ (for Context7 MCP) | 20+ |
 | jq | 1.6+ | Latest |
 | git | 2.25+ | Latest |
 | Claude Plan | Pro ($20/mo) for basic use | Max ($200/mo) for full Arc (end-to-end pipeline) |
@@ -226,7 +225,7 @@ See the [Glossary](../../docs/guides/rune-glossary.en.md) for the complete termi
 
 ### Arc (End-to-End Pipeline)
 
-Chains 45 phases: Forge (plan enrichment) → Plan Review → Work → Gap Analysis → Code Review → Verify (finding verification) → Mend (auto-fix findings) → Test → Ship → Merge. Checkpoint-based resume (`--resume`) available if interrupted.
+Chains 26 phases (default; v3.0.0-alpha.2): Forge (plan enrichment) → Plan Review → Work → Gap Analysis → Code Review → Verify (finding verification) → Mend (auto-fix findings) → Test → Ship → Merge. Checkpoint-based resume (`--resume`) available if interrupted.
 
 For detailed Arc (end-to-end pipeline) phase documentation, see the [Arc & Batch Guide](../../docs/guides/rune-arc-and-batch-guide.en.md).
 

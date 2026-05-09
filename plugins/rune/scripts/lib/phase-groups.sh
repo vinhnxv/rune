@@ -22,15 +22,13 @@ _lookup_phase_group() {
   case "$phase" in
     forge|forge_qa|plan_review|plan_refine|verification)
       echo "planning" ;;
-    design_extraction|design_prototype)
-      echo "design" ;;
     work|work_qa|drift_review|storybook_verification)
       echo "work" ;;
-    design_verification|design_verification_qa|ux_verification|gap_analysis|gap_analysis_qa|gap_remediation)
+    ux_verification|gap_analysis|gap_analysis_qa|gap_remediation)
       echo "verification" ;;
     inspect|inspect_fix|verify_inspect)
       echo "inspect" ;;
-    code_review|code_review_qa|verify|mend|mend_qa|verify_mend|design_iteration)
+    code_review|code_review_qa|verify|mend|mend_qa|verify_mend)
       echo "review" ;;
     test|test_qa|browser_test|browser_test_fix|verify_browser_test)
       echo "testing" ;;
@@ -38,6 +36,9 @@ _lookup_phase_group() {
     # v3.0.0-alpha.2 (codex-strip sync, self-audit 1778278942): semantic_verification,
     # task_decomposition, test_coverage_critique, release_quality_check removed —
     # they are no longer in PHASE_ORDER, so they cannot reach this lookup.
+    # v3.0.0-alpha.2 (audit 1778280306): design_extraction, design_prototype,
+    # design_verification, design_verification_qa, design_iteration removed —
+    # the design family was cut in v3.0.0-alpha.1; bash side now matches.
     deploy_verify|pre_ship_validation|ship|merge)
       echo "ship" ;;
     *)

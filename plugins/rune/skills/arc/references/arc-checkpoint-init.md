@@ -154,10 +154,8 @@ function resolveArcConfig(arc, work, inlineFlags) {
   if (inlineFlags.no_pr !== undefined) config.ship.auto_pr = !inlineFlags.no_pr
   if (inlineFlags.no_merge !== undefined) config.ship.auto_merge = !inlineFlags.no_merge
   if (inlineFlags.draft !== undefined) config.ship.draft = inlineFlags.draft
-  // Bot review flags: --no-bot-review (force off) > --bot-review (force on) > talisman
-  // Phase 9.1/9.2 read these from arcConfig via flags.bot_review / flags.no_bot_review
-  if (inlineFlags.bot_review !== undefined) config.bot_review = inlineFlags.bot_review
-  if (inlineFlags.no_bot_review !== undefined) config.no_bot_review = inlineFlags.no_bot_review
+  // v3.0.0-alpha.2: --bot-review / --no-bot-review removed; bot review handling
+  // moved to external pr-guardian harness. Inline-flag entries dropped.
   // BACK-001 FIX: Wire --no-verify CLI flag to verify_enabled (was missing — skip map dead code)
   if (inlineFlags.no_verify !== undefined) config.verify_enabled = !inlineFlags.no_verify
   if (inlineFlags.step_groups !== undefined) config.step_groups = inlineFlags.step_groups
@@ -179,8 +177,6 @@ const inlineFlags = {
   no_pr: args.includes('--no-pr') ? true : undefined,
   no_merge: args.includes('--no-merge') ? true : undefined,
   draft: args.includes('--draft') ? true : undefined,
-  bot_review: args.includes('--bot-review') ? true : undefined,
-  no_bot_review: args.includes('--no-bot-review') ? true : undefined,
   // BACK-001 FIX: Wire --no-verify CLI flag into inlineFlags (was missing)
   no_verify: args.includes('--no-verify') ? true : undefined,
   step_groups: args.includes('--step-groups') ? true : undefined,

@@ -21,15 +21,9 @@ The arc orchestrator passes only phase-appropriate tools when creating each phas
 
 ## Extended Tool Restriction Details (Conditional Phases)
 
-Phases that require explicit allowed/denied tool contracts when their feature
-flag activates them:
-
-| Phase | Allowed Tools | Denied Tools | Timeout |
-|-------|--------------|-------------|---------|
-| design_extraction (3) | Read, Write, Bash, Glob, Grep + Figma MCP | TeamCreate, TeamDelete | 5 min |
-| design_prototype (3.2) | Read, Write, Bash, Glob, Grep, Agent, TeamCreate, TeamDelete, SendMessage, TaskCreate, TaskUpdate, TaskList + Figma MCP + UI Builder MCP | N/A | 10 min |
-| design_verification (5.2) | Read, Glob, Grep | Write, Edit, Bash | 5 min |
-| design_iteration (7.6) | Read, Write, Edit, Bash, Glob, Grep + agent-browser | TeamCreate, TeamDelete | 10 min |
+The conditional design family (`design_extraction`, `design_prototype`,
+`design_verification`, `design_iteration`) was removed from the plugin in
+v3.0.0-alpha.1. No conditional phase contracts ship in v3.0.0-alpha.2.
 
 > v3.0.0-alpha.2: `goldmask_verification`, `goldmask_correlation`, `bot_review_wait`,
 > `pr_comment_resolution` removed from the default arc PHASE_ORDER. Goldmask is now a
@@ -40,6 +34,9 @@ flag activates them:
 > `task_decomposition`, `test_coverage_critique`, `release_quality_check` also
 > removed — they were dropped from JS PHASE_ORDER earlier (commit ed157fa4) but
 > bash and these reference tables had not been updated.
+>
+> v3.0.0-alpha.1: The design family of phases (design_extraction, design_prototype,
+> design_verification, design_iteration) was removed.
 
 Worker and fixer agent prompts include: "Do not modify files in `.rune/arc/`". Only the arc orchestrator writes to checkpoint.json.
 

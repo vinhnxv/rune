@@ -565,28 +565,12 @@ arc:
     rebase_before_merge: true    # Rebase onto target branch before merge (default: true)
     # co_authors: []                   # Co-Authored-By for arc PRs (falls back to work.co_authors)
 
-    # ── Bot Review (Phase 9.1 + 9.2, v1.88.0+) ──────
-    # Controls bot review wait and PR comment resolution after PR creation.
-    # Disabled by default — opt-in via enabled: true or --bot-review CLI flag.
-    # bot_review:
-    #   enabled: false                   # Master toggle for Phase 9.1 + 9.2 (default: false — opt-in)
-    #   timeout_ms: 900000              # 15 min hard timeout for bot review wait (default: 900000)
-    #   initial_wait_ms: 120000         # 2 min initial wait for bots to start (default: 120000)
-    #   poll_interval_ms: 30000         # 30s between polls (default: 30000)
-    #   stability_window_ms: 120000     # 2 min of no new bot activity = done (default: 120000)
-    #   max_comment_batch_size: 10      # Process comments in batches of N (default: 10)
-    #   auto_resolve_outdated: true     # Auto-resolve outdated review threads (default: true)
-    #   hallucination_check: true       # Verify bot findings against actual code (default: true)
-    #   known_bots:                     # List of known review bot usernames
-    #     - "gemini-code-assist[bot]"
-    #     - "coderabbitai[bot]"
-    #     - "copilot[bot]"
-    #     - "cubic-dev-ai[bot]"
-    #   quality_commands: []            # Project-specific quality check commands
-    #   # Example: ["npm run lint", "npm run typecheck"]
-    #   max_review_rounds: 3           # Max bot review→fix→push cycles (default: 3)
+    # ── Bot Review removed in v3.0.0-alpha.2 ──────
+    # The bot_review_wait + pr_comment_resolution phases and the --bot-review /
+    # --no-bot-review CLI flags were removed from the default arc pipeline.
+    # External pr-guardian harness now owns this surface area.
 
-    # ── CI Check (Phase 9.1 CI conclusion validation, v2.5.0+) ──────
+    # ── CI Check (CI conclusion validation, v2.5.0+) ──────
     # Validates CI check run conclusions after PR creation.
     # Implement arc.ship.ci_check only. reactions.ci_failed is for future Reaction Engine.
     # ci_check:
@@ -753,7 +737,7 @@ reactions:
 
   review_changes_requested:
     action: retry
-    retries: 3                # Aligns with bot_review.max_review_rounds
+    retries: 3                # Max review→fix→push cycles
     escalate_after_ms: 2400000  # 40 min escalation timeout
 
   # QA gate reactions

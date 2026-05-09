@@ -27,7 +27,6 @@ mcpServers:
   - echo-search
 skills:
   - testing
-  - agent-browser
 source: builtin
 priority: 100
 primary_phase: test

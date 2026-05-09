@@ -10,7 +10,7 @@ The four-pillar essence (v3.0.0-alpha.2): `/rune:arc` + checkpoint framework, QA
 
 | Skill | Purpose |
 |-------|---------|
-| **arc** | End-to-end pipeline (forge → forge_qa → plan review → work → work_qa → gap analysis → inspect → goldmask verification → code review → mend → test → ship → merge) with checkpoint framework |
+| **arc** | End-to-end pipeline (forge → forge_qa → plan review → work → work_qa → gap analysis → gap remediation → inspect → code review → mend → verify_mend → test → ship → merge) with checkpoint framework |
 | **arc-quick** | Lightweight 4-phase: plan -> work+evaluate -> review -> mend |
 | **devise** | Multi-agent planning (research, synthesize, shatter, forge, review, grounding gate). `--quick` skips brainstorm/forge |
 | **strive** | Swarm work execution with self-organizing task pool. Discipline Work Loop activates on plans with YAML criteria |

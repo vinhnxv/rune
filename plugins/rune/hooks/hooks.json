@@ -622,7 +622,7 @@
         ]
       },
       {
-        "_rationale": "CTX-STOP-001: Context usage warning on conversation stop. Advisory — warns at 70% and 85% used thresholds via existing statusline bridge file. LAST in Stop array (per F1: must not block arc-phase-stop-hook.sh from running first). Never blocks context_limit stops or user aborts. Talisman-gated via context_stop_guard.enabled.",
+        "_rationale": "CTX-STOP-001: Context usage warning on conversation stop. Advisory — warns at 70% and 85% used thresholds via existing statusline bridge file. Placed late in Stop array (per F1: must not block arc-phase-stop-hook.sh from running first); on-session-stop.sh is the final entry. Never blocks context_limit stops or user aborts. Talisman-gated via context_stop_guard.enabled.",
         "hooks": [
           {
             "type": "command",

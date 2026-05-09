@@ -340,98 +340,23 @@ if [[ -f "${CWD}/${RUNE_STATE}/arc-phase-loop.local.md" && ! -L "${CWD}/${RUNE_S
   fi
 fi
 
-# ── GUARD 5: Defer to arc-batch stop hook (with ownership check) ──
-# v1.101.1 FIX (Finding #5): Add staleness check. If loop file is active but older
-# than the threshold, the loop hook likely crashed. Force cleanup instead of deferring
-# indefinitely, which would leave the session unable to stop.
-# v1.125.1 FIX: Increased threshold from 10 min to 150 min. A single arc run can
-# take 30-95 minutes (all 27 phases), and the batch loop file mtime is only updated
-# between arc runs (not between phases). The 10-min threshold caused premature deletion
-# of active state files during the first arc's execution.
-# GUARD 5: 150 min = arc runtime (30-90 min) × up to 2 arcs in flight
-_BATCH_STALE_MIN=150
+# ── GUARD 5/5b/5c: Removed in v3.0.0-alpha.2 (audit 1778280306) ──
+# Previously deferred to arc-batch / arc-hierarchy / arc-issues stop hooks. Those
+# parent stop hooks were deleted in v3.0.0-alpha.1 along with the parent skills.
+# Any remaining loop files (arc-batch-loop.local.md, arc-hierarchy-loop.local.md,
+# arc-issues-loop.local.md) can only be orphans — clean them up unconditionally.
 [[ -z "${NOW:-}" ]] && NOW=$(date +%s)
-if _check_loop_ownership "${CWD}/${RUNE_STATE}/arc-batch-loop.local.md"; then
-  _batch_active=$(_get_fm_field "$_LOOP_FM" "active")
-  if [[ "$_batch_active" == "true" ]]; then
-    # Check staleness — if file is older than threshold, loop hook likely crashed
-    _batch_mtime=$(_stat_mtime "${CWD}/${RUNE_STATE}/arc-batch-loop.local.md"); _batch_mtime="${_batch_mtime:-0}"
-    if [[ "$_batch_mtime" -le 0 ]]; then exit 0; fi
-    _batch_age_min=$(( (NOW - _batch_mtime) / 60 ))
-    if [[ $_batch_age_min -gt $_BATCH_STALE_MIN ]]; then
-      # BACK-IDN-003 FIX (v2.53.2): Defer when live owner still holds the loop.
-      _batch_owner_pid=$(_get_fm_field "$_LOOP_FM" "owner_pid")
-      if [[ -n "$_batch_owner_pid" && "$_batch_owner_pid" =~ ^[0-9]+$ ]] && rune_pid_alive "$_batch_owner_pid"; then
-        _trace "GUARD 5: batch stale (${_batch_age_min}m) but live-owner pid=$_batch_owner_pid — DEFER"
-        exit 0
-      fi
-      # Stale loop file — force cleanup instead of deferring
-      arc_delete_state_file "${CWD}/${RUNE_STATE}/arc-batch-loop.local.md"
-    else
-      # Fresh active batch — defer to arc-batch-stop-hook.sh
-      exit 0
+for _orphan_loop in \
+  "${CWD}/${RUNE_STATE}/arc-batch-loop.local.md" \
+  "${CWD}/${RUNE_STATE}/arc-hierarchy-loop.local.md" \
+  "${CWD}/${RUNE_STATE}/arc-issues-loop.local.md"; do
+  if [[ -f "$_orphan_loop" && ! -L "$_orphan_loop" ]]; then
+    if _check_loop_ownership "$_orphan_loop"; then
+      _trace "orphan loop file from removed parent skill — cleaning $_orphan_loop"
+      arc_delete_state_file "$_orphan_loop"
     fi
-  else
-    # Not active (completed/cancelled) — clean up orphaned file
-    arc_delete_state_file "${CWD}/${RUNE_STATE}/arc-batch-loop.local.md"
   fi
-fi
-
-# ── GUARD 5b: Defer to arc-hierarchy stop hook (with ownership check) ──
-# v1.125.1 FIX: Increased threshold from 10 min to 150 min (same as batch — hierarchy
-# runs multiple child arcs sequentially, each taking 30-90 min).
-_HIERARCHY_STALE_MIN=150
-if _check_loop_ownership "${CWD}/${RUNE_STATE}/arc-hierarchy-loop.local.md"; then
-  # FLAW-004 FIX: Check both 'status' and 'active' fields (hierarchy uses either)
-  _hier_status=$(_get_fm_field "$_LOOP_FM" "status")
-  _hier_active=$(_get_fm_field "$_LOOP_FM" "active")
-  if [[ "$_hier_status" == "active" || "$_hier_active" == "true" ]]; then
-    _hier_mtime=$(_stat_mtime "${CWD}/${RUNE_STATE}/arc-hierarchy-loop.local.md"); _hier_mtime="${_hier_mtime:-0}"
-    if [[ "$_hier_mtime" -le 0 ]]; then exit 0; fi
-    _hier_age_min=$(( (NOW - _hier_mtime) / 60 ))
-    if [[ $_hier_age_min -gt $_HIERARCHY_STALE_MIN ]]; then
-      # BACK-IDN-003 FIX (v2.53.2): Defer when live owner still holds the loop.
-      _hier_owner_pid=$(_get_fm_field "$_LOOP_FM" "owner_pid")
-      if [[ -n "$_hier_owner_pid" && "$_hier_owner_pid" =~ ^[0-9]+$ ]] && rune_pid_alive "$_hier_owner_pid"; then
-        _trace "hierarchy stale (${_hier_age_min}m) but live-owner pid=$_hier_owner_pid — DEFER"
-        exit 0
-      fi
-      arc_delete_state_file "${CWD}/${RUNE_STATE}/arc-hierarchy-loop.local.md"
-    else
-      exit 0
-    fi
-  else
-    # Not active (completed/cancelled) — clean up orphaned file
-    arc_delete_state_file "${CWD}/${RUNE_STATE}/arc-hierarchy-loop.local.md"
-  fi
-fi
-
-# ── GUARD 5c: Defer to arc-issues stop hook (with ownership check) ──
-# v1.125.1 FIX: Increased threshold from 10 min to 150 min (same as batch — issues
-# runs multiple arcs sequentially, each taking 30-90 min).
-_ISSUES_STALE_MIN=150
-if _check_loop_ownership "${CWD}/${RUNE_STATE}/arc-issues-loop.local.md"; then
-  _issues_active=$(_get_fm_field "$_LOOP_FM" "active")
-  if [[ "$_issues_active" == "true" ]]; then
-    _issues_mtime=$(_stat_mtime "${CWD}/${RUNE_STATE}/arc-issues-loop.local.md"); _issues_mtime="${_issues_mtime:-0}"
-    if [[ "$_issues_mtime" -le 0 ]]; then exit 0; fi
-    _issues_age_min=$(( (NOW - _issues_mtime) / 60 ))
-    if [[ $_issues_age_min -gt $_ISSUES_STALE_MIN ]]; then
-      # BACK-IDN-003 FIX (v2.53.2): Defer when live owner still holds the loop.
-      _issues_owner_pid=$(_get_fm_field "$_LOOP_FM" "owner_pid")
-      if [[ -n "$_issues_owner_pid" && "$_issues_owner_pid" =~ ^[0-9]+$ ]] && rune_pid_alive "$_issues_owner_pid"; then
-        _trace "issues stale (${_issues_age_min}m) but live-owner pid=$_issues_owner_pid — DEFER"
-        exit 0
-      fi
-      arc_delete_state_file "${CWD}/${RUNE_STATE}/arc-issues-loop.local.md"
-    else
-      exit 0
-    fi
-  else
-    # Not active (completed/cancelled) — clean up orphaned file
-    arc_delete_state_file "${CWD}/${RUNE_STATE}/arc-issues-loop.local.md"
-  fi
-fi
+done
 
 # ── Helper: Kill stale teammate processes ──
 # MCP-PROTECT-003: Uses positive teammate PID whitelist when available.

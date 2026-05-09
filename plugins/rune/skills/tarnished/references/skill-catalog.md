@@ -15,38 +15,33 @@ Complete reference for `/rune:tarnished` routing decisions.
 | `appraise` | `/rune:appraise` | — | Git diff (auto) | `tmp/reviews/*/TOME.md` |
 | `audit` | `/rune:audit` | — | None (full scan) | `tmp/audit/*/TOME.md` |
 | `arc` | `/rune:arc` | — | Plan file path | Full pipeline → merged PR |
-| `arc-batch` | `/rune:arc-batch` | — | Plan glob / queue file | Sequential batch execution |
-| `arc-issues` | `/rune:arc-issues` | — | `--label` or `--issue` | GitHub Issues → plans → arc |
-| `arc-hierarchy` | `/rune:arc-hierarchy` | — | Parent plan path | Hierarchical plan execution |
+| `arc-quick` | `/rune:arc-quick` | — | Plan file path | Lightweight 4-phase pipeline |
 | `forge` | `/rune:forge` | — | Plan file path | Enriched plan |
 | `mend` | `/rune:mend` | — | TOME file path | Fixed code |
+| `verify` | `/rune:verify` | — | TOME file path | Verified findings |
 | `inspect` | `/rune:inspect` | — | Plan file path | `tmp/inspect/*/VERDICT.md` |
 | `goldmask` | `/rune:goldmask` | — | Diff spec / file list | Impact report |
+| `debug` | `/rune:debug` | — | Failure description | ACH parallel investigation |
 | `elicit` | `/rune:elicit` | — | Topic (optional) | Structured reasoning output |
 | `rest` | `/rune:rest` | — | None | Cleans tmp/ |
-| `echoes` | `/rune:echoes` | — | Subcommand | Echo management |
 | `talisman` | `/rune:talisman` | — | Subcommand (init/audit/update/guide/status) | Talisman config |
-| `design-sync` | `/rune:design-sync` | — | Figma URL | Design specs + implementation |
-| `elevate` | `/rune:elevate` | — | None (scans echoes) | Promoted global echoes |
 | `file-todos` | `/rune:file-todos` | — | Subcommand | TODO files in `tmp/` |
-| `learn` | `/rune:learn` | — | None (scans session) | Correction patterns → echoes |
 | `resolve-all-gh-pr-comments` | `/rune:resolve-all-gh-pr-comments` | — | PR number (auto) | Resolved PR threads |
 | `resolve-gh-pr-comment` | `/rune:resolve-gh-pr-comment` | — | PR comment URL/ID | Resolved thread |
 | `resolve-todos` | `/rune:resolve-todos` | — | TODO file path | Fixed code |
 | `skill-testing` | `/rune:skill-testing` | — | Skill name | Test results |
 | `team-status` | `/rune:team-status` | — | None | Team health report |
-| `test-browser` | `/rune:test-browser` | — | PR# or branch | E2E test results |
-| `ux-design-process` | `/rune:ux-design-process` | — | None (auto-loaded) | UX evaluation |
+| `runs` | `/rune:runs` | — | Subcommand (list/show/stats/failures) | Workflow run history |
+| `supply-chain-audit` | `/rune:supply-chain-audit` | — | None | Dependency risk report |
+| `variant-hunt` | `/rune:variant-hunt` | — | Finding ID / pattern | Variant findings |
+| `pr-guardian` | `/rune:pr-guardian` | — | None (cron) | Auto-merge loop |
+| `post-findings` | `/rune:post-findings` | — | TOME file | PR comment |
+| `cc-inspect` | `/rune:cc-inspect` | — | None | Claude Code inspection |
 | `self-audit` | `/rune:self-audit` | — | `--dimension`, `--verbose` | `tmp/self-audit/*/SELF-AUDIT-REPORT.md` |
 
-## MCP Integration Skills (Non-Invocable)
-
-| Skill | Triggers | Purpose |
-|-------|----------|---------|
-| `untitledui-mcp` | Auto-loaded by design-system-discovery | UntitledUI 6-tool MCP integration, code conventions, builder protocol |
-| `figma-to-react` | Auto-loaded during design-sync workflows | Figma MCP 4-tool integration for design extraction |
-
-MCP integration is configured via `talisman.yml` → `integrations.mcp_tools`. Use `/rune:talisman guide integrations` for setup help.
+> v3.0.0-alpha.2: removed routing rows for `arc-batch`, `arc-issues`, `arc-hierarchy`,
+> `echoes`, `design-sync`, `elevate`, `learn`, `test-browser`, `ux-design-process`,
+> `untitledui-mcp`, `figma-to-react` — those skills no longer ship with the plugin.
 
 ## Skill Flags Quick Reference
 
@@ -57,8 +52,6 @@ MCP integration is configured via `talisman.yml` → `integrations.mcp_tools`. U
 | `appraise` | `--deep` |
 | `audit` | `--deep`, `--standard`, `--incremental`, `--dirs`, `--focus` |
 | `arc` | `--resume`, `--no-forge`, `--skip-freshness` |
-| `arc-batch` | `--auto-merge`, `--no-merge` |
-| `arc-issues` | `--label`, `--issue`, `--max-issues` |
 | `strive` | `--approve`, `--worktree` |
 | `self-audit` | `--dimension <D>`, `--verbose` |
 
@@ -71,9 +64,6 @@ MCP integration is configured via `talisman.yml` → `integrations.mcp_tools`. U
 | `mend` | TOME file | `Glob("tmp/reviews/*/TOME.md")` or `Glob("tmp/audit/*/TOME.md")` |
 | `appraise` | Git changes | `git diff --stat` |
 | `arc` | Plan file | `Glob("plans/*.md")` |
-| `arc-batch` | Plan glob / queue | `Glob("plans/*.md")` |
-| `arc-issues` | GitHub issues | GitHub labels or issue numbers |
-| `arc-hierarchy` | Parent plan | `Glob("plans/*.md")` with child plans |
 | `forge` | Plan file | `Glob("plans/*.md")` |
 | `inspect` | Plan file | `Glob("plans/*.md")` |
 
@@ -90,24 +80,17 @@ MCP integration is configured via `talisman.yml` → `integrations.mcp_tools`. U
 | `appraise` | Up to 8 | 3-10 min |
 | `audit` | Up to 8 | 5-15 min |
 | `arc` | Per phase | 30-90 min |
-| `arc-batch` | Per plan | 45-240 min/plan |
-| `arc-issues` | Per issue | 45-240 min/issue |
-| `arc-hierarchy` | Per child | 45-240 min/child |
+| `arc-quick` | Per phase | 10-30 min |
 | `forge` | Per section | 5-15 min |
 | `mend` | Per file | 3-10 min |
 | `goldmask` | 8 tracers | 5-10 min |
 | `elicit` | None | 2-5 min |
 | `talisman` | None | 1-3 min |
-| `design-sync` | Per phase | 10-30 min |
-| `elevate` | None | 1-2 min |
 | `file-todos` | None | < 1 min |
-| `learn` | None | 2-5 min |
 | `resolve-all-gh-pr-comments` | Per comment | 5-20 min |
 | `resolve-gh-pr-comment` | None | 1-3 min |
 | `resolve-todos` | Per batch | 5-15 min |
 | `skill-testing` | None | 2-10 min |
 | `team-status` | None | < 1 min |
-| `test-browser` | None | 3-10 min |
-| `ux-design-process` | None | 2-5 min |
 | `pr-guardian` | None (cron) | 5 min/tick |
 | `rest` | None | < 1 min |

@@ -698,7 +698,6 @@ Continue from: ${contextMeta.last_action ?? 'last known state'}.
      checkpoint.flags?.approve ? '--approve' : '',
      checkpoint.flags?.no_test ? '--no-test' : '',
      checkpoint.flags?.no_browser_test ? '--no-browser-test' : '',
-     checkpoint.flags?.bot_review ? '--bot-review' : '',
      checkpoint.flags?.step_groups ? '--step-groups' : '',
    ].filter(Boolean).join(' ')
    const stateContent = `---
