@@ -71,10 +71,9 @@ const p1Markers = Number.isFinite(rawP1) ? rawP1 : 0
 const fixedCount = checkpoint.phases.inspect_fix?.fixed_count ?? 0
 const deferredCount = checkpoint.phases.inspect_fix?.deferred_count ?? 0
 
-// readTalismanSection: "inspect"
-const inspectConfig = readTalismanSection("inspect") ?? {}
-const maxRounds = inspectConfig.max_rounds ?? checkpoint.inspect_convergence?.max_rounds ?? 2
-const threshold = inspectConfig.threshold ?? checkpoint.inspect_convergence?.threshold ?? 95
+// v3.x: inspect convergence config baked from former talisman.inspect; checkpoint may still override.
+const maxRounds = checkpoint.inspect_convergence?.max_rounds ?? 2
+const threshold = checkpoint.inspect_convergence?.threshold ?? 95
 ```
 
 ## STEP 2: Evaluate Convergence

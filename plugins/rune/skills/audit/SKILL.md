@@ -35,6 +35,8 @@ allowed-tools:
 
 # /rune:audit — Full Codebase Audit
 
+<!-- v3.x: defaults baked from former talisman.audit; see references/v3-defaults.md -->
+
 Thin wrapper that sets audit-specific parameters, then delegates to the shared Roundtable Circle orchestration. Unlike `/rune:appraise` (which reviews changed files via git diff), `/rune:audit` scans the entire project.
 
 **Load skills**: `roundtable-circle`, `context-weaving`, `rune-orchestration`, `team-sdk`, `polling-guard`, `zsh-compat`
@@ -147,10 +149,9 @@ Spawn `context-builder` research agent to build architectural understanding befo
 - `"never"`: disabled entirely
 
 ```javascript
-// readTalismanSection: "audit"
-const auditConfig = readTalismanSection("audit") ?? {}
-const contextBuilding = auditConfig.context_building ?? "auto"
-const contextTimeout = (auditConfig.context_timeout ?? 300) * 1000  // seconds → ms
+// v3.x: audit context-building defaults baked from former talisman.audit.
+const contextBuilding = "auto"
+const contextTimeout = 300 * 1000  // seconds → ms
 
 const shouldBuildContext =
   contextBuilding === "always" ||

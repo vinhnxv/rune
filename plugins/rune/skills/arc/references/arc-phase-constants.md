@@ -1,5 +1,7 @@
 # Arc Phase Constants
 
+<!-- v3.x: defaults baked from former talisman.arc / talisman.testing; see references/v3-defaults.md -->
+
 Canonical phase order, timeouts, convergence budgets, and shared utilities.
 Extracted from SKILL.md in v1.110.0 for phase-isolated context architecture.
 
@@ -86,46 +88,36 @@ function assertPhaseOrderCorrect(nextPhase, currentPhase) {
 ## Phase Timeouts
 
 ```javascript
-// readTalismanSection: "arc"
-const arc = readTalismanSection("arc")
-// Talisman-aware phase timeouts (v1.40.0+): talisman overrides → hardcoded defaults
-// CFG-DECREE-002: Clamp each talisman timeout to sane range (10s - 1hr)
-const talismanTimeouts = arc?.timeouts ?? {}
-for (const [key, val] of Object.entries(talismanTimeouts)) {
-  if (typeof val === 'number') {
-    talismanTimeouts[key] = Math.max(10_000, Math.min(val, 3_600_000))
-  }
-}
-
+// v3.x: phase timeouts are hardcoded — no talisman overrides.
 const PHASE_TIMEOUTS = {
-  forge:         talismanTimeouts.forge ?? 900_000,    // 15 min (inner 10m + 5m setup)
-  plan_review:   talismanTimeouts.plan_review ?? 900_000,    // 15 min (inner 10m + 5m setup)
-  plan_refine:   talismanTimeouts.plan_refine ?? 180_000,    //  3 min (orchestrator-only, no team)
-  verification:  talismanTimeouts.verification ?? 30_000,    // 30 sec (orchestrator-only, no team)
-  work:          talismanTimeouts.work ?? 2_100_000,    // 35 min (inner 30m + 5m setup)
-  drift_review:  talismanTimeouts.drift_review ?? 120_000,  // 2 min (inline, no team)
-  gap_analysis:  talismanTimeouts.gap_analysis ?? 720_000,   // 12 min (inner 8m + 2m setup + 2m aggregate)
-  gap_remediation: talismanTimeouts.gap_remediation ?? 900_000,  // 15 min (inner 10m + 5m setup)
-  inspect:       talismanTimeouts.inspect ?? 900_000,       // 15 min (4 Inspector Ashes + verdict-binder)
-  inspect_fix:   talismanTimeouts.inspect_fix ?? 900_000,   // 15 min (gap-fixer agents for FIXABLE findings)
-  verify_inspect: talismanTimeouts.verify_inspect ?? 240_000, // 4 min (convergence evaluation, no team)
-  code_review:   talismanTimeouts.code_review ?? 900_000,    // 15 min (inner 10m + 5m setup)
-  mend:          talismanTimeouts.mend ?? 1_380_000,    // 23 min (inner 15m + 5m setup + 3m ward/cross-file)
-  verify_mend:   talismanTimeouts.verify_mend ?? 240_000,    //  4 min (orchestrator-only, no team)
-  test:          talismanTimeouts.test ?? 1_500_000,      // 25 min without E2E. Dynamic: 50 min with E2E (3_000_000)
-  deploy_verify: talismanTimeouts.deploy_verify ?? 300_000,  //  5 min (conditional — gated by migration/API/config file changes)
-  pre_ship_validation: talismanTimeouts.pre_ship_validation ?? 360_000,  //  6 min (orchestrator-only)
+  forge:         900_000,    // 15 min (inner 10m + 5m setup)
+  plan_review:   900_000,    // 15 min (inner 10m + 5m setup)
+  plan_refine:   180_000,    //  3 min (orchestrator-only, no team)
+  verification:  30_000,     // 30 sec (orchestrator-only, no team)
+  work:          2_100_000,  // 35 min (inner 30m + 5m setup)
+  drift_review:  120_000,    //  2 min (inline, no team)
+  gap_analysis:  720_000,    // 12 min (inner 8m + 2m setup + 2m aggregate)
+  gap_remediation: 900_000,  // 15 min (inner 10m + 5m setup)
+  inspect:       900_000,    // 15 min (4 Inspector Ashes + verdict-binder)
+  inspect_fix:   900_000,    // 15 min (gap-fixer agents for FIXABLE findings)
+  verify_inspect: 240_000,   //  4 min (convergence evaluation, no team)
+  code_review:   900_000,    // 15 min (inner 10m + 5m setup)
+  mend:          1_380_000,  // 23 min (inner 15m + 5m setup + 3m ward/cross-file)
+  verify_mend:   240_000,    //  4 min (orchestrator-only, no team)
+  test:          1_500_000,  // 25 min without E2E. Dynamic: 50 min with E2E (3_000_000)
+  deploy_verify: 300_000,    //  5 min (conditional — gated by migration/API/config file changes)
+  pre_ship_validation: 360_000,  //  6 min (orchestrator-only)
   // v3.0.0-alpha.2: bot_review_wait, pr_comment_resolution, goldmask_verification,
   // goldmask_correlation removed — see PHASE_ORDER comment.
-  verify:        talismanTimeouts.verify ?? 600_000,        // 10 min (finding verification — spawns verifier agents)
-  ship:          talismanTimeouts.ship ?? 300_000,      //  5 min (orchestrator-only)
-  merge:         talismanTimeouts.merge ?? 600_000,     // 10 min (orchestrator-only)
-  forge_qa:        talismanTimeouts.forge_qa ?? 300_000,        //  5 min (QA gate — 1 agent)
-  work_qa:         talismanTimeouts.work_qa ?? 300_000,         //  5 min (QA gate — 1 agent)
-  gap_analysis_qa: talismanTimeouts.gap_analysis_qa ?? 300_000, //  5 min (QA gate — 1 agent)
-  code_review_qa:  talismanTimeouts.code_review_qa ?? 300_000,  //  5 min (QA gate — 1 agent)
-  mend_qa:         talismanTimeouts.mend_qa ?? 300_000,         //  5 min (QA gate — 1 agent)
-  test_qa:         talismanTimeouts.test_qa ?? 300_000,         //  5 min (QA gate — 1 agent)
+  verify:        600_000,    // 10 min (finding verification — spawns verifier agents)
+  ship:          300_000,    //  5 min (orchestrator-only)
+  merge:         600_000,    // 10 min (orchestrator-only)
+  forge_qa:        300_000,  //  5 min (QA gate — 1 agent)
+  work_qa:         300_000,  //  5 min (QA gate — 1 agent)
+  gap_analysis_qa: 300_000,  //  5 min (QA gate — 1 agent)
+  code_review_qa:  300_000,  //  5 min (QA gate — 1 agent)
+  mend_qa:         300_000,  //  5 min (QA gate — 1 agent)
+  test_qa:         300_000,  //  5 min (QA gate — 1 agent)
 }
 ```
 
@@ -156,23 +148,21 @@ const BROWSER_TEST_CYCLE_BUDGET = {
 }
 const MAX_BROWSER_TEST_CYCLES = 3  // Hard cap on test→fix→verify iterations
 
-// Batch testing configuration defaults (v1.165.0+)
-// readTalismanSection: "testing"
-const testing = readTalismanSection("testing")
+// Batch testing configuration (v1.165.0+; v3.x: hardcoded — testing.batch.* removed from talisman)
 const BATCH_CONFIG = {
-  target_batch_duration_ms: testing?.batch?.target_batch_duration_ms ?? 180_000,
-  min_batch_size: testing?.batch?.min_batch_size ?? 1,
-  max_batch_size: testing?.batch?.max_batch_size ?? 20,
-  hard_batch_timeout_ms: testing?.batch?.hard_batch_timeout_ms ?? 240_000,
-  max_fix_retries: testing?.batch?.max_fix_retries ?? 2,
-  inter_batch_delay_ms: testing?.batch?.inter_batch_delay_ms ?? 5_000,
-  max_batch_iterations: testing?.batch?.max_batch_iterations ?? 50,
+  target_batch_duration_ms: 180_000,
+  min_batch_size: 1,
+  max_batch_size: 20,
+  hard_batch_timeout_ms: 240_000,
+  max_fix_retries: 2,
+  inter_batch_delay_ms: 5_000,
+  max_batch_iterations: 50,
   avg_duration: {
-    unit: testing?.batch?.avg_duration?.unit ?? 10_000,
-    integration: testing?.batch?.avg_duration?.integration ?? 30_000,
-    e2e: testing?.batch?.avg_duration?.e2e ?? 60_000,
-    contract: testing?.batch?.avg_duration?.contract ?? 15_000,
-    extended: testing?.batch?.avg_duration?.extended ?? 120_000
+    unit: 10_000,
+    integration: 30_000,
+    e2e: 60_000,
+    contract: 15_000,
+    extended: 120_000
   }
 }
 

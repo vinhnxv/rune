@@ -325,11 +325,8 @@ On resume, validate checkpoint integrity before proceeding:
        }
      }
      if (!checkpoint.qa) {
-       // SEC-001 FIX: Respect talisman config instead of hardcoding enabled: true.
-       // Migrated checkpoints (pre-QA) should default to false (conservative) unless
-       // the project's talisman explicitly enables QA gates.
-       const qaEnabled = readTalismanSection("gates")?.qa_gates?.enabled ?? false
-       checkpoint.qa = { global_retry_count: 0, max_global_retries: 6, enabled: qaEnabled }
+       // v3.x: qa_gates enabled by default (see references/v3-defaults.md)
+       checkpoint.qa = { global_retry_count: 0, max_global_retries: 6, enabled: true }
      }
      checkpoint.schema_version = 25
    }

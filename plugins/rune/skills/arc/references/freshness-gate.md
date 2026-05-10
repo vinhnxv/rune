@@ -46,28 +46,16 @@ if (planSha && SAFE_SHA_PATTERN.test(planSha)) {
   // clamp: returns value bounded to [min, max]. If NaN, returns min.
   const clamp = (v, min, max) => !Number.isFinite(v) ? min : Math.min(Math.max(v, min), max)
 
-  // readTalismanSection: "plan"
-  const plan = readTalismanSection("plan")
+  // v3.x: plan.freshness.* baked from former talisman.plan; see references/v3-defaults.md.
   const config = {
-    // BACK-008: warn min=0.01 (can't be 0 — use enabled:false to disable warnings)
-    // block min=0.0 (set 0 to disable blocking while keeping warnings)
-    warn_threshold:       clamp(plan?.freshness?.warn_threshold ?? 0.7, 0.01, 1.0),
-    block_threshold:      clamp(plan?.freshness?.block_threshold ?? 0.4, 0.0, 0.99),
-    max_commit_distance:  Math.min(Math.max(plan?.freshness?.max_commit_distance ?? 100, 1), 10000),
-    enabled:              plan?.freshness?.enabled ?? true
-  }
-  // G8: Ensure block < warn (swap if inverted)
-  if (config.block_threshold >= config.warn_threshold) {
-    warn("Talisman: block_threshold >= warn_threshold — swapping")
-    ;[config.warn_threshold, config.block_threshold] = [config.block_threshold, config.warn_threshold]
-    // LOGIC-5 FIX: Ensure WARN band exists after swap
-    if (config.block_threshold === config.warn_threshold) {
-      config.warn_threshold = Math.min(config.block_threshold + 0.1, 1.0)
-    }
+    warn_threshold:       0.7,
+    block_threshold:      0.4,
+    max_commit_distance:  100
   }
 
-  // LOGIC-1: Early exit when freshness check disabled (--skip-freshness flag or talisman config)
-  if (!config.enabled || skipFreshnessFlag) {
+  // LOGIC-1: Early exit when freshness check disabled (--skip-freshness flag).
+  // v3.x: plan.freshness.enabled is hardcoded true — only the CLI flag can disable.
+  if (skipFreshnessFlag) {
     log("Freshness check disabled — skipping")
     freshnessResult = null
     // Skip all signal computation — proceed to Initialize Checkpoint

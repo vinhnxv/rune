@@ -1,5 +1,7 @@
 # Pre-flight — Full Algorithm
 
+<!-- v3.x: defaults baked from former talisman.arc.sharding; see references/v3-defaults.md -->
+
 Pre-flight sequence: branch strategy, concurrent arc prevention, plan path validation,
 inter-phase cleanup guard, and stale team scan.
 
@@ -333,7 +335,7 @@ of `.json` — see CHANGELOG v1.163.1).
 // ── TALISMAN SHARD VERIFICATION (pre-flight) ──
 // Ensures talisman context is available before checkpoint init.
 // Prevents silent fallback to hardcoded defaults when shards are missing.
-// Root cause fix: LLM bypassed readTalismanSection() and checked arc.yml (wrong extension)
+// Root cause fix: LLM bypassed the talisman shard reader and checked arc.yml (wrong extension)
 // instead of arc.json. This verification ensures shards exist and logs key values for
 // self-verification by the LLM executor.
 
@@ -445,12 +447,10 @@ Runs after plan path validation, before freshness gate. Non-shard plans bypass e
 ```javascript
 // ── SHARD DETECTION (after path validation, before freshness gate) ──
 
-// readTalismanSection: "arc"
-const arc = readTalismanSection("arc")
-const shardConfig = arc?.sharding ?? {}
-const shardEnabled = shardConfig.enabled !== false  // default: true
-const prereqCheck = shardConfig.prerequisite_check !== false  // default: true
-const sharedBranch = shardConfig.shared_branch !== false  // default: true
+// v3.x: sharding enabled by default (see references/v3-defaults.md)
+const shardEnabled = true
+const prereqCheck = true
+const sharedBranch = true
 
 const shardMatch = shardEnabled ? planFile.match(/-shard-(\d+)-/) : null
 let shardInfo = null

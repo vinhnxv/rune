@@ -84,9 +84,8 @@ const fixableGaps = allParsedGaps.filter(g =>
 // AC-6.1.2: Track reclassified count separately from fixed and deferred
 const reclassifiedCount = reclassifiedGaps.length
 
-// readTalismanSection: "inspect"
-const inspectConfig = readTalismanSection("inspect") ?? {}
-const maxFixes = inspectConfig.max_fixes ?? 20
+// v3.x: inspect.max_fixes baked from former talisman.inspect.max_fixes (default 20).
+const maxFixes = 20
 
 if (fixableGaps.length === 0) {
   // FLAW-005 FIX: Subtract reclassified from deferred (they're not deferred, they're resolved)

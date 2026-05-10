@@ -228,11 +228,9 @@ function preShipValidator(checkpoint, planPath) {
   //
   // Computes Spec Compliance Rate (SCR) and proof coverage from evidence
   // artifacts. Advisory for initial rollout — WARN only, never BLOCK.
-  // Gated by talisman discipline.enabled (default: true).
+  // v3.x: discipline always enabled (former talisman.discipline.enabled default: true).
 
-  // readTalismanSection: "discipline"
-  const disciplineConfig = readTalismanSection("discipline") ?? {}
-  if (disciplineConfig.enabled !== false) {
+  {
     try {
       // Look for metrics artifact from work phase convergence
       const metricsPath = Glob("tmp/work/*/convergence/metrics.json").sort().pop()
@@ -242,7 +240,7 @@ function preShipValidator(checkpoint, planPath) {
         const proofCov = metrics?.metrics?.proof_coverage?.value ?? metrics?.proof_coverage ?? null
 
         if (scr !== null) {
-          const scrThreshold = disciplineConfig.scr_threshold ?? 0.95
+          const scrThreshold = 0.95
           const scrStatus = scr >= scrThreshold ? "PASS" : "WARN"
           report.gates.push({
             gate: "discipline_scr",
