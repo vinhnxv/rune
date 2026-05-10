@@ -1,5 +1,54 @@
 # Changelog
 
+## [3.0.0-alpha.5] — 2026-05-10
+
+**Day 4 Talisman residue sweep — milestone complete.** Day 3 (alpha.4) deleted the talisman skill, scripts, hooks, deep-dive guides, and `/rune:talisman` command. Day 4 cleans the **prose/config-instruction residue** that taught an obsolete config-reading model — fragments that misled workers and polluted grep/agent-search results. Net delta: **−4 doc files (mcp-integration-spec EN+VI + ui-builder-protocol EN+VI, ~2,800 LoC), 28 reference files baked, `lib/talisman-shard-path.sh` + 7 callers + ~20 dead probes cleaned, README + tarnished orphans rewritten, RC-TALISMAN-01 repurposed as regression guard.**
+
+This **completes the v3 Talisman removal milestone.** Day 5+ begins beta-prep work.
+
+**Reference-layer pseudocode bake (Cluster 5 — 28 files, parallel):**
+
+Mechanical bake of `talisman?.X.Y ?? defaultValue` patterns in pseudocode/JS-style code blocks. Distribution across 4 worker groups: arc-heavy (8 files incl. `arc-checkpoint-init.md` 42 mentions), roundtable+strive (8 files incl. `orchestration-phases.md` 18), strive+audit+goldmask+mend (8 files incl. `audit/SKILL.md` 14, `worker-prompts.md` 11), devise+team-sdk+testing+registry (8 files incl. `batch-execution.md` 16). Pattern coverage: optional-chain access with nullish coalescing → literal default; `talismanX = arc?.X ?? {}` variable + `typeof / Array.isArray / includes` guards → literal default; function signatures with `talisman` arg → drop the arg; `talisman.yml → X` activation prose → `hardcoded X in v3.x (see [v3-defaults.md](...))`. Bake-comment headers preserved on every file as historical pointers. No behavior changes.
+
+**Strategic doc deletions (Clusters 3 & 4 per plan Q1=DELETE, Q2=DELETE):**
+
+- `docs/guides/mcp-integration-spec.{en,vi}.md` — described a 3-level MCP integration model where Level 2 was the deleted `talisman.yml integrations.mcp_tools` tier. v3.x has only Level 1 (`.mcp.json`) and Level 3 (companion skill); Level 2 was the deleted feature. Doc's structural backbone was gone. (~1,500 LoC deleted)
+- `docs/guides/ui-builder-protocol.{en,vi}.md` — described `discoverUIBuilder()` against `talisman.yml` config substrate. v3.x model is upstream `.mcp.json` + companion skill (already documented in Claude Code's own MCP docs, not Rune-specific). User chose DELETE over REWRITE per Q2. (~1,300 LoC deleted)
+
+**Dead infrastructure cleanup (Cluster 6):**
+
+- `plugins/rune/scripts/lib/talisman-shard-path.sh` deleted — the resolver lib for `tmp/.talisman-resolved/*.json` shards (no shards exist in v3.x).
+- 7 callers cleaned: `verify-agent-deliverables.sh`, `arc-phase-stop-hook.sh`, `keyword-detector.sh`, `doc-pack-staleness.sh`, `context-percent-stop-guard.sh`, `track-tool-failure.sh`, `lib/stop-failure-common.sh`. Each had a "Talisman gate" block (source + `if type _rune_resolve_talisman_shard ... else ...` + downstream `[[ -f $shard ]] && jq` reads) replaced with the hardcoded default path that already ran when the shard didn't exist.
+- ~20 standalone dead probes cleaned across `enforce-bash-timeout.sh`, `validate-context-isolation.sh`, `detect-stale-lead.sh`, `enforce-polling.sh`, `suggest-self-audit.sh`, `on-session-stop.sh`, `detect-workflow-complete.sh`, `session-team-hygiene.sh`, `lib/arc-loop-state.sh`, `lib/stop-hook-common.sh`.
+- `cc-inspect.sh` — `tmp/.talisman-resolved/` shard count + `_meta.json` resolver_status display blocks dropped.
+- `lib/rune-state.sh` — stale `talisman-resolve.sh` comments stripped.
+- `session-start.sh` — Worktree config gate + `.rune/talisman.yml` config check removed; the orphan-detection migration warning at `_rune_check_orphan_talisman_yml` PRESERVED (v3.x users with leftover `.rune/talisman.yml` see a one-time warning).
+- `commands/rest.md` — `tmp/.talisman-resolved/` cleanup blocks dropped; the system-level `${CHOME}/.rune/talisman-resolved` defensive cleanup retained for v2.x users with the system-level cache.
+
+**README.md + Tarnished orphan cleanup (Clusters 1 & 2 per plan Q4=DELETE):**
+
+- `README.md` — `talisman` row dropped from Skills table; "Rule Consistency Auditor" descriptor purged of "talisman"; **MCP Tool Integrations section** (UI Builder Protocol + MCP Integration Framework subsections) DELETED entirely (had no v3.x equivalent feature); Configuration section rewritten to v3.x model (hardcoded defaults + override paths via env vars or local agent forks); Glossary "Talisman" entry deleted.
+- `plugins/rune/skills/tarnished/SKILL.md` — second `ashes.custom[]` YAML block (force-agent guidance, lines 245-258) replaced with pointer to `roundtable-circle/references/custom-ashes.md`, mirroring the L237-251 fix from PR #526.
+- `plugins/rune/skills/tarnished/references/skill-catalog.md` — orphan `talisman` row deleted.
+- `plugins/rune/skills/tarnished/references/rune-knowledge.md` — Level 2 narrative (3-level integration model) rewritten to v3.x two-tier model: Tier 1 = `.mcp.json` only, Tier 2 = + companion skill. `talisman.yml` YAML config block dropped from "Setting Up an MCP Integration" Step 2.
+- `docs/README.md` — 2 inbound link rows to deleted MCP guides removed.
+
+**RC-TALISMAN-01 repurposed as regression guard (Cluster 8 per plan Q3=REPURPOSE):**
+
+- `plugins/rune/agents/meta-qa/rule-consistency-auditor.md` — rule changed from "find unresolved residue" (Warning) to "fail if any banned pattern is reintroduced" (Error). Banned patterns documented: `readTalisman` / `readTalismanSection` calls, `talisman?\.X\.Y` optional-chain access, `talismanConfig?\.X` variant, function signatures with `talisman` argument, `tmp/.talisman-resolved/` cache references, `lib/talisman-shard-path.sh` source statements. Allowed-mention surfaces explicitly listed: bake-comment headers, CHANGELOG history, the `_rune_check_orphan_talisman_yml` migration warning, prose mentioning the v3.x removal, and `v3-defaults.md` itself.
+
+**Acceptance criteria verification (per plan):**
+
+- AC-2: each of the 9 sub-clusters has a documented strategy executed in commits ✓
+- AC-3: RC-TALISMAN-01 repurposed (path b chosen via Q3) ✓
+- AC-4: version bumped to `3.0.0-alpha.5` in `plugin.json` + `marketplace.json` + this CHANGELOG ✓
+- AC-5: all modified `.sh` scripts pass `bash -n` syntax check ✓
+- AC-7: `lib/talisman-shard-path.sh` deleted; no `source.*talisman-shard-path` remaining ✓
+- AC-1 (partially met): plan goal of <50 total mentions across plugins/+docs/+README is unrealistic given that `CHANGELOG.md` alone retains ~312 mentions of historical talisman references that cannot be rewritten without falsifying release history. Net active-code residue cleaned to near-zero. Documented as known-divergence; AC-1 numeric goal needs reinterpretation in any successor plan.
+- AC-6: smoke tests deferred to PR review.
+
+**Commits / PR:** [PR TBD](https://github.com/vinhnxv/rune/pull/TBD) (squash). Branch: `chore/v3-day4-talisman-residue-sweep`.
+
 ## [3.0.0-alpha.4] — 2026-05-10
 
 **Day 3 Talisman complete removal (re-baselined).** Day 3 of the v3.x lean rebuild attacks the Talisman user-tweakable config layer — the second biggest architectural simplification of v3 (after Day 1's skill/agent cuts and Day 2's phase consolidation). Net delta: **−1 skill, −8 scripts/test files (incl. `talisman-defaults.json`), −2 hooks.json entries, −4 doc files (2 user-facing guides + 2 internal references), ~10,500 LoC removed across 5 commits.**
