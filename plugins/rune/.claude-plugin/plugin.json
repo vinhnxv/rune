@@ -1,7 +1,7 @@
 {
   "name": "rune",
   "version": "3.0.0-alpha.4",
-  "description": "Multi-agent engineering orchestration for Claude Code. Plan, work, review, mend, ship via /rune:arc with checkpoint framework, QA phases, Discipline Engineering, and Agent Teams. v3.0.0-alpha.4: Day 3 Talisman complete removal — 157 call sites baked, skill+scripts+docs deleted, ~9.5K LoC removed.",
+  "description": "Multi-agent engineering orchestration for Claude Code. Plan, work, review, mend, ship via /rune:arc with checkpoint framework, QA phases, Discipline Engineering, and Agent Teams. v3.0.0-alpha.4: Day 3 Talisman complete removal — 157 call sites baked, skill+scripts+docs deleted, ~10.5K LoC removed.",
   "author": {
     "name": "vinhnxv",
     "email": "vinh.ngxv@gmail.com",

@@ -2,7 +2,7 @@
 
 Multi-agent engineering orchestration for [Claude Code](https://claude.ai/claude-code). Plan features, implement with swarm workers, review code, and ship — all with parallel AI agents that each get their own dedicated context window.
 
-**Current version**: [3.0.0-alpha.3](CHANGELOG.md) — v3 lean rebuild. Day-2 consolidations land: 7 specialist QA verifiers → 1 `phase-qa-verifier`, 12 inspector mode-variants → 4 base inspectors, 4 arc phases trimmed (Goldmask correlation/verification, bot review wait, PR comment resolution). Self-audit run 1778278942 produced a 40-file drift fix bundle. PHASE_ORDER bash↔JS now both at 26 entries. See [CHANGELOG.md](CHANGELOG.md) for details.
+**Current version**: [3.0.0-alpha.4](CHANGELOG.md) — v3 lean rebuild. Day-3 talisman complete removal lands: 157 call sites baked, talisman skill+scripts+4 docs deleted, ~10.5K LoC removed.
 
 ## What Is This?
 
