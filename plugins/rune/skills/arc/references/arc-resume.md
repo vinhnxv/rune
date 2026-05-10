@@ -335,15 +335,10 @@ On resume, validate checkpoint integrity before proceeding:
    ```javascript
    // Step 3z: v25 → v26 (Declarative reaction engine config + reaction state + CI status)
    if (checkpoint.schema_version < 26) {
-     // Add reactions config (read from resolved shard or empty default)
+     // v3.x: reactions are baked-in defaults (see references/v3-defaults.md § reactions).
+     // Migration sets empty {}; runtime substitutes the v3.x reaction defaults.
      if (!checkpoint.reactions) {
-       let reactions = {}
-       try {
-         reactions = JSON.parse(Read("tmp/.talisman-resolved/reactions.json"))
-       } catch (e) {
-         // Fallback: empty reactions — defaults will be used at runtime
-       }
-       checkpoint.reactions = reactions
+       checkpoint.reactions = {}
      }
      // Add reaction state with per-event counters
      if (!checkpoint.reaction_state) {

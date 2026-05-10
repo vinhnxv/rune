@@ -206,7 +206,6 @@ macOS uses BSD `date` which only supports POSIX format specifiers. `%N` is a GNU
 
 ### Existing Codebase Patterns
 
-- `talisman-resolve.sh` uses `$SECONDS` for coarse-grained stall detection
 - `rune-status.sh` uses `gdate` with BSD `date` fallback for duration display
 
 ## Quick Reference — Safe Patterns

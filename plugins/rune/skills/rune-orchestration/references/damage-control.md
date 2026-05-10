@@ -138,7 +138,7 @@ When an agent hits context overflow, assess severity FIRST, then apply proportio
 
 **Escalation**: L0 monitor detects at 5 min → L1 auto-release → L2 shutdown agent, redistribute → L3 ask user
 **Decision**: Forward-fix (redistribute). Partial work remains in files.
-**Refs**: Monitor utility · Team lifecycle guard · configuration-guide.md § "Timeout Layer Model"
+**Refs**: Monitor utility · Team lifecycle guard · references/v3-defaults.md § `arc.timeouts`
 
 ### SDK Heartbeat Interaction
 
