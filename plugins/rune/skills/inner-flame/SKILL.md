@@ -49,8 +49,8 @@ granted that, if wrong, would cause the implementation to fail, diverge from spe
 significant rework. For each assumption:
 
 ```yaml
-- assumption: "The talisman.yml key inner_flame.assumption_gate.enabled exists and defaults to false"
-  basis: "Read talisman defaults at plugins/rune/skills/talisman/SKILL.md:42"
+- assumption: "The inner_flame assumption gate is enabled by default in v3.x (hardcoded, not configurable)"
+  basis: "Read plugins/rune/references/v3-defaults.md misc section — inner_flame.assumption_gate.enabled = true (baked literal)"
   risk_if_wrong: "Gate never fires; feature ships silently disabled with no config surface"
 
 - assumption: "validate-inner-flame.sh reads block_on_fail from the same yq loop as other flags"

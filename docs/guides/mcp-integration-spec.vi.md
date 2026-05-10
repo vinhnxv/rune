@@ -163,7 +163,7 @@ integrations:
         access_token_env: "UNTITLEDUI_ACCESS_TOKEN"
 ```
 
-**Bạn nhận được:** Tất cả từ Level 2, cộng thêm: skill đi kèm được tự động tải khi tích hợp kích hoạt (cung cấp kiến thức component liên tục), metadata cho phép phát hiện qua `/rune:talisman audit`, và quy tắc đảm bảo pattern coding nhất quán trên tất cả agent.
+**Bạn nhận được:** Tất cả từ Level 2, cộng thêm: skill đi kèm được tự động tải khi tích hợp kích hoạt (cung cấp kiến thức component liên tục), metadata được hiển thị khi bạn kiểm tra thủ công `talisman.yml` (ví dụ: `yq '.integrations.mcp_tools' .rune/talisman.yml`), và quy tắc đảm bảo pattern coding nhất quán trên tất cả agent.
 
 ## Hướng dẫn bắt đầu nhanh
 
@@ -215,20 +215,27 @@ integrations:
 
 ### Bước 3: Xác minh cấu hình
 
-Chạy talisman audit để xác thực:
+Xác thực thủ công `.mcp.json` và `.rune/talisman.yml` của bạn theo schema mong đợi:
 
-```
-/rune:talisman audit
+```bash
+# Kiểm tra cú pháp .mcp.json (và xem khoá server_name có tồn tại không)
+jq . .mcp.json
+jq '.mcpServers | keys' .mcp.json
+
+# Kiểm tra talisman.yml parse được và xem khối tích hợp
+yq '.integrations.mcp_tools' .rune/talisman.yml
 ```
 
-Audit kiểm tra:
+Tự kiểm tra rằng:
 - `server_name` khớp với một khoá trong `.mcp.json`
 - Tất cả tên tool là định danh hợp lệ
-- Danh mục thuộc tập được cho phép
+- Danh mục thuộc tập được cho phép (`search`, `details`, `compose`, `suggest`, `generate`, `validate`)
 - Ít nhất một phase được bật
 - Trigger có ít nhất một điều kiện (hoặc `always: true`)
-- File quy tắc tồn tại trên đĩa (nếu chỉ định)
-- Skill `skill_binding` tồn tại (nếu chỉ định)
+- File quy tắc tồn tại trên đĩa (nếu chỉ định) — `ls .claude/rules/`
+- Skill `skill_binding` tồn tại (nếu chỉ định) — `ls .claude/skills/` hoặc `ls plugins/rune/skills/`
+
+Sau đó chạy lại skill trên một tác vụ test nhỏ để xác nhận MCP server kết nối và tool kích hoạt.
 
 ### Bước 4: Sử dụng trong bất kỳ workflow nào
 
@@ -263,7 +270,7 @@ Các khoá metadata đã biết (tất cả tuỳ chọn):
 | Khoá | Kiểu | Mô tả |
 |------|------|-------|
 | `library_name` | string | Tên thư viện dễ đọc (ví dụ: "UntitledUI PRO"). Dùng làm tên hiển thị trong prompt agent. |
-| `component_count` | number | Tổng số component. Thông tin cho `/rune:talisman status`. |
+| `component_count` | number | Tổng số component. Thông tin --- hiển thị khi bạn kiểm tra thủ công `talisman.yml`. |
 | `version` | string | Phiên bản thư viện (ví dụ: "1.9.1"). Thông tin. |
 | `homepage` | string | URL trang chủ thư viện. Thông tin. |
 
@@ -409,7 +416,7 @@ Pipeline arc kế thừa cài đặt tích hợp qua tất cả sub-phase. Khi `
 
 - **Không dùng danh mục tool chồng chéo.** Nếu một tool vừa tìm kiếm vừa sinh, chọn mục đích chính. Tool được phân loại `search` nhận khung prompt hướng đọc; phân loại sai tool `generate` thành `search` làm agent nhầm lẫn về side effect.
 
-- **Không bỏ qua xác thực `server_name`.** Luôn chạy `/rune:talisman audit` sau khi thêm hoặc sửa tích hợp. Lỗi đánh máy trong `server_name` âm thầm vô hiệu tích hợp (không lỗi, tool không bao giờ kích hoạt).
+- **Không bỏ qua xác thực `server_name`.** Sau khi thêm hoặc sửa tích hợp, xác thực thủ công `.mcp.json` của bạn theo JSON schema (ví dụ: `jq . .mcp.json` để kiểm tra cú pháp + `jq '.mcpServers | keys' .mcp.json` để xác nhận khoá tồn tại). Lỗi đánh máy trong `server_name` âm thầm vô hiệu tích hợp (không lỗi, tool không bao giờ kích hoạt).
 
 - **Không thêm metadata mà không có server.** Trường `metadata` mang tính thông tin. Nó không thay thế cho MCP server hoạt động trong `.mcp.json`. Metadata không có `server_name` hợp lệ qua được audit nhưng không có giá trị runtime.
 
@@ -516,14 +523,24 @@ Cho quy tắc coding riêng dự án, tạo `.claude/rules/untitledui-convention
 - React Aria imports: always prefix with Aria* (import { Button as AriaButton })
 ```
 
-### 5. Xác minh bằng Audit
+### 5. Xác minh thủ công
 
-```
-/rune:talisman audit
+Xác minh tích hợp bằng cách kiểm tra cả hai file cấu hình:
+
+```bash
+# Xác nhận server untitledui đã được đăng ký
+jq '.mcpServers.untitledui' .mcp.json
+
+# Xác nhận khối tích hợp talisman parse được và đầy đủ
+yq '.integrations.mcp_tools.untitledui' .rune/talisman.yml
+
+# Xác nhận skill_binding trỏ đúng
+ls plugins/rune/skills/untitledui-mcp/SKILL.md 2>/dev/null \
+  || ls .claude/skills/untitledui-builder/SKILL.md
 ```
 
-Đầu ra mong đợi bao gồm xác thực:
-- Server `untitledui` tìm thấy trong `.mcp.json`
+Bạn nên thấy:
+- Server `untitledui` có trong `.mcp.json`
 - 6 tool được khai báo với danh mục hợp lệ
 - `skill_binding` trỏ tới skill tích hợp sẵn `untitledui-mcp` (hoặc ghi đè dự án)
 - Trigger có 4 điều kiện được cấu hình
@@ -542,7 +559,7 @@ Vì tác vụ đề cập "settings" và worker chạm vào file `.tsx`, tích h
 Đ: Không. Tích hợp hoàn toàn khai báo qua `talisman.yml` và `.mcp.json`. Không cần thay đổi skill, agent, hay hook plugin.
 
 **H: Nếu MCP server không có trong `.mcp.json` thì sao?**
-Đ: Tích hợp sẽ không kích hoạt. Trường `server_name` phải khớp với khoá trong `.mcp.json`. Đăng ký server trước, sau đó thêm cấu hình tích hợp. `/rune:talisman audit` sẽ đánh dấu server thiếu.
+Đ: Tích hợp sẽ không kích hoạt. Trường `server_name` phải khớp với khoá trong `.mcp.json`. Đăng ký server trước, sau đó thêm cấu hình tích hợp. Xác nhận khoá tồn tại bằng `jq '.mcpServers | keys' .mcp.json` trước khi dựa vào tích hợp.
 
 **H: Tôi có thể dùng nhiều tích hợp MCP đồng thời không?**
 Đ: Có. Mỗi namespace dưới `mcp_tools` là độc lập. Tất cả tích hợp có trigger khớp ngữ cảnh hiện tại sẽ kích hoạt. Các khối ngữ cảnh được nối tiếp trong prompt agent.
@@ -595,17 +612,17 @@ Vì tác vụ đề cập "settings" và worker chạm vào file `.tsx`, tích h
 
 ### Lỗi xác thực
 
-Chạy `/rune:talisman audit` để phát hiện lỗi cấu hình phổ biến:
+Kiểm tra thủ công `.rune/talisman.yml` và `.mcp.json` của bạn để phát hiện các lỗi cấu hình phổ biến sau:
 
-- **Thiếu `server_name`**: Mỗi namespace phải có `server_name` khớp với khoá trong `.mcp.json`
+- **Thiếu `server_name`**: Mỗi namespace phải có `server_name` khớp với khoá trong `.mcp.json` --- xác nhận bằng `jq '.mcpServers | keys' .mcp.json`
 - **Danh mục tool không hợp lệ**: Chỉ chấp nhận `search`, `details`, `compose`, `suggest`, `generate`, `validate`
 - **Đường dẫn file quy tắc**: Phải là đường dẫn tương đối không có `..` traversal --- đường dẫn tuyệt đối và tham chiếu thư mục cha bị từ chối
 - **Định dạng skill binding**: Phải khớp `[a-z0-9-]+` (kebab-case chữ thường)
 
 ### Danh sách kiểm tra Debug
 
-1. Xác minh MCP server đã đăng ký: kiểm tra `.mcp.json` với khoá `server_name`
-2. Xác minh cấu hình talisman: chạy `/rune:talisman audit` để xác thực schema
+1. Xác minh MCP server đã đăng ký: kiểm tra `.mcp.json` với khoá `server_name` (`jq '.mcpServers | keys' .mcp.json`)
+2. Xác minh cấu hình talisman: kiểm tra thủ công cú pháp `.rune/talisman.yml` bằng `yq '.integrations.mcp_tools' .rune/talisman.yml` và đối chiếu các mục schema ở trên
 3. Kiểm tra định tuyến phase: đảm bảo phase workflow có `true` trong `phases`
 4. Kiểm tra trigger: xác minh `file_extensions` hoặc `keywords` khớp ngữ cảnh
 5. Kiểm tra prompt agent: tìm section `MCP TOOL INTEGRATIONS (Active)` trong đầu ra agent

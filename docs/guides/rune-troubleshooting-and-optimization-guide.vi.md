@@ -4,7 +4,6 @@ Chẩn đoán lỗi thường gặp, giảm chi phí token, và tối ưu workfl
 
 Hướng dẫn liên quan:
 - [Bắt đầu nhanh](rune-getting-started.vi.md)
-- [Hướng dẫn cấu hình Talisman](rune-talisman-deep-dive-guide.vi.md)
 - [Hướng dẫn custom agent](rune-custom-agents-and-extensions-guide.vi.md)
 - [Hướng dẫn arc và batch](rune-arc-and-batch-guide.vi.md)
 
