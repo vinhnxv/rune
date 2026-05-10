@@ -109,25 +109,14 @@ arc_state_file_path() {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# _arc_state_emit_deprecation_warn_once → stderr warning once per invocation
+# _arc_state_emit_deprecation_warn_once → no-op (v3.x)
 # ─────────────────────────────────────────────────────────────────────────────
-# Emits a one-shot deprecation warning to stderr when the user's talisman still
-# carries the removed canary key (v2.56.0+). Key name is constructed at runtime
-# so the literal string never appears lexically in source. Warning itself is
-# removed in v2.57.0.
+# <!-- v3.x: deprecation source removed (talisman shard layer); see references/v3-defaults.md -->
+# Previously emitted a one-shot stderr warning when the user's talisman still
+# carried the removed canary key. The talisman shard layer is gone in v3.x;
+# kept as a no-op stub so existing call sites continue to function.
 _arc_state_emit_deprecation_warn_once() {
-  [ -n "${_RUNE_ARC_DEPRECATION_WARN_EMITTED:-}" ] && return 0
-  local _shard="${CWD:-$PWD}/tmp/.talisman-resolved/arc.json"
-  [ -f "$_shard" ] || return 0
-  command -v jq >/dev/null 2>&1 || return 0
-  local _key_name
-  _key_name=$(printf 'code_enforced_%s' 'writes')
-  local _user_val
-  _user_val=$(jq -r --arg k "$_key_name" '.state_file[$k] // empty' "$_shard" 2>/dev/null)
-  if [ "$_user_val" = "false" ]; then
-    printf 'WARN: talisman key `arc.state_file.%s` is deprecated and has no effect (v2.56.0+).\n      All state file writes are now unconditional. Remove this key from your talisman.\n' "$_key_name" >&2
-  fi
-  export _RUNE_ARC_DEPRECATION_WARN_EMITTED=1
+  return 0
 }
 
 # ─────────────────────────────────────────────────────────────────────────────

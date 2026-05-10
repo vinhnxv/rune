@@ -20,17 +20,8 @@
 [[ -n "${_RUNE_STOP_FAILURE_COMMON_LOADED:-}" ]] && return 0
 _RUNE_STOP_FAILURE_COMMON_LOADED=1
 
-# Source talisman shard resolver if not already loaded
-# STOP-003 FIX (audit 20260419-150325): renamed `local_dir` to `_lib_dir` —
-# prior name visually collided with the bash `local` keyword, which made the
-# code harder to skim even though `local` is only valid inside functions.
-if ! type _rune_resolve_talisman_shard &>/dev/null; then
-  _lib_dir="$(dirname "${BASH_SOURCE[0]}")"
-  if [[ -f "${_lib_dir}/talisman-shard-path.sh" ]]; then
-    source "${_lib_dir}/talisman-shard-path.sh"
-  fi
-  unset _lib_dir
-fi
+# <!-- v3.x: defaults baked from former talisman.arc.rate_limit; see references/v3-defaults.md -->
+# Talisman shard layer removed in v3.x; rate-limit wait config is now a hardcoded default.
 
 # ── classify_stop_failure() ──
 # Classifies the stop failure error from hook input JSON and/or transcript tail.
@@ -52,24 +43,9 @@ classify_stop_failure() {
   WAIT_SECONDS=0
   ERROR_ACTION="proceed"
 
-  # ── Step 1: Read talisman config for wait defaults ──
+  # ── Step 1: Hardcoded wait defaults (v3.x) ──
   local default_wait=60
   local max_wait=300
-
-  local talisman_shard=""
-  if type _rune_resolve_talisman_shard &>/dev/null; then
-    talisman_shard=$(_rune_resolve_talisman_shard "arc" "${CWD:-}" 2>/dev/null || true)
-  fi
-  [[ -z "$talisman_shard" ]] && talisman_shard="${CWD:-}/tmp/.talisman-resolved/arc.json"
-
-  if [[ -f "$talisman_shard" && ! -L "$talisman_shard" ]] && command -v jq &>/dev/null; then
-    local _dw _mw
-    _dw=$(jq -r '.rate_limit.default_wait_seconds // 60' "$talisman_shard" 2>/dev/null || echo "60")
-    _mw=$(jq -r '.rate_limit.max_wait_seconds // 300' "$talisman_shard" 2>/dev/null || echo "300")
-    # Validate numeric before use
-    [[ "$_dw" =~ ^[0-9]+$ ]] && default_wait="$_dw"
-    [[ "$_mw" =~ ^[0-9]+$ ]] && max_wait="$_mw"
-  fi
 
   # ── Step 2: Extract error text from hook input JSON ──
   local error_text=""

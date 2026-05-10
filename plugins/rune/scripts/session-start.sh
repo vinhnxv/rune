@@ -182,17 +182,14 @@ _rune_check_orphan_talisman_yml() {
 _rune_check_orphan_talisman_yml 2>/dev/null || true
 
 # ── Worktree detection advisory ──
+# <!-- v3.x: talisman.yml-based worktree config sync removed; see references/v3-defaults.md -->
 # .git is a FILE (not directory) in both git worktrees and submodules.
 # Distinguish by content: worktrees contain "gitdir: .../worktrees/..." path.
 _WT_ADVISORY=""
 if [[ -n "$CWD" && -f "$CWD/.git" ]]; then
   _git_content=$(head -1 "$CWD/.git" 2>/dev/null)
   if [[ "$_git_content" == "gitdir: "* && "$_git_content" == *"/worktrees/"* ]]; then
-    if [[ -f "$CWD/${RUNE_STATE}/talisman.yml" ]] || [[ -f "$CWD/.claude/talisman.yml" ]]; then
-      _WT_ADVISORY="\\n[Rune Worktree Mode] Running in git worktree. Config synced from main repo."
-    else
-      _WT_ADVISORY="\\n[Rune Worktree Mode] WARNING: .rune/talisman.yml missing — using defaults. Run from main repo or add WorktreeCreate hook."
-    fi
+    _WT_ADVISORY="\\n[Rune Worktree Mode] Running in git worktree."
   fi
 fi
 
@@ -201,12 +198,7 @@ ECHO_SUMMARY=""
 inject_echo_summary() {
   [[ -n "$CWD" ]] || return 0
 
-  # Gate: talisman config check (grep-based, no yq dependency)
-  local talisman="${CWD}/${RUNE_STATE}/talisman.yml"
-  if [[ -f "$talisman" && ! -L "$talisman" ]]; then
-    local sess_sum=$(grep -A1 'session_summary:' "$talisman" 2>/dev/null | grep -o 'false' || true)
-    [[ "$sess_sum" == "false" ]] && return 0
-  fi
+  # <!-- v3.x: talisman.session_summary gate removed; defaults to enabled (see references/v3-defaults.md) -->
 
   local echo_dir="${CWD}/${RUNE_STATE}/echoes"
   [[ -d "$echo_dir" && ! -L "$echo_dir" ]] || return 0
@@ -312,19 +304,9 @@ EOF
 # Statusline configuration diagnostic (startup only, non-blocking)
 # CWD already resolved unconditionally above for echo injection
 if [[ "$EVENT" == "startup" ]]; then
-  # Read context_monitor.enabled from talisman (graceful degradation — no yq required)
-  CTX_ENABLED="true"
-  if [[ -n "$CWD" ]]; then
-    TALISMAN_FILE="${CWD}/${RUNE_STATE}/talisman.yml"
-    if [[ -f "$TALISMAN_FILE" && ! -L "$TALISMAN_FILE" ]]; then
-      _val=$(grep -A1 'context_monitor:' "$TALISMAN_FILE" 2>/dev/null | grep 'enabled:' | grep -o 'false' || true)
-      [[ "$_val" == "false" ]] && CTX_ENABLED="false"
-    fi
-  fi
-  if [[ "${CTX_ENABLED:-true}" != "false" ]]; then
-    RECENT_BRIDGE=$(find "${TMPDIR:-/tmp}" -maxdepth 1 -name "rune-ctx-*.json" -mmin -60 2>/dev/null | head -1)
-    if [[ -z "$RECENT_BRIDGE" ]]; then
-      _trace "NOTE: No recent bridge file found. Context monitoring requires statusline configuration."
-    fi
+  # <!-- v3.x: context_monitor.enabled defaults true (see references/v3-defaults.md); gate removed -->
+  RECENT_BRIDGE=$(find "${TMPDIR:-/tmp}" -maxdepth 1 -name "rune-ctx-*.json" -mmin -60 2>/dev/null | head -1)
+  if [[ -z "$RECENT_BRIDGE" ]]; then
+    _trace "NOTE: No recent bridge file found. Context monitoring requires statusline configuration."
   fi
 fi

@@ -47,13 +47,13 @@ _rune_ensure_dir() {
 }
 
 # Migration check: move legacy .claude/ state to .rune/ (one-time, idempotent)
-# Called by session-start.sh and talisman-resolve.sh
+# Called by session-start.sh
 #
 # Design: per-resource idempotent. Interruption leaves a partially-migrated state
 # that self-heals on next session start (each item checks independently).
 #
 # Security: rejects symlinks on both source and target to prevent symlink attacks
-# (consistent with symlink checks in stop-hook-common.sh, talisman-resolve.sh)
+# (consistent with symlink checks in stop-hook-common.sh)
 #
 # Concurrency: uses mkdir-based POSIX-atomic lock to prevent race conditions
 # when two sessions start simultaneously on the same project.

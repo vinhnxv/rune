@@ -17,7 +17,7 @@
 #   3. Check if target file matches tmp/work/*/tasks/*.md pattern
 #   4. Check for active work workflow via tmp/.rune-work-*.json or tmp/.rune-arc-*.json
 #   5. Verify session ownership (config_dir + owner_pid)
-#   6. Read talisman discipline.context_isolation config (default: true)
+#   6. discipline.context_isolation is hardcoded true (v3.x — see references/v3-defaults.md)
 #   7. Block (deny) if all conditions met
 #
 # Exit 0 with hookSpecificOutput.permissionDecision="deny" JSON = tool call blocked.
@@ -130,20 +130,8 @@ if [[ -n "$sf_owner_pid" && "$sf_owner_pid" != "$PPID" ]]; then
   # Owner is dead — this is an orphan state; allow
 fi
 
-# Check talisman config: discipline.context_isolation (default: true)
-CONTEXT_ISOLATION="true"
-TALISMAN_SHARD="${CWD}/tmp/.talisman-resolved/discipline.json"
-if [[ -f "$TALISMAN_SHARD" ]]; then
-  ci_val=$(jq -r 'if .context_isolation == null then "true" else .context_isolation end' "$TALISMAN_SHARD" 2>/dev/null || true)
-  if [[ "$ci_val" == "false" ]]; then
-    CONTEXT_ISOLATION="false"
-  fi
-fi
-
-# If context isolation is disabled, allow
-if [[ "$CONTEXT_ISOLATION" != "true" ]]; then
-  exit 0
-fi
+# <!-- v3.x: defaults baked from former talisman.discipline.context_isolation; see references/v3-defaults.md -->
+# discipline.context_isolation defaults to true in v3.x — gate removed.
 
 # Self-read exemption: Workers MAY read their OWN task file.
 # The task file path is embedded in TaskCreate metadata (task_file field).

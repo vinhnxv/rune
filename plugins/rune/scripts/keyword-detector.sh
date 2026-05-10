@@ -31,20 +31,8 @@ trap '_rune_fail_forward' ERR
 # --- Guard: jq dependency (fail-open without jq) ---
 command -v jq >/dev/null 2>&1 || exit 0
 
-# --- Guard: Talisman gate (project → system fallback; symlink-safe via helper) ---
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-# shellcheck source=lib/talisman-shard-path.sh
-source "${SCRIPT_DIR}/lib/talisman-shard-path.sh" 2>/dev/null || true
-if type _rune_resolve_talisman_shard &>/dev/null; then
-  TALISMAN_SHARD=$(_rune_resolve_talisman_shard "keyword_detection" "${CWD:-}")
-else
-  # WORKTREE-FIX: Prefer CWD (worktree) over CLAUDE_PROJECT_DIR (may point to main repo per #27343)
-  TALISMAN_SHARD="${CWD:-${CLAUDE_PROJECT_DIR:-.}}/tmp/.talisman-resolved/keyword_detection.json"
-fi
-if [[ -f "$TALISMAN_SHARD" ]]; then
-  ENABLED=$(jq -r 'if .enabled == null then true else .enabled end' "$TALISMAN_SHARD" 2>/dev/null || echo "true")
-  [[ "$ENABLED" == "false" ]] && exit 0
-fi
+# <!-- v3.x: defaults baked from former talisman.keyword_detection; see references/v3-defaults.md -->
+# keyword_detection.enabled defaults to true — gate removed in v3.x
 
 # --- Guard: Input size cap (SEC-2: 1MB DoS protection) ---
 INPUT=$(head -c 1048576 2>/dev/null || true)

@@ -112,26 +112,10 @@ if (( ARC_LOOP_COUNT > 0 )); then
   exit 0  # Arc loop active — let arc hooks handle continuation
 fi
 
-# --- Talisman gate (project → system fallback; symlink-safe via helper) ---
-# shellcheck source=lib/talisman-shard-path.sh
-source "${SCRIPT_DIR}/lib/talisman-shard-path.sh" 2>/dev/null || true
-if type _rune_resolve_talisman_shard &>/dev/null; then
-  TALISMAN_SHARD=$(_rune_resolve_talisman_shard "context_stop_guard" "${CWD:-}")
-else
-  # WORKTREE-FIX: Prefer CWD (worktree) over CLAUDE_PROJECT_DIR (may point to main repo per #27343)
-  TALISMAN_SHARD="${CWD:-${CLAUDE_PROJECT_DIR:-.}}/tmp/.talisman-resolved/context_stop_guard.json"
-fi
+# <!-- v3.x: defaults baked from former talisman.context_stop_guard; see references/v3-defaults.md -->
 WARNING_THRESHOLD=70
 HIGH_THRESHOLD=85
 MAX_BLOCKS=2
-if [[ -f "$TALISMAN_SHARD" && ! -L "$TALISMAN_SHARD" ]]; then
-  ENABLED=$(jq -r 'if .enabled == null then true else .enabled end' "$TALISMAN_SHARD" 2>/dev/null || echo "true")
-  [[ "$ENABLED" == "false" ]] && exit 0
-  # QUAL-001 FIX: Flat key access — shard file is the dedicated context_stop_guard object
-  WARNING_THRESHOLD=$(jq -r '.warning_threshold // 70' "$TALISMAN_SHARD" 2>/dev/null || echo "70")
-  HIGH_THRESHOLD=$(jq -r '.high_threshold // 85' "$TALISMAN_SHARD" 2>/dev/null || echo "85")
-  MAX_BLOCKS=$(jq -r '.max_blocks_per_session // 2' "$TALISMAN_SHARD" 2>/dev/null || echo "2")
-fi
 
 # --- Read context % from statusline bridge file ---
 # Bridge file written by rune-statusline.sh on Notification:statusline events.

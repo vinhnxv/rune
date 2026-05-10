@@ -177,34 +177,8 @@ for loop_file in \
   fi
 done
 
-# ── Read talisman config for stale_lead_wakeup settings ──
-WAKEUP_ENABLED=true
+# <!-- v3.x: defaults baked from former talisman.misc.teammate_lifecycle.stale_lead_wakeup; see references/v3-defaults.md -->
 DEBOUNCE_SECONDS=300
-
-TALISMAN_SHARD="${CWD}/tmp/.talisman-resolved/misc.json"
-if [[ -f "$TALISMAN_SHARD" && ! -L "$TALISMAN_SHARD" ]]; then
-  _tw_enabled=$(jq -r 'if .stale_lead_wakeup.enabled == null then true else .stale_lead_wakeup.enabled end' "$TALISMAN_SHARD" 2>/dev/null || echo "true")
-  _tw_debounce=$(jq -r 'if .stale_lead_wakeup.debounce_seconds == null then 300 else .stale_lead_wakeup.debounce_seconds end' "$TALISMAN_SHARD" 2>/dev/null || echo "300")
-  [[ "$_tw_enabled" == "false" ]] && WAKEUP_ENABLED=false
-  [[ "$_tw_debounce" =~ ^[0-9]+$ ]] && DEBOUNCE_SECONDS="$_tw_debounce"
-fi
-
-# Also check teammate_lifecycle section (plan specifies this location)
-TALISMAN_SETTINGS_SHARD="${CWD}/tmp/.talisman-resolved/settings.json"
-if [[ -f "$TALISMAN_SETTINGS_SHARD" && ! -L "$TALISMAN_SETTINGS_SHARD" ]]; then
-  _tl_enabled=$(jq -r '.teammate_lifecycle.stale_lead_wakeup.enabled // empty' "$TALISMAN_SETTINGS_SHARD" 2>/dev/null || true)
-  _tl_debounce=$(jq -r '.teammate_lifecycle.stale_lead_wakeup.debounce_seconds // empty' "$TALISMAN_SETTINGS_SHARD" 2>/dev/null || true)
-  [[ "$_tl_enabled" == "false" ]] && WAKEUP_ENABLED=false
-  [[ "$_tl_debounce" =~ ^[0-9]+$ ]] && DEBOUNCE_SECONDS="$_tl_debounce"
-fi
-
-if [[ "$WAKEUP_ENABLED" == "false" ]]; then
-  _trace "SKIP: stale_lead_wakeup disabled via talisman"
-  exit 0
-fi
-
-# SEC-002: Validate and clamp debounce
-[[ "$DEBOUNCE_SECONDS" -gt 3600 ]] && DEBOUNCE_SECONDS=300
 
 # ── GUARD 4: Find ALL active teams for this session ──
 HOOK_NOW=$(date +%s)

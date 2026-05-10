@@ -15,7 +15,7 @@
 #   source "${SCRIPT_DIR}/lib/worktree-resolve.sh"
 #   CWD=$(printf '%s\n' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null || true)
 #   rune_resolve_project_dir "$CWD" >/dev/null
-#   TALISMAN_SHARD="${RUNE_PROJECT_DIR}/tmp/.talisman-resolved/shard.json"
+#   TMP_PATH="${RUNE_PROJECT_DIR}/tmp/some-artifact.json"
 #
 # Usage (MCP startup scripts):
 #   source "$(dirname "$0")/../lib/worktree-resolve.sh"

@@ -45,7 +45,8 @@ CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 
 # ── GUARD 0: Auto-cleanup toggle (MCP-PROTECT-003) ──
 # Auto-cleanup is ENABLED by default. Uses positive teammate PID whitelist (MCP-PROTECT-003).
-# Set RUNE_DISABLE_AUTO_CLEANUP=1 to disable, or talisman process_management.auto_cleanup: false.
+# Set RUNE_DISABLE_AUTO_CLEANUP=1 to disable.
+# <!-- v3.x: defaults baked from former talisman.misc.process_management.auto_cleanup; see references/v3-defaults.md -->
 if [[ "${RUNE_DISABLE_AUTO_CLEANUP:-0}" == "1" ]]; then
   exit 0
 fi
@@ -53,17 +54,6 @@ fi
 # ── GUARD 0.5: jq dependency (fail-open) ──
 if ! command -v jq &>/dev/null; then
   exit 0
-fi
-
-# ── GUARD 0.6: Talisman auto_cleanup config (AC-5) ──
-if [[ -z "${RUNE_DISABLE_AUTO_CLEANUP:-}" ]]; then
-  _talisman_shard="${CLAUDE_PROJECT_DIR:-.}/tmp/.talisman-resolved/misc.json"
-  if [[ -f "$_talisman_shard" && ! -L "$_talisman_shard" ]]; then
-    _auto_cleanup=$(jq -r '.process_management.auto_cleanup // empty' "$_talisman_shard" 2>/dev/null || true)
-    if [[ "$_auto_cleanup" == "false" ]]; then
-      exit 0
-    fi
-  fi
 fi
 
 # ── GUARD 1: Read CWD from stdin (consistent with other Stop hooks) ──
@@ -294,62 +284,14 @@ if [[ -d "${CWD}/${RUNE_STATE}/arc" ]]; then
   done
 fi
 
-# ── GUARD 3: Read talisman cleanup config ──
-# REC-4 FIX: Use grep/awk instead of python3+PyYAML (simple scalar extraction)
-CLEANUP_ENABLED=true
+# ── GUARD 3: Cleanup defaults (v3.x baked-in) ──
+# <!-- v3.x: defaults baked from former talisman.misc.teammate_lifecycle.cleanup; see references/v3-defaults.md -->
+# escalation_timeout_seconds = 5 (must stay < 23s to fit within 30s hook timeout budget — GAP-DOC-4)
 ESCALATION_TIMEOUT=5
 
-TALISMAN="${CWD}/${RUNE_STATE}/talisman.yml"
-if [[ -f "$TALISMAN" ]]; then
-  # BACK-009 fix: scope to the teammate_lifecycle block before matching `cleanup:`.
-  # Prior `grep -A5 'cleanup:'` would grab whichever cleanup block came first if a
-  # user added a sibling cleanup section (e.g., `arc.cleanup:` or `audit.cleanup:`).
-  # This awk extracts only the teammate_lifecycle.cleanup subtree by tracking
-  # 2-space indentation levels.
-  _tl_cleanup=$(awk '
-    /^teammate_lifecycle:[[:space:]]*$/ { in_tl=1; next }
-    in_tl && /^[a-zA-Z_]/ { in_tl=0 }
-    in_tl && /^[[:space:]]+cleanup:[[:space:]]*$/ { in_cu=1; next }
-    in_tl && in_cu && /^[[:space:]]{4,}[a-zA-Z_]/ { print; next }
-    in_tl && in_cu && /^[[:space:]]{0,2}[a-zA-Z_]/ { in_cu=0 }
-  ' "$TALISMAN" 2>/dev/null)
-  CLEANUP_ENABLED=$(printf '%s\n' "$_tl_cleanup" | grep 'enabled:' | awk '{print $2}' | head -1)
-  : "${CLEANUP_ENABLED:=true}"
-  # NOTE: escalation_timeout_seconds must stay < 23s to fit within 30s hook timeout budget (GAP-DOC-4)
-  # BACK-005: grace_period_seconds removed — not used in hook context (SDK-based grace period unavailable)
-  ESCALATION_TIMEOUT=$(printf '%s\n' "$_tl_cleanup" | grep 'escalation_timeout_seconds:' | awk '{print $2}' | head -1)
-  : "${ESCALATION_TIMEOUT:=5}"
-fi
-
-# SEC-002: Validate and clamp talisman-sourced numeric values
-[[ "$ESCALATION_TIMEOUT" =~ ^[0-9]+$ ]] || ESCALATION_TIMEOUT=5
-[[ "$ESCALATION_TIMEOUT" -gt 23 ]] && ESCALATION_TIMEOUT=5
-
-# AC-13: Read legacy_ppid_fallback from talisman-resolved misc shard.
-# Default false — PPID-based ownership checks are unreliable in hook context because
-# $PPID is the hook runner subprocess PID, not the Claude Code process PID.
-#
-# PAT-001 (v2.63.0): path uses ${CLAUDE_PROJECT_DIR:-.} to match the sibling
-# AC-13 gate in scripts/on-session-stop.sh:91. Prior drift (${CWD}/tmp/...)
-# silently missed the shard when CWD resolution diverged from
-# CLAUDE_PROJECT_DIR in mixed environments, defaulting LEGACY_PPID_FALLBACK
-# to false and producing asymmetric behaviour between the two hooks that
-# both participate in the AC-13 decision. Also matches L60 above
-# (auto_cleanup shard path) — all three shard reads now share one convention.
-# DOC-003 (v2.63.0): rationale is maintained in parallel with
-# scripts/on-session-stop.sh:242-246. Keep both files in lockstep on any
-# change to the AC-13 predicate OR its skip-trace prefix (DOC-002).
+# AC-13: legacy_ppid_fallback defaults false — PPID-based ownership checks are unreliable
+# in hook context because $PPID is the hook runner subprocess PID, not the Claude Code PID.
 LEGACY_PPID_FALLBACK=false
-_talisman_misc="${CLAUDE_PROJECT_DIR:-.}/tmp/.talisman-resolved/misc.json"
-if [[ -f "$_talisman_misc" && ! -L "$_talisman_misc" ]]; then
-  _legppid=$(jq -r '.process_management.legacy_ppid_fallback // empty' "$_talisman_misc" 2>/dev/null || true)
-  [[ "$_legppid" == "true" ]] && LEGACY_PPID_FALLBACK=true
-fi
-
-if [[ "$CLEANUP_ENABLED" == "false" ]]; then
-  _trace "SKIP: cleanup disabled via talisman"
-  exit 0
-fi
 
 # ── Scan state files for completed-but-uncleaned workflows ──
 for sf in "${STATE_FILES[@]}"; do
