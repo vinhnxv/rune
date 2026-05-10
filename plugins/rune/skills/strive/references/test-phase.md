@@ -23,14 +23,7 @@ Phase 4: Quality Gates
 ### Talisman Gate Check
 
 ```javascript
-const testingConfig = readTalismanSection("testing")
-const striveTestEnabled = testingConfig?.strive_test?.enabled ?? true
-
-if (!striveTestEnabled) {
-  log("STRIVE-TEST: Disabled via talisman testing.strive_test.enabled")
-  // Skip to Phase 3.7
-  return
-}
+// v3.x: strive_test is enabled by default; the gate is unconditional now.
 ```
 
 ### Worker Drain Gate

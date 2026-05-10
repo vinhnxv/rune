@@ -1,5 +1,7 @@
 # Phase 3: Monitor — Inline Blocks
 
+<!-- v3.x: defaults baked from former talisman.work + talisman.teammate_lifecycle; see references/v3-defaults.md -->
+
 Inline monitoring blocks that run each poll cycle during Phase 3 of `/rune:strive`.
 These are checked sequentially: signal checks → smart reassignment → stale lock scan → stuck worker detection.
 
@@ -59,55 +61,52 @@ if (forceShutdownSignal) {
 
 ## Smart Reassignment (Per Poll Cycle)
 
-Check whether in-progress tasks have exceeded their estimated time and reassign to idle workers. Runs per poll cycle, BEFORE stuck worker detection. Gated by `work.reassignment.enabled` (default: `true`).
+Check whether in-progress tasks have exceeded their estimated time and reassign to idle workers. Runs per poll cycle, BEFORE stuck worker detection. Always enabled in v3.x (multiplier `2.0`, grace `60s`).
 
 ```javascript
 // --- Smart reassignment (per poll cycle, before stuck worker detection) ---
-const reassignConfig = readTalismanSection("work")?.reassignment
-if (reassignConfig?.enabled !== false) {
-  const multiplier = reassignConfig?.multiplier ?? 2.0
-  const graceSeconds = reassignConfig?.grace_seconds ?? 60
+const REASSIGN_MULTIPLIER = 2.0      // multiply task's estimated minutes
+const REASSIGN_GRACE_SECONDS = 60    // grace after warning before force-release
 
-  const tasks = TaskList()
-  const idleWorkers = Object.keys(workerSpawnTimes).filter(w =>
-    !tasks.some(t => t.owner === w && t.status === "in_progress")
-  )
+const tasks = TaskList()
+const idleWorkers = Object.keys(workerSpawnTimes).filter(w =>
+  !tasks.some(t => t.owner === w && t.status === "in_progress")
+)
 
-  for (const task of tasks) {
-    if (task.status !== "in_progress") continue
-    const estimatedMin = task.metadata?.estimated_minutes ?? 10
-    const elapsed = Date.now() - (task.metadata?.claimed_at ?? Date.now())
-    const thresholdMs = multiplier * estimatedMin * 60_000
+for (const task of tasks) {
+  if (task.status !== "in_progress") continue
+  const estimatedMin = task.metadata?.estimated_minutes ?? 10
+  const elapsed = Date.now() - (task.metadata?.claimed_at ?? Date.now())
+  const thresholdMs = REASSIGN_MULTIPLIER * estimatedMin * 60_000
 
-    // F15: max 2 reassignments per task
-    const reassignCount = task.metadata?.reassignment_count ?? 0
-    if (reassignCount >= 2) continue
+  // F15: max 2 reassignments per task
+  const reassignCount = task.metadata?.reassignment_count ?? 0
+  if (reassignCount >= 2) continue
 
-    if (elapsed > thresholdMs) {
-      if (!task.metadata?.reassignment_warned) {
-        // First trigger: warn and set grace period
-        log(`REASSIGN-CHECK: task #${task.id} exceeded ${multiplier}x estimate (${estimatedMin}min). Sending progress check.`)
-        SendMessage({ type: "message", recipient: task.owner, content: `Progress check: task #${task.id} has exceeded its time estimate. Please report status.`, summary: `Progress check for task #${task.id}` })
-        TaskUpdate({ taskId: task.id, metadata: { reassignment_warned: true, warned_at: Date.now() } })
-      } else {
-        // Grace period elapsed — re-read task status (F8 fix)
-        const freshTask = TaskGet(task.id)
-        if (freshTask.status === "in_progress") {
-          const warnedAt = task.metadata?.warned_at ?? 0
-          if (Date.now() - warnedAt > graceSeconds * 1000 && idleWorkers.length > 0) {
-            log(`REASSIGN-FORCE: task #${task.id} still in_progress after grace period. Force-releasing.`)
-            // F9: clear reassignment metadata on release
-            TaskUpdate({
-              taskId: task.id,
-              status: "pending",
-              owner: "",
-              metadata: { reassignment_warned: null, warned_at: null, reassignment_count: reassignCount + 1 }
-            })
-            // Clean up file lock signal for the released task's worker
-            try {
-              Bash(`rm -f "tmp/.rune-signals/${teamName}/${task.owner}-files.json"`)
-            } catch {}
-          }
+  if (elapsed > thresholdMs) {
+    if (!task.metadata?.reassignment_warned) {
+      // First trigger: warn and set grace period
+      log(`REASSIGN-CHECK: task #${task.id} exceeded ${REASSIGN_MULTIPLIER}x estimate (${estimatedMin}min). Sending progress check.`)
+      SendMessage({ type: "message", recipient: task.owner, content: `Progress check: task #${task.id} has exceeded its time estimate. Please report status.`, summary: `Progress check for task #${task.id}` })
+      TaskUpdate({ taskId: task.id, metadata: { reassignment_warned: true, warned_at: Date.now() } })
+    } else {
+      // Grace period elapsed — re-read task status (F8 fix)
+      const freshTask = TaskGet(task.id)
+      if (freshTask.status === "in_progress") {
+        const warnedAt = task.metadata?.warned_at ?? 0
+        if (Date.now() - warnedAt > REASSIGN_GRACE_SECONDS * 1000 && idleWorkers.length > 0) {
+          log(`REASSIGN-FORCE: task #${task.id} still in_progress after grace period. Force-releasing.`)
+          // F9: clear reassignment metadata on release
+          TaskUpdate({
+            taskId: task.id,
+            status: "pending",
+            owner: "",
+            metadata: { reassignment_warned: null, warned_at: null, reassignment_count: reassignCount + 1 }
+          })
+          // Clean up file lock signal for the released task's worker
+          try {
+            Bash(`rm -f "tmp/.rune-signals/${teamName}/${task.owner}-files.json"`)
+          } catch {}
         }
       }
     }
@@ -121,7 +120,7 @@ Sweep `tmp/.rune-signals/{team}/*-files.json` for stale lock signals. Runs per p
 
 ```javascript
 // --- Stale lock scan (F1) ---
-const staleLockThreshold = readTalismanSection("work")?.file_lock_signals?.stale_threshold_ms ?? 600_000
+const staleLockThreshold = 600_000  // 10 min — locks older than this are swept
 try {
   const lockFiles = Glob(`tmp/.rune-signals/${teamName}/*-files.json`)
   for (const lockFile of lockFiles) {
@@ -150,7 +149,7 @@ workerSpawnTimes[workerName] = Date.now()
 
 **Detection** (runs per poll cycle in Phase 3, after signal checks):
 ```javascript
-const maxRuntimeMinutes = readTalismanSection("teammate_lifecycle")?.max_runtime_minutes ?? 20
+const maxRuntimeMinutes = 20  // teammate_lifecycle default
 const maxRuntimeMs = maxRuntimeMinutes * 60 * 1000
 
 for (const [workerName, spawnTime] of Object.entries(workerSpawnTimes)) {

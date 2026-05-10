@@ -1,20 +1,18 @@
 # Worktree Mode Detection & MCP Integration Discovery
 
+<!-- v3.x: defaults baked from former talisman.work.worktree; see references/v3-defaults.md -->
+
 ## Worktree Mode Detection (Phase 0)
 
-Parse `--worktree` flag from `$ARGUMENTS` and read talisman configuration. This follows the same pattern as `--approve` flag parsing.
+Parse `--worktree` flag from `$ARGUMENTS`. v3.x bakes `work.worktree.enabled = false`, so worktree mode is opt-in via the CLI flag only.
 
 ```javascript
 // Parse --worktree flag from $ARGUMENTS (same pattern as --approve)
 const args = "$ARGUMENTS"
 const worktreeFlag = args.includes("--worktree")
 
-// readTalismanSection: "work"
-const work = readTalismanSection("work")
-const worktreeEnabled = work?.worktree?.enabled || false
-
-// worktreeMode: flag wins, talisman is fallback default
-const worktreeMode = worktreeFlag || worktreeEnabled
+// v3.x: work.worktree.enabled defaults to false — flag is the only switch
+const worktreeMode = worktreeFlag
 ```
 
 When `worktreeMode === true`:

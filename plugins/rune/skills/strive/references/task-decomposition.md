@@ -1,5 +1,7 @@
 # Task Decomposition — strive Phase 1.1 Reference
 
+<!-- v3.x: defaults baked from former talisman.work.task_decomposition; see references/v3-defaults.md -->
+
 LLM-driven task classification and decomposition. Runs in Phase 1 after
 `extractFileTargets()` and `scoreTaskComplexity()` complete, but **before**
 `detectAndResolveConflicts()` in file-ownership.md.
@@ -7,18 +9,14 @@ LLM-driven task classification and decomposition. Runs in Phase 1 after
 See [forge-team.md](forge-team.md) for integration point (Phase 1.1 call site).
 See [file-ownership.md](file-ownership.md) for the conflict detection phase that follows.
 
-## Configuration
+## Defaults (v3.x baked-in)
 
-```yaml
-work:
-  task_decomposition:
-    enabled: true              # Master toggle (default: true)
-    complexity_threshold: 5    # Min file count to trigger LLM classification
-    max_subtasks: 4            # Max subtasks per composite task (range: 2-4)
-    model: "haiku"             # Model for classification/decomposition (haiku = cheap)
-```
-
-Read via `readTalismanSection("work")?.task_decomposition`.
+| Key | Value |
+|---|---|
+| `enabled` | `true` |
+| `complexity_threshold` | `5` |
+| `max_subtasks` | `4` (clamped 2-10) |
+| `model` | `"haiku"` |
 
 ## Phase 1.1: Task Decomposition Entry Point
 
@@ -170,7 +168,7 @@ only split when there is clear evidence of composite structure.
 const sanitize = (s) => String(s || "").replace(/[\r\n]+/g, " ").replace(/<[^>]*>/g, "").replace(/[^\x20-\x7E]/g, "").slice(0, 2000)
 
 function classifyTask(task, teamName) {
-  const model = readTalismanSection("work")?.task_decomposition?.model ?? "haiku"
+  const model = "haiku"
   const fileList = (task.fileTargets || []).join(", ") || "(none)"
 
   const prompt = `You are a task classifier for a multi-agent coding workflow.
@@ -215,7 +213,7 @@ Splits a COMPOSITE task into 2-4 atomic subtasks with non-overlapping file targe
 
 ```javascript
 function decomposeTask(task, maxSubtasks, teamName) {
-  const model = readTalismanSection("work")?.task_decomposition?.model ?? "haiku"
+  const model = "haiku"
   const fileList = JSON.stringify(task.fileTargets || [])
 
   const prompt = `You are a task decomposer for a multi-agent coding workflow.

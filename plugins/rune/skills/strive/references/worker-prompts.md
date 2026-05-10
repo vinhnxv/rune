@@ -1,5 +1,7 @@
 # Worker Prompts — strive Phase 2 Reference
 
+<!-- v3.x: defaults baked from former talisman.work; see references/v3-defaults.md -->
+
 Templates for summoning rune-smith and trial-forger swarm workers.
 
 ## Worker Scaling
@@ -1296,14 +1298,15 @@ Config: `work.sibling_awareness` talisman section.
 
 ```javascript
 // In buildWorkerPrompt() — called for each worker during Phase 2 spawning:
+const WORK_DEFAULTS = { sibling_awareness: { enabled: true, max_sibling_files: 5 } }
 const siblingWorkerContext = buildSiblingContext(
   claimedTask,          // the task being assigned to this worker
   allTasks,             // full expanded task list (post-decomposition)
   taskOwnership,        // inscription.json task_ownership map
-  readTalismanSection("work")
+  WORK_DEFAULTS
 )
 // Inject after nonGoalsBlock, before "YOUR LIFECYCLE:"
-// Returns "" when sibling_awareness.enabled=false or no siblings with file targets
+// Returns "" when no siblings with file targets
 ```
 
 **Distinct from**:
@@ -1489,13 +1492,9 @@ When sibling awareness is enabled, inject context about other workers' tasks int
 See [sibling-context.md](sibling-context.md) for the `buildSiblingContext()` function.
 
 ```javascript
-// readTalismanSection: "work"
-const siblingEnabled = readTalismanSection("work")?.sibling_awareness?.enabled ?? true
-
-if (siblingEnabled) {
-  const siblingContext = buildSiblingContext(claimedTask, allTasks, taskOwnership)
-  if (siblingContext) {
-    prompt += siblingContext  // Insert after task list, before non-goals
-  }
+// v3.x: work.sibling_awareness.enabled defaults to true — always run
+const siblingContext = buildSiblingContext(claimedTask, allTasks, taskOwnership)
+if (siblingContext) {
+  prompt += siblingContext  // Insert after task list, before non-goals
 }
 ```

@@ -1,5 +1,7 @@
 # Parse Plan — strive Phase 0 Reference
 
+<!-- v3.x: defaults baked from former talisman.work + talisman.discipline; see references/v3-defaults.md -->
+
 Task extraction and parsing from plan files.
 
 ## Find Plan
@@ -346,10 +348,7 @@ if (planTaskCount > 0 && extractedTaskCount < planTaskCount) {
     })
   })
 
-  // readTalismanSection: "work"
-  const workConfig = readTalismanSection("work")
-  const taskCoverageFloor = Math.max(50, Math.min(100,
-    workConfig?.task_coverage_floor ?? 100))  // Default: 100%
+  const taskCoverageFloor = 100  // Default: 100%
 
   const coveragePct = Math.round(coverageRatio * 100)
 
@@ -491,17 +490,15 @@ if (totalCriteriaExtracted > 0) {
       `  - ${c.criterionId || 'unnamed'} (Task ${c.taskId}): ${c.text}`
     ).join('\n')
 
-    // RC#5 FIX: Conditional block — discipline-enabled projects can hard-block on orphan criteria
-    // readTalismanSection: "discipline"
-    const disciplineEnabled = readTalismanSection("discipline")?.enabled === true
-    const orphanThreshold = readTalismanSection("discipline")?.orphan_block_threshold ?? 3
-    if (disciplineEnabled && unmappedCriteria.length >= orphanThreshold) {
+    // RC#5 FIX: Hard-block on orphan criteria when threshold exceeded.
+    // v3.x: discipline is always enabled; orphan_block_threshold inlined to 3.
+    const orphanThreshold = 3
+    if (unmappedCriteria.length >= orphanThreshold) {
       throw new Error(
         `CRITERIA COVERAGE BLOCK: ${unmappedCriteria.length} acceptance criteria orphaned ` +
         `(threshold: ${orphanThreshold}). Discipline enforcement requires all criteria mapped ` +
         `to TaskCreate descriptions.\n\nOrphaned criteria:\n${orphanList}\n\n` +
-        `Fix: ensure TaskCreate descriptions include all acceptance criteria from the plan. ` +
-        `Override: set discipline.orphan_block_threshold higher in talisman.yml.`
+        `Fix: ensure TaskCreate descriptions include all acceptance criteria from the plan.`
       )
     } else {
       warn(

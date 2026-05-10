@@ -12,10 +12,11 @@ Resolves which MCP integrations are active for the current workflow phase and ta
 // MCP integration resolver — triple-gated activation
 // Input: phase (string), context (object with changedFiles, taskDescription)
 // Output: Array of active integrations with resolved tools, skills, and rules
-// Error handling: readTalismanSection failure → return [] (fail-open, no integrations)
+// v3.x: integrations subsystem is off by default (empty {}). Function short-circuits
+// to [] unless an `integrationsConfig` is supplied by an external loader at runtime.
 function resolveMCPIntegrations(phase, context) {
-  // Gate 1: integrations.mcp_tools exists in talisman
-  const integrationsConfig = readTalismanSection("integrations")
+  // Gate 1: no integrations configured in v3.x — return empty list
+  const integrationsConfig = null
   if (!integrationsConfig?.mcp_tools) return []
 
   const activeIntegrations = []
