@@ -162,6 +162,25 @@ if [[ -n "$CWD" ]]; then
   _rune_migrate_legacy "$CWD"
 fi
 
+# ── v3.x migration warning: detect orphaned talisman.yml from v2.x users ──
+# Goes to stderr (>&2) so it does NOT pollute the JSON output emitted later.
+# One-time per project (marker file under TMPDIR keyed by CWD hash).
+_rune_check_orphan_talisman_yml() {
+  local _cwd="${CWD:-$(pwd 2>/dev/null || echo "")}"
+  [[ -n "$_cwd" ]] || return 0
+  local talisman_yml="${_cwd}/.rune/talisman.yml"
+  [[ -f "$talisman_yml" ]] || return 0
+  local _hash
+  _hash=$(printf '%s' "$_cwd" | shasum 2>/dev/null | awk '{print $1}' || true)
+  [[ -n "$_hash" ]] || return 0
+  local warned_marker="${TMPDIR:-/tmp}/.rune-talisman-warned-${_hash}"
+  if [[ ! -f "$warned_marker" ]]; then
+    echo "[Rune v3.x] Detected .rune/talisman.yml — this file is no longer parsed (talisman config layer was removed in v3.0.0-alpha.4). Your config is being ignored. See plugins/rune/references/v3-defaults.md for the new defaults model and override paths." >&2
+    : > "$warned_marker" 2>/dev/null || true  # mark warned so we don't repeat per session
+  fi
+}
+_rune_check_orphan_talisman_yml 2>/dev/null || true
+
 # ── Worktree detection advisory ──
 # .git is a FILE (not directory) in both git worktrees and submodules.
 # Distinguish by content: worktrees contain "gitdir: .../worktrees/..." path.

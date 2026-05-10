@@ -13,6 +13,18 @@ Sections (every former talisman config section name): `arc`, `audit`, `devise`,
 `discipline`, `gates`, `goldmask`, `inspect`, `integrations`, `misc`, `plan`, `pr_comment`,
 `process_management`, `review`, `settings`, `teammate_lifecycle`, `testing`, `ux`, `work`.
 
+## Overriding Defaults
+
+Rune v3.x removes the user-facing config layer (talisman.yml). The defaults catalogued below are **fixed at the plugin level** — there is no per-project override mechanism for these values.
+
+If you need to deviate from a baked default (for example, to enable Doubt Seer on a specific project, or to register a custom Ash, or to disable lore-layer git history scoring), you have two paths:
+
+1. **Per-session env vars** — A small subset of defaults are still env-readable. Look for `${VAR_NAME:-default}` patterns in the relevant SKILL.md or script. Set the env var in `.envrc` or your shell profile.
+
+2. **Local fork of the agent definition** — Custom Ashes in v3.x are wired in the orchestration layer rather than configured. Place your custom agent at `.claude/agents/<name>.md` and update the relevant skill (`appraise`, `audit`, etc.) to summon it. See [`custom-ashes.md`](../skills/roundtable-circle/references/custom-ashes.md) for the wiring contract.
+
+> **Migration note for v2.x users:** Your existing `.rune/talisman.yml` is silently ignored in v3.0.0-alpha.4. SessionStart will warn once when this file is detected. To restore prior behavior, see the per-default override paths above (or pin to v2.x in your marketplace.json).
+
 ## arc
 
 | Key path | Value |
