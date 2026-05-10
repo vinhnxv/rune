@@ -2,31 +2,30 @@
 
 Shared integration pattern for skills that consume Goldmask Lore Layer risk scoring. Covers the orchestrator-side gate logic, data discovery, lore-analyst spawning, and polling timeout. Used by forge (Phase 1.5), inspect (Phase 1.3), and devise (Phase 2.3).
 
-**Inputs**: `talisman` (config object), `scopeFiles` or `uniqueFiles` (string[]), `outputDir` (string), `timestamp` or `identifier` (string), `teamName` (string, optional — only when team already exists)
+**Inputs**: `scopeFiles` or `uniqueFiles` (string[]), `outputDir` (string), `timestamp` or `identifier` (string), `teamName` (string, optional — only when team already exists)
 **Outputs**: `riskMap` (string | null), `riskMapSource` (string), optionally `wisdomData` (string | null)
-**Preconditions**: Git repo detected, talisman config loaded, scope files extracted from prior phase
+**Preconditions**: Git repo detected, scope files extracted from prior phase
 
 ## Step 1: Skip Gate
 
-Check talisman kill switches, git repo availability, CLI flags, and G5 commit guard:
+Check git repo availability, CLI flags, and G5 commit guard:
 
 ```javascript
-const goldmaskEnabled = talisman?.goldmask?.enabled !== false
-const workflowGoldmaskEnabled = talisman?.goldmask?.{workflow}?.enabled !== false  // forge, inspect, devise
-const loreEnabled = talisman?.goldmask?.layers?.lore?.enabled !== false
+// v3.x: goldmask.enabled, goldmask.{workflow}.enabled, goldmask.layers.lore.enabled
+// are all hardcoded true (see ../../../references/v3-defaults.md goldmask section).
 const isGitRepo = Bash("git rev-parse --is-inside-work-tree 2>/dev/null").trim() === "true"
 const noLoreFlag = args.includes("--no-lore")
 
 let riskMap = null
 let riskMapSource = "none"
 
-if (!goldmaskEnabled || !workflowGoldmaskEnabled || !loreEnabled || !isGitRepo || noLoreFlag) {
+if (!isGitRepo || noLoreFlag) {
   warn("Phase N: Lore Layer skipped — " + skipReason)
 } else if (scopeFiles.length === 0) {
   warn("Phase N: Lore Layer skipped — no file references found")
 } else {
   // G5 guard: require minimum commit history
-  const lookbackDays = talisman?.goldmask?.layers?.lore?.lookback_days ?? 180
+  const lookbackDays = 180
   const commitCount = parseInt(
     Bash(`git rev-list --count HEAD --since='${lookbackDays} days ago' 2>/dev/null || echo 0`).trim()
   )

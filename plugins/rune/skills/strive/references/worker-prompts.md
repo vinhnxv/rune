@@ -10,7 +10,7 @@ Templates for summoning rune-smith and trial-forger swarm workers.
 // Worker scaling: match parallelism to task count
 const implTasks = extractedTasks.filter(t => t.type === "impl").length
 const testTasks = extractedTasks.filter(t => t.type === "test").length
-const maxWorkers = talisman?.work?.max_workers || 3
+const maxWorkers = 3
 
 // Scale: 1 smith per 3-4 impl tasks, 1 forger per 4-5 test tasks (cap at max_workers)
 const smithCount = Math.min(Math.max(1, Math.ceil(implTasks / 3)), maxWorkers)
@@ -75,7 +75,7 @@ Agent({
   team_name: "rune-work-{timestamp}",
   name: "rune-smith",
   subagent_type: "general-purpose",
-  model: resolveModelForAgent("rune-smith", talisman),  // Cost tier mapping (references/cost-tier-mapping.md)
+  model: resolveModelForAgent("rune-smith"),  // Cost tier mapping (references/cost-tier-mapping.md)
   max_turns: 75,
   prompt: `You are Rune Smith -- a swarm implementation worker.
 
@@ -183,8 +183,7 @@ Agent({
            (see risk-tiers.md) + include rollback plan in Seal message
          - Tier 3 (Elden): All of Tier 2 + send AskUserQuestion for human confirmation
            before committing
-    4.8. FILE LOCK CHECK (gated: work.file_lock_signals.enabled, default true):
-         IF talisman.work?.file_lock_signals?.enabled === false: SKIP this step entirely.
+    4.8. FILE LOCK CHECK (always-on in v3.x; former opt-out removed):
          Read ALL *-files.json in tmp/.rune-signals/{team}/ via Glob.
          Build lockedFiles set with error handling:
            let lockedFiles = new Set()
@@ -349,7 +348,7 @@ Agent({
          d. IF verdict is APPROVE: proceed to step 8
          e. IF verdict is REFINE:
             - eval_iterations += 1
-            - IF eval_iterations >= max_iterations (default 2 from talisman): auto-APPROVE, proceed to step 8
+            - IF eval_iterations >= max_iterations (default 2 in v3.x): auto-APPROVE, proceed to step 8
             - Read feedback and suggestions from verdict file
             - Apply the suggested improvements to your code
             - Re-run ward check (step 7)
@@ -490,7 +489,7 @@ Agent({
   team_name: "rune-work-{timestamp}",
   name: "trial-forger",
   subagent_type: "general-purpose",
-  model: resolveModelForAgent("trial-forger", talisman),  // Cost tier mapping (references/cost-tier-mapping.md)
+  model: resolveModelForAgent("trial-forger"),  // Cost tier mapping (references/cost-tier-mapping.md)
   max_turns: 50,
   prompt: `You are Trial Forger -- a swarm test worker.
 
@@ -584,8 +583,7 @@ Agent({
            (see risk-tiers.md) + include rollback plan in Seal message
          - Tier 3 (Elden): All of Tier 2 + send AskUserQuestion for human confirmation
            before committing
-    4.8. FILE LOCK CHECK (gated: work.file_lock_signals.enabled, default true):
-         IF talisman.work?.file_lock_signals?.enabled === false: SKIP this step entirely.
+    4.8. FILE LOCK CHECK (always-on in v3.x; former opt-out removed):
          Read ALL *-files.json in tmp/.rune-signals/{team}/ via Glob.
          Build lockedFiles set with error handling:
            let lockedFiles = new Set()
@@ -1292,7 +1290,7 @@ showing what other workers are implementing and which files they own.
 Prevents duplicate work and cross-worker file conflicts in concurrent swarms.
 
 See [sibling-context.md](sibling-context.md) for `buildSiblingContext()` implementation.
-Config: `work.sibling_awareness` talisman section.
+Config: hardcoded in v3.x (see [v3-defaults.md](../../../references/v3-defaults.md) `work.sibling_awareness`).
 
 **Injection point**: between `${nonGoalsBlock}` and `YOUR LIFECYCLE:` in both rune-smith and trial-forger prompts.
 
@@ -1320,7 +1318,7 @@ const siblingWorkerContext = buildSiblingContext(
 
 When a task has `isFrontend === true` AND a design system profile exists at `frontend-design-patterns/references/profiles/{library}-profile.md`, inject step 4.8 into rune-smith's lifecycle between step 4.7 (DESIGN SPEC) and step 5 (Read FULL target files). When conditions are not met, this step is omitted entirely — zero overhead.
 
-**Dual-gate pattern**: Both gates must pass before injecting (v3.x: the former talisman opt-in is now unconditional):
+**Dual-gate pattern**: Both gates must pass before injecting (v3.x: the former config opt-in is now unconditional):
 - Gate 1 (task): `task.metadata.isFrontend` is true
 - Gate 2 (profile): design system profile file exists on disk
 
@@ -1339,8 +1337,8 @@ When a task has `isFrontend === true` AND a design system profile exists at `fro
 //
 // See: skills/devise/references/synthesize.md § Component Hierarchy for the plan field schema.
 function buildComponentConstraintBlock(plan, designProfile) {
-  // Gate 1: talisman opt-in
-  if (!talisman?.strive?.frontend_component_context?.enabled) return ''
+  // Gate 1: removed in v3.x — frontend_component_context is hardcoded enabled
+  // (see ../../../references/v3-defaults.md misc.strive.frontend_component_context)
 
   // Gate 2: task must be flagged as frontend
   // Primary: set by buildPerComponentTaskSpec() when plan.component_hierarchy exists

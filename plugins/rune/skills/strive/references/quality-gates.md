@@ -123,10 +123,10 @@ See [todo-protocol.md](todo-protocol.md) for the full summary generation algorit
 
 After the ward check passes, run lightweight doc-consistency checks. See [doc-consistency.md](../../roundtable-circle/references/doc-consistency.md) for the full algorithm, extractor taxonomy, and security constraints.
 
-**Inputs**: committedFiles (from Phase 3.5 commit broker or git diff), talisman (re-read, not cached)
+**Inputs**: committedFiles (from Phase 3.5 commit broker or git diff)
 **Outputs**: PASS/DRIFT/SKIP results appended to work-summary.md
 **Preconditions**: Ward check passed (Phase 4), all workers completed
-**Error handling**: DRIFT is non-blocking (warn). Extraction failure → SKIP with reason. Talisman parse error → fall back to defaults.
+**Error handling**: DRIFT is non-blocking (warn). Extraction failure → SKIP with reason.
 
 ---
 
@@ -212,18 +212,19 @@ if (planTimestamp) {
 
 Post-work AC-only verification using the blind-verifier agent. Spawns an independent verifier that receives ONLY plan acceptance criteria — never diffs, worker reports, or evaluator output. Eliminates anchoring bias by ensuring the verifier discovers evidence independently.
 
-**Skip conditions**: `blind_verification.enabled !== true` (talisman), plan has no `acceptance_criteria` blocks.
+**Skip conditions**: blind verification is disabled in v3.x (see [v3-defaults.md](../../../references/v3-defaults.md)); also skipped when the plan has no `acceptance_criteria` blocks.
 
-**Inputs**: planPath, timestamp, talisman
+**Inputs**: planPath, timestamp
 **Outputs**: `tmp/work/{timestamp}/blind-verification.md` with per-AC VERIFIED/UNVERIFIED/INCONCLUSIVE verdicts
 **Preconditions**: Ward check passed (Phase 4), all workers completed/shutdown
 **Error handling**: Verifier timeout or crash → skip silently (non-blocking). Missing plan → skip silently.
 
 ```javascript
-// Phase 4.6: Blind Verification (conditional, non-blocking by default)
-const blindEnabled = talisman?.blind_verification?.enabled === true
+// Phase 4.6: Blind Verification (disabled by default in v3.x)
+// v3.x: blind_verification subsystem off — see references/v3-defaults.md
+const blindEnabled = false
 if (!blindEnabled) {
-  log("Phase 4.6: Blind Verification skipped — blind_verification.enabled !== true")
+  log("Phase 4.6: Blind Verification skipped — disabled in v3.x")
 } else {
   // Extract acceptance criteria from plan
   const planContent = Read(planPath)
@@ -285,7 +286,7 @@ After writing the verdict, send results to team lead via SendMessage, then mark 
     })
 
     // Monitor: wait for blind-verifier to complete
-    const blindTimeout = (talisman?.blind_verification?.timeout_seconds ?? 120) * 1000
+    const blindTimeout = 120 * 1000  // v3.x baked default (see references/v3-defaults.md)
     const blindStart = Date.now()
     while (true) {
       const tasks = TaskList()
@@ -321,8 +322,8 @@ After writing the verdict, send results to team lead via SendMessage, then mark 
       // Advisory: append to checks array for completion report
       checks.push(`INFO: Blind Verification: ${verdict} (${coverage}) — see ${blindResultPath}`)
 
-      // If configured as blocking, gate on verdict
-      const isBlocking = talisman?.blind_verification?.blocking === true
+      // v3.x: blocking hardcoded false (see references/v3-defaults.md)
+      const isBlocking = false
       if (isBlocking && verdict === "FAIL") {
         checks.push(`WARN: Blind Verification FAIL is blocking — review unverified criteria before shipping`)
       } else if (isBlocking && verdict === "PARTIAL") {
@@ -337,9 +338,9 @@ After writing the verdict, send results to team lead via SendMessage, then mark 
 
 **Key design decisions:**
 - **Blind by design:** The spawn prompt contains ONLY plan path, acceptance criteria, and timestamp. No diffs, no worker reports, no evaluator output — ensuring zero anchoring bias.
-- **Non-blocking by default:** Blind verification results are `INFO`-level. Configure `blind_verification.blocking: true` in talisman to make FAIL verdicts blocking.
-- **Opt-in activation:** Requires `blind_verification.enabled: true` in talisman.yml. Zero overhead when disabled.
+- **Non-blocking by default:** Blind verification results are `INFO`-level when enabled; v3.x bakes the subsystem to disabled (see [v3-defaults.md](../../../references/v3-defaults.md)).
+- **Disabled in v3.x:** The whole subsystem is off in v3.x; this section documents the protocol that runs if it is locally re-enabled.
 - **Graceful degradation:** Timeout, crash, or missing plan → skip silently. No criteria in plan → skip silently.
 - **Independent evidence:** The blind-verifier uses Read, Glob, Grep, and Bash to find its own evidence. It cannot access TaskList/TaskGet (which would expose worker context).
-- **Timeout scaling:** The default `timeout_seconds: 120` is adequate for Haiku/Sonnet sessions with fewer than 6 ACs. For Opus sessions or plans with many semantic ACs, configure `blind_verification.timeout_seconds: 300` in talisman.yml. The verifier uses up to 40 tool calls — at ~3-5s latency on Opus, 120s may be insufficient.
+- **Timeout scaling:** The baked default of 120 seconds is adequate for Haiku/Sonnet sessions with fewer than 6 ACs. For Opus sessions or plans with many semantic ACs, increase the literal in this file (the v3.x baseline matches v3-defaults.md). The verifier uses up to 40 tool calls — at ~3-5s latency on Opus, 120s may be insufficient.
 - **Bash residual vector:** The blind-verifier has `Bash` access for `test_passes` proof-type verification. This tool could theoretically read worker context via shell commands (`git diff`, `cat tmp/work/*/...`). The BLIND-001 Iron Law and Truthbinding enforce isolation at the prompt level. For stricter enforcement, consider adding a PreToolUse:Bash hook scoped to blind-verifier sessions.

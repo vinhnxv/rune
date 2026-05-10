@@ -12,6 +12,8 @@ user-invocable: false
 disable-model-invocation: false
 ---
 
+<!-- v3.x: defaults baked from former talisman.misc.inner_flame; see references/v3-defaults.md -->
+
 # Inner Flame — Universal Self-Review Protocol
 
 Every Rune teammate must face their Inner Flame before sealing a task. This is a structured
@@ -98,8 +100,8 @@ Layers 1–3 work. Existing SEAL messages and Inner Flame logs remain valid; ass
 is a new prefix step, not a replacement.
 
 Orchestrators do NOT need to be updated. Layer 0 fires via the `validate-assumption-gate.sh`
-`PreToolUse:Write|Edit` hook automatically when `inner_flame.assumption_gate.enabled: true` in
-talisman. The default is `false` — existing projects are unaffected until they opt in.
+`PreToolUse:Write|Edit` hook automatically. In v3.x the assumption gate is hardcoded ON
+(see [v3-defaults.md](../../references/v3-defaults.md)).
 
 ## Layer 1: Grounding Check (Anti-Hallucination)
 
@@ -176,7 +178,7 @@ Ask yourself these questions as if you were reviewing someone ELSE's work:
 ## Layer 3B: Elegance Check (Conditional)
 
 **Gate**: Only runs when ALL conditions are met:
-1. `inner_flame.elegance_check` is `true` in talisman (default: false)
+1. `inner_flame.elegance_check` is enabled (v3.x: hardcoded `false` — see [v3-defaults.md](../../references/v3-defaults.md))
 2. Change is non-trivial: modified 3+ files OR added 50+ lines (per-worker scope —
    counts files THIS agent modified in the current task, not global total)
 3. Role is Worker or Fixer (skip for Reviewer, Researcher, Forger, Aggregator)

@@ -5,16 +5,13 @@ Detailed protocols for the Lore Layer implementation, `--deep` second pass, Doub
 ## Lore Layer Full Implementation (Phase 0.5)
 
 ```javascript
-const goldmaskEnabled = talisman?.goldmask?.enabled !== false
-const loreEnabled = talisman?.goldmask?.layers?.lore?.enabled !== false
+// v3.x: goldmask.enabled, goldmask.layers.lore.enabled, lore.lookback_days are
+// hardcoded (true / true / 180) — see ../../../references/v3-defaults.md
 const isGitRepo = Bash("git rev-parse --is-inside-work-tree 2>/dev/null").exitCode === 0
 
-if (goldmaskEnabled && loreEnabled && isGitRepo && !flags['--no-lore']) {
-  // SEC-001 FIX: Numeric validation before shell interpolation
+if (isGitRepo && !flags['--no-lore']) {
   // QUAL-102 FIX: Added --no-lore flag support
-  const rawLookbackDays = Number(talisman?.goldmask?.layers?.lore?.lookback_days)
-  const lookbackDays = (Number.isFinite(rawLookbackDays) && rawLookbackDays >= 1 && rawLookbackDays <= 730)
-    ? Math.floor(rawLookbackDays) : 180
+  const lookbackDays = 180
   const commitCount = parseInt(
     Bash(`git rev-list --count --since="${lookbackDays} days ago" HEAD 2>/dev/null`).trim(), 10
   )
@@ -96,7 +93,7 @@ if (goldmaskEnabled && loreEnabled && isGitRepo && !flags['--no-lore']) {
 ## Doubt Seer — Phase 4.5 (disabled in v3.x)
 
 The Doubt Seer cross-examination phase is disabled by default in v3.x
-(former v2.x talisman config: gates.doubt_seer.enabled, default: `false`). No code path
+(`gates.doubt_seer.enabled = false`; see ../../../references/v3-defaults.md). No code path
 spawns the doubt-seer agent. Proceed directly to Phase 5 (Aggregate).
 
 ## Deep Investigation Pass (Phase 5.6)

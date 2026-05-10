@@ -13,13 +13,13 @@ Output: shards[]            — array of { shard_id, files[], domains, primary_d
         OR null             — when below threshold (standard review)
 ```
 
-### Constants (from talisman or defaults)
+### Constants (v3.x baked-in defaults — see [v3-defaults.md](../../../references/v3-defaults.md))
 
 ```javascript
-const SHARD_THRESHOLD = talisman?.review?.shard_threshold ?? 15
-const SHARD_SIZE      = talisman?.review?.shard_size      ?? 12
-const MAX_SHARDS      = talisman?.review?.max_shards      ?? 5
-const MODEL_POLICY    = talisman?.review?.shard_model_policy ?? "auto"
+const SHARD_THRESHOLD = 15
+const SHARD_SIZE      = 12
+const MAX_SHARDS      = 5
+const MODEL_POLICY    = "auto"
 
 // Threshold gate — standard review for small diffs
 if (classifiedFiles.length <= SHARD_THRESHOLD) return null
@@ -236,14 +236,14 @@ When the convergence loop (arc Phase 7.5 VERIFY MEND) retries the review phase,
 ```javascript
 // In convergence retry (round > 0):
 const focusFiles = buildProgressiveFocus(resolutionReport, originalChangedFiles)
-const reShards = allocateShards(focusFiles, config)
+const reShards = allocateShards(focusFiles)
 
 if (reShards === null) {
   // Below threshold → standard review (expected path — mend touches < 15 files)
 } else {
   // Still above reshard_threshold → force standard review to preserve finding continuity
-  // See: reshard_threshold talisman key
-  if (focusFiles.length <= (talisman?.review?.reshard_threshold ?? 30)) {
+  // v3.x: reshard_threshold hardcoded to 30 (see references/v3-defaults.md)
+  if (focusFiles.length <= 30) {
     // Use re-sharded review
   } else {
     // Force standard review — re-sharding at this scale breaks prefix continuity

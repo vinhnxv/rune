@@ -38,16 +38,15 @@ The tier is selected **once** at the start (after Phase 1 scoring) and does not 
 
 *Best case = all chunks converge on first pass. Worst case = all chunks re-reviewed every round.*
 
-## `selectConvergenceTier(scoredFiles, chunks, config)`
+## `selectConvergenceTier(scoredFiles, chunks)`
 
 **Inputs**:
 - `scoredFiles` — `{ file, complexity, riskFactor, type }[]` — output of `scoreFile`
 - `chunks` — `{ files, totalComplexity, chunkIndex }[]` — from `groupIntoChunks`
-- `config` — talisman.yml `review` section (may be null). Caller passes `talisman?.review`.
 
 **Outputs**: `{ name, maxRounds, reason }` — selected convergence tier
 
-**Error handling**: Invalid `convergence_tier_override` values are ignored with a warning; falls back to auto-detect.
+**Error handling**: tier auto-detected from changeset signals; no override layer in v3.x.
 
 ```javascript
 const TIERS = {
@@ -56,17 +55,8 @@ const TIERS = {
   thorough: { name: 'CHUNK_THOROUGH', maxRounds: 3 },
 }
 
-function selectConvergenceTier(scoredFiles, chunks, config) {
-  // User override via talisman.yml: convergence_tier_override: "thorough"
-  // SEC-008 FIX: Type check before .toLowerCase() — non-string values (numbers, booleans) would throw
-  const rawOverride = config?.convergence_tier_override
-  const override = typeof rawOverride === 'string' ? rawOverride.toLowerCase() : undefined
-  if (override && TIERS[override]) {
-    return { ...TIERS[override], reason: `User override via talisman.yml: ${override}` }
-  }
-  if (override && !TIERS[override]) {
-    warn(`Unknown convergence_tier_override "${override}" — falling back to auto-detect`)
-  }
+function selectConvergenceTier(scoredFiles, chunks) {
+  // v3.x: tier override removed — auto-detect only (see references/v3-defaults.md)
 
   // SEC-001 FIX: Guard against empty scoredFiles (division by zero → NaN → silent misclassification)
   if (scoredFiles.length === 0) {
@@ -130,36 +120,24 @@ Each chunk is scored on 4 orthogonal dimensions after every TOME merge round.
 
 **P1/P2 Findings as Quality Gate Trigger**:
 
-In addition to metric thresholds, chunks with P1 or P2 findings are flagged for re-review when:
-- `convergence.re_review_p1_p2: true` in talisman (default: false)
-- The chunk has P1 or P2 findings that could potentially be resolved or improved by a second review pass
-- This is useful for high-stakes reviews where critical findings warrant extra scrutiny
-
-**Re-review trigger logic** (when `re_review_p1_p2` is enabled):
-```
-if (chunk.has_p1_p2_findings && !chunk.passed_previous_review) {
-  flag_for_re_review = true
-  reason = "P1/P2 findings present — re-review for validation"
-}
-```
+In v3.x this trigger is hardcoded OFF (see [v3-defaults.md](../../../references/v3-defaults.md)). Chunks are flagged for re-review based on metric thresholds only.
 
 **Edge cases**:
 - Chunks with < 3 files auto-pass (too few files for meaningful density measurement)
 - `Math.max(chunkFindings.length, 1)` prevents division by zero in Evidence Ratio
 
-## `computeChunkMetrics(unifiedTome, chunk, config)`
+## `computeChunkMetrics(unifiedTome, chunk)`
 
 **Inputs**:
 - `unifiedTome` — string: merged TOME content after all chunk TOMEs combined
 - `chunk` — `{ files, chunkIndex }[]`
-- `config` — talisman.yml `review` section (may be null). Required for `passesThresholds` to apply talisman overrides.
 
 **Outputs**: `{ chunkIndex, finding_density, evidence_ratio, confidence_mean, coverage_completeness, is_code_chunk, finding_count, file_count, pass }`
 
 **Error handling**: Metric parse failure → treat chunk as failing (conservative); log warning.
 
 ```javascript
-function computeChunkMetrics(unifiedTome, chunk, config) {
+function computeChunkMetrics(unifiedTome, chunk) {
   // BACK-002 FIX: Explicit 0-file guard — degenerate chunks should warn, not silently pass
   if (chunk.files.length === 0) {
     warn('computeChunkMetrics: 0-file chunk detected — auto-pass with warning')
@@ -213,38 +191,22 @@ function computeChunkMetrics(unifiedTome, chunk, config) {
     is_code_chunk:         isCodeChunk,
     finding_count:         chunkFindings.length,
     file_count:            chunk.files.length,
-    // BACK-007 FIX: Pass config to passesThresholds so talisman overrides take effect
-    pass: passesThresholds(findingDensity, evidenceRatio, confidenceMean, coverageCompleteness, isCodeChunk, config),
+    pass: passesThresholds(findingDensity, evidenceRatio, confidenceMean, coverageCompleteness, isCodeChunk),
   }
 }
 
-// BACK-007 FIX: Wire talisman config values to threshold checks.
-// Without this, the convergence_*_threshold keys in talisman.yml are dead config.
-// SEC-004 FIX: Validate numeric talisman config values within acceptable range
-function clampNumeric(value, min, max, fallback) {
-  if (typeof value !== 'number' || Number.isNaN(value)) return fallback
-  return Math.max(min, Math.min(max, value))
-}
-
-function passesThresholds(density, evidence, confidence, coverage, isCode, config) {
+// v3.x: thresholds baked-in literals; no customization layer (see references/v3-defaults.md)
+function passesThresholds(density, evidence, confidence, coverage, isCode) {
   const t = isCode
-    ? {
-        // SEC-004 FIX: Validate config values are numbers in range [0.0, 1.0]
-        density:    clampNumeric(config?.convergence_density_threshold,    0.0, 1.0, 0.3),
-        evidence:   clampNumeric(config?.convergence_evidence_threshold,   0.0, 1.0, 0.7),
-        confidence: clampNumeric(config?.convergence_confidence_threshold, 0.0, 1.0, 0.6),
-        coverage:   clampNumeric(config?.convergence_coverage_threshold,   0.0, 1.0, 0.4),
-      }
-    // BACK-006 NOTE: Doc-chunk thresholds are intentionally hardcoded.
-    // Doc thresholds are stable — density/coverage expectations for docs are universally lower.
-    // v3.x: thresholds are baked-in literals; no customization layer.
+    ? { density: 0.3, evidence: 0.7, confidence: 0.6, coverage: 0.4 }
+    // BACK-006 NOTE: Doc-chunk thresholds are intentionally lower than code thresholds.
     : { density: 0.1, evidence: 0.5, confidence: 0.5, coverage: 0.2 }
   return density >= t.density && evidence >= t.evidence &&
          confidence >= t.confidence && coverage >= t.coverage
 }
 ```
 
-## `evaluateConvergence(unifiedTome, reviewedChunks, allChunks, round, history, config)`
+## `evaluateConvergence(unifiedTome, reviewedChunks, allChunks, round, history, tier)`
 
 **Inputs**:
 - `unifiedTome` — current merged TOME string
@@ -252,16 +214,15 @@ function passesThresholds(density, evidence, confidence, coverage, isCode, confi
 - `allChunks` — complete chunk list (for returning flagged chunks by index)
 - `round` — `number`: current round index (0 = initial)
 - `history` — `{ round, chunk_metrics, verdict, timestamp }[]`
-- `config` — talisman.yml `review` section (may be null). Passed through to `computeChunkMetrics`.
+- `tier` — selected convergence tier `{ name, maxRounds, reason }`
 
 **Outputs**: `{ verdict: 'converged' | 'retry' | 'halted', flaggedChunks, chunkMetrics, reason? }`
 
 **Error handling**: If metrics cannot be parsed for a chunk, it is treated as failing (conservative bias).
 
 ```javascript
-function evaluateConvergence(unifiedTome, reviewedChunks, allChunks, round, history, config, tier) {
-  // BACK-001 FIX: Pass config through to computeChunkMetrics so talisman threshold overrides take effect
-  const chunkMetrics = reviewedChunks.map(chunk => computeChunkMetrics(unifiedTome, chunk, config))
+function evaluateConvergence(unifiedTome, reviewedChunks, allChunks, round, history, tier) {
+  const chunkMetrics = reviewedChunks.map(chunk => computeChunkMetrics(unifiedTome, chunk))
   const failedChunks = chunkMetrics.filter(m => !m.pass)
 
   // DECREE-002 FIX: Circuit breaker — hard limit check FIRST before any other logic.
@@ -506,20 +467,17 @@ Trend: IMPROVING (findings +4, failed chunks 1 → 0)
 | coverage_threshold (code) | 0.4 |
 ```
 
-## Talisman Config Keys
+## Baked Defaults (v3.x)
 
-All keys live under `review:` in `.rune/talisman.yml` (QUAL-001 FIX: standardized from `rune-gaze:`):
+All convergence settings are hardcoded in v3.x — no per-project override (see [v3-defaults.md](../../../references/v3-defaults.md)):
 
-```yaml
-review:
-  convergence_enabled: true            # Enable convergence loop (default: true)
-  convergence_tier_override: null      # Force tier: "minimal" | "standard" | "thorough" | null
-  # max_convergence_rounds is DERIVED from tier — do not set directly
-  convergence_density_threshold: 0.3   # Min findings/file for code chunks
-  convergence_evidence_threshold: 0.7  # Min evidence-traced findings ratio
-  convergence_confidence_threshold: 0.6 # Min avg confidence score
-  convergence_coverage_threshold: 0.4  # Min files-with-findings ratio (code chunks)
-```
+| Key | Value |
+|-----|-------|
+| convergence_enabled | `true` |
+| tier override | none — auto-detected from changeset signals |
+| max rounds | derived from tier (`CHUNK_MINIMAL`=1, `CHUNK_STANDARD`=2, `CHUNK_THOROUGH`=3) |
+| code: density / evidence / confidence / coverage | `0.3 / 0.7 / 0.6 / 0.4` |
+| docs: density / evidence / confidence / coverage | `0.1 / 0.5 / 0.5 / 0.2` |
 
 ## References
 

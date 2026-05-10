@@ -1,8 +1,10 @@
+<!-- v3.x: defaults baked from former talisman.goldmask; see references/v3-defaults.md -->
+
 # Phase 2.3: Predictive Goldmask
 
 After the plan is synthesized but before shatter assessment, runs a predictive Goldmask analysis to identify which existing files are likely to be affected, surface Wisdom advisories (caution zones) for risky areas, trace dependency chains (Impact Layer), and inform the shatter decision with risk data.
 
-**Inputs**: `talisman` (config object), `timestamp` (validated identifier), `planPath` (string), `args` (CLI arguments)
+**Inputs**: `timestamp` (validated identifier), `planPath` (string), `args` (CLI arguments)
 **Outputs**: `tmp/plans/{timestamp}/goldmask-prediction/risk-map.json`, `tmp/plans/{timestamp}/goldmask-prediction/wisdom-report.md`, `tmp/plans/{timestamp}/goldmask-prediction/GOLDMASK-PREDICTION.md`
 **Preconditions**: Phase 1 research completed, plan team (`rune-plan-{timestamp}`) already exists
 
@@ -20,7 +22,7 @@ After the plan is synthesized but before shatter assessment, runs a predictive G
 | `enhanced` | 6 (lore + 3 tracers + wisdom + coordinator) | 2.5-5.5 min | Explicit opt-in: `goldmask.devise.depth: enhanced`. Budget ceiling: 6 min |
 | `full` | 8 (lore + 5 tracers + wisdom + coordinator) | 3-6 min | Major architectural changes — explicit opt-in only |
 
-**Talisman config**: `goldmask.devise.depth` — `basic` (default) | `enhanced` | `full`
+**Depth**: hardcoded `basic` in v3.x (see [v3-defaults.md](../../../references/v3-defaults.md)). `enhanced` and `full` modes remain implemented but are not user-selectable; they are reachable only via local fork of this skill.
 
 ## Step 0: Extract Predicted Files
 
@@ -28,19 +30,16 @@ Derive predicted affected files from Phase 1 research outputs (structured artifa
 NOT from regex parsing of free-form plan prose.
 
 ```javascript
-const goldmaskEnabled: boolean = talisman?.goldmask?.enabled !== false
-const goldmaskDeviseEnabled: boolean = talisman?.goldmask?.devise?.enabled !== false
+// v3.x: goldmask.enabled and goldmask.devise.enabled are baked-in `true`.
 const isGitRepo: boolean = Bash("git rev-parse --is-inside-work-tree 2>/dev/null").trim() === "true"
 const isQuick: boolean = args.includes("--quick")
 
-if (!goldmaskEnabled || !goldmaskDeviseEnabled || !isGitRepo || isQuick) {
-  const skipReason: string = !goldmaskEnabled ? "goldmask.enabled=false"
-    : !goldmaskDeviseEnabled ? "goldmask.devise.enabled=false"
-    : !isGitRepo ? "not a git repo" : "--quick flag"
+if (!isGitRepo || isQuick) {
+  const skipReason: string = !isGitRepo ? "not a git repo" : "--quick flag"
   warn(`Phase 2.3: Predictive Goldmask skipped — ${skipReason}`)
   // Continue to Phase 2.5
 } else {
-  const deviseDepth: string = talisman?.goldmask?.devise?.depth ?? "basic"
+  const deviseDepth: string = "basic"
   // Validate depth value — fallback to basic for unrecognized values
   const validDepths: string[] = ["basic", "enhanced", "full"]
   const effectiveDepth: string = validDepths.includes(deviseDepth) ? deviseDepth : "basic"
@@ -191,7 +190,7 @@ YOUR LIFECYCLE:
       prompt: `You are rune:investigation:lore-analyst — a Goldmask Lore Layer analyst.
 
 Analyze git history risk metrics for: ${predictedFiles.join(", ")}
-Lookback: ${talisman?.goldmask?.layers?.lore?.lookback_days ?? 180} days
+Lookback: 180 days
 Write risk-map.json to: ${outputDir}/risk-map.json
 
 YOUR LIFECYCLE:

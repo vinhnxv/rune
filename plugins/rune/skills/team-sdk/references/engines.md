@@ -1,3 +1,5 @@
+<!-- v3.x: defaults baked from former talisman.teams; see references/v3-defaults.md -->
+
 # TeamEngine — Full Implementation
 
 Agent Team lifecycle engine. Implements the ExecutionEngine interface defined in [SKILL.md](../SKILL.md).
@@ -604,7 +606,7 @@ function shutdown(handle) {
     // above) is already the authoritative signal.
     //
     // We keep the probe for tmux mode but treat its result as advisory only.
-    const teammateMode = (typeof talisman !== "undefined" && talisman?.teams?.mode) || "auto"
+    const teammateMode = "auto"  // v3.x baked default
     if (teammateMode === "tmux") {
       try {
         const childPids = Bash(`pgrep -P $PPID 2>/dev/null | head -20 || true`).trim()

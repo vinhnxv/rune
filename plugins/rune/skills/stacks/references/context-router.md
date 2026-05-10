@@ -1,3 +1,5 @@
+<!-- v3.x: defaults baked from former talisman.stack_awareness and talisman.misc.design_sync; see references/v3-defaults.md -->
+
 # Context Router
 
 Smart context loading algorithm. Classifies changed files into domains, then selects which reference docs and agents to load based on the detected stack and task type.
@@ -164,15 +166,14 @@ computeContextManifest(task_type, file_scope, detected_stack, task_description):
         manifest.skills_to_load.push("design/figma")
       if "storybook" in detected_stack.frameworks:
         manifest.skills_to_load.push("design/storybook")
-    # Conditionally load design-sync agent when talisman enables it
-    if talisman?.design_sync?.enabled:
-      manifest.agents_selected.push("design-implementation-reviewer")
+    # v3.x: design_sync subsystem is off (baked `{}`) — design-implementation-reviewer
+    # is no longer auto-loaded here; fork this skill to re-enable.
 
     # Conditionally load design-system compliance reviewer
-    # Triggered when: frontend detected AND design system confidence >= 0.5 AND not disabled
+    # Triggered when: frontend detected AND design system confidence >= 0.5
+    # (v3.x: stack_awareness.design_compliance is hardcoded ON)
     ds_confidence = detected_stack.design_system?.confidence ?? 0
-    ds_disabled = talisman?.stack_awareness?.design_compliance == false
-    if NOT ds_disabled AND ds_confidence >= 0.5:
+    if ds_confidence >= 0.5:
       manifest.agents_selected.push("design-system-compliance-reviewer")
 
   # Step 6: Select frontend knowledge skills (v2.40.0+)
@@ -214,8 +215,10 @@ computeContextManifest(task_type, file_scope, detected_stack, task_description):
   if domains.frontend:
     manifest.skills_to_load.push("web-interface-rules")
 
-  # Step 7: Load custom rules from talisman
-  custom_rules = talisman?.stack_awareness?.custom_rules ?? []
+  # Step 7: Load custom rules
+  # v3.x: custom_rules is hardcoded `[]` (see [v3-defaults.md](../../../references/v3-defaults.md)).
+  # The loop below is dead-coded but retained for reference.
+  custom_rules = []
   for rule in custom_rules:
     # SEC-001: Validate custom rule path against path traversal
     if NOT rule.path matches /^[a-zA-Z0-9_.\/\-]+$/ OR rule.path contains "..":

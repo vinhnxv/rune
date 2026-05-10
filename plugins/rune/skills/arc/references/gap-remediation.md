@@ -6,7 +6,7 @@ New phase after Gap Analysis (5.5) and before Goldmask Verification (5.7). Autom
 **Timeout**: 900_000ms (15 min: inner 10m + 5m setup)
 **Inputs**: `tmp/arc/{id}/gap-analysis-verdict.md` (from Phase 5.5 STEP B), checkpoint `needs_remediation` flag
 **Outputs**: `tmp/arc/{id}/gap-remediation-report.md`, committed code fixes
-**Talisman key**: `arc.gap_analysis.remediation`
+**Defaults**: hardcoded in v3.x (see [v3-defaults.md](../../../references/v3-defaults.md))
 
 ---
 
@@ -16,16 +16,14 @@ New phase after Gap Analysis (5.5) and before Goldmask Verification (5.7). Autom
 // Gate A (deterministic): needs_remediation from Phase 5.5 STEP D
 const deterministicNeedsRemediation = checkpoint.phases?.gap_analysis?.needs_remediation === true
 
-// Gate B: remediation enabled in talisman
-const remediationEnabled = talisman?.arc?.gap_analysis?.remediation?.enabled !== false  // Default: true
+// Gate B: v3.x — remediation always enabled (see references/v3-defaults.md)
+const remediationEnabled = true
 
-// Decision: deterministic signal triggers remediation (if enabled)
-const shouldRemediate = remediationEnabled && deterministicNeedsRemediation
+// Decision: deterministic signal triggers remediation
+const shouldRemediate = deterministicNeedsRemediation
 
 if (!shouldRemediate) {
-  const reason = !remediationEnabled
-    ? "arc.gap_analysis.remediation.enabled: false in talisman"
-    : `Phase 5.5 did not flag needs_remediation (deterministicNeedsRemediation=${deterministicNeedsRemediation})`
+  const reason = `Phase 5.5 did not flag needs_remediation (deterministicNeedsRemediation=${deterministicNeedsRemediation})`
 
   Write(`tmp/arc/${id}/gap-remediation-report.md`,
     `# Gap Remediation — Skipped\n\n**Reason**: ${reason}\n**Date**: ${new Date().toISOString()}\n`)
@@ -176,8 +174,8 @@ for (let i = 0; i < verdictLines.length; i++) {
   }
 }
 
-// Cap at max_fixes from talisman
-const maxFixes = talisman?.arc?.gap_analysis?.remediation?.max_fixes ?? 20
+// v3.x: max_fixes hardcoded (see references/v3-defaults.md)
+const maxFixes = 20
 const cappedFindings = allFindings.slice(0, maxFixes)
 
 log(`Phase 5.8: ${allFindings.length} FIXABLE findings, capping at ${cappedFindings.length}`)
@@ -378,7 +376,7 @@ Agent({
   subagent_type: "general-purpose",
   team_name: fixTeamName,
   name: "gap-fixer",
-  model: resolveModelForAgent("gap-fixer", talisman),  // Cost tier mapping
+  model: resolveModelForAgent("gap-fixer"),  // Cost tier mapping
   run_in_background: true
 })
 ```
@@ -576,4 +574,4 @@ log(`Phase 5.8 complete: ${fixedFindingIds.length} gaps fixed, ${deferredFinding
 
 **Output**: `tmp/arc/{id}/gap-remediation-report.md`
 
-**Failure policy**: Non-blocking (WARN). Gate failure (needs_remediation=false, or talisman disabled) skips cleanly. If gap-fixer times out or produces no commits, the report records zero fixes and the pipeline continues. The deferred findings are persisted to echoes for future awareness. Does not halt pipeline.
+**Failure policy**: Non-blocking (WARN). Gate failure (needs_remediation=false) skips cleanly. If gap-fixer times out or produces no commits, the report records zero fixes and the pipeline continues. The deferred findings are persisted to echoes for future awareness. Does not halt pipeline.

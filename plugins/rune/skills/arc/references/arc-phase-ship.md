@@ -235,10 +235,10 @@ if (arcConfig.design_sync?.enabled === true) {
   }
 }
 
-// Read talisman PR settings
+// Read PR settings from resolved arcConfig
 const monitoringRequired = arcConfig.ship.pr_monitoring
 // BACK-012 FIX: Read co_authors from arcConfig.ship (resolved via resolveArcConfig)
-// instead of raw talisman?.work?.co_authors, so the 3-layer resolution chain applies.
+// so the resolution chain applies.
 const coAuthors = arcConfig.ship.co_authors ?? []
 const validCoAuthors = coAuthors.filter(a => /^[^<>\n]+\s+<[^@\n]+@[^>\n]+>$/.test(a))
 const coAuthorLines = validCoAuthors.map(a => `Co-Authored-By: ${a}`).join('\n')

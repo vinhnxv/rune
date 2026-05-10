@@ -3,10 +3,10 @@ name: audit
 description: |
   Full codebase audit using Agent Teams. Sets scope=full and depth=deep (by default),
   then delegates to the shared Roundtable Circle orchestration phases.
-  Summons up to 7 built-in Ashes (plus custom from talisman.yml). Optional `--deep`
+  Summons up to 7 built-in Ashes (custom Ashes wired in orchestration layer in v3.x). Optional `--deep`
   runs multi-wave investigation with deep Ashes. Phase 0.45 context building spawns
   context-builder agent to map trust boundaries, invariants, and state flows before
-  vulnerability hunting (auto for deep, configurable via talisman). Supports `--focus`
+  vulnerability hunting (auto for deep). Supports `--focus`
   for targeted audits. Supports `--incremental` for stateful, prioritized batch auditing
   with 3-tier coverage tracking (file, workflow, API) and session-persistent audit history.
 user-invocable: true
@@ -58,10 +58,10 @@ Thin wrapper that sets audit-specific parameters, then delegates to the shared R
 | `--reset` | Reset incremental audit history and start fresh | Off |
 | `--tier <tier>` | Limit incremental audit to specific tier: `file`, `workflow`, `api`, `all` | `all` |
 | `--force-files <glob>` | Force specific files into incremental batch regardless of priority score | None |
-| `--dirs <path,...>` | Comma-separated list of directories to audit (relative to project root). Overrides talisman `audit.dirs`. Merged with talisman defaults when both are set. | All dirs (talisman or full scan) |
-| `--exclude-dirs <path,...>` | Comma-separated list of directories to exclude from audit. Merged with talisman `audit.exclude_dirs`. Flag values take precedence over talisman defaults. | None (plus talisman defaults) |
+| `--dirs <path,...>` | Comma-separated list of directories to audit (relative to project root). | All dirs (full scan) |
+| `--exclude-dirs <path,...>` | Comma-separated list of directories to exclude from audit. | None |
 | `--prompt <text>` | Inline custom inspection criteria injected into every Ash prompt. Sanitized via `sanitizePromptContent()`. Findings use standard prefixes with `source="custom"` attribute. | None |
-| `--prompt-file <path>` | Path to a Markdown file containing custom inspection criteria. Loaded, sanitized, and injected into Ash prompts. Takes precedence over `--prompt` when both are set. See [prompt-audit.md](references/prompt-audit.md). | None (or talisman `audit.default_prompt_file`) |
+| `--prompt-file <path>` | Path to a Markdown file containing custom inspection criteria. Loaded, sanitized, and injected into Ash prompts. Takes precedence over `--prompt` when both are set. See [prompt-audit.md](references/prompt-audit.md). | None |
 
 **Note:** Unlike `/rune:appraise`, there is no `--partial` flag. Audit always scans the full project.
 
@@ -78,15 +78,15 @@ Thin wrapper that sets audit-specific parameters, then delegates to the shared R
 
 ```javascript
 // Parse depth: audit defaults to deep (unlike appraise which defaults to standard)
+// v3.x: always_deep removed as user-tunable; --deep flag is the canonical control
 const depth = flags['--standard']
   ? "standard"
-  : (flags['--deep'] !== false && (talisman?.audit?.always_deep !== false))
+  : (flags['--deep'] !== false)
     ? "deep"
     : "standard"
 
 const audit_id = Bash(`date +%Y%m%d-%H%M%S`).trim()
 const isIncremental = flags['--incremental'] === true
-  && (talisman?.audit?.incremental?.enabled !== false)
 let incrementalLockAcquired = false  // Tracks whether THIS session owns the lock (Finding 1/2 fix)
 const sessionId = "${CLAUDE_SESSION_ID}" || Bash(`echo "\${RUNE_SESSION_ID:-}"`).trim()  // Standalone variable for use in state writes (Finding 3 fix)
 ```
@@ -109,7 +109,7 @@ Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_ac
 
 <!-- DELEGATION-CONTRACT: Changes to Phase 0 steps must be reflected in skills/arc/references/arc-delegation-checklist.md -->
 
-Directory scope resolution for `--dirs` and `--exclude-dirs` flags. Merges flag values with talisman defaults, validates paths (SEC: rejects traversal, absolute escape), normalizes, deduplicates, verifies existence, and records `dir_scope` metadata for downstream phases. Then scans project files via `find` (excluding `.git`, `node_modules`, `dist`, etc.).
+Directory scope resolution for `--dirs` and `--exclude-dirs` flags. Validates paths (SEC: rejects traversal, absolute escape), normalizes, deduplicates, verifies existence, and records `dir_scope` metadata for downstream phases. Then scans project files via `find` (excluding `.git`, `node_modules`, `dist`, etc.).
 
 See [phase-0-dir-scope.md](references/phase-0-dir-scope.md) for the full pseudocode (7-step validation + file scan).
 
@@ -123,33 +123,20 @@ See [incremental-phases.md](references/incremental-phases.md) for the full Phase
 
 ### Load Custom Ashes
 
-After scanning files, check for custom Ash config:
-
-```
-1. Read .rune/talisman.yml (project) or ~/.claude/talisman.yml (global)
-2. If ashes.custom[] exists:
-   a. Validate: unique prefixes, unique names, resolvable agents, count <= max
-   b. Filter by workflows: keep only entries with "audit" in workflows[]
-   c. Match triggers against all_files (extension + path match)
-   d. Skip entries with fewer matching files than trigger.min_files
-3. Merge validated custom Ash with built-in selections
-4. Apply defaults.disable_ashes to remove any disabled built-ins
-```
-
-See [custom-ashes.md](../roundtable-circle/references/custom-ashes.md) for full schema and validation rules.
+In v3.x, custom Ashes are wired in the orchestration layer rather than configured.
+See [custom-ashes.md](../roundtable-circle/references/custom-ashes.md) for the wiring contract;
+defaults (`max_ashes`, `defaults.disable_ashes`) live in [v3-defaults.md](../../references/v3-defaults.md).
 
 
 ## Phase 0.45: Context Building (conditional)
 
 Spawn `context-builder` research agent to build architectural understanding before vulnerability hunting. Produces a structured context map injected into every Ash's spawn prompt.
 
-**Gate**: Controlled by `audit.context_building` talisman config:
-- `"auto"` (default): runs for `--deep` audits only
-- `"always"`: runs for all audits
-- `"never"`: disabled entirely
+**Gate**: Hardcoded `"auto"` in v3.x (see [v3-defaults.md](../../references/v3-defaults.md)):
+runs for `--deep` audits only.
 
 ```javascript
-// v3.x: audit context-building defaults baked from former talisman.audit.
+// v3.x: audit context-building hardcoded to "auto".
 const contextBuilding = "auto"
 const contextTimeout = 300 * 1000  // seconds → ms
 
@@ -249,8 +236,8 @@ const params = {
   workflow: "rune-audit",
   focusArea: flags['--focus'] || "full",
   dirScope: dir_scope,      // #20: { include: string[]|null, exclude: string[] } — resolved in Phase 0
-  customPromptBlock: resolveCustomPromptBlock(flags, talisman),  // #21: from --prompt / --prompt-file (null if not set). See references/prompt-audit.md
-  flags, talisman
+  customPromptBlock: resolveCustomPromptBlock(flags),  // #21: from --prompt / --prompt-file (null if not set). See references/prompt-audit.md
+  flags
 }
 
 // Execute Phases 1-7 from orchestration-phases.md

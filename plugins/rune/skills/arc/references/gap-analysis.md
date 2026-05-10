@@ -669,7 +669,7 @@ if (deletedFiles.length === 0) {
     // CDX-002 FIX: Sanitize basename before shell use
     if (!/^[a-zA-Z0-9._\-]+$/.test(basename)) continue
 
-    // Search across plugins/ (primary), .rune/ (talisman configs), .claude/ (legacy), scripts/ (hooks)
+    // Search across plugins/ (primary), .rune/ (legacy configs), .claude/ (legacy), scripts/ (hooks)
     // Uses Bash+rg to match existing gap-analysis.md tool pattern
     const grepResult = Bash(`rg -l --fixed-strings "${basename}" plugins/ .rune/ .claude/ scripts/ --glob '*.md' --glob '*.yml' --glob '*.sh' 2>/dev/null`)
     const referrers = grepResult.trim().split('\n')
@@ -979,7 +979,7 @@ updateCheckpoint({
 
 **Output**: `tmp/arc/{id}/gap-analysis.md`
 
-**Failure policy**: Configurable halt (v1.180.0+). Gap analysis forces remediation when plan completion falls below threshold. The dual-gate halt in STEP D uses a task completion gate (always active, default floor 100%) and a quality score gate (configurable via `arc.gap_analysis.halt_threshold`, default 70). When completion is below threshold, `checkpoint.phases.gap_analysis.needs_remediation` and `needs_task_remediation` are set, triggering Phase 5.7 Gap Remediation. The report is also available as context for Phase 6 (CODE REVIEW). To disable quality-score halting: set `arc.gap_analysis.halt_on_critical: false` in talisman.yml.
+**Failure policy**: Hardcoded halt (v3.x). Gap analysis forces remediation when plan completion falls below threshold. The dual-gate halt in STEP D uses a task completion gate (always active, floor 100%) and a quality score gate (threshold 70, halt enabled). When completion is below threshold, `checkpoint.phases.gap_analysis.needs_remediation` and `needs_task_remediation` are set, triggering Phase 5.7 Gap Remediation. The report is also available as context for Phase 6 (CODE REVIEW). See [v3-defaults.md](../../../references/v3-defaults.md) for baked-in values.
 
 ---
 
@@ -1003,12 +1003,8 @@ Spawns Inspector Ashes from `/rune:inspect` using its ash-prompt templates to pe
 **Timeout**: 480_000ms (8 min inner polling)
 
 ```javascript
-// STEP B.1: Gate check
-const inspectEnabled = talisman?.arc?.gap_analysis?.inspect_enabled !== false
-if (!inspectEnabled) {
-  Write(`tmp/arc/${id}/gap-analysis-verdict.md`, "Inspector Ashes analysis disabled via talisman.")
-  // Proceed to STEP C with empty VERDICT
-}
+// STEP B.1: Gate check — v3.x: inspect always enabled (see references/v3-defaults.md)
+const inspectEnabled = true
 
 // STEP B.2: Parse plan requirements using plan-parser.md algorithm
 // Follow the algorithm from roundtable-circle/references/plan-parser.md:
@@ -1024,7 +1020,7 @@ const identifiers = parsedPlan.identifiers
 
 // STEP B.3: Classify requirements to inspectors
 // 2 inspectors by default (vs 4 in standalone /rune:inspect) for arc efficiency
-const configuredInspectors = talisman?.arc?.gap_analysis?.inspectors ?? ["grace-warden", "ruin-prophet"]
+const configuredInspectors = ["grace-warden", "ruin-prophet"]
 const allowedInspectors = ["grace-warden", "ruin-prophet", "sight-oracle", "vigil-keeper"]
 
 // MCP-First Inspector Discovery (v1.171.0+)
@@ -1126,7 +1122,7 @@ if (!/^[a-zA-Z0-9_-]+$/.test(inspectTeamName)) {
       subagent_type: "general-purpose",
       team_name: inspectTeamName,
       name: inspector,
-      model: resolveModelForAgent(inspector, talisman),  // Cost tier mapping
+      model: resolveModelForAgent(inspector),  // Cost tier mapping
       run_in_background: true
     })
   }
@@ -1183,7 +1179,7 @@ if (!/^[a-zA-Z0-9_-]+$/.test(inspectTeamName)) {
       subagent_type: "general-purpose",
       team_name: inspectTeamName,
       name: "verdict-binder",
-      model: resolveModelForAgent("verdict-binder", talisman),  // Cost tier mapping
+      model: resolveModelForAgent("verdict-binder"),  // Cost tier mapping
       run_in_background: true
     })
 
@@ -1529,10 +1525,8 @@ const taskCompletionPct = totalTasks > 0 ? Math.round((completedTasks / totalTas
 // Default: 100% — ALL plan tasks must be implemented. Skip/defer is exceptional.
 // When tasks ARE deferred, gap analysis writes explicit deferral records back to
 // the plan file (STEP D.7) — no silent deferrals allowed.
-// Lower values (70-99) are escape hatches configured via talisman for plans with
-// intentionally phased rollouts. Even then, deferred tasks are written back.
-const TASK_COMPLETION_FLOOR = Math.max(50, Math.min(100,
-  talisman?.arc?.gap_analysis?.task_completion_floor ?? 100))  // Default: 100%, range: [50, 100]
+// v3.x: hardcoded floor of 100% (see references/v3-defaults.md). Deferred tasks are written back.
+const TASK_COMPLETION_FLOOR = 100
 
 const taskCompletionFailed = totalTasks > 0 && taskCompletionPct < TASK_COMPLETION_FLOOR
 
@@ -1553,10 +1547,9 @@ const taskReportSection = `\n## TASK COMPLETION\n\n` +
 const existingUnifiedContent = Read(`tmp/arc/${id}/gap-analysis-unified.md`) ?? ""
 Write(`tmp/arc/${id}/gap-analysis-unified.md`, existingUnifiedContent + taskReportSection)
 
-// STEP D.1: Read config
-// RUIN-001 FIX: Runtime clamping prevents misconfiguration-based bypass (halt_threshold: -1 or 999)
-const haltThreshold = Math.max(0, Math.min(100, talisman?.arc?.gap_analysis?.halt_threshold ?? 70))  // Default: 70/100 (raised from 50 in v1.169.0)
-const haltEnabled   = talisman?.arc?.gap_analysis?.halt_on_critical ?? true  // Default: ENABLED (changed from false in v1.169.0)
+// STEP D.1: v3.x — hardcoded halt config (see references/v3-defaults.md)
+const haltThreshold = 70  // Quality score threshold (raised from 50 in v1.169.0)
+const haltEnabled   = true  // ENABLED (changed from false in v1.169.0)
 
 // STEP D.2: Map VERDICT to halt decision
 // CRITICAL_ISSUES = any P1 finding → always halt if halt_enabled
@@ -1719,8 +1712,8 @@ if (planPath && totalTasks > 0) {
       statusSection += `  - **Follow-up arc**: Required — this task will be re-extracted by gap analysis\n`
       statusSection += `  - **Risk if skipped**: _[REQUIRED — what breaks if this is never done]_\n`
     }
-    statusSection += `\n> To proceed with deferred tasks: set \`arc.gap_analysis.task_completion_floor\`\n`
-    statusSection += `> to a value below ${taskCompletionPct} in talisman.yml. Default is 100%.\n`
+    statusSection += `\n> v3.x: task_completion_floor is hardcoded at 100% (see references/v3-defaults.md).\n`
+    statusSection += `> Deferred tasks must be implemented in a follow-up arc.\n`
   }
 
   // Append to plan file (don't overwrite — append below the original content)
