@@ -28,10 +28,6 @@ These keywords at the START of `$ARGUMENTS` trigger immediate routing (no classi
 | `brainstorm` | `/rune:brainstorm` | Yes |
 | `explore` | `/rune:brainstorm` | Yes — alias for brainstorm |
 | `debug` | `/rune:debug` | Yes |
-| `talisman` | `/rune:talisman` | Yes |
-| `config` | `/rune:talisman` | Yes — alias for talisman |
-| `setup` | `/rune:talisman` | Yes — alias for talisman init |
-| `mcp` | `/rune:talisman guide integrations` | Yes — MCP integration guidance |
 | `file-todos` / `todos` | `/rune:file-todos` | Yes |
 | `resolve-comments` / `fix comments` / `pr comments` | `/rune:resolve-all-gh-pr-comments` | Yes |
 | `resolve-comment` / `fix comment` | `/rune:resolve-gh-pr-comment` | Yes |
@@ -59,9 +55,6 @@ These keywords at the START of `$ARGUMENTS` trigger immediate routing (no classi
 | `khám phá` / `khám phá ý tưởng` | `/rune:brainstorm` |
 | `thảo luận` / `brainstorm` | `/rune:brainstorm` |
 | `dọn dẹp` | `/rune:rest` |
-| `cấu hình` / `thiết lập` | `/rune:talisman` |
-| `tạo talisman` / `init talisman` | `/rune:talisman init` |
-| `cài đặt mcp` / `thêm mcp` / `tích hợp mcp` | `/rune:talisman guide integrations` |
 
 ## Intent Classification (for non-keyword input)
 
@@ -118,9 +111,9 @@ User seeks knowledge about Rune or recommendations.
 | "when to use X vs Y" / "khi nào dùng X" | Read skill-catalog.md → compare and recommend |
 | "best practice" / "nên làm thế nào" | Read rune-knowledge.md → provide guidance |
 | "troubleshoot" / "bị lỗi" / "failed" | Read rune-knowledge.md pitfalls → diagnose |
-| "add agent" / "custom reviewer" / "custom ash" / "thêm agent" | Guide: add `ashes.custom[]` in talisman.yml → `/rune:talisman guide` |
+| "add agent" / "custom reviewer" / "custom ash" / "thêm agent" | Guide: see `plugins/rune/skills/roundtable-circle/references/custom-ashes.md` (custom-ash wiring reference) |
 | "which agents" / "agent list" / "list agents" / "danh sách agent" | → `/rune:ash-guide` |
-| "force agent" / "always use agent" / "always run agent" / "luôn dùng agent" | Guide: use `trigger.always: true` in talisman.yml `ashes.custom[].trigger` |
+| "force agent" / "always use agent" / "always run agent" / "luôn dùng agent" | Guide: see `plugins/rune/skills/roundtable-circle/references/custom-ashes.md` (custom-ash wiring reference) |
 
 ### Category: meta (legacy alias for guidance)
 
