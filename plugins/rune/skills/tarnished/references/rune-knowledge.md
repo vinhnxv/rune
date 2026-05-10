@@ -124,15 +124,15 @@ code review → mend → test → ship → merge. It's the "do everything" comma
 
 ### Persistent Memory — Removed in v3.0.0-alpha.1
 
-Earlier versions of Rune had a "Rune Echoes" project-memory layer (`.rune/echoes/`) with a 5-tier
-lifecycle (Etched, Notes, Inscribed, Observations, Traced). v3.0.0-alpha.1 **removed** that runtime:
-no `rune-echoes` skill, no `.rune/echoes/` runtime consumer, no `/rune:echoes` command. Agent
-output is now ephemeral (`tmp/`). Restore from CLAUDE.md Core Rule #6 if/when reintroduced.
+The `rune-echoes` project-memory runtime was removed in v3.0.0-alpha.1; agent output
+is now ephemeral (`tmp/`). See CLAUDE.md Core Rule #6.
 
 ## MCP Integration — Extending Rune with External Tools
 
-Rune supports third-party MCP (Model Context Protocol) servers as tool integrations.
-This lets Rune agents use external tools during workflows like planning, implementation, and review.
+Rune v3.x consumes third-party MCP (Model Context Protocol) servers via the standard
+Claude Code config (`.mcp.json`), with optional companion skills for workflow-aware
+routing. Workflow-level config of MCP servers (the v2.x `talisman.yml integrations`
+layer) was removed in v3.0.0-alpha.4 — see `references/v3-defaults.md`.
 
 ### What is MCP Integration?
 
@@ -141,20 +141,19 @@ at the workflow level — controlling which phases can use which tools, and when
 
 ### v3.x Integration Model
 
-Rune v3.x has **two tiers** of MCP integration:
+Rune v3.x has **two tiers** of MCP integration (vocabulary aligned: tier-1 / tier-2):
 
 ```
 Tier 1 (Basic): .mcp.json only
 ├── Tools available to Claude across all sessions
-├── No workflow-aware routing in v3.x (the former talisman.yml integrations
-│   layer was removed in v3.0.0-alpha.4)
 └── Example: claude mcp add --transport http my-tool https://api.example.com
 
-Tier 2 (Full): + companion skill that carries domain knowledge
-├── A skill with `name: <tool>-mcp` (e.g., `untitledui-mcp` pattern from v2.x)
-├── The skill describes when and how Rune agents should call the MCP tools
-└── No bundled reference implementation in v3.x — the pattern is documented
-    but not shipped.
+Tier 2 (Full): tier-1 + companion skill that carries domain knowledge
+├── A skill with `name: <tool>-mcp` describes when and how Rune agents should
+│   call the MCP tools (no bundled reference implementation in v3.x — the
+│   pattern is documented but not shipped).
+└── No workflow-aware tool routing in v3.x (former `talisman.yml integrations`
+    layer was removed in v3.0.0-alpha.4).
 ```
 
 ### Setting Up an MCP Integration

@@ -120,8 +120,19 @@ return — that is what this rule guards.
 3. `talismanConfig\?\.[a-zA-Z_]+\.[a-zA-Z_]+` — variant binding seen in testing/ refs.
 4. `function\s+\w+\s*\([^)]*\btalisman\b` — function signature accepting a `talisman`
    argument. Drop the parameter; callers should pass nothing.
-5. `tmp/.talisman-resolved/` — the v2.x shard cache. v3.x scripts must not reference it.
+5. `\btmp/\.talisman-resolved/` — the v2.x **project-local** shard cache. v3.x scripts
+   must not reference it. (System-cache equivalents under `${CHOME}/.rune/talisman-resolved/`
+   are an intentional v3.x cleanup target — see allowlist below.)
 6. `lib/talisman-shard-path.sh` — the deleted resolver lib. Sourcing it would crash.
+7. `\b(mcp-integration-spec|ui-builder-protocol)(\.(en|vi))?\.md\b` — deleted prose
+   files in `docs/guides/`. Never reintroduce; replacement architecture (where applicable)
+   lives in `docs/architecture/`.
+8. `^##\s+MCP Tool Integrations\s*$` (markdown heading) — the v2.x README section
+   describing the talisman-driven MCP integration registry. Removed in v3.0.0-alpha.5.
+9. `\b(?:Level|Tier)\s*[12]\b.*\b(MCP|integration|tier)\b` paired with the literal
+   phrase "3-tier model" or "Level 1/Level 2" — the v2.x integration tier vocabulary.
+   The Level/Tier 3-tier prose was retired alongside the talisman MCP integrations
+   section.
 
 **Allowed mentions** (do NOT flag):
 
@@ -133,6 +144,10 @@ return — that is what this rule guards.
 - Migration prose mentioning "the legacy talisman.yml was removed in v3.x" or similar
   back-reference for users.
 - `plugins/rune/references/v3-defaults.md` itself (catalogues former section names).
+- System-cache cleanup in `plugins/rune/commands/rest.md` (`${CHOME}/.rune/talisman-resolved/`)
+  — the CHANGELOG explicitly preserves this defensive cleanup so users upgrading from v2.x
+  reclaim the orphaned cache directory. Banned-pattern #5 anchors `\btmp/` so it does
+  NOT match the system-cache path.
 
 Grep `plugins/rune/skills/`, `plugins/rune/agents/`, `plugins/rune/registry/`,
 `plugins/rune/scripts/`, `README.md`, and `docs/` for each banned pattern.

@@ -313,6 +313,7 @@ function executeBatchingPlan(id, plan, remainingBudget) {
     //    team_name is REQUIRED (Iron Law TEAM-001)
     const batchStartTime = Date.now()
     const result = Agent({
+      name:              `batch-runner-${batch.id}`,
       subagent_type:     resolveRunnerAgentType(batch.type),
       team_name:         `arc-test-${id}`,
       run_in_background: false,
@@ -358,6 +359,7 @@ function executeBatchingPlan(id, plan, remainingBudget) {
       })
 
       const fixResult = Agent({
+        name:              `batch-fixer-${batch.id}-fix-${fixAttempts}`,
         subagent_type:     "rune:work:rune-smith",
         team_name:         `arc-test-${id}`,
         run_in_background: false,
@@ -371,6 +373,7 @@ function executeBatchingPlan(id, plan, remainingBudget) {
         status:      "pending",
       })
       Agent({
+        name:              `batch-runner-${batch.id}-rerun-${fixAttempts}`,
         subagent_type:     resolveRunnerAgentType(batch.type),
         team_name:         `arc-test-${id}`,
         run_in_background: false,

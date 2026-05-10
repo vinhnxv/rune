@@ -438,12 +438,45 @@ log(`Phase 5.8: ${fixedFiles.length} files modified by gap-fixer. Commits:\n${fi
 
 ## STEP 9: Cleanup
 
-```javascript
-// Shutdown gap-fixer
-try { SendMessage({ type: "shutdown_request", recipient: "gap-fixer" }) } catch (e) { /* already exited */ }
-Bash("sleep 20", { run_in_background: true })  // Grace period — let teammate deregister
+Canonical 5-component pattern (CLAUDE.md compliance) targeting `arc-gap-fix-${id}`.
 
-// TeamDelete with retry-with-backoff (4 attempts: 0s, 3s, 6s, 10s)
+```javascript
+// 1. Dynamic member discovery — read team config; fallback to hardcoded gap-fixer.
+let allMembers = []
+try {
+  const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
+  const teamConfig = JSON.parse(Read(`${CHOME}/teams/${fixTeamName}/config.json`))
+  const members = Array.isArray(teamConfig.members) ? teamConfig.members : []
+  allMembers = members.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
+} catch (e) {
+  // FALLBACK: known teammates for this workflow.
+  allMembers = ["gap-fixer"]
+}
+
+// 2a. Force-reply pattern (GitHub #31389) — plain message first.
+let confirmedAlive = 0
+let confirmedDead = 0
+const aliveMembers = []
+for (const member of allMembers) {
+  try { SendMessage({ type: "message", recipient: member, content: "Acknowledge: gap-remediation cleanup" }); aliveMembers.push(member) } catch (e) { confirmedDead++ }
+}
+
+// 2b. Shared pause — only when at least one alive member exists.
+if (aliveMembers.length > 0) { Bash("sleep 2", { run_in_background: true }) }
+
+// 2c. Send shutdown_request to alive members.
+for (const member of aliveMembers) {
+  try { SendMessage({ type: "shutdown_request", recipient: member, content: "Gap remediation complete" }); confirmedAlive++ } catch (e) { confirmedDead++ }
+}
+
+// 3. Adaptive grace period — scale with confirmed-alive count, capped at 20s.
+if (confirmedAlive > 0) {
+  Bash(`sleep ${Math.min(20, Math.max(5, confirmedAlive * 5))}`, { run_in_background: true })
+} else {
+  Bash("sleep 2", { run_in_background: true })
+}
+
+// 4. TeamDelete with retry-with-backoff (4 attempts: 0s, 3s, 6s, 10s)
 let cleanupTeamDeleteSucceeded = false
 const CLEANUP_DELAYS = [0, 3000, 6000, 10000]
 for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
@@ -452,8 +485,10 @@ for (let attempt = 0; attempt < CLEANUP_DELAYS.length; attempt++) {
     if (attempt === CLEANUP_DELAYS.length - 1) warn(`gap-remediation cleanup: TeamDelete failed after ${CLEANUP_DELAYS.length} attempts`)
   }
 }
+
+// 5. Filesystem fallback — only if TeamDelete never succeeded (QUAL-012).
 if (!cleanupTeamDeleteSucceeded) {
-  Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${fixTeamName}/" "$CHOME/tasks/${fixTeamName}/" 2>/dev/null`)
+  Bash(`source "$RUNE_PLUGIN_ROOT/scripts/lib/team-shutdown.sh" && rune_team_shutdown_fallback "${fixTeamName}" "${ownerPid}" "gap-remediation" ""`)
   try { TeamDelete() } catch (e) { /* best effort */ }
 }
 ```

@@ -482,13 +482,26 @@ for (const wave of waves) {
 
   // Inter-wave cleanup (skip after last wave — Phase 7 handles final cleanup)
   if (wave.waveNumber < waves.length) {
-    // Shutdown all teammates in this wave
+    // Force-reply pattern (GitHub #31389): plain message first puts teammates in
+    // message-processing state so shutdown_request lands reliably.
+    let confirmedAlive = 0
+    let confirmedDead = 0
+    const aliveMembers = []
+    // 2a. Force-reply — plain text message to all wave members.
     for (const ash of wave.agents) {
-      SendMessage({ type: "shutdown_request", recipient: ash.slug })
+      try { SendMessage({ type: "message", recipient: ash.slug, content: "Acknowledge: wave cleanup" }); aliveMembers.push(ash.slug) } catch (e) { confirmedDead++ }
     }
-    // Grace period — let wave teammates deregister
-    if (wave.agents.length > 0) {
-      Bash(`sleep 20`, { run_in_background: true })
+    // 2b. Shared pause — only when at least one alive member exists.
+    if (aliveMembers.length > 0) { Bash(`sleep 2`, { run_in_background: true }) }
+    // 2c. Send shutdown_request to alive members.
+    for (const slug of aliveMembers) {
+      try { SendMessage({ type: "shutdown_request", recipient: slug, content: "Wave complete" }); confirmedAlive++ } catch (e) { confirmedDead++ }
+    }
+    // 3. Adaptive grace period — scale with confirmed-alive count, capped at 20s.
+    if (confirmedAlive > 0) {
+      Bash(`sleep ${Math.min(20, Math.max(5, confirmedAlive * 5))}`, { run_in_background: true })
+    } else {
+      Bash(`sleep 2`, { run_in_background: true })
     }
     // Force-delete remaining tasks to prevent zombie contamination
     const remaining = TaskList().filter(t => t.status !== "completed")
@@ -505,8 +518,9 @@ for (const wave of waves) {
       }
     }
     if (!waveCleanupOk) {
+      // QUAL-012: only invoke fallback when TeamDelete never succeeded.
       const cleanupTeamName = wave.waveNumber === 1 ? teamName : `${teamName}-w${wave.waveNumber}`
-      Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${cleanupTeamName}/" "$CHOME/tasks/${cleanupTeamName}/" 2>/dev/null`)
+      Bash(`source "$RUNE_PLUGIN_ROOT/scripts/lib/team-shutdown.sh" && rune_team_shutdown_fallback "${cleanupTeamName}" "${ownerPid}" "${label}-wave" ""`)
     }
 
     // Collect findings for next wave context (file:line + severity ONLY)
@@ -1059,12 +1073,15 @@ try {
     "cross-shard-sentinel",
     "shard-reviewer-a", "shard-reviewer-b", "shard-reviewer-c",
     "shard-reviewer-d", "shard-reviewer-e",
-    // Phase 1.5 UX reviewers (conditional — ux.enabled + frontend files)
-    "ux-heuristic-reviewer", "ux-flow-validator", "ux-interaction-auditor", "ux-cognitive-walker",
-    // Phase 1.6 Design fidelity reviewer (conditional — design_review.enabled + frontend files)
-    "design-implementation-reviewer",
+    // Phase 1.5 UX reviewers (conditional — ux.enabled + frontend files).
+    // CLEAN-009: ux-heuristic-reviewer + ux-interaction-auditor removed in v3.0.0-alpha.1
+    // (see arc-checkpoint-init.md:206) — dropped from fallback to avoid SendMessage to absent agents.
+    "ux-flow-validator", "ux-cognitive-walker",
     // Phase 1.7 Data flow integrity reviewer (conditional — data_flow.enabled + 2+ layers)
     "flow-integrity-tracer",
+    // Phase 0.45 Context builder (audit deep mode — see audit/SKILL.md spawn site).
+    // CLEAN-003: required to avoid orphan-on-fallback when config.json read fails.
+    "context-builder",
     // Elicitation sages (conditional — security-relevant scope)
     "elicitation-sage-security-1", "elicitation-sage-security-2",
     // Custom Ashes (registered in v3.x orchestration) — hardcoded fallback (safe to send to absent members)

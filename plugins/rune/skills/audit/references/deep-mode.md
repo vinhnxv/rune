@@ -41,7 +41,13 @@ if (isGitRepo && !flags['--no-lore']) {
         log(`Lore Layer: Tier 1 — analyzing ${loreFiles.length}/${all_files.length} Ash-relevant files (use --deep-lore for full scan)`)
       }
 
-      // SPAWN-001 FIX: Lore Analyst must be part of the audit team for proper lifecycle management
+      // SPAWN-001 FIX: Lore Analyst must be part of the audit team for proper lifecycle management.
+      // TEAM-4: Iron Law TEAM-002 requires TaskCreate before every team-scoped Agent() call so
+      // waitForCompletion can detect completion.
+      TaskCreate({
+        subject: `Lore Layer: git history risk analysis (${loreFiles.length} files)`,
+        description: `Analyze ${lookbackDays}-day git history to compute risk scores for ${loreFiles.length} Ash-relevant files. Output: tmp/audit/${audit_id}/risk-map.json + lore-analysis.md`
+      })
       Agent({
         name: "lore-analyst",
         subagent_type: "general-purpose",

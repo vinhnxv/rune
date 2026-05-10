@@ -970,8 +970,19 @@ try {
   // SEC-4: filter names to a safe character set before SendMessage
   allMembers = members.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
 } catch (e) {
-  // FALLBACK: current-turn spawnedAgentNames. Safe no-op for any absent members.
-  allMembers = spawnedAgentNames.filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
+  // FALLBACK: hardcoded worst-case static list + current-turn spawnedAgentNames.
+  // The hardcoded prefix ensures cross-turn re-entry (which resets spawnedAgentNames)
+  // still discovers prior-turn teammates. Safe no-op for any absent members.
+  const STATIC_FALLBACK = [
+    "batch-test-runner-unit", "batch-test-runner-integration",
+    "batch-test-runner-e2e", "batch-test-runner-extended", "rune-smith"
+  ]
+  allMembers = [
+    ...STATIC_FALLBACK,
+    ...spawnedAgentNames.filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
+  ]
+  // Dedupe in case a current-turn name overlaps the static list.
+  allMembers = [...new Set(allMembers)]
 }
 
 // 2a. Force-reply — plain-text message puts teammates in message-processing

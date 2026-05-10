@@ -4,7 +4,7 @@ Use this page to quickly find the right Rune docs.
 
 ## What Is This?
 
-Rune is a multi-agent engineering orchestration plugin for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). It coordinates 144 specialized AI agents across planning, implementation, code review, testing, and deployment — each with its own dedicated context window.
+Rune is a multi-agent engineering orchestration plugin for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). It coordinates 116 specialized AI agents (74 core + 42 extended) across planning, implementation, code review, testing, and deployment — each with its own dedicated context window.
 
 ## Why This Exists
 
@@ -37,11 +37,11 @@ A single AI agent loses effectiveness as tasks grow in scope. Rune splits work a
 | Plan and validate work | `/rune:devise`, `/rune:forge`, `/rune:plan-review`, `/rune:inspect` | [Planning guide](guides/rune-planning-and-plan-quality-guide.en.md) | [Hướng dẫn planning](guides/rune-planning-and-plan-quality-guide.vi.md) |
 | Implement from plans | `/rune:strive`, `/rune:goldmask` | [Work execution guide](guides/rune-work-execution-guide.en.md) | [Hướng dẫn thực thi](guides/rune-work-execution-guide.vi.md) |
 | Review and fix findings | `/rune:appraise`, `/rune:audit`, `/rune:mend` | [Review and audit guide](guides/rune-code-review-and-audit-guide.en.md) | [Hướng dẫn review và audit](guides/rune-code-review-and-audit-guide.vi.md) |
-| End-to-end orchestration | `/rune:arc`, `/rune:arc-batch` | [Arc and batch guide](guides/rune-arc-and-batch-guide.en.md) | [Hướng dẫn arc và arc-batch](guides/rune-arc-and-batch-guide.vi.md) |
+| End-to-end orchestration | `/rune:arc`, `/rune:arc-quick` | [Arc and batch guide](guides/rune-arc-and-batch-guide.en.md) | [Hướng dẫn arc và arc-batch](guides/rune-arc-and-batch-guide.vi.md) |
 | Use copy-paste command recipes | quick command picks and common workflows | [Quick Cheat Sheet](guides/rune-quick-cheat-sheet.en.md) | [Quick Cheat Sheet](guides/rune-quick-cheat-sheet.vi.md) |
 | Resolve common questions fast | setup, token cost, resume, cancel, paths | [Rune FAQ](guides/rune-faq.en.md) | [FAQ Rune](guides/rune-faq.vi.md) |
 | Explain Rune terms quickly | glossary of key workflow terms | [Rune Glossary](guides/rune-glossary.en.md) | [Thuật ngữ Rune](guides/rune-glossary.vi.md) |
-| Advanced workflows | `/rune:arc-hierarchy`, `/rune:arc-issues`, `/rune:echoes`, `/rune:learn`, `/rune:test-browser`, `/rune:debug` | [Advanced workflows](guides/rune-advanced-workflows-guide.en.md) | [Workflow nâng cao](guides/rune-advanced-workflows-guide.vi.md) |
+| Advanced workflows | `/rune:debug`, `/rune:goldmask`, `/rune:variant-hunt`, `/rune:self-audit` | [Advanced workflows](guides/rune-advanced-workflows-guide.en.md) | [Workflow nâng cao](guides/rune-advanced-workflows-guide.vi.md) |
 | Extend Rune with custom agents | custom Ashes, Forge Gaze, CLI-backed reviewers | [Custom agents and extensions](guides/rune-custom-agents-and-extensions-guide.en.md) | [Custom agent và mở rộng](guides/rune-custom-agents-and-extensions-guide.vi.md) |
 | Troubleshoot failures and optimize cost | diagnostics, cleanup, tuning | [Troubleshooting and optimization](guides/rune-troubleshooting-and-optimization-guide.en.md) | [Xử lý sự cố và tối ưu](guides/rune-troubleshooting-and-optimization-guide.vi.md) |
 | Use GLM-5 via claude-code-router | Alibaba Cloud Coding Plan setup | [GLM-5 setup guide](glm-5-setup.md) | [Hướng dẫn GLM-5](glm-5-setup.md#tiếng-việt) |

@@ -1194,12 +1194,33 @@ if (!/^[a-zA-Z0-9_-]+$/.test(inspectTeamName)) {
     Write(`tmp/arc/${id}/gap-analysis-verdict.md`, "No inspector outputs found — gap analysis VERDICT unavailable.")
   }
 
-  // STEP B.10: Cleanup — shutdown inspectors + TeamDelete with fallback
-  for (const { inspector } of inspectorTasks) {
-    try { SendMessage({ type: "shutdown_request", recipient: inspector }) } catch (e) { /* already exited */ }
+  // STEP B.10: Cleanup — force-reply + shutdown_request + adaptive grace + TeamDelete with fallback.
+  // Force-reply pattern (GitHub #31389): plain message first puts teammates in
+  // message-processing state so they reliably ack the shutdown_request that follows.
+  const inspectorMembers = inspectorTasks.map(t => t.inspector).concat(["verdict-binder"])
+
+  // 2a. Force-reply — plain text message to all members (track confirmed-alive set).
+  let confirmedAlive = 0
+  let confirmedDead = 0
+  const aliveMembers = []
+  for (const member of inspectorMembers) {
+    try { SendMessage({ type: "message", recipient: member, content: "Acknowledge: gap-analysis cleanup" }); aliveMembers.push(member) } catch (e) { confirmedDead++ }
   }
-  try { SendMessage({ type: "shutdown_request", recipient: "verdict-binder" }) } catch (e) { /* already exited */ }
-  Bash("sleep 20", { run_in_background: true })  // Grace period — let teammates deregister
+
+  // 2b. Shared pause — only when at least one alive member exists.
+  if (aliveMembers.length > 0) { Bash("sleep 2", { run_in_background: true }) }
+
+  // 2c. Send shutdown_request to alive members.
+  for (const member of aliveMembers) {
+    try { SendMessage({ type: "shutdown_request", recipient: member, content: "Gap analysis complete" }); confirmedAlive++ } catch (e) { confirmedDead++ }
+  }
+
+  // 3. Adaptive grace period — scale with confirmed-alive count, capped at 20s.
+  if (confirmedAlive > 0) {
+    Bash(`sleep ${Math.min(20, Math.max(5, confirmedAlive * 5))}`, { run_in_background: true })
+  } else {
+    Bash("sleep 2", { run_in_background: true })
+  }
 
   // TeamDelete with retry-with-backoff (4 attempts: 0s, 3s, 6s, 10s)
   let cleanupTeamDeleteSucceeded = false

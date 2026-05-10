@@ -197,15 +197,15 @@ export RUNE_CLEANUP_DRY_RUN=1
 
 Làm cho cleanup hook (`detect-workflow-complete.sh`, `on-session-stop.sh`, `session-team-hygiene.sh`) log những gì sẽ làm mà không kill process, xóa team, hoặc sửa state file. Hữu ích cho debug cleanup behavior trong production.
 
-### 2.8 Kiểm tra talisman shard (v1.114.0+)
+### 2.8 Talisman config — ĐÃ XOÁ trong v3.x
 
-```bash
-# Xem talisman shard đã giải quyết
-ls tmp/.talisman-resolved/
-cat tmp/.talisman-resolved/review.json | python3 -m json.tool
-```
-
-Talisman shard resolver xử lý trước `talisman.yml` thành 12 JSON shard per-namespace khi bắt đầu session. Mỗi shard ~50-100 token thay vì toàn bộ ~1,200 token config — giảm 94% token. Kiểm tra shard riêng lẻ để xác minh configuration resolution.
+Lớp talisman shard resolver và file `talisman.yml` đã bị xoá qua
+v3.0.0-alpha.4 (skill, scripts, hooks) và v3.0.0-alpha.5 (sweep dư lượng — toàn
+bộ pseudocode reference-layer đã bake về literal defaults;
+`lib/talisman-shard-path.sh` đã xoá). v3.x ship kèm hardcoded defaults — xem
+[`plugins/rune/references/v3-defaults.md`](../../plugins/rune/references/v3-defaults.md)
+cho danh mục đầy đủ giá trị baked. Lệnh debug v2.x như
+`ls tmp/.talisman-resolved/` và `cat .../review.json` không còn áp dụng.
 
 ### 2.9 Parallel debugging với `/rune:debug`
 
@@ -466,7 +466,6 @@ Trong các session chạy lâu (ví dụ `arc-batch` chạy nhiều plan liên t
 - [ ] `gh` CLI đã cài và xác thực (cho arc ship/merge)
 - [ ] Không có thư mục team orphan (`ls ~/.claude/teams/`)
 - [ ] Không có state file cũ (`ls tmp/.rune-*.json`)
-- [ ] Talisman shard đang resolve (`ls tmp/.talisman-resolved/`)
 - [ ] Không có worktree mồ côi (`git worktree list` — kiểm tra `rune-work-*` cũ)
 - [ ] Context usage khoẻ mạnh (kiểm tra statusline cho % còn lại)
 - [ ] `jq` đã cài (cần cho tất cả hook để parse JSON)

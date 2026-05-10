@@ -227,15 +227,15 @@ export RUNE_CLEANUP_DRY_RUN=1
 
 Makes cleanup hooks (`detect-workflow-complete.sh`, `on-session-stop.sh`, `session-team-hygiene.sh`) log what they would do without actually killing processes, deleting teams, or modifying state files. Useful for debugging cleanup behavior in production.
 
-### 2.8 Talisman shard inspection (v1.114.0+)
+### 2.8 Talisman config — REMOVED in v3.x
 
-```bash
-# View resolved talisman shards
-ls tmp/.talisman-resolved/
-cat tmp/.talisman-resolved/review.json | python3 -m json.tool
-```
-
-The talisman shard resolver pre-processes `talisman.yml` into 12 per-namespace JSON shards at session start. Each shard is ~50-100 tokens instead of the full ~1,200 token config — a 94% token reduction. Inspect individual shards to verify configuration resolution.
+The talisman shard resolver and `talisman.yml` config layer were removed across
+v3.0.0-alpha.4 (skill, scripts, hooks) and v3.0.0-alpha.5 (residue sweep — all
+reference-layer pseudocode baked to literal defaults; `lib/talisman-shard-path.sh`
+deleted). v3.x ships with hardcoded defaults — see
+[`plugins/rune/references/v3-defaults.md`](../../plugins/rune/references/v3-defaults.md)
+for the full inventory of baked-in values. v2.x debug commands like
+`ls tmp/.talisman-resolved/` and `cat .../review.json` no longer apply.
 
 ### 2.9 Parallel debugging with `/rune:debug`
 
@@ -518,7 +518,6 @@ Run this checklist when Rune workflows aren't performing as expected:
 - [ ] `gh` CLI installed and authenticated (for arc ship/merge)
 - [ ] No orphaned team directories (`ls ~/.claude/teams/`)
 - [ ] No stale state files (`ls tmp/.rune-*.json`)
-- [ ] Talisman shards resolving (`ls tmp/.talisman-resolved/`)
 - [ ] No orphaned worktrees (`git worktree list` — check for stale `rune-work-*`)
 - [ ] Context usage healthy (check statusline for % remaining)
 - [ ] `jq` installed (required by all hooks for JSON parsing)

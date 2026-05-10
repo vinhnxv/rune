@@ -109,17 +109,6 @@ arc_state_file_path() {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# _arc_state_emit_deprecation_warn_once → no-op (v3.x)
-# ─────────────────────────────────────────────────────────────────────────────
-# <!-- v3.x: deprecation source removed (talisman shard layer); see references/v3-defaults.md -->
-# Previously emitted a one-shot stderr warning when the user's talisman still
-# carried the removed canary key. The talisman shard layer is gone in v3.x;
-# kept as a no-op stub so existing call sites continue to function.
-_arc_state_emit_deprecation_warn_once() {
-  return 0
-}
-
-# ─────────────────────────────────────────────────────────────────────────────
 # arc_state_integrity_log action cause state_file [extra_json] \
 #                          [arc_id] [loop_kind] [checkpoint_path] \
 #                          [pending_phase_count] [mtime_age_sec]
@@ -283,7 +272,6 @@ arc_state_integrity_log() {
 
   # Flag state — unconditional active writes since v2.56.0 (canary removed)
   local _flag_enabled="true" _dry_run="false"
-  _arc_state_emit_deprecation_warn_once
 
   # SEC-003: final symlink guard immediately before the `>>` append. Closes
   # the TOCTOU window between mkdir -p (above) and the redirection below — if

@@ -60,9 +60,9 @@ Read `$ARGUMENTS`. Three paths:
 
 Fast-path keywords: `plan`, `work`, `review`, `brainstorm`, `explore`, `devise`,
 `strive`, `appraise`, `audit`, `arc`,
-`forge`, `verify`, `mend`, `inspect`, `goldmask`, `elicit`, `rest`, `echoes`, `clean`, `variant-hunt`, `supply-chain-audit`, `post-findings`,
-`ship`, `fix`, `debug`, `cancel`, `elevate`,
-`file-todos`, `learn`, `resolve-comments`, `resolve-comment`, `resolve-todos`,
+`forge`, `verify`, `mend`, `inspect`, `goldmask`, `elicit`, `rest`, `variant-hunt`, `supply-chain-audit`, `post-findings`,
+`ship`, `fix`, `debug`, `cancel`,
+`file-todos`, `resolve-comments`, `resolve-comment`, `resolve-todos`,
 `skill-testing`, `team-status`, `team-delegate`,
 `self-audit`.
 

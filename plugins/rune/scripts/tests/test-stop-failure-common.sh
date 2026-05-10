@@ -31,15 +31,11 @@ assert_eq() {
   fi
 }
 
-# ── Setup: mock dependencies ──
+# ── Setup ──
 # stop-failure-common.sh depends on INPUT, CWD, and optionally _rune_detect_rate_limit
 CWD="${TMPDIR:-/tmp}/rune-test-sf-$$"
 mkdir -p "$CWD/tmp"
 trap 'rm -rf "$CWD"' EXIT
-
-# Mock _rune_resolve_talisman_shard to return nonexistent path (skip talisman)
-_rune_resolve_talisman_shard() { echo "/nonexistent"; }
-export -f _rune_resolve_talisman_shard 2>/dev/null || true
 
 # ── Helper: run classification with a given INPUT ──
 _classify() {

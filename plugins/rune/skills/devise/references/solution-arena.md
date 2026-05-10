@@ -101,6 +101,16 @@ const sanitizedSolutions = sanitize(solutionsContent)
 // MCP-First Arena Agent Discovery (v1.171.0+)
 // Discover additional challenger/evaluator agents for the Arena phase.
 // User-defined agents (e.g., "domain-expert-challenger") can participate.
+//
+// TEAM-3 / CLEAN-007: Only the first two entries (`devils-advocate`,
+// `innovation-scout`) are actually spawned with paired TaskCreate calls below
+// (Iron Law TEAM-002). Entries appended by `arena_agent_search` MCP discovery
+// (`arenaChallengers.slice(2)`) are ADVISORY-ONLY in v3.x — surfaced for the
+// orchestrator's plan-review pass but never instantiated as live teammates,
+// and therefore not present in the devise Phase 7 fallback array. To activate
+// dynamic challengers, add a `TaskCreate` + `Agent({ name, team_name, ... })`
+// loop below before relying on them, and add their static names to
+// `phase6-cleanup.md`.
 let arenaChallengers = [
   { name: "devils-advocate", subject: "Arena: Devil's Advocate challenge" },
   { name: "innovation-scout", subject: "Arena: Innovation Scout evaluation" }
