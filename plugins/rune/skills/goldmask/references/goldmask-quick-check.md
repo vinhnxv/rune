@@ -2,7 +2,7 @@
 
 Deterministic blast-radius verification comparing mend output against Goldmask predictions. No agents — pure set comparison of MUST-CHANGE files vs actually modified files.
 
-**Inputs**: `talisman` (config object), `goldmaskData` (discovery result with `goldmaskMd`), `allFindings` (finding[]), `preMendSha` (string), `mendOutputDir` (string), `id` (string)
+**Inputs**: `goldmaskData` (discovery result with `goldmaskMd`), `allFindings` (finding[]), `preMendSha` (string), `mendOutputDir` (string), `id` (string)
 **Outputs**: `tmp/mend/{id}/goldmask-quick-check.md`, `quickCheckResults` object for resolution report
 **Preconditions**: Phase 0.5 ran (goldmaskData may be null), all fixes applied and verified, preMendSha captured at Phase 2
 
@@ -16,13 +16,10 @@ Deterministic blast-radius verification comparing mend output against Goldmask p
 ## Algorithm
 
 ```javascript
-// Skip conditions
-const quickCheckEnabled = talisman?.goldmask?.mend?.quick_check !== false  // default: true
-const goldmaskEnabled = talisman?.goldmask?.enabled !== false
+// v3.x: goldmask.enabled and goldmask.mend.quick_check are hardcoded true
+// (see ../../../references/v3-defaults.md goldmask section). Former kill switches removed.
 
-if (!goldmaskEnabled || !quickCheckEnabled) {
-  warn("Phase 5.95: Goldmask Quick Check disabled (talisman kill switch)")
-} else if (!goldmaskData?.goldmaskMd) {
+if (!goldmaskData?.goldmaskMd) {
   warn("Phase 5.95: No GOLDMASK.md found — skipping quick check")
 } else {
   // Extract MUST-CHANGE files from GOLDMASK.md

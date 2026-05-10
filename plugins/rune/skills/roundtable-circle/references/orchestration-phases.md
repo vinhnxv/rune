@@ -6,7 +6,7 @@
 
 Both appraise and audit set these parameters before invoking shared phases:
 
-### Required Parameters (21 total)
+### Required Parameters (20 total)
 
 | # | Parameter | Type | Source: appraise | Source: audit |
 |---|-----------|------|-----------------|---------------|
@@ -27,18 +27,17 @@ Both appraise and audit set these parameters before invoking shared phases:
 | 15 | `workflow` | string | `"rune-review"` | `"rune-audit"` |
 | 16 | `focusArea` | string | `"full"` (appraise has no focus flag) | From `--focus` or `"full"` |
 | 17 | `flags` | object | Parsed CLI flags | Parsed CLI flags |
-| 18 | `talisman` | object | Parsed talisman.yml config | Parsed talisman.yml config |
-| 19 | `sessionNonce` | string | `crypto.randomUUID().slice(0,8)` (32-bit entropy; sufficient for intra-session dedup, not a security token) | `crypto.randomUUID().slice(0,8)` (32-bit entropy; sufficient for intra-session dedup, not a security token) |
-| 20 | `dirScope` | object | `null` (appraise operates on diff, no dir scoping) | `{ include: string[], exclude: string[] }` from `--dirs`/`--exclude-dirs` flags |
-| 21 | `customPromptBlock` | string | `null` (or value from `--prompt`/`--prompt-file`) | `null` (or value from `--prompt`/`--prompt-file`) |
+| 18 | `sessionNonce` | string | `crypto.randomUUID().slice(0,8)` (32-bit entropy; sufficient for intra-session dedup, not a security token) | `crypto.randomUUID().slice(0,8)` (32-bit entropy; sufficient for intra-session dedup, not a security token) |
+| 19 | `dirScope` | object | `null` (appraise operates on diff, no dir scoping) | `{ include: string[], exclude: string[] }` from `--dirs`/`--exclude-dirs` flags |
+| 20 | `customPromptBlock` | string | `null` (or value from `--prompt`/`--prompt-file`) | `null` (or value from `--prompt`/`--prompt-file`) |
 
 > **Note on `sessionNonce`**: Generated once at orchestrator startup. Written as `session_nonce` (snake_case) in inscription.json and ash prompts. Referenced as `sessionNonce` (camelCase) in orchestrator pseudocode. Both forms refer to the same value.
 
-> **Note on `dirScope`** (parameter #20): When set, `dirScope.include` restricts file scanning to the listed directories; `dirScope.exclude` suppresses the listed directories even if they match `include`. The orchestrator threads `dirScope` through to inscription metadata so Ash teammates know which directories they are responsible for. When `null`, all discovered files are in scope (default behavior).
+> **Note on `dirScope`** (parameter #19): When set, `dirScope.include` restricts file scanning to the listed directories; `dirScope.exclude` suppresses the listed directories even if they match `include`. The orchestrator threads `dirScope` through to inscription metadata so Ash teammates know which directories they are responsible for. When `null`, all discovered files are in scope (default behavior).
 
-> **Note on `customPromptBlock`** (parameter #21): An optional freeform string injected into each Ash prompt immediately before the RE-ANCHOR Truthbinding boundary. Sourced from `--prompt` (inline string) or `--prompt-file` (file contents). When both are provided, `--prompt-file` takes precedence. Resolved by `resolveCustomPromptBlock(flags, talisman)` before orchestration begins. When `null`, no injection occurs and existing Ash prompts are unaffected — this guard is CRITICAL; omitting it would break all existing appraise/audit calls. When `dirScope` is also non-null, the custom criteria apply only within the scoped directories — Ashes should not reference files outside `dirScope.include`.
+> **Note on `customPromptBlock`** (parameter #20): An optional freeform string injected into each Ash prompt immediately before the RE-ANCHOR Truthbinding boundary. Sourced from `--prompt` (inline string) or `--prompt-file` (file contents). When both are provided, `--prompt-file` takes precedence. Resolved by `resolveCustomPromptBlock(flags)` before orchestration begins. When `null`, no injection occurs and existing Ash prompts are unaffected — this guard is CRITICAL; omitting it would break all existing appraise/audit calls. When `dirScope` is also non-null, the custom criteria apply only within the scoped directories — Ashes should not reference files outside `dirScope.include`.
 >
-> **Nonce validation** (SEC-002): The `sessionNonce` (parameter #19) MUST be validated at every extraction boundary — Phase 5.2 (citation verification) filters findings by nonce match, and Phase 5.4 (todo generation) inherits only nonce-validated findings. Any new phase that reads RUNE:FINDING markers MUST apply the same `nonce !== sessionNonce` rejection guard.
+> **Nonce validation** (SEC-002): The `sessionNonce` (parameter #18) MUST be validated at every extraction boundary — Phase 5.2 (citation verification) filters findings by nonce match, and Phase 5.4 (todo generation) inherits only nonce-validated findings. Any new phase that reads RUNE:FINDING markers MUST apply the same `nonce !== sessionNonce` rejection guard.
 
 ### Session Isolation (Parameters 11-13)
 
@@ -126,9 +125,9 @@ Write(`${outputDir}inscription.json`, {
   output_dir: outputDir,
   team_name: teamName,
   session_nonce: sessionNonce,
-  dir_scope: dirScope || null,           // #20: directory scoping — null = all files
-  has_custom_prompt: !!customPromptBlock, // #21: signals custom criteria are active (content not stored here)
-  context_map: contextMap || null,       // #22: Phase 0.6 context-builder output (null when skipped/failed)
+  dir_scope: dirScope || null,           // #19: directory scoping — null = all files
+  has_custom_prompt: !!customPromptBlock, // #20: signals custom criteria are active (content not stored here)
+  context_map: contextMap || null,       // #21: Phase 0.6 context-builder output (null when skipped/failed)
   teammates: selectedAsh.map(r => ({
     name: r,
     output_file: `${r}.md`,
@@ -198,7 +197,7 @@ for (const ash of selectedAsh) {
     team_name: teamName,
     name: ash,  // slug name, no wave suffix
     subagent_type: "general-purpose",
-    model: resolveModelForAgent(ash, talisman),  // Cost tier mapping (references/cost-tier-mapping.md)
+    model: resolveModelForAgent(ash),  // Cost tier mapping (references/cost-tier-mapping.md)
     prompt: ashPrompt,
     run_in_background: true
   })
@@ -231,7 +230,7 @@ for (const ash of selectedAsh) {
 // DISPATCH: 3-tier prompt resolution
 // ═══════════════════════════════════════════════════════
 //
-// Tier 1: Custom Ash (from talisman.yml ashes.custom[])
+// Tier 1: Custom Ash (registered in the orchestration layer in v3.x)
 //   Check if ash name matches an entry in inscription.custom_agent_ashes
 //   (populated by Phase 1 Rune Gaze — see rune-gaze.md lines 220-289).
 //   If found → use the Wrapper Prompt Template from custom-ashes.md,
@@ -460,7 +459,7 @@ for (const wave of waves) {
       team_name: waveTeamName,
       name: ash.slug,  // NO -w1 suffix — preserves hook compatibility
       subagent_type: "general-purpose",
-      model: resolveModelForAgent(ash.name, talisman),  // Cost tier mapping
+      model: resolveModelForAgent(ash.name),  // Cost tier mapping
       prompt: waveAshPrompt,
       run_in_background: true
     })
@@ -483,13 +482,26 @@ for (const wave of waves) {
 
   // Inter-wave cleanup (skip after last wave — Phase 7 handles final cleanup)
   if (wave.waveNumber < waves.length) {
-    // Shutdown all teammates in this wave
+    // Force-reply pattern (GitHub #31389): plain message first puts teammates in
+    // message-processing state so shutdown_request lands reliably.
+    let confirmedAlive = 0
+    let confirmedDead = 0
+    const aliveMembers = []
+    // 2a. Force-reply — plain text message to all wave members.
     for (const ash of wave.agents) {
-      SendMessage({ type: "shutdown_request", recipient: ash.slug })
+      try { SendMessage({ type: "message", recipient: ash.slug, content: "Acknowledge: wave cleanup" }); aliveMembers.push(ash.slug) } catch (e) { confirmedDead++ }
     }
-    // Grace period — let wave teammates deregister
-    if (wave.agents.length > 0) {
-      Bash(`sleep 20`, { run_in_background: true })
+    // 2b. Shared pause — only when at least one alive member exists.
+    if (aliveMembers.length > 0) { Bash(`sleep 2`, { run_in_background: true }) }
+    // 2c. Send shutdown_request to alive members.
+    for (const slug of aliveMembers) {
+      try { SendMessage({ type: "shutdown_request", recipient: slug, content: "Wave complete" }); confirmedAlive++ } catch (e) { confirmedDead++ }
+    }
+    // 3. Adaptive grace period — scale with confirmed-alive count, capped at 20s.
+    if (confirmedAlive > 0) {
+      Bash(`sleep ${Math.min(20, Math.max(5, confirmedAlive * 5))}`, { run_in_background: true })
+    } else {
+      Bash(`sleep 2`, { run_in_background: true })
     }
     // Force-delete remaining tasks to prevent zombie contamination
     const remaining = TaskList().filter(t => t.status !== "completed")
@@ -506,8 +518,9 @@ for (const wave of waves) {
       }
     }
     if (!waveCleanupOk) {
+      // QUAL-012: only invoke fallback when TeamDelete never succeeded.
       const cleanupTeamName = wave.waveNumber === 1 ? teamName : `${teamName}-w${wave.waveNumber}`
-      Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${cleanupTeamName}/" "$CHOME/tasks/${cleanupTeamName}/" 2>/dev/null`)
+      Bash(`source "$RUNE_PLUGIN_ROOT/scripts/lib/team-shutdown.sh" && rune_team_shutdown_fallback "${cleanupTeamName}" "${ownerPid}" "${label}-wave" ""`)
     }
 
     // Collect findings for next wave context (file:line + severity ONLY)
@@ -580,10 +593,10 @@ See [pre-aggregate.md](pre-aggregate.md) for the full algorithm specification.
 // Extracts structured findings from Ash outputs before Runebinder ingestion.
 // Deterministic (no LLM) — marker-based extraction at Tarnished level.
 
-const preAggConfig = talisman?.review?.pre_aggregate ?? {}
+// v3.x: pre_aggregate.enabled=true, threshold_bytes=25000 (see references/v3-defaults.md)
 let compressionApplied = false
 
-if (preAggConfig.enabled !== false) {
+if (true) {
   // Discover Ash output files (exclude TOME and internal files)
   const ashFiles = Glob(`${outputDir}*.md`)
     .filter(f => !basename(f).startsWith('TOME') && !basename(f).startsWith('_'))
@@ -596,11 +609,11 @@ if (preAggConfig.enabled !== false) {
     combinedBytes += parseInt(stat.trim(), 10)
   }
 
-  const threshold = preAggConfig.threshold_bytes ?? 25000
+  const threshold = 25000
   if (combinedBytes >= threshold) {
     // Run pre-aggregation (see pre-aggregate.md for full algorithm)
     // This is inline Tarnished work — NO subagent spawned
-    preAggregate(outputDir, talisman)
+    preAggregate(outputDir)
     compressionApplied = true
     log(`Phase 5.0: Pre-aggregation applied (${combinedBytes}B combined, threshold ${threshold}B)`)
   } else {
@@ -638,7 +651,7 @@ Agent({
   team_name: teamName,  // May need to re-create team for final aggregation
   name: "runebinder",
   subagent_type: "general-purpose",
-  model: resolveModelForAgent("runebinder", talisman),  // Cost tier mapping
+  model: resolveModelForAgent("runebinder"),  // Cost tier mapping
   prompt: `Read all findings from ${runeBinderInputDir}.
     ${condensedExists
       ? "NOTE: These are pre-compressed Ash outputs from Phase 5.0. Finding markers are preserved. Non-finding sections (Self-Review Log, Unverified Observations, boilerplate) have been stripped."
@@ -668,7 +681,7 @@ Deterministic grep-based verification of TOME file:line citations. Runs at Tarni
 4. **Non-destructive**: Tag findings as UNVERIFIED — never delete or modify Rune Traces
 5. **Complement Truthsight**: Phase 5.2 catches structural hallucinations cheaply; Phase 6 Layer 2 does semantic verification
 
-**Parameters**: Uses 3 existing orchestration parameters — `outputDir` (#4), `sessionNonce` (#19), `talisman` (#18). No new parameters needed.
+**Parameters**: Uses 2 existing orchestration parameters — `outputDir` (#4), `sessionNonce` (#18). No new parameters needed.
 
 ```javascript
 // ─── Phase 5.2: Citation Verification ───────────────────────────
@@ -691,11 +704,8 @@ function isPathSafe(filePath) {
   return true
 }
 
-const citationVerifyEnabled = talisman?.review?.verify_tome_citations !== false  // default: true
-if (!citationVerifyEnabled) {
-  // Skip citation verification — proceed to Phase 5.3/5.4
-  log("Phase 5.2 skipped (verify_tome_citations: false)")
-} else {
+// v3.x: verify_tome_citations hardcoded true (see references/v3-defaults.md)
+{
   // GUARD (SEC-010 / BACK-005): sessionNonce MUST be defined before extraction.
   // After compaction or session resume, in-memory variables may be lost.
   // Re-read from inscription.json as authoritative source of truth.
@@ -760,13 +770,10 @@ if (!citationVerifyEnabled) {
   }
 
   // 5.2.2: Filter by verification priority (priority sampling)
-  const verifyPriorities = talisman?.review?.citation_verify_priorities ?? ["P1"]
-  const rawSamplingRates = talisman?.review?.citation_sampling_rate ?? { P1: 1.0, P2: 0.0, P3: 0.0 }
-  // BACK-007: Clamp sampling rates to valid [0.0, 1.0] range
-  const samplingRates = {}
-  for (const [key, val] of Object.entries(rawSamplingRates)) {
-    samplingRates[key] = Math.max(0.0, Math.min(1.0, Number(val) || 0.0))
-  }
+  // v3.x: defaults baked — verify P1 only, sampling rates {P1:1.0, P2:0.0, P3:0.0}
+  // (see references/v3-defaults.md)
+  const verifyPriorities = ["P1"]
+  const samplingRates = { P1: 1.0, P2: 0.0, P3: 0.0 }
   // SEC-prefixed findings always get 100% verification regardless of priority config
   const toVerify = findings.filter(f => {
     if (f.id.startsWith("SEC-")) return true
@@ -1066,15 +1073,18 @@ try {
     "cross-shard-sentinel",
     "shard-reviewer-a", "shard-reviewer-b", "shard-reviewer-c",
     "shard-reviewer-d", "shard-reviewer-e",
-    // Phase 1.5 UX reviewers (conditional — ux.enabled + frontend files)
-    "ux-heuristic-reviewer", "ux-flow-validator", "ux-interaction-auditor", "ux-cognitive-walker",
-    // Phase 1.6 Design fidelity reviewer (conditional — design_review.enabled + frontend files)
-    "design-implementation-reviewer",
+    // Phase 1.5 UX reviewers (conditional — ux.enabled + frontend files).
+    // CLEAN-009: ux-heuristic-reviewer + ux-interaction-auditor removed in v3.0.0-alpha.1
+    // (see arc-checkpoint-init.md:206) — dropped from fallback to avoid SendMessage to absent agents.
+    "ux-flow-validator", "ux-cognitive-walker",
     // Phase 1.7 Data flow integrity reviewer (conditional — data_flow.enabled + 2+ layers)
     "flow-integrity-tracer",
+    // Phase 0.45 Context builder (audit deep mode — see audit/SKILL.md spawn site).
+    // CLEAN-003: required to avoid orphan-on-fallback when config.json read fails.
+    "context-builder",
     // Elicitation sages (conditional — security-relevant scope)
     "elicitation-sage-security-1", "elicitation-sage-security-2",
-    // Custom Ashes from talisman.yml — hardcoded fallback (safe to send to absent members)
+    // Custom Ashes (registered in v3.x orchestration) — hardcoded fallback (safe to send to absent members)
     "team-lifecycle-reviewer", "agent-spawn-reviewer",
     "dead-prompt-detector", "cleanup-completeness-reviewer", "phantom-warden",
     // Inscription-discovered agents (agent-search MCP, registry/, user_agents)
@@ -1210,9 +1220,9 @@ const params = {
   maxAgents: flags['--max-agents'],
   workflow: "rune-review",
   focusArea: "full",
-  flags, talisman,
-  dirScope: null,  // #20: appraise operates on diff — no directory scoping
-  customPromptBlock: null  // #21: reserved for future use — appraise does not expose --prompt/--prompt-file flags yet
+  flags,
+  dirScope: null,  // #19: appraise operates on diff — no directory scoping
+  customPromptBlock: null  // #20: reserved for future use — appraise does not expose --prompt/--prompt-file flags yet
 }
 // Then execute Phases 1-7 from orchestration-phases.md
 ```
@@ -1221,9 +1231,10 @@ const params = {
 
 ```javascript
 // Set parameters
+// v3.x: audit.always_deep=false (see references/v3-defaults.md), so --deep flag controls depth
 const params = {
   scope: "full",
-  depth: flags['--standard'] ? "standard" : (flags['--deep'] !== false && (talisman?.audit?.always_deep !== false)) ? "deep" : "standard",
+  depth: flags['--standard'] ? "standard" : (flags['--deep'] !== false ? "deep" : "standard"),
   teamPrefix: "rune-audit",
   outputDir: `tmp/audit/${audit_id}/`,
   stateFilePrefix: "tmp/.rune-audit",
@@ -1236,9 +1247,9 @@ const params = {
   maxAgents: flags['--max-agents'],
   workflow: "rune-audit",
   focusArea: flags['--focus'] || "full",
-  flags, talisman,
-  dirScope: resolveDirScope(flags),  // #20: from --dirs / --exclude-dirs (null if not set)
-  customPromptBlock: resolveCustomPromptBlock(flags)  // #21: from --prompt / --prompt-file (null if not set)
+  flags,
+  dirScope: resolveDirScope(flags),  // #19: from --dirs / --exclude-dirs (null if not set)
+  customPromptBlock: resolveCustomPromptBlock(flags)  // #20: from --prompt / --prompt-file (null if not set)
 }
 // Then execute Phases 1-7 from orchestration-phases.md
 //
@@ -1248,13 +1259,13 @@ const params = {
 //   include = flags['--dirs']?.split(',').map(s => s.trim()) ?? []
 //   exclude = flags['--exclude-dirs']?.split(',').map(s => s.trim()) ?? []
 //
-// resolveCustomPromptBlock(flags, talisman):
+// resolveCustomPromptBlock(flags):
 //   Precedence chain: --prompt-file > --prompt > null  (v3.x: no config-file fallback)
 //   Returns null if no prompt source is set.
 //   If --prompt: return sanitizePromptContent(flags['--prompt']).
 //   If --prompt-file: return sanitizePromptContent(Read(flags['--prompt-file'])).
 //   If both: --prompt-file takes precedence.
-//   (v3.x: no talisman fallback — only --prompt-file/--prompt are honored.)
+//   (v3.x: only --prompt-file/--prompt are honored.)
 //   See references/prompt-audit.md for full sanitization and validation rules.
 ```
 

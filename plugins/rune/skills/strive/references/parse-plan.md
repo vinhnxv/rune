@@ -213,7 +213,7 @@ if (isChildPlan) {
           const missingList = missingPrereqs.map(r => `${r.type}:${r.name}`).join(', ')
           warn(`Child plan: ${missingPrereqs.length} prerequisite(s) missing: ${missingList}`)
           warn(`Child plan: missing prerequisites may indicate a prior sibling failed or was skipped.`)
-          warn(`Child plan: resolve via talisman work.hierarchy.missing_prerequisite strategy (pause | self-heal | backtrack)`)
+          warn(`Child plan: resolve via missing-prerequisite strategy (pause | self-heal | backtrack — hardcoded in v3.x; see references/v3-defaults.md)`)
         }
       }
 
@@ -366,7 +366,7 @@ if (planTaskCount > 0 && extractedTaskCount < planTaskCount) {
       `1. Re-extract: ensure every ### Task heading produces a work item\n` +
       `2. Split large tasks: break oversized tasks into sub-tasks\n` +
       `3. Serialize dependencies: use blockedBy instead of skipping\n` +
-      `4. Lower floor: set work.task_coverage_floor in talisman (range: 50-100, default: 100)\n\n` +
+      `4. Lower floor: hardcoded in v3.x — see references/v3-defaults.md\n\n` +
       `This check prevents shipping incomplete implementations (PR #310 incident).`
     )
   } else if (missingPlanTasks.length > 0) {
@@ -518,7 +518,7 @@ if (totalCriteriaExtracted > 0) {
 - **Default floor: 100%** — every plan task MUST become a work item. No silent deferrals.
 - **Auto-create missing tasks**: Rather than just failing, strive auto-creates work items from plan `### Task` sections. This converts the error into a recovery.
 - **Dependencies preserved**: `blockedBy` is extracted from `**Dependency**:` lines in plan task sections. Workers serialize naturally instead of skipping.
-- **Configurable floor**: `work.task_coverage_floor` in talisman (50-100). Lower values are escape hatches for intentionally phased plans.
+- **Hardcoded floor (v3.x)**: 100% — every plan task MUST become a work item. See [v3-defaults.md](../../../references/v3-defaults.md).
 
 ## Identify Ambiguities
 
@@ -707,14 +707,14 @@ for (const task of tasks) {
 
 After frontend classification, detect design signals from the plan. Triple-gated: `design_sync.enabled` + frontend task signals + design artifact presence. Zero cost when any gate is closed.
 
-**Inputs**: frontmatter (object, parsed from plan YAML), tasks (Task[], with `isFrontend` flag), talisman (object), designContext (from `discoverDesignContext()` in SKILL.md Phase 1)
+**Inputs**: frontmatter (object, parsed from plan YAML), tasks (Task[], with `isFrontend` flag), designContext (from `discoverDesignContext()` in SKILL.md Phase 1)
 **Outputs**: `has_design_context` (boolean) per task, `design_artifacts` (object) per task
-**Preconditions**: Tasks extracted, classified (impl/test), frontend-tagged, talisman loaded
+**Preconditions**: Tasks extracted, classified (impl/test), frontend-tagged
 **Error handling**: Glob failure → treat as no artifacts; Read failure on VSM/DCD → skip artifact, log warning
 
 ```javascript
-// Gate 1: design_sync.enabled in talisman
-const designSyncEnabled = talisman?.design_sync?.enabled === true
+// Gate 1: design_sync subsystem disabled in v3.x (see references/v3-defaults.md misc.design_sync)
+const designSyncEnabled = false
 
 if (designSyncEnabled) {
   // Gate 2: Any frontend tasks exist?

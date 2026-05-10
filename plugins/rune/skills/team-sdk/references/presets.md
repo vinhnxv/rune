@@ -1,3 +1,5 @@
+<!-- v3.x: defaults baked from former talisman.team; see references/v3-defaults.md -->
+
 # Team Presets — Built-in Configuration Templates
 
 > Each Rune workflow has a built-in team preset that defines its agent composition, team name prefix, cleanup config, and monitoring parameters. The SDK resolves presets at team creation time via `resolvePreset()`.
@@ -15,12 +17,11 @@ Preset resolution follows highest-priority-wins:
 
 ```
 1. Explicit preset override (passed to createTeam())
-2. talisman.yml → team.custom_presets[name]
-3. Built-in preset (this file)
-4. Error — unknown preset name
+2. Built-in preset (this file)
+3. Error — unknown preset name
 ```
 
-When a custom preset in `talisman.yml` shares a name with a built-in preset, the custom version wins completely (no merging).
+In v3.x the user-facing custom-preset surface is removed; only built-in presets are resolved.
 
 ## Built-in Presets
 
@@ -213,52 +214,20 @@ monitoring:
 
 ## Custom Presets
 
-Users can define custom presets in `talisman.yml`:
-
-```yaml
-# talisman.yml
-team:
-  custom_presets:
-    my-preset:
-      prefix: "rune-custom"
-      agents:
-        always:
-          - forge-warden
-          - ward-sentinel
-      cleanup:
-        grace_period_s: 20
-        retry_delays_ms: [0, 3000, 6000, 10000]
-      monitoring:
-        timeoutMs: 600000
-        staleWarnMs: 300000
-        pollIntervalMs: 30000
-        label: "Custom"
-```
-
-### Custom Preset Rules
-
-1. **prefix** is required — must match `^[a-zA-Z0-9_-]+$` (SEC-4)
-2. **agents** must reference registered agent names from [agent-registry.md](../../../references/agent-registry.md)
-3. **cleanup** inherits defaults if omitted: `grace_period_s: 20`, `retry_delays_ms: [0, 3000, 6000, 10000]`
-4. **monitoring** inherits from the closest built-in preset when fields are omitted
-5. Custom presets cannot set `readonly: true` — only built-in review/audit/debug presets enforce SEC-001
+Custom presets are not user-configurable in v3.x. Only the built-in presets above are resolved. To add a project-specific preset, fork this file and update `BUILTIN_PRESETS` directly (see [v3-defaults.md](../../../references/v3-defaults.md) for the override paths).
 
 ## Integration with createTeam()
 
 The `resolvePreset()` function is called during `createTeam()`:
 
 ```
-function resolvePreset(presetName, talisman) {
+function resolvePreset(presetName) {
   // 1. Check explicit override (caller-provided full config)
-  // 2. Check talisman custom presets
-  const custom = talisman?.team?.custom_presets?.[presetName]
-  if (custom) return mergeWithDefaults(custom)
-
-  // 3. Check built-in presets
+  // 2. Check built-in presets
   const builtin = BUILTIN_PRESETS[presetName]
   if (builtin) return builtin
 
-  // 4. Unknown preset
+  // 3. Unknown preset
   error(`Unknown preset: ${presetName}. Available: ${Object.keys(BUILTIN_PRESETS).join(", ")}`)
 }
 ```

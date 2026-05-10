@@ -81,16 +81,8 @@ shopt -u nullglob
 _verdict_count=${#_verdict_files[@]}
 [[ "$_verdict_count" -ge 3 ]] || exit 0
 
-# ── Read threshold from talisman (default: 75) ──
+# <!-- v3.x: defaults baked from former talisman.misc.self_audit.auto_suggest_threshold; see references/v3-defaults.md -->
 _threshold=75
-_talisman_shard="${CWD}/tmp/.talisman-resolved/misc.json"
-if [[ -f "$_talisman_shard" && ! -L "$_talisman_shard" ]]; then
-  _t=$(jq -r '.self_audit.auto_suggest_threshold // 75' "$_talisman_shard" 2>/dev/null) || _t=75
-  # Numeric guard
-  if [[ "$_t" =~ ^[0-9]+$ ]] && [[ "$_t" -ge 1 ]] && [[ "$_t" -le 100 ]]; then
-    _threshold="$_t"
-  fi
-fi
 
 # ── Score the most recent 5 verdicts ──
 # Sort by mtime (most recent first), take up to 5

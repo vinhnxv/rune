@@ -96,10 +96,10 @@ TaskUpdate({ taskId, status: "completed" })
 
 ## Large File Group Splitting
 
-Cap per `MAX_TODOS_PER_FIXER` (talisman default: 8). Files exceeding the cap split into sequential sub-groups:
+Cap per `MAX_TODOS_PER_FIXER` (v3.x hardcoded: 8 — see [v3-defaults.md](../../../references/v3-defaults.md)). Files exceeding the cap split into sequential sub-groups:
 
 ```javascript
-const MAX_TODOS_PER_FIXER = talisman?.resolve_todos?.max_per_fixer ?? 8
+const MAX_TODOS_PER_FIXER = 8
 if (todos.length > MAX_TODOS_PER_FIXER) {
   const chunks = chunk(todos, MAX_TODOS_PER_FIXER)
   const chunkTaskIds = []  // Track task IDs for blockedBy chaining

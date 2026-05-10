@@ -187,14 +187,10 @@ Note: `wont_fix` is both a status value AND a resolution outcome. The `resolutio
 
 File-todos are always active in all Rune workflows. Todos are mandatory — every workflow produces and consumes file-todos as the foundation for task management and teammate assignment.
 
-```yaml
-# .rune/talisman.yml
-file_todos:
-  triage:
-    auto_approve_p1: false   # auto-approve P1 findings (skip triage)
-```
+v3.x: file-todos defaults are hardcoded (see [v3-defaults.md](../../references/v3-defaults.md)):
 
-The `triage` block controls auto-approval behavior. The `dir` key is removed in v2 — todos are session-scoped in `tmp/{workflow}/{timestamp}/todos/`, not at project root.
+- `triage.auto_approve_p1: false` — P1 findings always require triage approval
+- Todos are session-scoped in `tmp/{workflow}/{timestamp}/todos/`, not at project root
 
 ## Session-Scoped Design
 

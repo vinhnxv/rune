@@ -1,3 +1,5 @@
+<!-- v3.x: defaults baked from former talisman.review (auto_mend); see references/v3-defaults.md -->
+
 # Phase 7: Cleanup & Echo Persist
 
 ## Teammate Fallback Array
@@ -66,7 +68,7 @@ if (p1Findings.length + p2Findings.length >= 2) {
 // - BACK-* with severity P1/P2 (critical backend bugs)
 // - VEIL-* with severity P1/P2 (truthbinding violations)
 // Does NOT trigger for: P3 (Minor) only, DOC-* (documentation), UXH-* (UX heuristic, non-blocking)
-const autoMend = flags['--auto-mend'] || (talisman?.review?.auto_mend === true)
+const autoMend = flags['--auto-mend'] === true
 const hasP1P2Findings = /* check TOME.md for P1/P2 severity attributes */
 if (hasP1P2Findings && autoMend) {
   Skill("rune:mend", `tmp/reviews/${identifier}/TOME.md`)

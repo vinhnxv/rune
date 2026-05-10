@@ -48,6 +48,9 @@ tags:
   - teammate
   - browser
 ---
+
+<!-- v3.x: defaults baked from former talisman.testing (browser/visual_regression/design_sync/accessibility) — config now arrives via spawn-prompt; literal defaults shown in `?? <value>` clauses. See references/v3-defaults.md -->
+
 ## Description Details
 
 <example>
@@ -138,7 +141,7 @@ YES / SKIP / ABORT before testing continues.
 
 ## Headed Mode Support
 
-When the spawn prompt includes `headed=true` or the talisman has `testing.browser.headed: true`:
+When the spawn prompt includes `headed=true`:
 
 ```bash
 # DISPLAY detection guard — run FIRST before any --headed invocation
@@ -168,7 +171,7 @@ E2E URLs MUST be scoped to `localhost` or the configured `base_url`.
 NEVER navigate to external URLs. Reject any URL that does not match:
 - `http://localhost:*`
 - `http://127.0.0.1:*`
-- The talisman `testing.tiers.e2e.base_url` host
+- The `base_url` host supplied in the spawn prompt (defaults to `http://localhost:3000`)
 
 ## Failure Protocol
 
@@ -245,13 +248,15 @@ is unchanged (AC-007).
 After completing the standard E2E assertion flow for each route:
 
 ```
-if talismanConfig.testing?.visual_regression?.enabled !== true:
+// `cfg` is the spawn-prompt-supplied config object; v3.x literal defaults shown in `?? <value>` clauses.
+// Visual regression is OFF by default (master toggle absent from v3-defaults.md → false).
+if cfg.visual_regression?.enabled !== true:
   // Skip — run E2E as before
   continue to next route
 
-baselineDir = talismanConfig.testing?.visual_regression?.baseline_dir ?? "tests/baselines"
-threshold = talismanConfig.testing?.visual_regression?.threshold ?? 0.95
-updateMode = talismanConfig.testing?.visual_regression?.update_baselines === true
+baselineDir = cfg.visual_regression?.baseline_dir ?? "tests/baselines"
+threshold = cfg.visual_regression?.threshold ?? 0.95
+updateMode = cfg.visual_regression?.update_baselines === true
 
 // 1. Capture screenshot after route assertions
 agent-browser screenshot route-{N}.png
@@ -284,7 +289,7 @@ else:
 When `visual_regression.responsive.enabled: true`:
 
 ```
-viewports = talismanConfig.testing.visual_regression.responsive.viewports ?? [
+viewports = cfg.visual_regression?.responsive?.viewports ?? [
   { name: "mobile", width: 375, height: 812 },
   { name: "tablet", width: 768, height: 1024 },
   { name: "desktop", width: 1920, height: 1080 }
@@ -318,8 +323,9 @@ token compliance after visual regression for each route.
 ### Token Check Workflow
 
 ```
-if talismanConfig.design_sync?.enabled !== true: skip
-if talismanConfig.testing?.visual_regression?.enabled !== true: skip
+// v3.x: design_sync subsystem is `{}` (off) per v3-defaults.md; spawn prompt may override.
+if cfg.design_sync?.enabled !== true: skip
+if cfg.visual_regression?.enabled !== true: skip
 
 // 1. Detect token files (tokens.json, tailwind.config.*, CSS variables)
 // 2. Extract computed styles via agent-browser eval (SEC-005 caps apply)
@@ -341,12 +347,13 @@ visual regression (or after standard E2E assertions if visual regression is disa
 ### Accessibility Workflow
 
 ```
-if talismanConfig.testing?.accessibility?.enabled !== true: skip
+// v3.x: accessibility sub-tier is OFF by default (absent from v3-defaults.md testing table); spawn prompt may override.
+if cfg.accessibility?.enabled !== true: skip
 
 // SEC-006: Load axe-core from LOCAL node_modules only — no CDN
-axePath = talismanConfig.testing.accessibility.axe_path
+axePath = cfg.accessibility?.axe_path
           ?? "./node_modules/axe-core/axe.min.js"
-level = talismanConfig.testing.accessibility.level ?? "AA"
+level = cfg.accessibility?.level ?? "AA"
 
 // Inject via agent-browser eval
 agent-browser eval --stdin <<'EOF'

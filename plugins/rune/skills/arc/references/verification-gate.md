@@ -131,10 +131,10 @@ for (const cmdFile of commandFiles) {
 // Security pattern: SAFE_SHA_PATTERN — see security-patterns.md
 const SAFE_SHA_PATTERN = /^[0-9a-f]{7,40}$/
 // Security pattern: SAFE_FILE_PATH — see security-patterns.md
+// v3.x: plan.freshness.enabled hardcoded true (see references/v3-defaults.md)
 if (checkpoint?.freshness?.git_sha
     && checkpoint.freshness.sha_reachable
-    && SAFE_SHA_PATTERN.test(checkpoint.freshness.git_sha)
-    && talisman?.plan?.freshness?.enabled !== false) {
+    && SAFE_SHA_PATTERN.test(checkpoint.freshness.git_sha)) {
   const enrichedRefs = extractFileReferences(Read(enrichedPlanPath))
     .filter(fp => SAFE_FILE_PATH.test(fp) && !fp.includes('..') && !fp.startsWith('/'))
   const originalPlanRefs = extractFileReferences(Read(checkpoint.plan_file))

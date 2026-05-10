@@ -177,8 +177,8 @@ manifest.last_commit_hash = isGitRepo === "true"
   ? Bash(`git rev-parse HEAD`).trim() : null
 manifest.updated_at = new Date().toISOString()
 
-// Apply extra_skip_patterns from talisman
-const skipPatterns = talisman?.audit?.incremental?.extra_skip_patterns || []
+// v3.x: extra_skip_patterns no longer user-tunable; default is empty list
+const skipPatterns = []
 for (const pattern of skipPatterns) {
   // Mark matching files as "excluded"
   manifest = applySkipPattern(manifest, pattern)
@@ -239,14 +239,8 @@ for (const path in manifest.files) {
 See [priority-scoring.md](priority-scoring.md) for the full algorithm.
 
 ```javascript
-// Read and validate weights from talisman (normalize if needed)
-const defaultWeights = { staleness: 0.30, recency: 0.25, risk: 0.20, complexity: 0.10, novelty: 0.10, role: 0.05 }
-let weights = talisman?.audit?.incremental?.weights || defaultWeights
-const weightSum = Object.values(weights).reduce((a, b) => a + b, 0)
-if (Math.abs(weightSum - 1.0) > 0.001) {
-  log(`Warning: weights sum to ${weightSum}, normalizing to 1.0`)
-  for (const key of Object.keys(weights)) weights[key] /= weightSum
-}
+// v3.x: weights hardcoded (see ../../../references/v3-defaults.md audit section)
+const weights = { staleness: 0.30, recency: 0.25, risk: 0.20, complexity: 0.10, novelty: 0.10, role: 0.05 }
 
 // Load Lore Layer risk map (if available)
 const riskMap = Read("tmp/lore/risk-map.json")  // May be null — default MEDIUM
@@ -303,9 +297,10 @@ if (tier === 'all' || tier === 'api') {
 }
 
 // Batch selection with composition rules
-const batchSize = talisman?.audit?.incremental?.batch_size || 30
-const minBatch = talisman?.audit?.incremental?.min_batch_size || 10
-const alwaysAudit = talisman?.audit?.incremental?.always_audit || []
+// v3.x: batch_size, min_batch_size, always_audit hardcoded (see ../../../references/v3-defaults.md)
+const batchSize = 30
+const minBatch = 10
+const alwaysAudit = []
 
 const batch = selectBatch(candidates, {
   batchSize, minBatch, alwaysAudit, forceFiles,

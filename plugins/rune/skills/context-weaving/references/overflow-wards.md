@@ -21,14 +21,17 @@ Example return:
 When calling the Agent tool, append the protocol to the prompt:
 
 ```
-Agent(agent-name, "
-[Your actual review/analysis prompt here]
+Agent({
+  name: "ward-sentinel-1",
+  team_name: teamName,
+  subagent_type: "rune:review:ward-sentinel",
+  prompt: `[Your actual review/analysis prompt here]
 
 GLYPH BUDGET PROTOCOL:
 - Write ALL detailed findings to: tmp/reviews/142/ward-sentinel.md
 - Return to caller ONLY: the output file path + 1-sentence summary (max 50 words)
-- DO NOT include full analysis in return message
-")
+- DO NOT include full analysis in return message`
+})
 ```
 
 This works for ALL agent types because it's part of the prompt, not the agent definition.
@@ -58,11 +61,14 @@ After all agents complete, use the Runebinder to process raw files:
 ### How to Invoke
 
 ```
-Agent(rune:utility:runebinder, "
-Read all findings from {output-directory}/
+Agent({
+  name: "runebinder",
+  team_name: teamName,
+  subagent_type: "rune:utility:runebinder",
+  prompt: `Read all findings from {output-directory}/
 Write TOME.md with deduplicated, prioritized findings.
-Skip non-findings files: TOME.md, truthsight-report.md
-")
+Skip non-findings files: TOME.md, truthsight-report.md`
+})
 ```
 
 ### After Aggregation

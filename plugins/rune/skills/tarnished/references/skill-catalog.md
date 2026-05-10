@@ -84,7 +84,6 @@ Complete reference for `/rune:tarnished` routing decisions.
 | `mend` | Per file | 3-10 min |
 | `goldmask` | 8 tracers | 5-10 min |
 | `elicit` | None | 2-5 min |
-| `talisman` | None | 1-3 min |
 | `file-todos` | None | < 1 min |
 | `resolve-all-gh-pr-comments` | Per comment | 5-20 min |
 | `resolve-gh-pr-comment` | None | 1-3 min |

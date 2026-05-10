@@ -1,3 +1,5 @@
+<!-- v3.x: defaults baked from former talisman.testing; see references/v3-defaults.md -->
+
 # Batch Execution — Batched Testing Phase
 
 Defines the batch size formula, testing plan generator, batch executor state machine,
@@ -45,10 +47,9 @@ For thechoice (486 files): ~12 batches instead of ~40.
 ## Batch Size Formula
 
 ```javascript
-function computeBatchSize(testType, talisman) {
-  // Prefer talisman-configured average; fall back to built-in default
-  const avg = talisman?.testing?.batch?.avg_duration?.[testType]
-            ?? DEFAULT_AVG_DURATION[testType]
+function computeBatchSize(testType) {
+  // v3.x: per-tier averages are baked-in via DEFAULT_AVG_DURATION.
+  const avg = DEFAULT_AVG_DURATION[testType]
 
   return Math.max(
     MIN_BATCH_SIZE,
@@ -74,7 +75,7 @@ v3.x: per-tier averages are baked-in literals.
 `generateTestingPlan()` builds the ordered batch list from discovered tests.
 
 ```javascript
-function generateTestingPlan(id, talisman, context) {
+function generateTestingPlan(id, context) {
   // 1. Discover tests per tier using existing discovery functions
   const unitFiles        = discoverUnitTests(context.diffFiles)
   const integFiles       = discoverIntegrationTests(context.diffFiles)
@@ -84,11 +85,11 @@ function generateTestingPlan(id, talisman, context) {
 
   // 2. Compute batch sizes
   const batchSizes = {
-    unit:        computeBatchSize("unit",        talisman),
-    integration: computeBatchSize("integration", talisman),
-    e2e:         computeBatchSize("e2e",         talisman),
-    contract:    computeBatchSize("contract",    talisman),
-    extended:    computeBatchSize("extended",    talisman),
+    unit:        computeBatchSize("unit"),
+    integration: computeBatchSize("integration"),
+    e2e:         computeBatchSize("e2e"),
+    contract:    computeBatchSize("contract"),
+    extended:    computeBatchSize("extended"),
   }
 
   // 3. Component-aware batching: split files by component THEN by chunk size.
@@ -157,8 +158,7 @@ function generateTestingPlan(id, talisman, context) {
     if (!files || files.length === 0) continue
 
     const size = batchSizes[type]
-    const avgDuration = talisman?.testing?.batch?.avg_duration?.[type]
-                      ?? DEFAULT_AVG_DURATION[type]
+    const avgDuration = DEFAULT_AVG_DURATION[type]
 
     // Split by component first, then chunk each component group
     const componentGroups = splitByComponent(files)
@@ -177,7 +177,7 @@ function generateTestingPlan(id, talisman, context) {
           label:            `${component}-${type}${totalChunks > 1 ? `-${chunkIndex}/${totalChunks}` : ""}`,
           prompt_context:   buildBatchPromptContext(type, slice, context),
           expected_behavior: describeExpectedBehavior(type, slice),
-          pass_criteria:    buildPassCriteria(type, talisman),
+          pass_criteria:    buildPassCriteria(type),
           status:           "pending",
           fix_attempts:     0,
           started_at:       null,
@@ -193,7 +193,7 @@ function generateTestingPlan(id, talisman, context) {
   // 3.5. Batch count cap — merge smallest batches if total exceeds MAX_BATCHES_TOTAL.
   // Each batch = 1 stop hook turn (~10-15s overhead). 40 batches = 10+ minutes of pure overhead.
   // When over the cap, merge the smallest same-type batches until under the limit.
-  const maxBatchesTotal = talisman?.testing?.batch?.max_batches_total ?? MAX_BATCHES_TOTAL
+  const maxBatchesTotal = MAX_BATCHES_TOTAL
   while (batches.length > maxBatchesTotal) {
     // Find the smallest batch (by file count) and merge it into its neighbor
     let smallestIdx = -1
@@ -248,8 +248,8 @@ function generateTestingPlan(id, talisman, context) {
     arc_id:             id,
     created_at:         new Date().toISOString(),
     config: {
-      max_fix_retries:        talisman?.testing?.batch?.max_fix_retries ?? 2,
-      inter_batch_delay_ms:   talisman?.testing?.batch?.inter_batch_delay_ms ?? 5_000,
+      max_fix_retries:        2,
+      inter_batch_delay_ms:   5_000,
       hard_batch_timeout_ms:  HARD_BATCH_TIMEOUT_MS,
       max_batch_iterations:   MAX_BATCH_ITERATIONS,
     },
@@ -313,6 +313,7 @@ function executeBatchingPlan(id, plan, remainingBudget) {
     //    team_name is REQUIRED (Iron Law TEAM-001)
     const batchStartTime = Date.now()
     const result = Agent({
+      name:              `batch-runner-${batch.id}`,
       subagent_type:     resolveRunnerAgentType(batch.type),
       team_name:         `arc-test-${id}`,
       run_in_background: false,
@@ -358,6 +359,7 @@ function executeBatchingPlan(id, plan, remainingBudget) {
       })
 
       const fixResult = Agent({
+        name:              `batch-fixer-${batch.id}-fix-${fixAttempts}`,
         subagent_type:     "rune:work:rune-smith",
         team_name:         `arc-test-${id}`,
         run_in_background: false,
@@ -371,6 +373,7 @@ function executeBatchingPlan(id, plan, remainingBudget) {
         status:      "pending",
       })
       Agent({
+        name:              `batch-runner-${batch.id}-rerun-${fixAttempts}`,
         subagent_type:     resolveRunnerAgentType(batch.type),
         team_name:         `arc-test-${id}`,
         run_in_background: false,
@@ -458,12 +461,12 @@ function readCheckpoint(id) {
 When resuming after a crash or context compaction:
 
 ```javascript
-function resumeOrCreate(id, talisman, context) {
+function resumeOrCreate(id, context) {
   const checkpoint = readCheckpoint(id)
 
   if (!checkpoint) {
     // No checkpoint — generate fresh plan
-    return generateTestingPlan(id, talisman, context)
+    return generateTestingPlan(id, context)
   }
 
   // Repair in-progress batches: reset to pending so they re-execute
@@ -552,20 +555,16 @@ function renderTestingPlanMarkdown(plan) {
 }
 ```
 
-## Talisman Configuration
+## Baked-In Configuration (v3.x)
 
-```yaml
-testing:
-  batch:
-    max_fix_retries: 2             # Max fix loops per failed batch
-    inter_batch_delay_ms: 5000     # Pause between batches (ms)
-    avg_duration:                  # Override per-type average test duration
-      unit: 10000                  # 10s (default)
-      integration: 30000           # 30s (default)
-      e2e: 60000                   # 60s (default)
-      contract: 15000              # 15s (default)
-      extended: 120000             # 2 min (default)
-```
+The values below are baked into the constants at the top of this file (see [v3-defaults.md](../../../references/v3-defaults.md)). They are no longer user-configurable in v3.x; to deviate, fork this skill.
 
-All keys have defaults matching the constants at the top of this file. Override only when
-your project's actual test durations differ significantly from the defaults.
+| Key | Value |
+|---|---|
+| `max_fix_retries` | `2` |
+| `inter_batch_delay_ms` | `5000` |
+| `avg_duration.unit` | `10000` (10s) |
+| `avg_duration.integration` | `30000` (30s) |
+| `avg_duration.e2e` | `60000` (60s) |
+| `avg_duration.contract` | `15000` (15s) |
+| `avg_duration.extended` | `120000` (2 min) |

@@ -2,7 +2,7 @@
 
 Injects Goldmask risk context into each mend-fixer's prompt when data is available from Phase 0.5. Three context sections: risk tiers, wisdom advisories, and blast-radius warnings.
 
-**Inputs**: `parsedRiskMap` (from Phase 0.5), `goldmaskData` (from Phase 0.5), `fixers` (fixer assignment list), `talisman` (config)
+**Inputs**: `parsedRiskMap` (from Phase 0.5), `goldmaskData` (from Phase 0.5), `fixers` (fixer assignment list)
 **Outputs**: Enriched fixer prompts with `## Risk Context (Goldmask)` section appended
 **Preconditions**: Phase 0.5 Goldmask data discovery complete, fixer assignments determined
 
@@ -10,9 +10,9 @@ Injects Goldmask risk context into each mend-fixer's prompt when data is availab
 
 ```javascript
 // For each mend-fixer, inject Goldmask context for their assigned files
-const injectContext = talisman?.goldmask?.mend?.inject_context !== false  // default: true
+// v3.x: goldmask.mend.inject_context is hardcoded true (see ../../../references/v3-defaults.md goldmask).
 
-if (injectContext && (parsedRiskMap || goldmaskData?.wisdomReport || goldmaskData?.goldmaskMd)) {
+if (parsedRiskMap || goldmaskData?.wisdomReport || goldmaskData?.goldmaskMd) {
   for (const fixer of fixers) {
     let goldmaskContext = ""
 

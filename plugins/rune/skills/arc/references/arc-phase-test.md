@@ -59,13 +59,8 @@ if (diffFiles.length === 0) {
 // Log resolved scope for downstream aggregation and test report header
 warn(`Phase 7.7 scope: ${scopeLabel} (${diffFiles.length} files)`)
 
-// Read talisman testing config
-const testingConfig = talisman?.testing ?? { enabled: true }
-if (testingConfig.enabled === false) {
-  Write(`tmp/arc/${id}/test-report.md`, "Phase 7.7 skipped: testing.enabled=false in talisman.\n<!-- SEAL: test-report-complete -->")
-  updateCheckpoint({ phase: "test", status: "skipped" })
-  return
-}
+// v3.x: testing config baked in (see references/v3-defaults.md). Always enabled.
+const testingConfig = { enabled: true }
 
 // ═══════════════════════════════════════════════════════
 // STEP 0.5: SCENARIO DISCOVERY
@@ -97,7 +92,7 @@ if (scenariosEnabled) {
 
   // Filter by active tiers — only include scenarios whose tier will run
   // Lightweight frontend detection for scenario filtering (full classification in STEP 1)
-  const frontendExtsPrecheck = talisman?.['rune-gaze']?.frontend_extensions ?? ['.tsx', '.ts', '.jsx']
+  const frontendExtsPrecheck = ['.tsx', '.ts', '.jsx']
   const has_frontend_precheck = diffFiles.some(f =>
     frontendExtsPrecheck.some(e => f.endsWith(e)) && !f.includes('test') && !f.includes('spec')
   )
@@ -141,8 +136,8 @@ if (scenariosEnabled) {
 // Classify files via Rune Gaze (backend/frontend/config/test)
 // Cap at top 50 changed files for classification
 const filesToClassify = diffFiles.slice(0, 50)
-const backendExts = talisman?.['rune-gaze']?.backend_extensions ?? ['.py', '.go', '.rs', '.rb']
-const frontendExts = talisman?.['rune-gaze']?.frontend_extensions ?? ['.tsx', '.ts', '.jsx']
+const backendExts = ['.py', '.go', '.rs', '.rb']
+const frontendExts = ['.tsx', '.ts', '.jsx']
 
 const backendFiles = filesToClassify.filter(f => backendExts.some(e => f.endsWith(e)))
 const frontendFiles = filesToClassify.filter(f =>
@@ -620,7 +615,7 @@ for (const batch of testingPlan.batches) {
     team_name: testTeamName,
     name: `batch-runner-${nextBatch.id}`,
     subagent_type: resolveRunnerAgentType(nextBatch.type),
-    model: resolveModelForAgent(`${nextBatch.type}-test-runner`, talisman),
+    model: resolveModelForAgent(`${nextBatch.type}-test-runner`),
     run_in_background: false,  // Blocking — agent completes before lead continues
     prompt: `Run these ${nextBatch.type} tests: ${nextBatch.files.join(', ')}
       ${componentHint}Output to: ${resultPath}
@@ -687,7 +682,7 @@ for (const batch of testingPlan.batches) {
         team_name: testTeamName,
         name: `batch-fixer-${nextBatch.id}-fix-${nextBatch.fix_attempts}`,
         subagent_type: "rune:work:rune-smith",
-        model: resolveModelForAgent("rune-smith", talisman),
+        model: resolveModelForAgent("rune-smith"),
         run_in_background: false,
         prompt: `Read the test failure details from ${resultPath} and fix the failing code.
           Files under test: ${nextBatch.files.join(', ')}
@@ -975,8 +970,19 @@ try {
   // SEC-4: filter names to a safe character set before SendMessage
   allMembers = members.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
 } catch (e) {
-  // FALLBACK: current-turn spawnedAgentNames. Safe no-op for any absent members.
-  allMembers = spawnedAgentNames.filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
+  // FALLBACK: hardcoded worst-case static list + current-turn spawnedAgentNames.
+  // The hardcoded prefix ensures cross-turn re-entry (which resets spawnedAgentNames)
+  // still discovers prior-turn teammates. Safe no-op for any absent members.
+  const STATIC_FALLBACK = [
+    "batch-test-runner-unit", "batch-test-runner-integration",
+    "batch-test-runner-e2e", "batch-test-runner-extended", "rune-smith"
+  ]
+  allMembers = [
+    ...STATIC_FALLBACK,
+    ...spawnedAgentNames.filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
+  ]
+  // Dedupe in case a current-turn name overlaps the static list.
+  allMembers = [...new Set(allMembers)]
 }
 
 // 2a. Force-reply — plain-text message puts teammates in message-processing

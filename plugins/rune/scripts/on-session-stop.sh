@@ -77,7 +77,7 @@ _trace() { [[ "${RUNE_TRACE:-}" == "1" ]] && [[ ! -L "$RUNE_TRACE_LOG" ]] && pri
 
 # ── GUARD 0.5: Auto-cleanup toggle (MCP-PROTECT-003) ──
 # Auto-cleanup is ENABLED by default. Uses positive teammate PID whitelist (MCP-PROTECT-003).
-# Set RUNE_DISABLE_AUTO_CLEANUP=1 to disable, or talisman process_management.auto_cleanup: false.
+# Set RUNE_DISABLE_AUTO_CLEANUP=1 to disable.
 if [[ "${RUNE_DISABLE_AUTO_CLEANUP:-0}" == "1" ]]; then
   exit 0
 fi
@@ -87,25 +87,11 @@ if ! command -v jq &>/dev/null; then
   exit 0
 fi
 
-# ── GUARD 1.5: Talisman auto_cleanup config (AC-5) ──
-# Env var takes precedence. If not set, check talisman process_management.auto_cleanup.
-# AC-13: LEGACY_PPID_FALLBACK defaults false — PPID checks are gated behind explicit opt-in
+# <!-- v3.x: defaults baked from former talisman.misc.process_management; see references/v3-defaults.md -->
+# auto_cleanup defaults to true (gated only by RUNE_DISABLE_AUTO_CLEANUP env var above).
+# AC-13: legacy_ppid_fallback defaults false — PPID checks are gated behind explicit opt-in
 # because $PPID in hook context is the hook runner subprocess PID, not the Claude Code PID.
 LEGACY_PPID_FALLBACK=false
-if [[ -z "${RUNE_DISABLE_AUTO_CLEANUP:-}" ]]; then
-  _talisman_shard="${CLAUDE_PROJECT_DIR:-.}/tmp/.talisman-resolved/misc.json"
-  if [[ -f "$_talisman_shard" && ! -L "$_talisman_shard" ]]; then
-    _auto_cleanup=$(jq -r '.process_management.auto_cleanup // empty' "$_talisman_shard" 2>/dev/null || true)
-    if [[ "$_auto_cleanup" == "false" ]]; then
-      exit 0
-    fi
-    # AC-13: Read legacy_ppid_fallback from the same shard (default false).
-    # When false (default), state files with no session_id skip PPID comparison
-    # because $PPID in hook context is the hook runner PID, not the Claude Code PID.
-    _legppid=$(jq -r '.process_management.legacy_ppid_fallback // empty' "$_talisman_shard" 2>/dev/null || true)
-    [[ "$_legppid" == "true" ]] && LEGACY_PPID_FALLBACK=true
-  fi
-fi
 
 # ── GUARD 2: Input size cap (SEC-2: 1MB DoS prevention) ──
 INPUT=$(head -c 1048576 2>/dev/null || true)

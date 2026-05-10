@@ -52,7 +52,8 @@ trap '_rune_session_hook_exit' EXIT
 
 # Guard: Auto-cleanup toggle (MCP-PROTECT-003)
 # Auto-cleanup is ENABLED by default. Uses positive teammate PID whitelist (MCP-PROTECT-003).
-# Set RUNE_DISABLE_AUTO_CLEANUP=1 to disable, or talisman process_management.auto_cleanup: false.
+# Set RUNE_DISABLE_AUTO_CLEANUP=1 to disable.
+# <!-- v3.x: defaults baked from former talisman.misc.process_management.auto_cleanup; see references/v3-defaults.md -->
 if [[ "${RUNE_DISABLE_AUTO_CLEANUP:-0}" == "1" ]]; then
   exit 0
 fi
@@ -60,17 +61,6 @@ fi
 # Guard: jq dependency
 if ! command -v jq &>/dev/null; then
   exit 0
-fi
-
-# Guard: Talisman auto_cleanup config (AC-5)
-if [[ -z "${RUNE_DISABLE_AUTO_CLEANUP:-}" ]]; then
-  _talisman_shard="${CLAUDE_PROJECT_DIR:-.}/tmp/.talisman-resolved/misc.json"
-  if [[ -f "$_talisman_shard" && ! -L "$_talisman_shard" ]]; then
-    _auto_cleanup=$(jq -r '.process_management.auto_cleanup // empty' "$_talisman_shard" 2>/dev/null || true)
-    if [[ "$_auto_cleanup" == "false" ]]; then
-      exit 0
-    fi
-  fi
 fi
 
 # DSEC-005 FIX: Cache trace log path once to prevent TOCTOU write-to-symlink races.
@@ -301,19 +291,8 @@ _scan_stale_heartbeats() {
   local hb_dir="${cwd}/tmp/arc"
   [[ -d "$hb_dir" ]] || return 0
 
-  # Read stale threshold from talisman arc shard (default: 15 minutes)
+  # <!-- v3.x: defaults baked from former talisman.arc.heartbeat.stale_threshold_minutes; see references/v3-defaults.md -->
   local stale_threshold_min=15
-  local talisman_shard="${cwd}/tmp/.talisman-resolved/arc.json"
-  if [[ -f "$talisman_shard" ]] && [[ ! -L "$talisman_shard" ]]; then
-    local talisman_val
-    talisman_val=$(jq -r '.heartbeat.stale_threshold_minutes // 15' "$talisman_shard" 2>/dev/null || echo "15")
-    if [[ "$talisman_val" =~ ^[0-9]+$ ]]; then
-      stale_threshold_min="$talisman_val"
-      # Clamp to [5, 120]
-      [[ "$stale_threshold_min" -lt 5 ]] && stale_threshold_min=5
-      [[ "$stale_threshold_min" -gt 120 ]] && stale_threshold_min=120
-    fi
-  fi
 
   local stale_threshold_sec=$(( stale_threshold_min * 60 ))
   local now_epoch

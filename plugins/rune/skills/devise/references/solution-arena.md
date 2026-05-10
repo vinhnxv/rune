@@ -1,8 +1,10 @@
+<!-- v3.x: defaults baked from former talisman.solution_arena; see references/v3-defaults.md -->
+
 # Phase 1.8: Solution Arena
 
 Generate, challenge, and score competing solutions from research findings before committing to an approach. Runs between Phase 1.5 (Research Consolidation) and Phase 2 (Synthesize).
 
-**Inputs**: Research outputs from `tmp/plans/{timestamp}/research/`, `brainstorm-decisions.md` (optional), talisman config
+**Inputs**: Research outputs from `tmp/plans/{timestamp}/research/`, `brainstorm-decisions.md` (optional)
 **Outputs**: `tmp/plans/{timestamp}/arena/arena-matrix.md`, `arena-selection.md`, challenger reports
 **Preconditions**: Phase 1.5 complete, user validated research findings. `{timestamp}` MUST be validated against `SAFE_IDENTIFIER_PATTERN` (`/^[a-zA-Z0-9_-]+$/`) before use in file paths. The timestamp is generated in plan.md Phase 1 and reused across all phases — see plan.md Phase 6 for cross-phase validation.
 **Pseudocode convention**: `{timestamp}` in this file is shorthand for template literal interpolation (`${timestamp}` in JavaScript). All code blocks are pseudocode, not executable.
@@ -16,7 +18,7 @@ Determine whether the Arena should run. Any skip condition true -> skip Arena, f
 
 ```javascript
 // Skip conditions (any true -> skip Arena entirely)
-const skipTypes = talisman?.solution_arena?.skip_for_types || ['fix']
+const skipTypes = ['fix']
 const skipArena =
   flags.includes("--quick") ||
   flags.includes("--no-arena") ||
@@ -99,6 +101,16 @@ const sanitizedSolutions = sanitize(solutionsContent)
 // MCP-First Arena Agent Discovery (v1.171.0+)
 // Discover additional challenger/evaluator agents for the Arena phase.
 // User-defined agents (e.g., "domain-expert-challenger") can participate.
+//
+// TEAM-3 / CLEAN-007: Only the first two entries (`devils-advocate`,
+// `innovation-scout`) are actually spawned with paired TaskCreate calls below
+// (Iron Law TEAM-002). Entries appended by `arena_agent_search` MCP discovery
+// (`arenaChallengers.slice(2)`) are ADVISORY-ONLY in v3.x — surfaced for the
+// orchestrator's plan-review pass but never instantiated as live teammates,
+// and therefore not present in the devise Phase 7 fallback array. To activate
+// dynamic challengers, add a `TaskCreate` + `Agent({ name, team_name, ... })`
+// loop below before relying on them, and add their static names to
+// `phase6-cleanup.md`.
 let arenaChallengers = [
   { name: "devils-advocate", subject: "Arena: Devil's Advocate challenge" },
   { name: "innovation-scout", subject: "Arena: Innovation Scout evaluation" }
@@ -214,11 +226,6 @@ Agent({
 })
 ```
 
-### Talisman Config (Arena Judge)
-
-```yaml
-```
-
 ### Arena Output Directory (updated)
 
 ```
@@ -282,34 +289,11 @@ Build a weighted evaluation matrix from all arena outputs.
 ### Weight Normalization
 
 ```javascript
-const DEFAULT_WEIGHTS = {
+// v3.x: weights are baked-in literals; the legacy normalization branch is dead-coded.
+const weights = {
   feasibility: 0.25, complexity: 0.20, risk: 0.20,
   maintainability: 0.15, performance: 0.10, innovation: 0.10
 }
-let rawWeights = { ...DEFAULT_WEIGHTS, ...(talisman?.solution_arena?.weights || {}) }
-
-// Validate weight values are finite numbers; discard non-numeric entries
-for (const [k, v] of Object.entries(rawWeights)) {
-  if (typeof v !== 'number' || !Number.isFinite(v)) {
-    warn(`Arena weight '${k}' is not a valid number, using default`)
-    rawWeights[k] = DEFAULT_WEIGHTS[k] ?? 0
-  }
-}
-
-// Normalize to sum to 1.0 (handles user misconfiguration)
-const weightSum = Object.values(rawWeights).reduce((a, b) => a + b, 0)
-// Guard: if sum=0 or !isFinite, use DEFAULT_WEIGHTS
-if (weightSum === 0 || !Number.isFinite(weightSum)) {
-  warn("Arena weights invalid, using defaults")
-  rawWeights = { ...DEFAULT_WEIGHTS }
-} else if (Math.abs(weightSum - 1.0) > 0.01) {
-  warn(`Arena weights sum to ${weightSum}, normalizing to 1.0`)
-}
-// Normalize using CURRENT rawWeights (may have been reset to defaults)
-const finalSum = Object.values(rawWeights).reduce((a, b) => a + b, 0)
-const weights = Object.fromEntries(
-  Object.entries(rawWeights).map(([k, v]) => [k, v / finalSum])
-)
 ```
 
 ### DA Severity Caps
@@ -331,7 +315,7 @@ Incorporate Devil's Advocate findings into scoring:
 // Convergence detection: if top 2 solutions within 5% of each other
 // -> flag as "effectively tied", surface the single most differentiating dimension
 // If 3+ solutions tied within 5% -> find max-variance dimension across all tied
-const convergenceThreshold = Math.max(0, Math.min(1, talisman?.solution_arena?.convergence_threshold ?? 0.05))
+const convergenceThreshold = 0.05
 ```
 
 ### "All Solutions Killed" Recovery
@@ -509,7 +493,7 @@ Arena directory follows the same lifecycle as research and forge directories —
 | No viable approaches and no brainstorm | Prompt user, abort or fallback |
 | Challenger timeout (5 min per agent) | Proceed without that challenger's findings; both timeout -> mark LOW_CONFIDENCE |
 | All solutions rated FATAL by DA | Recovery protocol: proceed with least-flawed / retry (max 1) / abandon |
-| Talisman weights misconfigured | Normalize to 1.0, or fall back to DEFAULT_WEIGHTS |
+| Weights misconfigured (n/a in v3.x) | Weights are baked literals — normalization branch is dead code |
 | Top solutions within 5% (convergence) | Flag "effectively tied", surface differentiating dimension |
 | `--quick + --exhaustive` conflict | Warn, use `--quick` (most restrictive wins) |
 

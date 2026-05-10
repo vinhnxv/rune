@@ -43,7 +43,7 @@ trap '_rune_fail_forward' ERR
 
 # ── ENV TOGGLE: Allow disabling POLL-001 entirely ──
 # POLL-001 is DISABLED by default. Set RUNE_DISABLE_POLL_GUARD=0 to enable.
-# Also configurable via talisman.yml: process_management.poll_guard_enabled: false
+# <!-- v3.x: defaults baked from former talisman.misc.process_management.poll_guard_enabled; see references/v3-defaults.md -->
 if [[ "${RUNE_DISABLE_POLL_GUARD:-1}" == "1" ]]; then
   exit 0
 fi
@@ -68,16 +68,6 @@ if [[ -z "$CWD" ]]; then
 fi
 CWD=$(cd "$CWD" 2>/dev/null && pwd -P) || { exit 0; }
 if [[ -z "$CWD" || "$CWD" != /* ]]; then exit 0; fi
-
-# ── Talisman config toggle: process_management.poll_guard_enabled ──
-# Resolved talisman shards take priority over env var.
-_talisman_shard="${CWD}/tmp/.talisman-resolved/settings.json"
-if [[ -f "$_talisman_shard" && ! -L "$_talisman_shard" ]]; then
-  _poll_enabled=$(jq -r '.process_management.poll_guard_enabled // true' "$_talisman_shard" 2>/dev/null || echo "true")
-  if [[ "$_poll_enabled" == "false" ]]; then
-    exit 0
-  fi
-fi
 
 COMMAND=$(printf '%s\n' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null || true)
 if [[ -z "$COMMAND" ]]; then

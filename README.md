@@ -7,16 +7,16 @@
 Plan, implement, review, test, and audit your codebase using coordinated Agent Teams — each teammate with its own dedicated context window.
 
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-Supported-7F4DFF)](https://docs.anthropic.com/en/docs/claude-code)
-[![Version](https://img.shields.io/badge/version-2.65.2-blue)](.claude-plugin/marketplace.json)
+[![Version](https://img.shields.io/badge/version-3.0.0--alpha.5-blue)](.claude-plugin/marketplace.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Agents](https://img.shields.io/badge/agents-152-purple)](#agents)
-[![Skills](https://img.shields.io/badge/skills-69-orange)](#skills)
+[![Agents](https://img.shields.io/badge/agents-116-purple)](#agents)
+[![Skills](https://img.shields.io/badge/skills-44-orange)](#skills)
 
 ---
 
 ## What Is This?
 
-Rune is a **Claude Code plugin** that turns a single-agent coding session into a coordinated multi-agent engineering team. It provides 152 specialized AI agents, 69 skills, and a 45-phase end-to-end pipeline that handles planning, implementation, code review, testing, and PR creation — all orchestrated through Claude Code's Agent Teams.
+Rune is a **Claude Code plugin** that turns a single-agent coding session into a coordinated multi-agent engineering team. It provides 116 specialized AI agents (74 core + 42 extended), 44 skills, and a 45-phase end-to-end pipeline that handles planning, implementation, code review, testing, and PR creation — all orchestrated through Claude Code's Agent Teams.
 
 **Compatibility:** Requires **Claude Code 2.1.81+** with Agent Teams support. macOS 12+ or Linux. See [full requirements](#requirements).
 
@@ -107,9 +107,7 @@ Rune requires [Agent Teams](https://code.claude.com/docs/en/agent-teams). Enable
 
 `includedGitignorePatterns` lets Claude Code read Rune's output directories that are typically gitignored.
 
-### Configuration (v3.x)
-
-Rune v3.x ships with hardcoded defaults — no per-project config file. To inspect baked-in defaults (cost tiers, agent gates, hook settings) see [`plugins/rune/references/v3-defaults.md`](plugins/rune/references/v3-defaults.md).
+For configuration details (hardcoded v3.x defaults, override paths) see the [Configuration](#configuration) section below.
 
 ---
 
@@ -155,8 +153,7 @@ Don't remember which command to use? `/rune:tarnished` is the intelligent master
 /rune:tarnished work plans/my-plan.md
 /rune:tarnished review
 /rune:tarnished arc plans/my-plan.md
-/rune:tarnished arc-batch plans/*.md
-/rune:tarnished arc-issues --label "rune:ready"
+/rune:tarnished arc-quick plans/my-plan.md
 
 # Chain workflows — multi-step with confirmation between steps
 /rune:tarnished review and fix
@@ -190,28 +187,15 @@ When run with no arguments, `/rune:tarnished` scans your project state (plans, r
 | [`/rune:inspect`](#inspect) | Plan-vs-implementation gap audit (10 dimensions) | 4 | 5–10 min |
 | [`/rune:elicit`](#elicit) | Structured reasoning (Tree of Thoughts, Pre-mortem, 5 Whys) | 0 | 2–5 min |
 
-### Batch & Automation
-
-| Command | What it does |
-|---------|-------------|
-| `/rune:arc-batch` | Run `/rune:arc` across multiple plans sequentially |
-| `/rune:arc-issues` | Fetch GitHub issues by label, generate plans, run arc for each |
-| `/rune:arc-hierarchy` | Execute hierarchical parent/child plan decompositions |
-
 ### Utilities
 
 | Command | What it does |
 |---------|-------------|
 | `/rune:rest` | Clean up `tmp/` artifacts from completed workflows |
-| `/rune:echoes` | Manage persistent agent memory (show, prune, reset) |
-| `/rune:learn` | Extract CLI corrections and review recurrences from session history into Echoes |
 | `/rune:file-todos` | Structured file-based todo tracking with YAML frontmatter |
 | `/rune:cancel-arc` | Gracefully stop a running arc pipeline |
 | `/rune:cancel-review` | Stop an active code review |
 | `/rune:cancel-audit` | Stop an active audit |
-| `/rune:cancel-arc-batch` | Stop an active arc-batch loop |
-| `/rune:cancel-arc-hierarchy` | Stop an active arc-hierarchy loop |
-| `/rune:cancel-arc-issues` | Stop an active arc-issues loop |
 | `/rune:team-delegate` | Task delegation dashboard |
 | `/rune:plan-review` | Review plan code samples for correctness |
 | `/rune:pr-guardian` | Automated PR shepherd — lint, CI, rebase, migrations, browser test, auto-merge (cron every 5 min) |
@@ -341,9 +325,9 @@ Compares a plan against its implementation across 10 quality dimensions:
 
 ## Agents
 
-**152 specialized agents** across 8 categories:
+**116 specialized agents** (74 core + 42 extended in registry):
 
-### Review Agents (50)
+### Review Agents
 
 Core reviewers active in every `/rune:appraise` and `/rune:audit` run. UX and design reviewers (below) are conditionally activated for frontend files. Stack specialists are additionally auto-activated based on detected tech stack:
 
@@ -385,10 +369,7 @@ Core reviewers active in every `/rune:appraise` and `/rune:audit` run. UX and de
 | Agent | Focus |
 |-------|-------|
 | Aesthetic Quality Reviewer | Visual quality beyond pixel-perfect fidelity (AI slop detection, generic layouts) |
-| Design System Compliance Reviewer | Design system convention adherence (token usage, variant patterns) |
-| UX Heuristic Reviewer | Nielsen Norman + Baymard heuristic evaluation (50+ items) |
 | UX Flow Validator | User flow completeness (loading, error, empty states, confirmations) |
-| UX Interaction Auditor | Micro-interactions (hover/focus, keyboard a11y, touch targets, animation) |
 | UX Cognitive Walker | First-time user cognitive walkthrough (discoverability, learnability) |
 
 **Stack Specialists** (auto-activated by detected tech stack):
@@ -407,9 +388,8 @@ Core reviewers active in every `/rune:appraise` and `/rune:audit` run. UX and de
 | TDD Compliance Reviewer | TDD practices (test-first, coverage, assertion quality) |
 | DDD Reviewer | Domain-Driven Design (aggregates, bounded contexts) |
 | DI Reviewer | Dependency Injection (scope, circular deps, service locator) |
-| Design Implementation Reviewer | Design-to-code fidelity (tokens, layout, responsive, a11y, variants) |
 
-### Investigation Agents (32)
+### Investigation Agents
 
 Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 
@@ -420,32 +400,29 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | Deep Analysis | Breach Hunter, Decay Tracer, Decree Auditor, Ember Seer, Fringe Watcher, Hypothesis Investigator, Order Auditor, Rot Seeker, Ruin Watcher, Signal Watcher, Strand Tracer, Truth Seeker |
 | Synthesis | Goldmask Coordinator, Lore Analyst, Wisdom Sage |
 
-### Research Agents (7)
+### Research Agents
 
 | Agent | Purpose |
 |-------|---------|
 | Repo Surveyor | Codebase structure and pattern analysis |
-| Echo Reader | Surfaces relevant past learnings from Rune Echoes |
+| Context Builder | Block-by-block trust-boundary, invariant, and state-flow mapping for audits |
 | Git Miner | Git archaeology — commit history, contributors, code evolution |
 | Lore Scholar | Framework docs via Context7 MCP + web search fallback |
 | Practice Seeker | External best practices and industry patterns |
 | Activation Pathfinder | Maps activation path for new code (migrations, config, deployment) |
 | Wiring Cartographer | Maps integration points where new code connects to existing system |
 
-### Work Agents (8)
+### Work Agents
 
 | Agent | Purpose |
 |-------|---------|
 | Rune Smith | TDD-driven code implementation |
-| Proto Worker | Design prototype synthesis from Figma references |
 | Trial Forger | Test generation following project patterns |
-| Design Sync Agent | Figma extraction and Visual Spec Map creation |
-| Design Iterator | Iterative design refinement (screenshot-analyze-fix loop) |
-| Storybook Reviewer | Component verification via screenshots (Mode A/B quality checks) |
-| Storybook Fixer | Applies Storybook finding fixes with re-verification |
 | Gap Fixer | Automated remediation of inspection gaps from VERDICT.md |
+| Blind Verifier | Independent acceptance-criteria verification (no anchoring on diff/worker output) |
+| Micro Evaluator | Lightweight per-task quality evaluation (Haiku model) |
 
-### Utility Agents (22)
+### Utility Agents
 
 | Agent | Purpose |
 |-------|---------|
@@ -459,19 +436,14 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | Horizon Sage | Strategic depth assessment |
 | State Weaver | Plan state machine validation (phases, transitions, I/O contracts) |
 | Veil Piercer | Plan reality-gap analysis |
+| Veil Piercer (Plan) | Plan-level reality-gap analysis and assumption validation |
 | Evidence Verifier | Factual claim validation with grounding scores |
 | Research Verifier | Research output quality verification |
-| Truthseer Validator | Audit coverage quality validation |
-| Deployment Verifier | Deployment artifact generation (Go/No-Go checklists, rollback plans) |
-| Design Analyst | Figma frame relationship classifier (5-signal weighted composite) |
-| Todo Verifier | TODO staleness verification — classifies TODOs as VALID or FALSE_POSITIVE |
-| UX Pattern Analyzer | Codebase UX maturity assessment (loading, error, form, navigation patterns) |
-| Tome Digest | TOME finding extraction (P1/P2/P3 counts, recurring patterns) — shell-based |
+| Finding Verifier | Classifies TOME findings as TRUE_POSITIVE / FALSE_POSITIVE / NEEDS_CONTEXT before mend |
 | Forge Warden | Multi-perspective backend code review for forge enrichment |
 | Verdict Binder | Inspection aggregator — merges Inspector findings into VERDICT.md |
-| Veil Piercer (Plan) | Plan-level reality-gap analysis and assumption validation |
 
-### Testing Agents (6)
+### Testing Agents
 
 | Agent | Purpose |
 |-------|---------|
@@ -482,26 +454,19 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | Extended Test Runner | Extended-tier test execution with checkpoint/resume protocol |
 | Contract Validator | API contract validation (request/response schemas) |
 
-### QA Agents (8)
+### QA Agents
 
 | Agent | Purpose |
 |-------|---------|
-| Phase QA Verifier | Independent arc phase completion artifact verification |
-| Code Review QA Verifier | Verifies code review phase TOME existence and finding quality |
-| Forge QA Verifier | Verifies forge phase enrichment depth and structural preservation |
-| Gap Analysis QA Verifier | Verifies gap analysis compliance matrix and criteria coverage |
-| Mend QA Verifier | Verifies mend resolution report and per-finding status |
-| Test QA Verifier | Verifies test phase SEAL markers and tier coverage |
-| Work QA Verifier | Verifies work phase delegation manifests and task completeness |
-| Design QA Verifier | Verifies design verification phase report and criteria matrix |
+| Phase QA Verifier | Single parametric verifier for arc phase completion artifacts. Phase-specific behavior comes from injected manifest checklists (`qa-manifests/{phase}.yaml`) — replaces the per-phase QA agents collapsed in v3.0.0-alpha.2 |
 
-### Meta-QA Agents (8)
+### Meta-QA Agents
 
 | Agent | Purpose |
 |-------|---------|
 | Prompt Linter | Lints agent definition files for consistency (15 rules) |
 | Workflow Auditor | Audits arc workflow definitions for structural integrity |
-| Rule Consistency Auditor | Detects contradictions between CLAUDE.md, skills, and talisman |
+| Rule Consistency Auditor | Detects contradictions between CLAUDE.md and skills |
 | Hook Integrity Auditor | Validates hooks.json entries match actual scripts |
 | Improvement Advisor | Generates fix proposals for meta-QA findings |
 | Hallucination Detector | Detects phantom claims and evidence fabrication in arc artifacts |
@@ -512,7 +477,7 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 
 ## Skills
 
-69 skills providing background knowledge, workflow orchestration, and tool integration:
+44 skills providing background knowledge, workflow orchestration, and tool integration. Source of truth: [`plugins/rune/CLAUDE.md`](plugins/rune/CLAUDE.md#skills).
 
 | Skill | Type | Purpose |
 |-------|------|---------|
@@ -521,179 +486,58 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | `appraise` | Workflow | Multi-agent code review |
 | `audit` | Workflow | Full codebase audit |
 | `arc` | Workflow | End-to-end pipeline orchestration |
-| `arc-batch` | Workflow | Sequential batch arc execution |
-| `arc-hierarchy` | Workflow | Hierarchical plan execution |
-| `arc-issues` | Workflow | GitHub Issues-driven batch arc |
+| `arc-quick` | Workflow | Quick 4-phase pipeline: plan → work → review → mend |
 | `forge` | Workflow | Plan enrichment with Forge Gaze |
 | `goldmask` | Workflow | Cross-layer impact analysis |
 | `inspect` | Workflow | Plan-vs-implementation gap audit |
 | `mend` | Workflow | Parallel finding resolution |
-| `elicitation` | Reasoning | 24 structured reasoning methods |
-| `roundtable-circle` | Orchestration | Review/audit 7-phase lifecycle |
-| `rune-orchestration` | Orchestration | Core coordination patterns |
-| `context-weaving` | Orchestration | Context overflow prevention |
-| `rune-echoes` | Memory | 5-tier persistent agent memory |
-| `stacks` | Intelligence | Stack-aware detection and routing |
-| `frontend-design-patterns` | Intelligence | Design-to-code patterns (tokens, a11y, responsive, components) |
-| `design-sync` | Workflow | Figma design sync (extraction, implementation, fidelity review) |
-| `inner-flame` | Quality | Universal self-review protocol |
-| `ash-guide` | Reference | Agent invocation guide |
-| `tarnished` | Routing | Unified entry point — natural language to workflow |
-| `using-rune` | Reference | Workflow discovery and routing |
-| `testing` | Testing | 3-tier test orchestration |
-| `agent-browser` | Testing | E2E browser automation knowledge |
-| `systematic-debugging` | Debugging | 4-phase debugging methodology |
-| `file-todos` | Tracking | Structured file-based todos |
-| `git-worktree` | Isolation | Worktree-based parallel execution |
-| `polling-guard` | Reliability | Monitoring loop fidelity |
-| `zsh-compat` | Compatibility | macOS zsh shell safety |
-| `chome-pattern` | Compatibility | Multi-account config resolution |
+| `verify` | Workflow | Verify TOME findings before mend (TRUE_POSITIVE/FALSE_POSITIVE classification) |
+| `brainstorm` | Workflow | Collaborative idea exploration (solo, roundtable, deep modes) |
+| `debug` | Debugging | ACH-based parallel hypothesis debugging |
 | `resolve-gh-pr-comment` | Workflow | Resolve a single GitHub PR review comment |
 | `resolve-all-gh-pr-comments` | Workflow | Batch resolve all open PR review comments |
-| `skill-testing` | Development | TDD for skill development |
-| `debug` | Debugging | ACH-based parallel hypothesis debugging |
-| `learn` | Memory | Session self-learning (CLI corrections, review recurrences) |
-| `figma-to-react` | Integration | Figma-to-React MCP server knowledge |
-| `status` | Reporting | Worker status reporting for swarm execution |
-| `brainstorm` | Workflow | Collaborative idea exploration (solo, roundtable, deep modes) |
-| `design-prototype` | Workflow | Standalone Figma-to-Storybook prototype generator (extract, match, synthesize, verify) |
-| `design-system-discovery` | Intelligence | Design system auto-detection (libraries, tokens, variants) |
 | `resolve-todos` | Workflow | File-based TODO resolution with verify-before-fix pipeline |
-| `runs` | Reporting | Inspect per-agent structured artifacts from workflow runs |
-| `storybook` | Intelligence | Storybook component verification knowledge (CSF3, MCP tools) |
-| `elevate` | Memory | Promote project echoes to global scope with domain tagging |
-| `team-sdk` | Orchestration | Centralized team management SDK (ExecutionEngine, lifecycle) |
-| `team-status` | Reporting | Active agent team monitoring dashboard |
-| `test-browser` | Testing | Standalone browser E2E testing (no agent teams) |
-| `untitledui-mcp` | Integration | UntitledUI MCP integration (6 tools, builder-protocol) |
-| `ux-design-process` | Intelligence | UX design methodology (heuristic evaluation, flow validation) |
-| `talisman` | Configuration | Deep talisman.yml management (init, audit, update, guide, status) |
-| `cc-inspect` | Workflow | Run Claude Code built-in inspection script |
-| `discipline` | Quality | Proof-based orchestration discipline for spec compliance |
+| `file-todos` | Tracking | Structured file-based todos |
 | `post-findings` | Workflow | Post review findings to GitHub PR as formatted comment |
-| `self-audit` | Quality | Meta-QA self-audit of Rune's own plugin infrastructure |
-| `arc-quick` | Workflow | Quick 4-phase pipeline: plan → work → review → mend |
-| `variant-hunt` | Analysis | Systematic variant analysis — "find more like this" for confirmed findings |
 | `supply-chain-audit` | Security | Dependency risk analysis (maintainer count, CVE history, abandonment) |
+| `variant-hunt` | Analysis | Systematic variant analysis — "find more like this" for confirmed findings |
 | `pr-guardian` | Automation | Cron-based PR shepherd loop — comments, lint, CI, rebase, migrations, browser test, auto-merge |
-| `verify` | Workflow | Verify TOME findings before mend (TRUE_POSITIVE/FALSE_POSITIVE classification) |
-| `react-composition-patterns` | Intelligence | React compound components, state lifting, explicit variants, React 19 APIs |
-| `react-native-patterns` | Intelligence | React Native/Expo best practices (FlashList, Reanimated, native navigation) |
-| `react-performance-rules` | Intelligence | React/Next.js performance — 69 rules across 8 categories |
-| `react-view-transitions` | Intelligence | React View Transition API — placement, types, CSS recipes, Next.js integration |
-| `web-interface-rules` | Intelligence | Web interface quality — 100+ UI/UX/a11y rules across 15 categories |
+| `self-audit` | Quality | Meta-QA self-audit of Rune's own plugin infrastructure |
+| `cc-inspect` | Workflow | Run Claude Code built-in inspection script |
+| `skill-testing` | Development | TDD for skill development |
+| `tarnished` | Routing | Unified entry point — natural language to workflow |
+| `using-rune` | Reference | Workflow discovery and routing |
+| `status` | Reporting | Background dispatch status reporting |
+| `team-status` | Reporting | Active agent team monitoring dashboard |
+| `runs` | Reporting | Inspect per-agent structured artifacts from workflow runs |
+| `rune-orchestration` | Orchestration | Core coordination patterns (file-based handoff, conflict resolution) |
+| `roundtable-circle` | Orchestration | Review/audit 7-phase lifecycle |
+| `team-sdk` | Orchestration | Centralized team management SDK (ExecutionEngine, lifecycle) |
+| `context-weaving` | Orchestration | Context overflow prevention |
+| `discipline` | Quality | Proof-based orchestration discipline for spec compliance |
+| `inner-flame` | Quality | Universal self-review protocol |
+| `stacks` | Intelligence | Stack-aware detection and routing |
+| `systematic-debugging` | Debugging | 4-phase debugging methodology |
+| `testing` | Testing | Test orchestration pipeline knowledge for arc test phase |
+| `elicitation` | Reasoning | 24 structured reasoning methods |
+| `chome-pattern` | Compatibility | Multi-account config resolution |
+| `polling-guard` | Reliability | Monitoring loop fidelity |
+| `zsh-compat` | Compatibility | macOS zsh shell safety |
+| `ash-guide` | Reference | Agent invocation guide |
+| `git-worktree` | Isolation | Worktree-based parallel execution |
 
 ---
 
 ## Configuration
 
-Rune is configured via `talisman.yml` (dozens of top-level sections, 100+ keys):
+Rune v3.x ships with hardcoded defaults — there is no `talisman.yml` config layer. See [`plugins/rune/references/v3-defaults.md`](plugins/rune/references/v3-defaults.md) for the full inventory of baked-in values across `arc`, `audit`, `devise`, `gates`, `goldmask`, `inspect`, `integrations`, `misc`, `plan`, `pr_comment`, `process_management`, `review`, `settings`, `teammate_lifecycle`, `testing`, `ux`, and `work` sections.
 
-```bash
-# Project-level (highest priority)
-.rune/talisman.yml
+To deviate from a baked default, use one of the override paths documented in [`v3-defaults.md`](plugins/rune/references/v3-defaults.md):
 
-# User-global
-~/.rune/talisman.yml
-```
+1. **Per-session env vars** — A subset of defaults are env-readable (`${VAR:-default}` patterns in scripts). Set the env var in `.envrc` or your shell profile.
+2. **Local fork of an agent definition** — Custom Ashes are wired in the orchestration layer rather than configured. Place your custom agent at `.claude/agents/<name>.md` and update the relevant skill's summon list. See [`custom-ashes.md`](plugins/rune/skills/roundtable-circle/references/custom-ashes.md) for the wiring contract.
 
-<details>
-<summary>Example configuration</summary>
-
-```yaml
-version: 1
-
-# File classification — decides which Ashes get summoned
-rune-gaze:
-  backend_extensions: [.py]
-  skip_patterns: ["**/migrations/**", "**/__pycache__/**"]
-
-# Work execution
-work:
-  ward_commands: ["ruff check .", "mypy .", "pytest --tb=short -q"]
-  max_workers: 3
-
-# Arc pipeline
-arc:
-  timeouts:
-    forge: 900000               # 15 min
-    work: 2100000               # 35 min
-    code_review: 900000         # 15 min
-  ship:
-    auto_pr: true
-    merge_strategy: "squash"
-
-# Review settings
-review:
-  diff_scope:
-    enabled: true
-    expansion: 8
-
-# Goldmask impact analysis
-goldmask:
-  enabled: true
-  devise:
-    depth: enhanced             # basic | enhanced | full
-
-# Cross-model verification
-
-# Custom Ashes
-ashes:
-  custom:
-    - name: "my-reviewer"
-      agent: "my-custom-agent"
-      source: ".claude/agents/my-custom-agent.md"
-```
-</details>
-
-See [`plugins/rune/references/v3-defaults.md`](plugins/rune/references/v3-defaults.md) for the full v3.x defaults catalog.
-
----
-
-
-## MCP Tool Integrations (Optional)
-
-Rune supports third-party MCP servers for component libraries and design tools. Declare them in `talisman.yml` and Rune routes them into the right workflow phases automatically.
-
-### UI Builder Protocol (v1.133.0+)
-
-The **UI Builder Protocol** integrates any component library MCP (UntitledUI, shadcn/ui, custom) into Rune's full pipeline — planning, implementation, design sync, and code review:
-
-| Integration Point | What happens |
-|------------------|-------------|
-| `/rune:devise` | Plan includes `ui_builder` frontmatter section + Component Strategy |
-| `/rune:strive` | Workers injected with builder workflow (search → get → customize) |
-| `/rune:design-sync` | Phase 1.5 Component Match: reference code → library search → annotated VSM |
-| `/rune:appraise` | Compliance reviewer generates `DSYS-BLD-*` findings for convention violations |
-
-**UntitledUI** is supported out of the box — register the MCP server and add talisman config. No project skill needed.
-
-**shadcn/ui and custom libraries**: create a builder skill with `builder-protocol` frontmatter.
-
-```yaml
-# .rune/talisman.yml — minimal builder integration
-integrations:
-  mcp_tools:
-    untitledui:
-      server_name: "untitledui"
-      tools:
-        - { name: "search_components", category: "search" }
-        - { name: "get_component", category: "details" }
-      phases: { devise: true, strive: true, arc: true }
-      skill_binding: "untitledui-mcp"   # built-in plugin skill
-      trigger:
-        extensions: [".tsx", ".ts"]
-        keywords: ["ui", "component"]
-        always: false
-```
-
-See [docs/guides/ui-builder-protocol.en.md](docs/guides/ui-builder-protocol.en.md) for the full developer guide.
-
-### MCP Integration Framework (v1.131.0+)
-
-Declarative `integrations.mcp_tools` talisman config routes any MCP tool into the right workflow phases, with trigger conditions, rules injection, and companion skill auto-loading.
-
-See [docs/guides/mcp-integration-spec.en.md](docs/guides/mcp-integration-spec.en.md) for the full spec (3 integration levels, schema reference, trigger system, worked examples).
+> **Migration note for v2.x users:** Existing `.rune/talisman.yml` is silently ignored in v3.x. SessionStart warns once when this file is detected. To restore prior behavior, pin to v2.x in your `marketplace.json`.
 
 ---
 
@@ -706,22 +550,23 @@ rune/
 └── plugins/
     └── rune/                     # Main plugin
         ├── .claude-plugin/
-        │   └── plugin.json       # Plugin manifest (v1.128.0)
-        ├── agents/               # 109 core agent definitions
-        │   ├── review/           #   17 review agents
-        │   ├── investigation/    #   31 investigation agents
-        │   ├── utility/          #   17 utility agents
-        │   ├── research/         #    8 research agents
-        │   ├── work/             #    7 work agents
-        │   ├── qa/               #    8 QA agents
-        │   └── meta-qa/          #    9 meta-QA agents
-        ├── registry/             # 43 extended agents
-        ├── skills/               # 69 skills
-        ├── commands/             # 16 slash commands
+        │   └── plugin.json       # Plugin manifest (see plugin.json for current version)
+        ├── agents/               # 74 core agent definitions
+        │   ├── investigation/    #   23 investigation agents
+        │   ├── utility/          #   16 utility agents
+        │   ├── review/           #   13 review agents
+        │   ├── meta-qa/          #    9 meta-QA agents
+        │   ├── research/         #    7 research agents
+        │   ├── work/             #    5 work agents
+        │   ├── qa/               #    1 QA verifier (parametric, manifest-driven)
+        │   └── shared/           #   13 shared resources (templates, protocols)
+        ├── registry/             # 42 extended agents
+        ├── skills/               # 44 skills
+        ├── commands/             # 11 slash commands
         ├── hooks/                # Event-driven hooks
         │   └── hooks.json
         ├── scripts/              # Hook & utility scripts (256 .sh/.py files)
-        ├── .mcp.json             # MCP server config (5 servers: echo-search, figma-to-react, agent-search, context7, figma-context)
+        ├── .mcp.json             # MCP server config (echo-search, agent-search, context7)
         ├── CLAUDE.md             # Plugin instructions
         ├── CHANGELOG.md
         └── README.md             # Detailed component reference
@@ -738,9 +583,7 @@ Every Rune workflow is an explicit state machine with named phases, conditional 
 | **Tarnished** | The orchestrator/lead agent that coordinates workflows |
 | **Ash** | Any teammate agent (reviewer, worker, researcher) |
 | **TOME** | Aggregated findings document from a review |
-| **Talisman** | Configuration file (`talisman.yml`) |
 | **Forge Gaze** | Topic-aware agent matching for plan enrichment |
-| **Rune Echoes** | 5-tier persistent agent memory (`.rune/echoes/`) |
 | **Inscription** | Contract file (`inscription.json`) for agent coordination |
 | **Seal** | Deterministic completion marker emitted by Ashes |
 | **Discipline Engineering** | The architectural backbone — 5-layer proof-based system ensuring spec compliance over task completion. See [full document](docs/discipline-engineering.md) |
@@ -756,7 +599,7 @@ A few things to know when working with Rune — especially if you're debugging a
 | **macOS bash is 3.2** | The system `bash` on macOS is ancient (3.2). No associative arrays, no `readarray`, no `\|&`. Rune's `enforce-zsh-compat.sh` hook auto-fixes 5 common patterns at runtime, but custom scripts must target bash 3.2. |
 | **`status` is read-only in zsh** | zsh (macOS default shell) treats `status` as read-only. Using `status=` in any script will silently fail or crash. Use `task_status` or `tstat` instead. Enforced by `enforce-zsh-compat.sh`. |
 | **Hook timeout budget is tight** | PreToolUse hooks: 5s. Stop hooks: 15s (arc-phase) or 30s (detect-workflow). A slow `git` or `gh` call in a hook can cause silent timeout — the hook is killed and the phase loop breaks. |
-| **Stop hooks chain in sequence** | 6 Stop hooks fire in order: `arc-phase-stop-hook.sh` (inner) → `arc-batch-stop-hook.sh` → `arc-hierarchy-stop-hook.sh` → `arc-issues-stop-hook.sh` → `detect-workflow-complete.sh` → `on-session-stop.sh` (outer). A crash in an inner hook breaks all outer hooks. |
+| **Stop hooks chain in sequence** | Stop hooks fire in order: `arc-phase-stop-hook.sh` (inner) → `detect-workflow-complete.sh` → `on-session-stop.sh` (outer). A crash in an inner hook breaks all outer hooks. (Batch / hierarchy / issues hooks were removed in v3.0.0-alpha.1.) |
 | **SEAL convention for completion** | Ashes emit `<seal>TAG</seal>` as their last output line. The `on-teammate-idle.sh` hook checks for this marker to distinguish "done writing" from "idle mid-task". Missing seals cause premature aggregation. |
 
 See the [Troubleshooting guide](docs/guides/rune-troubleshooting-and-optimization-guide.en.md) for more operational details.
@@ -808,8 +651,8 @@ See the [Troubleshooting guide](docs/guides/rune-troubleshooting-and-optimizatio
 - [Hướng dẫn review và audit Rune (Tiếng Việt): appraise + audit + mend](docs/guides/rune-code-review-and-audit-guide.vi.md) — review đa agent, audit codebase, và xử lý finding
 - [Rune work execution guide (English): strive + goldmask](docs/guides/rune-work-execution-guide.en.md) — swarm implementation and impact analysis
 - [Hướng dẫn thực thi Rune (Tiếng Việt): strive + goldmask](docs/guides/rune-work-execution-guide.vi.md) — implementation swarm và phân tích tác động
-- [Rune advanced workflows guide (English): arc-hierarchy + arc-issues + echoes](docs/guides/rune-advanced-workflows-guide.en.md) — hierarchical execution, GitHub Issues batch, and agent memory
-- [Hướng dẫn workflow nâng cao Rune (Tiếng Việt): arc-hierarchy + arc-issues + echoes](docs/guides/rune-advanced-workflows-guide.vi.md) — thực thi phân cấp, batch GitHub Issues, và bộ nhớ agent
+- [Rune advanced workflows guide (English)](docs/guides/rune-advanced-workflows-guide.en.md) — debug, goldmask, variant-hunt, self-audit
+- [Hướng dẫn workflow nâng cao Rune (Tiếng Việt)](docs/guides/rune-advanced-workflows-guide.vi.md) — debug, goldmask, variant-hunt, self-audit
 - [Rune getting started guide (English)](docs/guides/rune-getting-started.en.md) — quick start for first-time users
 - [Hướng dẫn bắt đầu nhanh Rune (Tiếng Việt)](docs/guides/rune-getting-started.vi.md) — hướng dẫn nhanh cho người mới
 - [Thuật ngữ Rune (Tiếng Việt)](docs/guides/rune-glossary.vi.md) — bảng giải thích thuật ngữ ngắn gọn

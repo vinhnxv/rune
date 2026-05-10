@@ -229,7 +229,8 @@ for (const qFile of questionFiles) {
 const workerQuestionCounts = {}  // { workerName: number }
 
 function onWorkerQuestion(workerName, taskId, question) {
-  const cap = talisman?.question_relay?.max_questions_per_worker ?? 3  // SEC-006 FIX: define cap variable
+  // v3.x: max_questions_per_worker=3 (see references/v3-defaults.md misc.question_relay)
+  const cap = 3
   const count = (workerQuestionCounts[workerName] || 0) + 1
   if (count > cap) {
     // Cap exceeded — relay advisory to worker (not a hard block)
@@ -262,9 +263,11 @@ async function relayQuestionToUser(question, signalDir) {
   }
 
   // Surface to user
+  // v3.x: timeout 180s baked here; v3-defaults.md misc.question_relay.timeout_seconds=120
+  // is the catalogued default — this skill literal is canonical (see CLAUDE.md note).
   const answer = await AskUserQuestion(
     `Worker question for task #${question.task_id}:\n\n${question.question}\n\nOptions:\n${question.options}\n\nContext: ${question.context}`,
-    { timeout: talisman?.question_relay?.timeout_seconds ?? 180 }
+    { timeout: 180 }
   )
 
   const decidedBy = answer ? "user" : "auto-timeout"
@@ -301,26 +304,17 @@ async function relayQuestionToUser(question, signalDir) {
 }
 ```
 
-## Talisman Configuration
+## Baked Defaults (v3.x)
 
-```yaml
-question_relay:
-  enabled: true                      # Master switch. Default: true
-  timeout_seconds: 180               # Seconds to wait for user input. Default: 180
-  poll_interval_seconds: 15          # Fast-path signal scan interval. Default: 15
-  auto_answer_on_timeout: true       # Select option A when user doesn't respond. Default: true
-  max_questions_per_worker: 3        # Cap per worker per task (SEC-006). Default: 3
-```
+All question relay settings are hardcoded — see [v3-defaults.md](../../../references/v3-defaults.md) `misc.question_relay`.
 
-**Talisman field reference** (used by strive SKILL.md Phase 3):
-
-| Field | Type | Default | Purpose |
-|-------|------|---------|---------|
-| `enabled` | bool | `true` | Disable to suppress all question relay (workers proceed on best-effort) |
-| `timeout_seconds` | int | `180` | AskUserQuestion timeout before auto-answer |
-| `poll_interval_seconds` | int | `15` | How often to scan signal dir in fast-path |
-| `auto_answer_on_timeout` | bool | `true` | If false: worker blocks indefinitely until answered |
-| `max_questions_per_worker` | int | `3` | Max questions per worker. Cap prevents runaway question spam |
+| Field | Value | Purpose |
+|-------|-------|---------|
+| `enabled` | `true` | Master switch (always on in v3.x) |
+| `timeout_seconds` | `180` | AskUserQuestion timeout before auto-answer (skill literal canonical) |
+| `poll_interval_seconds` | `15` | How often to scan signal dir in fast-path |
+| `auto_answer_on_timeout` | `true` | Select option A when user doesn't respond |
+| `max_questions_per_worker` | `3` | Max questions per worker. Cap prevents runaway question spam |
 
 ## Security Summary
 

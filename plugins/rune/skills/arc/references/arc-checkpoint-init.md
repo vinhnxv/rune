@@ -5,7 +5,7 @@
 Checkpoint initialization: config resolution (3-layer), session identity,
 checkpoint schema v30 creation, skip map computation, and initial state write.
 
-**Inputs**: plan path, talisman config, arc arguments, `freshnessResult` from Freshness Check
+**Inputs**: plan path, arc arguments, `freshnessResult` from Freshness Check
 **Outputs**: checkpoint object (schema v30), resolved arc config (`arcConfig`), pre-computed `skip_map`
 **Error handling**: Fail arc if plan file missing or config invalid
 **Consumers**: SKILL.md checkpoint-init stub, resume logic in [arc-resume.md](arc-resume.md)
@@ -42,13 +42,14 @@ const arc = {}
 const work = { co_authors: [] }
 ```
 
-## 3-Layer Config Resolution
+## 2-Layer Config Resolution
 
 ```javascript
-// 3-layer config resolution: hardcoded defaults → talisman → inline CLI flags (v1.40.0+)
-// Contract: inline flags ALWAYS override talisman; talisman overrides hardcoded defaults.
+// 2-layer config resolution: hardcoded defaults → inline CLI flags
+// v3.x: Layer 2 (talisman) baked into Layer 1 defaults; see references/v3-defaults.md
+// Contract: inline flags ALWAYS override hardcoded defaults.
 function resolveArcConfig(arc, work, inlineFlags) {
-  // Layer 1: Hardcoded defaults
+  // Layer 1: Hardcoded defaults (v3.x — former Layer 2 talisman overrides baked in)
   const defaults = {
     no_forge: false,
     approve: false,
@@ -67,66 +68,49 @@ function resolveArcConfig(arc, work, inlineFlags) {
       pr_monitoring: false,
       rebase_before_merge: true,
     },
-    // GRACE-002 FIX: Include bot_review in Layer 1 defaults for 3-layer consistency
     bot_review: false,
     no_bot_review: false,
     step_groups: false,
   }
 
-  // Layer 2: Talisman overrides (null-safe)
-  const talismanDefaults = arc?.defaults ?? {}
-  const talismanShip = arc?.ship ?? {}
-  const talismanPreMerge = arc?.pre_merge_checks ?? {}  // QUAL-001 FIX
-
-  // RUIN-001 FIX: Use typeof === 'boolean' for Layer 2 boolean fields (14 total).
-  // This rejects non-boolean types (string "false", numbers) AND treats null as "use default"
-  // (closes RUIN-002 null-propagation behavioral change from ?? era).
-  // GRACE-001 FIX: 14 boolean fields — 6 defaults + 6 ship + 2 top-level (bot_review, inspect_enabled).
+  // v3.x: All Layer 2 conditionals collapsed to defaults (see references/v3-defaults.md)
   const config = {
-    no_forge:        typeof talismanDefaults.no_forge === 'boolean' ? talismanDefaults.no_forge : defaults.no_forge,
-    approve:         typeof talismanDefaults.approve === 'boolean' ? talismanDefaults.approve : defaults.approve,
-    skip_freshness:  typeof talismanDefaults.skip_freshness === 'boolean' ? talismanDefaults.skip_freshness : defaults.skip_freshness,
-    confirm:         typeof talismanDefaults.confirm === 'boolean' ? talismanDefaults.confirm : defaults.confirm,
-    no_test:         typeof talismanDefaults.no_test === 'boolean' ? talismanDefaults.no_test : defaults.no_test,
-    no_browser_test: typeof talismanDefaults.no_browser_test === 'boolean' ? talismanDefaults.no_browser_test : defaults.no_browser_test,
-    accept_external_changes: typeof talismanDefaults.accept_external_changes === 'boolean' ? talismanDefaults.accept_external_changes : defaults.accept_external_changes,
+    no_forge:        defaults.no_forge,
+    approve:         defaults.approve,
+    skip_freshness:  defaults.skip_freshness,
+    confirm:         defaults.confirm,
+    no_test:         defaults.no_test,
+    no_browser_test: defaults.no_browser_test,
+    accept_external_changes: defaults.accept_external_changes,
     ship: {
-      auto_pr:       typeof talismanShip.auto_pr === 'boolean' ? talismanShip.auto_pr : defaults.ship.auto_pr,
-      auto_merge:    typeof talismanShip.auto_merge === 'boolean' ? talismanShip.auto_merge : defaults.ship.auto_merge,
-      // SEC-001 FIX: Validate merge_strategy against allowlist at config resolution time
-      merge_strategy: ["squash", "rebase", "merge"].includes(talismanShip.merge_strategy)
-        ? talismanShip.merge_strategy : defaults.ship.merge_strategy,
-      wait_ci:       typeof talismanShip.wait_ci === 'boolean' ? talismanShip.wait_ci : defaults.ship.wait_ci,
-      draft:         typeof talismanShip.draft === 'boolean' ? talismanShip.draft : defaults.ship.draft,
-      labels:        Array.isArray(talismanShip.labels) ? talismanShip.labels : defaults.ship.labels,  // SEC-DECREE-002: validate array
-      pr_monitoring: typeof talismanShip.pr_monitoring === 'boolean' ? talismanShip.pr_monitoring : defaults.ship.pr_monitoring,
-      rebase_before_merge: typeof talismanShip.rebase_before_merge === 'boolean' ? talismanShip.rebase_before_merge : defaults.ship.rebase_before_merge,
-      // BACK-012 FIX: Include co_authors in 3-layer resolution (was read from raw talisman)
-      // QUAL-003 FIX: Check arc.ship.co_authors first, fall back to work.co_authors
-      co_authors: Array.isArray(talismanShip.co_authors) ? talismanShip.co_authors
-        : Array.isArray(work?.co_authors) ? work.co_authors : [],
+      auto_pr:       defaults.ship.auto_pr,
+      auto_merge:    defaults.ship.auto_merge,
+      merge_strategy: defaults.ship.merge_strategy,
+      wait_ci:       defaults.ship.wait_ci,
+      draft:         defaults.ship.draft,
+      labels:        defaults.ship.labels,
+      pr_monitoring: defaults.ship.pr_monitoring,
+      rebase_before_merge: defaults.ship.rebase_before_merge,
+      // QUAL-003 FIX: co_authors falls back to work.co_authors when present
+      co_authors: Array.isArray(work?.co_authors) ? work.co_authors : [],
     },
-    // GRACE-002 FIX: Include bot_review in Layer 2 talisman resolution (was CLI-only)
-    bot_review: typeof (arc?.bot_review) === 'boolean' ? arc.bot_review : defaults.bot_review,
-    no_bot_review: typeof (arc?.no_bot_review) === 'boolean' ? arc.no_bot_review : defaults.no_bot_review,
-    // RUIN-004 FIX: Include inspect.enabled in 3-layer resolution (was raw talisman read in computeSkipMap)
-    inspect_enabled: typeof (arc?.inspect?.enabled) === 'boolean' ? arc.inspect.enabled : true,
-    // BACK-001 FIX: Include verify.enabled in 3-layer resolution (was missing — computeSkipMap check was dead code)
-    verify_enabled: typeof (arc?.verify?.enabled) === 'boolean' ? arc.verify.enabled : true,
-    // QUAL-001 FIX: Include pre_merge_checks in config resolution (was missing — talisman overrides silently ignored)
+    bot_review: defaults.bot_review,
+    no_bot_review: defaults.no_bot_review,
+    inspect_enabled: true,
+    verify_enabled: true,
     pre_merge_checks: {
-      migration_conflict: talismanPreMerge.migration_conflict ?? true,
-      schema_conflict: talismanPreMerge.schema_conflict ?? true,
-      lock_file_conflict: talismanPreMerge.lock_file_conflict ?? true,
-      uncommitted_changes: talismanPreMerge.uncommitted_changes ?? true,
-      migration_paths: Array.isArray(talismanPreMerge.migration_paths) ? talismanPreMerge.migration_paths : [],
+      migration_conflict: true,
+      schema_conflict: true,
+      lock_file_conflict: true,
+      uncommitted_changes: true,
+      migration_paths: [],
     },
     // v2.31.0: User-defined phase skip list (merged into skip_map at init time)
-    skip_phases: Array.isArray(arc?.skip_phases) ? arc.skip_phases : [],
-    step_groups: typeof talismanDefaults.step_groups === 'boolean' ? talismanDefaults.step_groups : defaults.step_groups,
+    skip_phases: [],
+    step_groups: defaults.step_groups,
   }
 
-  // Layer 3: Inline CLI flags override (only if explicitly passed)
+  // Layer 2: Inline CLI flags override (only if explicitly passed)
   if (inlineFlags.no_forge !== undefined) config.no_forge = inlineFlags.no_forge
   if (inlineFlags.approve !== undefined) config.approve = inlineFlags.approve
   if (inlineFlags.skip_freshness !== undefined) config.skip_freshness = inlineFlags.skip_freshness
@@ -155,7 +139,7 @@ const inlineFlags = {
   confirm: args.includes('--confirm') ? true : undefined,
   no_test: args.includes('--no-test') ? true : undefined,
   no_browser_test: args.includes('--no-browser-test') ? true : undefined,
-  // --no-accept-external (force off) > --accept-external (force on) > talisman default (true)
+  // --no-accept-external (force off) > --accept-external (force on) > hardcoded default (true)
   accept_external_changes: args.includes('--no-accept-external') ? false
     : args.includes('--accept-external') ? true : undefined,
   no_pr: args.includes('--no-pr') ? true : undefined,
@@ -183,7 +167,7 @@ const arcTotalTimeout = calculateDynamicTimeout(tier)
 
 ## Skip Map Computation (v1.162.0+)
 
-Pre-compute deterministic phase skip decisions from talisman config, plan frontmatter, and CLI flags.
+Pre-compute deterministic phase skip decisions from hardcoded defaults, plan frontmatter, and CLI flags.
 Phases in the skip map are auto-skipped by the stop hook without LLM dispatch — saving ~30s per skipped phase.
 
 ```javascript
@@ -195,10 +179,10 @@ const ux = {}
 /**
  * computeSkipMap — Pre-compute deterministic phase skip decisions.
  *
- * @param {object} arcConfig — Resolved arc config from 3-layer resolution
- * @param {object} designSync — talisman misc.design_sync section
- * @param {object} storybook — talisman misc.storybook section
- * @param {object} ux — talisman ux section
+ * @param {object} arcConfig — Resolved arc config from 2-layer resolution
+ * @param {object} designSync — Hardcoded default in v3.x (see references/v3-defaults.md)
+ * @param {object} storybook — Hardcoded default in v3.x (see references/v3-defaults.md)
+ * @param {object} ux — Hardcoded default in v3.x (see references/v3-defaults.md)
  * @param {object} planMeta — Extracted YAML frontmatter from plan file
  * @returns {object} Map of { phase_name: skip_reason_string } for phases to auto-skip.
  *   Phases NOT in the map are dispatched normally. Empty map = no pre-skipping.
@@ -231,7 +215,7 @@ function computeSkipMap(arcConfig, designSync, storybook, ux, planMeta, planFile
   }
 
   // ── Inspect phases (3 phases) ──
-  // RUIN-004 FIX: Use 3-layer resolved arcConfig instead of raw talisman read
+  // RUIN-004 FIX: Use resolved arcConfig instead of inline lookups
   if (arcConfig.inspect_enabled === false) {
     map.inspect = "inspect_disabled"
     map.inspect_fix = "inspect_disabled"
@@ -262,7 +246,7 @@ function computeSkipMap(arcConfig, designSync, storybook, ux, planMeta, planFile
   }
 
   // ── User-defined skip phases (v2.31.0+) ──
-  // Merge arc.skip_phases[] from talisman config. Applied AFTER all feature-based
+  // Merge arc.skip_phases[] from arcConfig. Applied AFTER all feature-based
   // skip logic so user overrides don't conflict with safety-critical skips.
   // FORBIDDEN_PHASE_KEYS guard prevents prototype pollution.
   const userSkipPhases = arcConfig.skip_phases ?? []

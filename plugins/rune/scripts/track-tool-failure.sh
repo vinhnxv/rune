@@ -50,28 +50,10 @@ SESSION_ID=$(printf '%s\n' "$INPUT" | jq -r '.session_id // empty' 2>/dev/null |
 
 [[ -z "$TOOL_NAME" || -z "$SESSION_ID" ]] && exit 0
 
-# --- Talisman gate (project → system fallback; symlink-safe via helper) ---
-SCRIPT_DIR="${SCRIPT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)}"
-# shellcheck source=lib/talisman-shard-path.sh
-source "${SCRIPT_DIR}/lib/talisman-shard-path.sh" 2>/dev/null || true
-if type _rune_resolve_talisman_shard &>/dev/null; then
-  TALISMAN_SHARD=$(_rune_resolve_talisman_shard "tool_failure_tracking" "${CWD:-}")
-else
-  # WORKTREE-FIX: Prefer CWD (worktree) over CLAUDE_PROJECT_DIR (may point to main repo per #27343)
-  TALISMAN_SHARD="${CWD:-${CLAUDE_PROJECT_DIR:-.}}/tmp/.talisman-resolved/tool_failure_tracking.json"
-fi
+# <!-- v3.x: defaults baked from former talisman.tool_failure_tracking; see references/v3-defaults.md -->
 SILENT_THRESHOLD=2
 ESCALATION_THRESHOLD=5
 STALENESS_MIN=30
-# FLAW-009 FIX: Add symlink rejection to match other scripts
-if [[ -f "$TALISMAN_SHARD" ]] && [[ ! -L "$TALISMAN_SHARD" ]]; then
-  ENABLED=$(jq -r 'if .enabled == null then true else .enabled end' "$TALISMAN_SHARD" 2>/dev/null || echo "true")
-  [[ "$ENABLED" == "false" ]] && exit 0
-  # QUAL-002 FIX: Flat key access — shard file is the dedicated tool_failure_tracking object
-  SILENT_THRESHOLD=$(jq -r '.silent_threshold // 2' "$TALISMAN_SHARD" 2>/dev/null || echo "2")
-  ESCALATION_THRESHOLD=$(jq -r '.escalation_threshold // 5' "$TALISMAN_SHARD" 2>/dev/null || echo "5")
-  STALENESS_MIN=$(jq -r '.staleness_minutes // 30' "$TALISMAN_SHARD" 2>/dev/null || echo "30")
-fi
 
 # --- SEC-4: Session ID validation (prevent path injection) ---
 SAFE_SESSION=$(printf '%s' "$SESSION_ID" | sed 's/[^a-zA-Z0-9_-]//g')

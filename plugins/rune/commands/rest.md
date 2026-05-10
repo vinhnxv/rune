@@ -33,7 +33,6 @@ Remove ephemeral `tmp/` output directories from completed Rune workflows. Preser
 | `tmp/arc-batch/` | Batch progress, logs, config | Yes (if no active batch) |
 | `tmp/gh-issues/` | GitHub Issues batch progress, issue list JSON | Yes (if no active arc-issues loop) |
 | `tmp/gh-plans/` | Auto-generated plan files from GitHub Issues | Yes (if no active arc-issues loop) |
-| `tmp/.talisman-resolved/` | Talisman shard resolver cache (JSON shards) | Yes (unconditional, regenerated at next SessionStart) |
 | `tmp/.rune-signals/` | Event-driven signal files from Phase 2 hooks | Yes (unconditional, symlink-guarded) |
 | `tmp/.rune-locks/` | Workflow lock directories (PID-guarded) | Yes (dead PIDs only; live PIDs preserved) |
 | `$CHOME/teams/{rune-*/arc-*}/` | Orphaned team configs from crashed workflows | `--heal` only |
@@ -168,25 +167,10 @@ Only runs when arc dirs exist and artifact indexing is enabled.
 ARC_HISTORY=".rune/arc-history"
 ARTIFACT_EXTRACTED="false"
 
-# Read retention config from talisman (default: 10)
+# <!-- v3.x: defaults baked from former talisman.misc.echoes.artifact_indexing; see references/v3-defaults.md -->
 MAX_RUNS=10
-if command -v jq >/dev/null 2>&1 && [ -f "tmp/.talisman-resolved/misc.json" ]; then
-  talisman_max=$(jq -r '.echoes.artifact_indexing.max_runs // empty' tmp/.talisman-resolved/misc.json 2>/dev/null || true)
-  if [[ "$talisman_max" =~ ^[0-9]+$ ]] && [ "$talisman_max" -gt 0 ] && [ "$talisman_max" -le 100 ]; then
-    MAX_RUNS="$talisman_max"
-  fi
-fi
 
-# Check if artifact indexing is enabled (default: true)
-ARTIFACT_ENABLED="true"
-if command -v jq >/dev/null 2>&1 && [ -f "tmp/.talisman-resolved/misc.json" ]; then
-  enabled_val=$(jq -r '.echoes.artifact_indexing.enabled // empty' tmp/.talisman-resolved/misc.json 2>/dev/null || true)
-  if [[ "$enabled_val" == "false" ]]; then
-    ARTIFACT_ENABLED="false"
-  fi
-fi
-
-if [[ "$ARTIFACT_ENABLED" == "true" ]]; then
+if true; then  # artifact_indexing.enabled defaults to true in v3.x
   # ZSH-SAFE: Use (N) glob qualifier to prevent NOMATCH errors
   for arc_dir in tmp/arc/arc-*(N)/; do
     [ -d "$arc_dir" ] || continue
@@ -378,10 +362,8 @@ fi
 # Remove scratch files (unconditional — no state file)
 _safe_remove_tmp_dir "tmp/scratch" "scratch"
 
-# Talisman resolver cache — project-level (regenerated at next SessionStart)
-_safe_remove_tmp_dir "tmp/.talisman-resolved" "talisman-resolved"
-
-# System-level talisman cache — only with --system flag (shared cross-project)
+# <!-- v3.x: project-level tmp/.talisman-resolved/ no longer generated; see references/v3-defaults.md -->
+# System-level talisman cache — defensive cleanup for v2.x users (--system flag only)
 if [[ "$ARGUMENTS" == *"--system"* ]]; then
   CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
   if [[ -d "${CHOME}/.rune/talisman-resolved" && ! -L "${CHOME}/.rune/talisman-resolved" && ! -L "${CHOME}/.rune" ]]; then

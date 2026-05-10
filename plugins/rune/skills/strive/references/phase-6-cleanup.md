@@ -3,18 +3,26 @@
 ## Teammate Fallback Array
 
 ```javascript
-// FALLBACK: all possible strive teammates (static worst-case, safe to send to absent members)
+// FALLBACK: all possible strive teammates (static worst-case, safe to send to absent members).
+// CLEAN-008: bounds aligned to v3.x `work.max_workers = 3` literal default
+// (see plugins/rune/references/v3-defaults.md and wave-execution.md:7).
 allMembers = [
-  // Single-wave workers (non-wave mode)
-  ...Array.from({length: 6}, (_, i) => `rune-smith-${i + 1}`),
-  // Multi-wave workers (wave-execution.md: up to 4 waves x 6 workers per wave)
+  // Single-wave workers (non-wave mode) — max_workers = 3
+  ...Array.from({length: 3}, (_, i) => `rune-smith-${i + 1}`),
+  // Multi-wave workers (wave-execution.md: up to 4 waves × max_workers per wave)
   ...Array.from({length: 4}, (_, w) =>
-    Array.from({length: 6}, (_, i) => `rune-smith-w${w}-${i + 1}`)
+    Array.from({length: 3}, (_, i) => `rune-smith-w${w}-${i + 1}`)
   ).flat(),
-  // Gap convergence workers (up to 6 iterations x 2 concurrent = 12 workers)
+  // Gap convergence workers (up to 6 iterations × 2 concurrent = 12 workers).
+  // Gap convergence runs an inner per-iteration cap of 2 regardless of max_workers,
+  // so this stays at 12 even when max_workers tightens.
   ...Array.from({length: 12}, (_, i) => `rune-smith-gap-${Math.floor(i / 2) + 1}-${(i % 2) + 1}`),
   "trial-forger", "unit-test-runner", "test-failure-analyst",
-  "micro-evaluator"
+  "micro-evaluator",
+  // Blind verifier (conditional — quality-gates.md spawns when enabled).
+  // CLEAN-004: kept in fallback even though baked default is disabled,
+  // because the literal default is overridable; safe no-op if absent.
+  "blind-verifier"
 ]
 ```
 

@@ -7,9 +7,9 @@
 Wave capacity is derived from the v3.x `work` defaults (`max_workers = 3`, `tasks_per_worker = 3`):
 
 ```javascript
-const TASKS_PER_WORKER = talisman?.work?.tasks_per_worker ?? 3
-const maxWorkers = talisman?.work?.max_workers ?? 3
-const waveCapacity = Math.max(1, (maxWorkers ?? 3) * (TASKS_PER_WORKER ?? 3))  // e.g. 3 workers * 3 = 9; Math.max(1,...) guards against zero division on next line
+const TASKS_PER_WORKER = 3
+const maxWorkers = 3
+const waveCapacity = Math.max(1, maxWorkers * TASKS_PER_WORKER)  // e.g. 3 workers * 3 = 9; Math.max(1,...) guards against zero division on next line
 const totalWaves = Math.ceil(totalTasks / waveCapacity)
 ```
 
@@ -21,7 +21,7 @@ Instead of using a static `workerCount = maxWorkers` for every wave, the orchest
 
 **Gate**: Adaptive wave sizing is always enabled in v3.x (no user knob exposed).
 
-### `computeWaveWorkerCount(remainingTasks, maxWorkers, tasksPerWorker, prevWaveMetrics, talisman)`
+### `computeWaveWorkerCount(remainingTasks, maxWorkers, tasksPerWorker, prevWaveMetrics)`
 
 <!--
   Worked example — Adaptive Wave Sizing Feedback Loop:
@@ -193,7 +193,7 @@ for (let wave = 0; wave < totalWaves; wave++) {
 
   // Adaptive worker count (replaces static workerCount = maxWorkers)
   const workerCount = computeWaveWorkerCount(
-    remainingTasks, maxWorkers, TASKS_PER_WORKER, prevWaveMetrics, talisman
+    remainingTasks, maxWorkers, TASKS_PER_WORKER, prevWaveMetrics
   )
 
   // Expected wave time (F12 fix: per-worker task sum, not max of all tasks)

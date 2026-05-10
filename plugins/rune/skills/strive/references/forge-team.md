@@ -391,9 +391,10 @@ function calculateAdaptiveMaxTurns(task) {
 
 ```javascript
 // Wave-based execution: bounded batches with fresh worker context
-const TASKS_PER_WORKER = talisman?.work?.tasks_per_worker ?? 3
+// v3.x: tasks_per_worker=3, max_workers=3 (see references/v3-defaults.md)
+const TASKS_PER_WORKER = 3
 const totalTasks = extractedTasks.length
-const maxWorkers = talisman?.work?.max_workers ?? 3
+const maxWorkers = 3
 const waveCapacity = maxWorkers * TASKS_PER_WORKER  // e.g. 3 workers * 3 = 9
 const totalWaves = Math.ceil(totalTasks / waveCapacity)
 

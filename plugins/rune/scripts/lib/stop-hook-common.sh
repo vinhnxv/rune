@@ -1220,7 +1220,7 @@ _read_arc_result_signal() {
 }
 
 # ── _rune_detect_rate_limit(): Check for rate limit in recent context ──
-# Reads talisman arc shard for config, then checks transcript tail for rate limit patterns.
+# Checks transcript tail for rate limit patterns.
 # Returns: 0 if rate limit detected (wait seconds printed to stdout), 1 if no rate limit.
 # Fail-open: returns 1 on any read/parse error — callers proceed normally.
 #
@@ -1237,25 +1237,9 @@ _rune_detect_rate_limit() {
   [[ -n "$session_id" && "$session_id" =~ ^[a-zA-Z0-9_-]+$ ]] || return 1
   [[ -n "$cwd" && "$cwd" == /* ]] || return 1
 
-  # Talisman config defaults
+  # <!-- v3.x: defaults baked from former talisman.arc.rate_limit; see references/v3-defaults.md -->
   local default_wait=60
   local max_wait=300
-  # Resolve talisman shard (project → system fallback)
-  local talisman_shard=""
-  if type _rune_resolve_talisman_shard &>/dev/null; then
-    talisman_shard=$(_rune_resolve_talisman_shard "arc" "${cwd:-}")
-  fi
-  [[ -z "$talisman_shard" ]] && talisman_shard="${cwd}/tmp/.talisman-resolved/arc.json"
-  if [[ -f "$talisman_shard" && ! -L "$talisman_shard" ]]; then
-    local enabled
-    enabled=$(jq -r 'if .rate_limit.enabled == null then true else .rate_limit.enabled end' "$talisman_shard" 2>/dev/null || echo "true")
-    [[ "$enabled" == "false" ]] && return 1
-    local _dw _mw
-    _dw=$(jq -r '.rate_limit.default_wait_seconds // 60' "$talisman_shard" 2>/dev/null || echo "60")
-    _mw=$(jq -r '.rate_limit.max_wait_seconds // 300' "$talisman_shard" 2>/dev/null || echo "300")
-    [[ "$_dw" =~ ^[0-9]+$ ]] && default_wait="$_dw"
-    [[ "$_mw" =~ ^[0-9]+$ ]] && max_wait="$_mw"
-  fi
 
   # Extract transcript_path from hook input JSON
   local transcript_path

@@ -102,16 +102,57 @@ Flag any without `rune:` prefix (per CLAUDE.md "Namespace Prefix" rule).
 Exclude CHANGELOG and description fields.
 
 
-### RC-TALISMAN-01: Talisman residue check (Warning)
+### RC-TALISMAN-01: Talisman regression guard (Error)
 
-v3.x removed the talisman config layer. Grep `plugins/rune/skills/` and
-`plugins/rune/agents/` for the legacy helper name `readTalisman` (also catches the
-`...Section` variant). Any hit is residue — it should have been replaced with a
-hardcoded default per `plugins/rune/references/v3-defaults.md`. Flag every match.
+The talisman config layer was removed across v3.0.0-alpha.4 (skill, scripts, hooks,
+deep-dive guides, command) and v3.0.0-alpha.5 (residue sweep — all reference-layer
+pseudocode baked to literal defaults; `lib/talisman-shard-path.sh` deleted; remaining
+prose hot-spots — README MCP integrations section, `mcp-integration-spec.{en,vi}.md`,
+`ui-builder-protocol.{en,vi}.md` — deleted). Once removed, none of these patterns may
+return — that is what this rule guards.
 
-Also grep for `talisman\.[a-z_]+\.[a-z_]+` to catch config-style references in skill
-prose (e.g., phrasing like "configurable via talisman.<section>.<key>" or
-"gated by talisman.<section>.<flag>"). Flag any drift back toward the removed config layer.
+**Banned patterns** (any match is an Error, not a Warning):
+
+1. `readTalisman` / `readTalismanSection` — the v2.x config-reading helpers. Replaced
+   by inline literal defaults from `plugins/rune/references/v3-defaults.md`.
+2. `talisman?\.[a-zA-Z_]+\.[a-zA-Z_]+` — optional-chain access into a nested talisman
+   config object. The pattern is dead in v3.x.
+3. `talismanConfig\?\.[a-zA-Z_]+\.[a-zA-Z_]+` — variant binding seen in testing/ refs.
+4. `function\s+\w+\s*\([^)]*\btalisman\b` — function signature accepting a `talisman`
+   argument. Drop the parameter; callers should pass nothing.
+5. `\btmp/\.talisman-resolved/` — the v2.x **project-local** shard cache. v3.x scripts
+   must not reference it. (System-cache equivalents under `${CHOME}/.rune/talisman-resolved/`
+   are an intentional v3.x cleanup target — see allowlist below.)
+6. `lib/talisman-shard-path.sh` — the deleted resolver lib. Sourcing it would crash.
+7. `\b(mcp-integration-spec|ui-builder-protocol)(\.(en|vi))?\.md\b` — deleted prose
+   files in `docs/guides/`. Never reintroduce; replacement architecture (where applicable)
+   lives in `docs/architecture/`.
+8. `^##\s+MCP Tool Integrations\s*$` (markdown heading) — the v2.x README section
+   describing the talisman-driven MCP integration registry. Removed in v3.0.0-alpha.5.
+9. `\b(?:Level|Tier)\s*[12]\b.*\b(MCP|integration|tier)\b` paired with the literal
+   phrase "3-tier model" or "Level 1/Level 2" — the v2.x integration tier vocabulary.
+   The Level/Tier 3-tier prose was retired alongside the talisman MCP integrations
+   section.
+
+**Allowed mentions** (do NOT flag):
+
+- The bake-comment header `<!-- v3.x: defaults baked from former talisman.SECTION; see references/v3-defaults.md -->`
+  on a refactored file (intentional historical pointer).
+- `plugins/rune/CHANGELOG.md` entries (history, never rewritten).
+- The orphan-detection function `_rune_check_orphan_talisman_yml` in `session-start.sh`
+  (v3.x migration warning surface).
+- Migration prose mentioning "the legacy talisman.yml was removed in v3.x" or similar
+  back-reference for users.
+- `plugins/rune/references/v3-defaults.md` itself (catalogues former section names).
+- System-cache cleanup in `plugins/rune/commands/rest.md` (`${CHOME}/.rune/talisman-resolved/`)
+  — the CHANGELOG explicitly preserves this defensive cleanup so users upgrading from v2.x
+  reclaim the orphaned cache directory. Banned-pattern #5 anchors `\btmp/` so it does
+  NOT match the system-cache path.
+
+Grep `plugins/rune/skills/`, `plugins/rune/agents/`, `plugins/rune/registry/`,
+`plugins/rune/scripts/`, `README.md`, and `docs/` for each banned pattern.
+Filter out the allowed-mention surfaces. Any remaining match is reported as `RC-TALISMAN-01`
+with severity Error.
 
 ### RC-STALE-01: File path references (Warning)
 

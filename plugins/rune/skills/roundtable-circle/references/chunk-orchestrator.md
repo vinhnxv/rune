@@ -171,37 +171,28 @@ async function reviewSingleChunk(chunk, identifier, flags, securityPins, arcRema
 ## Full Chunked Review Orchestration
 
 ```javascript
-// QUAL-002 FIX: `config` is `talisman?.review` (the review: section), NOT the full talisman object.
-// Caller (review.md) passes `reviewConfig` — all config keys (chunk_threshold, convergence_tier_override,
-// convergence_density_threshold, etc.) live directly under config, not under config.review.
 // BACK-007 FIX: Added arcRemainingMs as 5th parameter — enables dynamic per-chunk timeout
 // when invoked from arc Phase 6. Defaults to null (uses 660_000ms per-chunk default).
-async function runChunkedReview(changed_files, identifier, flags, config, arcRemainingMs) {
+async function runChunkedReview(changed_files, identifier, flags, arcRemainingMs) {
   // SEC-002 FIX: Defense-in-depth — re-validate identifier at chunk orchestrator boundary
   // Primary validation in review.md Phase 2, but chunk-orchestrator is a separate trust boundary
   if (!/^[a-zA-Z0-9_-]+$/.test(identifier)) throw new Error("SEC-002: identifier validation failed in runChunkedReview")
-  // QUAL-005 FIX: Assert config is talisman?.review, NOT the full talisman object
-  // If caller passes full talisman, auto-normalize to prevent wrong threshold lookups
-  if (config?.review && !config?.convergence_enabled && config?.review?.convergence_enabled !== undefined) {
-    warn('QUAL-005: config appears to be full talisman object — normalizing to config.review')
-    config = config.review
-  }
 
   // ── SCORING + GROUPING ────────────────────────────────────────────────────
   const diffStats    = parseDiffNumstat()  // git diff --numstat: batch call, not per-file
   const scoredFiles  = changed_files.map(f => scoreFile(f, diffStats))
-  // QUAL-009 FIX: CHUNK_TARGET_SIZE comes from the config parameter (review: section of talisman)
-  const CHUNK_TARGET_SIZE = config?.chunk_target_size ?? 15
-  const MAX_CHUNKS        = config?.max_chunks ?? 5
+  // v3.x: defaults baked — chunk_target_size=15, max_chunks=5 (see references/v3-defaults.md)
+  const CHUNK_TARGET_SIZE = 15
+  const MAX_CHUNKS        = 5
   const chunks       = groupIntoChunks(scoredFiles, CHUNK_TARGET_SIZE)
   const chunkCount   = Math.min(chunks.length, MAX_CHUNKS)
   const securityPins = collectSecurityPins(scoredFiles)
 
   // ── CONVERGENCE TIER ─────────────────────────────────────────────────────
   // SEC-001 FIX: Use object key lookup consistently with review.md's BACK-013 pattern
-  const convergenceEnabled = !flags['--no-converge'] &&
-                             (config?.convergence_enabled ?? true)
-  const tier = selectConvergenceTier(scoredFiles, chunks, config)
+  // v3.x: convergence_enabled defaults to true (see references/v3-defaults.md)
+  const convergenceEnabled = !flags['--no-converge']
+  const tier = selectConvergenceTier(scoredFiles, chunks)
 
   // ── TOKEN COST WARNING ────────────────────────────────────────────────────
   displayCostWarning(chunkCount, tier)
@@ -285,10 +276,9 @@ async function runChunkedReview(changed_files, identifier, flags, config, arcRem
       break
     }
 
-    // BACK-001 FIX: Pass config to evaluateConvergence so talisman overrides reach computeChunkMetrics
     // BACK-004 FIX: Destructure `reason` from the verdict object — `chunkMetrics` is an array, not the verdict
     const { verdict, flaggedChunks, chunkMetrics, reason: haltReason } = evaluateConvergence(
-      unifiedTome, chunksToReview, chunks, round, convergenceHistory, config
+      unifiedTome, chunksToReview, chunks, round, convergenceHistory
     )
     convergenceHistory.push({ round, chunk_metrics: chunkMetrics, verdict, timestamp: now() })
 
@@ -306,7 +296,7 @@ async function runChunkedReview(changed_files, identifier, flags, config, arcRem
   }
 
   // ── OPTIONAL CROSS-CUTTING PASS ───────────────────────────────────────────
-  if (shouldRunCrossCuttingPass(unifiedTome, chunks, config)) {
+  if (shouldRunCrossCuttingPass(unifiedTome, chunks)) {
     runCrossCuttingPass(identifier, chunks, unifiedTome)
   }
 
@@ -417,8 +407,8 @@ Only runs when 3+ chunks span 3+ distinct top-level directories. Uses a single E
 read-only, 3-minute timeout). Skipped on timeout — does not block the review.
 
 ```javascript
-function shouldRunCrossCuttingPass(unifiedTome, chunks, config) {
-  if (config?.cross_cutting_pass === false) return false
+function shouldRunCrossCuttingPass(unifiedTome, chunks) {
+  // v3.x: cross_cutting_pass defaults to true (see references/v3-defaults.md)
   if (chunks.length < 3) return false
   // BACK-011 FIX: Use 2-level directory grouping instead of top-level only.
   // split('/')[0] returns 'plugins' for nearly all files in monorepo-style projects.

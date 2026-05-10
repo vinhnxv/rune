@@ -7,7 +7,7 @@
 #   2. Fast-path: skip if command already has timeout/gtimeout prefix
 #   3. Fast-path: skip if tool_input.timeout is set (Claude already set a timeout)
 #   5. Match command against TIMEOUT_PATTERNS (npm test, pytest, cargo test, etc.)
-#   6. Resolve timeout value from talisman process_management.bash_timeout (default 300s)
+#   6. Use baked-in default timeout of 300s (v3.x — see references/v3-defaults.md)
 #   7. Detect timeout binary: gtimeout (macOS coreutils) → timeout (Linux)
 #   8. Inject timeout wrapper via updatedInput.command
 #
@@ -197,76 +197,8 @@ case "$NORMALIZED" in
   *mvn\ *|*"./mvnw"*|*gradle\ *|*"./gradlew"*) match_found="jvm" ;;
 esac
 
-# Check talisman bash_timeout_patterns for additional user-defined patterns
-if [[ -z "$match_found" ]]; then
-  TALISMAN_SETTINGS="${CWD}/tmp/.talisman-resolved/settings.json"
-  if [[ -f "$TALISMAN_SETTINGS" ]]; then
-    EXTRA_PATTERNS=$(jq -r '.process_management.bash_timeout_patterns // [] | .[]' "$TALISMAN_SETTINGS" 2>/dev/null || true)
-    if [[ -n "$EXTRA_PATTERNS" ]]; then
-      while IFS= read -r pat; do
-        [[ -z "$pat" ]] && continue
-        # SEC-001 FIX: Validate user-supplied regex pattern (max 100 chars, no backreferences)
-        # WARD-001 FIX: Also reject nested quantifiers that cause ReDoS
-        if [[ ${#pat} -gt 100 ]] || [[ "$pat" =~ \\[0-9] ]] || [[ "$pat" =~ \(\.\*\)\+ ]] || [[ "$pat" =~ \(.+\)\+ ]] || [[ "$pat" =~ \(.+\)\* ]]; then
-          continue  # Skip potentially dangerous patterns
-        fi
-        # WARD-001 FIX: Wrap in timeout to prevent ReDoS stalling the hook
-        # BACK-002 FIX: macOS without coreutils lacks `timeout` — `gtimeout` may exist via brew.
-        # Without a guard, missing `timeout` silently exits 127 and treats as "no match",
-        # bypassing the ReDoS protection entirely. Fall back to bare grep on stock macOS.
-        if command -v timeout >/dev/null 2>&1; then
-          if timeout 1 grep -qE "$pat" <<< "$NORMALIZED" 2>/dev/null; then
-            match_found="custom"
-            break
-          fi
-        elif command -v gtimeout >/dev/null 2>&1; then
-          if gtimeout 1 grep -qE "$pat" <<< "$NORMALIZED" 2>/dev/null; then
-            match_found="custom"
-            break
-          fi
-        else
-          # SEC-003-PARTIAL FIX (CWE-1333): Skip user-supplied patterns entirely
-          # when no timeout binary is available — ReDoS DoS vector otherwise.
-          # Mirrors the misc.json shard block below (parity fix: both code paths
-          # now refuse to run user regex without a time bound on stock macOS).
-          break
-        fi
-      done <<< "$EXTRA_PATTERNS"
-    fi
-  fi
-  # Also check misc.json shard (process_management may be here)
-  if [[ -z "$match_found" ]]; then
-    TALISMAN_MISC="${CWD}/tmp/.talisman-resolved/misc.json"
-    if [[ -f "$TALISMAN_MISC" ]]; then
-      EXTRA_PATTERNS=$(jq -r '.process_management.bash_timeout_patterns // [] | .[]' "$TALISMAN_MISC" 2>/dev/null || true)
-      if [[ -n "$EXTRA_PATTERNS" ]]; then
-        while IFS= read -r pat; do
-          [[ -z "$pat" ]] && continue
-          # SEC-001 FIX: Validate user-supplied regex pattern (max 100 chars, no backreferences, no nested quantifiers)
-          if [[ ${#pat} -gt 100 ]] || [[ "$pat" =~ \\[0-9] ]] || [[ "$pat" =~ \(\.\*\)\+ ]] || [[ "$pat" =~ \(.+\)\+ ]] || [[ "$pat" =~ \(.+\)\* ]]; then
-            continue
-          fi
-          # BACK-002 FIX: guard timeout command (see earlier block for rationale)
-          if command -v timeout >/dev/null 2>&1; then
-            if timeout 1 grep -qE "$pat" <<< "$NORMALIZED" 2>/dev/null; then
-              match_found="custom"
-              break
-            fi
-          elif command -v gtimeout >/dev/null 2>&1; then
-            if gtimeout 1 grep -qE "$pat" <<< "$NORMALIZED" 2>/dev/null; then
-              match_found="custom"
-              break
-            fi
-          else
-            # SEC-003 FIX (CWE-1333): Skip user-supplied patterns entirely
-            # when no timeout binary is available — ReDoS DoS vector otherwise.
-            break
-          fi
-        done <<< "$EXTRA_PATTERNS"
-      fi
-    fi
-  fi
-fi
+# <!-- v3.x: defaults baked from former talisman.misc.process_management; see references/v3-defaults.md -->
+# bash_timeout_patterns is empty by default in v3.x — no user-defined patterns to scan.
 
 # No pattern match → allow as-is
 if [[ -z "$match_found" ]]; then
@@ -274,38 +206,13 @@ if [[ -z "$match_found" ]]; then
 fi
 
 # ── Resolve timeout value ──
-TIMEOUT_SECS=""
-# Check talisman resolved shards for bash_timeout
-for shard in "${CWD}/tmp/.talisman-resolved/settings.json" "${CWD}/tmp/.talisman-resolved/misc.json"; do
-  if [[ -f "$shard" ]]; then
-    _val=$(jq -r '.process_management.bash_timeout // empty' "$shard" 2>/dev/null || true)
-    if [[ -n "$_val" && "$_val" =~ ^[0-9]+$ ]]; then
-      TIMEOUT_SECS="$_val"
-      break
-    fi
-  fi
-done
-# Check if bash_timeout_enabled is explicitly false
-for shard in "${CWD}/tmp/.talisman-resolved/settings.json" "${CWD}/tmp/.talisman-resolved/misc.json"; do
-  if [[ -f "$shard" ]]; then
-    _enabled=$(jq -r '.process_management.bash_timeout_enabled // empty' "$shard" 2>/dev/null || true)
-    if [[ "$_enabled" == "false" ]]; then
-      exit 0  # User explicitly disabled bash timeout
-    fi
-  fi
-done
-# Fallback to default
-if [[ -z "$TIMEOUT_SECS" ]]; then
-  TIMEOUT_SECS=300
-fi
+TIMEOUT_SECS=300
 
 # ENF-002 FIX (audit 20260419-150325): clamp TIMEOUT_SECS to 600s.
 # Claude Code's Bash tool enforces a 600s hard ceiling (see Bash tool docs —
 # "optional timeout in milliseconds, up to 600000ms / 10 minutes"). Any value
-# above that is silently truncated by the harness, making talisman knobs like
-# `process_management.bash_timeout: 900` misleading — the user thinks they
-# have 15 minutes but only ever gets 10. Clamp here with a PreToolUse advisory
-# so operators see the truncation instead of being misled.
+# above that is silently truncated by the harness. Clamp here with a PreToolUse
+# advisory so operators see the truncation instead of being misled.
 BASH_TOOL_HARD_CEILING=600
 TIMEOUT_CLAMPED=""
 if [[ "$TIMEOUT_SECS" -gt "$BASH_TOOL_HARD_CEILING" ]]; then
@@ -382,11 +289,11 @@ fi
 # Use jq to properly escape the wrapped command for JSON
 WRAPPED_JSON=$(printf '%s\n' "$WRAPPED" | jq -Rs '.')
 
-# ENF-002 FIX: include clamp notice in additionalContext when the talisman
+# ENF-002 FIX: include clamp notice in additionalContext when the configured
 # value exceeded the Bash tool's 600s hard ceiling.
 ADDITIONAL_CTX="Command wrapped with ${TIMEOUT_BIN} ${TIMEOUT_SECS}s timeout (kill-after ${KILL_AFTER}s). Pattern: ${match_found}."
 if [[ -n "$TIMEOUT_CLAMPED" ]]; then
-  ADDITIONAL_CTX="${ADDITIONAL_CTX} NOTE: talisman process_management.bash_timeout=${TIMEOUT_CLAMPED}s was clamped to ${BASH_TOOL_HARD_CEILING}s (Bash tool hard ceiling). Reduce talisman value to silence this notice."
+  ADDITIONAL_CTX="${ADDITIONAL_CTX} NOTE: bash_timeout=${TIMEOUT_CLAMPED}s was clamped to ${BASH_TOOL_HARD_CEILING}s (Bash tool hard ceiling)."
 fi
 ADDITIONAL_CTX_JSON=$(printf '%s' "$ADDITIONAL_CTX" | jq -Rs '.')
 

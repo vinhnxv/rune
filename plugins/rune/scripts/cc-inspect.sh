@@ -340,16 +340,7 @@ if should_show "runtime"; then
       echo "    $(basename "$sf")"
     done
 
-    # Talisman resolved
-    if [[ -d "tmp/.talisman-resolved" ]]; then
-      shard_count=$(find tmp/.talisman-resolved -name '*.json' 2>/dev/null | wc -l | tr -d ' ')
-      echo "  Talisman shards    : ${shard_count}"
-      if [[ -f "tmp/.talisman-resolved/_meta.json" ]] && command -v jq &>/dev/null; then
-        merge_status=$(jq -r '.merge_status // "unknown"' tmp/.talisman-resolved/_meta.json 2>/dev/null)
-        resolver=$(jq -r '.resolver_status // "unknown"' tmp/.talisman-resolved/_meta.json 2>/dev/null)
-        echo "  Talisman merge     : ${merge_status} (resolver: ${resolver})"
-      fi
-    fi
+    # <!-- v3.x: talisman shard cache removed (see references/v3-defaults.md) — display block dropped -->
 
     # Signals
     if [[ -d "tmp/.rune-signals" ]]; then
@@ -403,21 +394,7 @@ if should_show "runtime"; then
   fi
   echo ""
 
-  # Talisman config
-  echo "  Talisman Config:"
-  if [[ -f "${RUNE_STATE}/talisman.yml" ]]; then
-    size=$(du -h "${RUNE_STATE}/talisman.yml" 2>/dev/null | cut -f1)
-    echo "    Project: ${RUNE_STATE}/talisman.yml (${size})"
-  else
-    echo "    Project: (not found)"
-  fi
-  if [[ -f "${CHOME}/talisman.yml" ]]; then
-    size=$(du -h "${CHOME}/talisman.yml" 2>/dev/null | cut -f1)
-    echo "    Global : ${CHOME}/talisman.yml (${size})"
-  else
-    echo "    Global : (not found)"
-  fi
-  echo ""
+  # <!-- v3.x: talisman.yml is no longer consumed (see references/v3-defaults.md) — display block dropped -->
 fi
 
 # ═══════════════════════════════════════════════
