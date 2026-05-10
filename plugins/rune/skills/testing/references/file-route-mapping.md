@@ -109,7 +109,7 @@ serializers, handlers, resolvers) that don't match any frontend pattern.
 ## URL Construction
 
 ```
-base_url = talisman.testing.tiers.e2e.base_url ?? "http://localhost:3000"
+base_url = "http://localhost:3000"  // v3.x baked-in
 test_url = base_url + route_path
 ```
 

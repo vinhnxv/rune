@@ -30,17 +30,17 @@ if (!["implementation", "plan"].includes(inspectMode)):
   error("Unknown --mode value. Valid: implementation, plan")
 ```
 
-## Step 0.2 — Read Talisman Config
+## Step 0.2 — Resolve Inspect Defaults
+
+<!-- v3.x: defaults baked from former talisman.inspect; see references/v3-defaults.md -->
 
 ```javascript
-// readTalismanSection: "inspect"
-const inspectConfig = readTalismanSection("inspect")
-
-// RUIN-001 FIX: Runtime clamping prevents misconfiguration-based DoS/bypass
-maxInspectors = Math.max(1, Math.min(4, flag("--max-agents") ?? inspectConfig.max_inspectors ?? 4))
-timeout = Math.max(60_000, Math.min(inspectConfig.timeout ?? 720_000, 3_600_000))
-completionThreshold = Math.max(0, Math.min(100, flag("--threshold") ?? inspectConfig.completion_threshold ?? 80))
-gapThreshold = Math.max(0, Math.min(100, inspectConfig.gap_threshold ?? 20))
+// v3.x: inspect defaults are baked-in literals (see references/v3-defaults.md § inspect).
+// RUIN-001 FIX: Runtime clamping prevents misconfiguration-based DoS/bypass on CLI flags.
+maxInspectors = Math.max(1, Math.min(4, flag("--max-agents") ?? 4))
+timeout = Math.max(60_000, Math.min(720_000, 3_600_000))
+completionThreshold = Math.max(0, Math.min(100, flag("--threshold") ?? 80))
+gapThreshold = 20
 ```
 
 ## Step 0.3 — Generate Identifier

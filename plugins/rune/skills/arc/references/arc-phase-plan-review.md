@@ -55,8 +55,8 @@ This phase creates a team and spawns agents. It MUST follow the Agent Teams patt
 | decree-arbiter | `agents/utility/decree-arbiter.md` | Always | Technical soundness |
 | knowledge-keeper | `agents/utility/knowledge-keeper.md` | Always | Documentation coverage |
 | veil-piercer-plan | `agents/utility/veil-piercer-plan.md` | Always | Plan truth-telling (reality vs fiction) |
-| horizon-sage | `agents/utility/horizon-sage.md` | `talisman.horizon.enabled !== false` | Strategic depth assessment |
-| evidence-verifier | `agents/utility/evidence-verifier.md` | `talisman.evidence.enabled !== false` | Evidence-based plan grounding |
+| horizon-sage | `agents/utility/horizon-sage.md` | Always (v3.x baked-in) | Strategic depth assessment |
+| evidence-verifier | `agents/utility/evidence-verifier.md` | Always (v3.x baked-in) | Evidence-based plan grounding |
 
 ## Algorithm
 

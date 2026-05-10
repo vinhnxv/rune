@@ -1,5 +1,7 @@
 # Ward Check — Shared Reference
 
+<!-- v3.x: defaults baked from former talisman.plan; see references/v3-defaults.md -->
+
 Shared ward gate execution, bisection algorithm, and cross-file deduplication used by `/rune:strive` (Phase 4) and `/rune:mend` (Phase 5).
 
 ## Ward Discovery Protocol
@@ -12,7 +14,7 @@ Discover project-specific quality gates from build configuration files:
 3. pyproject.toml -> [tool.ruff], [tool.mypy], [tool.pytest]
 4. Cargo.toml    -> cargo test, cargo clippy
 5. go.mod        -> go test, go vet
-6. .rune/talisman.yml -> ward_commands override
+6. v3.x default ward_commands: ["make check", "npm test"]
 7. Fallback: skip wards, warn user
 ```
 
@@ -112,9 +114,9 @@ for (const file of newFiles) {
   }
 }
 
-// readTalismanSection: "plan"
-const plan = readTalismanSection("plan")
-const customPatterns = plan?.verification_patterns || []
+// v3.x: plan.verification_patterns baked to []. Project-specific custom patterns
+// are no longer configurable — fork this skill if you need them.
+const customPatterns = []
 // Security patterns: SAFE_REGEX_PATTERN, SAFE_PATH_PATTERN -- see security-patterns.md
 // SEC-FIX: Pattern interpolation uses safeRgMatch() (rg -f) to prevent $() command substitution. See security-patterns.md for safeRgMatch() implementation.
 const SAFE_REGEX_PATTERN = /^[a-zA-Z0-9._\-\/ \\|()[\]{}^$+?]+$/

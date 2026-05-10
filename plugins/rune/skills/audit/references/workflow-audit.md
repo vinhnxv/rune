@@ -73,7 +73,7 @@ After workflow audit completes:
 Workflows are selected independently from files:
 
 ```
-max_per_batch = talisman.audit.incremental.tiers.workflows.max_per_batch || 3
+max_per_batch = 3   // v3.x baked-in
 scored = scoreAllWorkflows(workflows)
 selected = sorted(scored, descending).slice(0, max_per_batch)
 ```

@@ -2,15 +2,17 @@
 
 This reference covers Phase 4.5 (Doubt Seer), Phase 5 (Runebinder aggregation), Phase 5.3 (Diff-Scope Tagging), Phase 5.5 (Cross-Model Verification), and Phase 6 (Truthsight verification) of `/rune:appraise`.
 
-## Phase 4.5: Doubt Seer (Conditional)
+<!-- v3.x: defaults baked from former talisman.gates; see references/v3-defaults.md -->
+## Phase 4.5: Doubt Seer (Disabled by default)
 
 After Phase 4 Monitor completes, optionally spawn the Doubt Seer to cross-examine Ash findings. See `roundtable-circle` SKILL.md Phase 4.5 for the full specification.
 
+In v3.x, `doubt_seer.enabled` is hardcoded to `false` — this entire phase is a no-op unless a future revision flips the default. The block below is preserved as documentation of the protocol; live execution would require re-introducing a runtime opt-in mechanism.
+
 ```javascript
-// readTalismanSection: "gates"
-const doubtConfig = readTalismanSection("gates")?.doubt_seer
-const doubtEnabled = doubtConfig?.enabled === true  // strict opt-in (default: false)
-const doubtWorkflows = doubtConfig?.workflows ?? ["review", "audit"]
+// v3.x: doubt_seer.enabled = false (hardcoded). Phase is dead code at runtime.
+const doubtEnabled = false
+const doubtWorkflows = ["review", "audit"]
 
 if (doubtEnabled && doubtWorkflows.includes("review")) {
   // Count P1+P2 findings across Ash output files
@@ -66,9 +68,9 @@ if (doubtEnabled && doubtWorkflows.includes("review")) {
       warn("Doubt seer timed out — proceeding with partial results")
     }
 
-    // Parse verdict if output exists
+    // Parse verdict if output exists (v3.x: block_on_unproven hardcoded to false)
     const doubtContent = Read(doubtOutput)
-    if (/VERDICT:\s*BLOCK/i.test(doubtContent) && doubtConfig?.block_on_unproven === true) {
+    if (/VERDICT:\s*BLOCK/i.test(doubtContent) && false /* block_on_unproven */) {
       warn("Doubt seer VERDICT: BLOCK — unproven P1 findings detected")
       // Set workflow_blocked flag for downstream handling
     }

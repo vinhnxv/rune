@@ -130,8 +130,7 @@ For each relevant combination, assess:
 - **Spec Coverage**: Explicit / Implicit / Missing
 - **Risk if unspecified**: HIGH (user-facing failure) / MED (degraded UX) / LOW (cosmetic)
 
-**Permutation cap**: Generate up to the configured limit (default: 15, override via
-`talisman.flow_seer.permutation_cap`). Prioritize by risk (HIGH first). Use pairwise
+**Permutation cap**: Generate up to 15 permutations (v3.x baked-in). Prioritize by risk (HIGH first). Use pairwise
 (2-way) coverage as baseline.
 
 If more permutations exist than the cap, emit:

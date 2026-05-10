@@ -52,7 +52,7 @@ Talisman keys under `review.noise_filter`:
 // OUTPUT: {output_dir}/condensed/{ash-slug}.md for each Ash
 //         {output_dir}/condensed/_compression-report.md
 //
-// THRESHOLD: talisman.review.pre_aggregate.threshold_bytes (default 25000)
+// THRESHOLD: 25000 bytes (v3.x baked-in)
 // SKIP WHEN: combined size < threshold OR pre_aggregate.enabled === false
 // RUNS AT:   Tarnished level — NO subagent spawned (would add context pressure)
 
@@ -112,7 +112,7 @@ function preAggregate(outputDir, talisman) {
     const findings = extractFindingBlocks(content)
 
     // 4b.5 (Phase 5.0.5): Apply noise filter — suppress low-signal P3 findings
-    //   Gated by talisman.review.noise_filter.enabled (default: true)
+    //   Gate: noise filter is unconditional in v3.x
     //   INVARIANT: PROVEN findings are NEVER suppressed by any rule
     const noiseConfig = talisman?.review?.noise_filter ?? {}
     const { kept, suppressed } = (noiseConfig.enabled !== false)
@@ -298,7 +298,7 @@ function normalizeConfidenceScore(rawScore) {
 // After all rules: MINIMUM-SURVIVING FLOOR — if all findings would be suppressed,
 // the highest-confidence finding is rescued back to the kept set.
 //
-// CONFIG: talisman.review.noise_filter (see Configuration section above)
+// CONFIG: noise_filter defaults baked in v3.x (see references/v3-defaults.md)
 
 function noiseFilterFindings(findings, config) {
   const confidenceFloor = config.confidence_floor ?? 35

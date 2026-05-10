@@ -1249,13 +1249,12 @@ const params = {
 //   exclude = flags['--exclude-dirs']?.split(',').map(s => s.trim()) ?? []
 //
 // resolveCustomPromptBlock(flags, talisman):
-//   Precedence chain: --prompt-file > --prompt > talisman.audit.default_prompt_file > null
+//   Precedence chain: --prompt-file > --prompt > null  (v3.x: no config-file fallback)
 //   Returns null if no prompt source is set.
 //   If --prompt: return sanitizePromptContent(flags['--prompt']).
 //   If --prompt-file: return sanitizePromptContent(Read(flags['--prompt-file'])).
 //   If both: --prompt-file takes precedence.
-//   Talisman fallback: talisman.audit.default_prompt_file undergoes same validation
-//   chain as --prompt-file (path traversal, SAFE_PROMPT_PATH, realpath check).
+//   (v3.x: no talisman fallback — only --prompt-file/--prompt are honored.)
 //   See references/prompt-audit.md for full sanitization and validation rules.
 ```
 

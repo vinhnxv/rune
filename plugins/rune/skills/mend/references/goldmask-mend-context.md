@@ -69,7 +69,7 @@ if (injectContext && (parsedRiskMap || goldmaskData?.wisdomReport || goldmaskDat
 }
 ```
 
-**Skip condition**: When `talisman.goldmask.mend.inject_context === false`, or when no Goldmask data exists, fixer prompts remain unchanged.
+**Skip condition**: When no Goldmask data exists, fixer prompts remain unchanged. (v3.x: injection is unconditional when data is present.)
 
 ## Helper Functions
 

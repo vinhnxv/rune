@@ -84,7 +84,7 @@ const fixableGaps = allParsedGaps.filter(g =>
 // AC-6.1.2: Track reclassified count separately from fixed and deferred
 const reclassifiedCount = reclassifiedGaps.length
 
-// v3.x: inspect.max_fixes baked from former talisman.inspect.max_fixes (default 20).
+// v3.x: inspect.max_fixes baked from former talisman.inspect (default 20).
 const maxFixes = 20
 
 if (fixableGaps.length === 0) {

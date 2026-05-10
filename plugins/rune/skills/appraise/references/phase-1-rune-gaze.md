@@ -20,39 +20,16 @@ for each file in changed_files:
 
 Check for project overrides in `.rune/talisman.yml`.
 
-**Custom Ash discovery** happens HERE in Phase 1 (not Phase 3). The Rune Gaze algorithm reads `talisman.yml` → `ashes.custom[]`, validates agent names, matches triggers against `changed_files`, and adds matching custom Ashes to `selectedAsh`. This ensures custom Ashes have tasks created for them in Phase 2 and are spawned in Phase 3. See [rune-gaze.md](../../roundtable-circle/references/rune-gaze.md) for the full agent-backed custom Ash discovery algorithm.
+**Custom Ash discovery** happens HERE in Phase 1 (not Phase 3). The Rune Gaze algorithm reads `settings.ashes.custom[]` (v3.x: defaults to `[]`), validates agent names, matches triggers against `changed_files`, and adds matching custom Ashes to `selectedAsh`. This ensures custom Ashes have tasks created for them in Phase 2 and are spawned in Phase 3. See [rune-gaze.md](../../roundtable-circle/references/rune-gaze.md) for the full agent-backed custom Ash discovery algorithm.
 
 ## Phase 1.5: UX Reviewer Selection
 
-Conditional UX agent spawning. Gated by `talisman.ux.enabled` AND frontend files detected in `changed_files`.
+In v3.x the UX subsystem is **off by default** (no user opt-in layer). UX reviewer agents
+remain available for explicit invocation but no longer auto-spawn during appraise.
 
-```javascript
-// UX Reviewer Gate — follows the same pattern as design-implementation-reviewer (rune-gaze.md §4)
-const uxEnabled = talisman?.ux?.enabled === true
-const hasFrontendFiles = changed_files.some(f =>
-  [".tsx", ".jsx", ".vue", ".svelte", ".css", ".scss"].some(ext => f.endsWith(ext))
-)
-
-if (uxEnabled && hasFrontendFiles) {
-  // Default: ux-heuristic-reviewer (UXH-prefixed findings, non-blocking by default)
-  ash_selections.add("ux-heuristic-reviewer")
-
-  // Optional deep UX agents (--deep flag or talisman overrides)
-  if (flags['--deep']) {
-    ash_selections.add("ux-flow-validator")       // UXF-prefixed findings
-    ash_selections.add("ux-interaction-auditor")   // UXI-prefixed findings
-
-    // Cognitive walker: expensive (opus), opt-in only
-    if (talisman?.ux?.cognitive_walkthrough === true) {
-      ash_selections.add("ux-cognitive-walker")    // UXC-prefixed findings
-    }
-  }
-}
-```
-
-**Skip conditions**: `talisman.ux.enabled` is not `true`, or no frontend files in diff.
-
-**UX findings are non-blocking by default** — they inform but don't block workflows. Prefixes:
+The UX agents (`ux-heuristic-reviewer`, `ux-flow-validator`, `ux-interaction-auditor`,
+`ux-cognitive-walker`) are retained as standalone agents for callers that explicitly
+include them. UX findings are non-blocking — they inform but don't block workflows. Prefixes:
 - `UXH` — heuristic evaluation (Nielsen Norman 10 + Baymard guidelines)
 - `UXF` — flow validation (loading/error/empty states)
 - `UXI` — interaction audit (hover/focus/touch targets)
@@ -60,36 +37,10 @@ if (uxEnabled && hasFrontendFiles) {
 
 ## Phase 1.6: Design Fidelity Reviewer Selection
 
-Conditional design fidelity agent spawning. Gated by `talisman.design_review.enabled` AND frontend files detected in `changed_files`. Uses the `design-implementation-reviewer` specialist prompt loaded via `buildAshPrompt()`.
-
-```javascript
-// Design Fidelity Reviewer Gate — follows the same pattern as Phase 1.5 UX gate
-// Requires BOTH design_review.enabled AND design_sync.enabled.
-// design_review controls the appraise gate; design_sync provides the design artifacts.
-// Without design_sync, the reviewer would spawn with broken context (no inventory).
-const designReviewEnabled = talisman?.design_review?.enabled === true
-const designSyncEnabled = talisman?.design_sync?.enabled === true
-const hasFrontendFiles = changed_files.some(f =>
-  [".tsx", ".jsx", ".vue", ".svelte", ".css", ".scss"].some(ext => f.endsWith(ext))
-)
-
-if (designReviewEnabled && designSyncEnabled && hasFrontendFiles) {
-  ash_selections.add("design-implementation-reviewer")
-
-  // Write design_context to inscription.json at Phase 2 (Forge Team)
-  // Schema: { inventory_path: string, figma_url: string, component_count: number }
-  // inventory_path — path to design inventory artifact from Shard 2 (arc design extraction)
-  // figma_url     — Figma source URL from talisman.design_sync.figma_url (if set)
-  // component_count — number of components in inventory (0 if inventory absent)
-  //
-  // Soft warning: if Shard 2 dependency artifacts are absent (inventory_path not found):
-  if (!Glob(`${outputDir}design-inventory*.json`).length) {
-    warn("Phase 1.6: design_context inventory not found — design-implementation-reviewer will run without component inventory context.")
-  }
-}
-```
-
-**Skip conditions**: `talisman.design_review.enabled` is not `true`, `talisman.design_sync.enabled` is not `true`, or no frontend files in diff.
+In v3.x the `design_sync` subsystem is **off by default** (no user opt-in layer). The
+`design-implementation-reviewer` agent is retained for explicit invocation but no longer
+auto-spawns during appraise. When invoked manually, the reviewer expects a design inventory
+artifact at `${outputDir}design-inventory*.json`; if absent, it emits an empty-context warning.
 
 **Finding prefix**: `DES` — design fidelity findings (non-blocking by default).
 
@@ -99,13 +50,11 @@ if (designReviewEnabled && designSyncEnabled && hasFrontendFiles) {
 
 ## Phase 1.7: Data Flow Integrity Reviewer Selection
 
-Conditional data flow integrity agent spawning. Gated by `talisman.data_flow.enabled` (default: true, opt-out) AND 2+ stack layers detected in `changed_files`. Uses the `flow-integrity-tracer` review agent.
+Conditional data flow integrity agent spawning. Gate: 2+ stack layers detected in `changed_files`. (v3.x: data_flow is unconditional with `min_layers = 2` baked-in.) Uses the `flow-integrity-tracer` review agent.
 
 ```javascript
 // Data Flow Integrity Reviewer Gate — follows the same pattern as Phase 1.6
-// Safety: talisman?.data_flow is accessed with optional chaining — safe against undefined talisman or missing data_flow section
-const dataFlowEnabled = talisman?.data_flow?.enabled !== false  // default: true (opt-out)
-const minLayers = talisman?.data_flow?.min_layers ?? 2
+const minLayers = 2  // v3.x baked-in
 
 // Classify changed files into stack layers
 const LAYER_PATTERNS = {
@@ -125,7 +74,7 @@ for (const file of changed_files) {
   }
 }
 
-if (dataFlowEnabled && layersTouched.size >= minLayers) {
+if (layersTouched.size >= minLayers) {
   ash_selections.add("flow-integrity-tracer")
   log(`Phase 1.7: flow-integrity-tracer activated — ${layersTouched.size} layers: ${[...layersTouched].join(', ')}`)
 } else {
@@ -133,7 +82,7 @@ if (dataFlowEnabled && layersTouched.size >= minLayers) {
 }
 ```
 
-**Skip conditions**: `talisman.data_flow.enabled` is `false`, or fewer than `min_layers` (default 2) stack layers detected in diff.
+**Skip conditions**: fewer than 2 stack layers detected in diff.
 
 **Finding prefix**: `FLOW` — data flow integrity findings.
 

@@ -90,7 +90,7 @@
       }
     ],
     "figma_url": "string | null — DEPRECATED: first entry of figma_urls[].url. Kept for backward compat. New consumers MUST read figma_urls[] instead.",
-    "fidelity_threshold": "number — minimum fidelity score (default: 0.8, from talisman.design_sync.fidelity_threshold)",
+    "fidelity_threshold": "number — minimum fidelity score (v3.x default: 0.8)",
     "components": ["array of component name strings extracted from VSM"],
     "token_system": "string | null — design token system identifier (e.g., 'figma-tokens', 'style-dictionary')"
   },
@@ -101,7 +101,7 @@
     "include": ["array of directory strings — restrict audit to these paths (e.g., ['src/', 'lib/']). null when no --dirs specified (= full repo)."],
     "exclude": ["array of directory strings — suppress these paths even if matched by include (e.g., ['vendor/']). May be non-empty even when include is null (talisman excludes)."]
   },
-  // Note: dir_scope is null (not the object) when neither --dirs nor talisman.audit.dirs is set.
+  // Note: dir_scope is null (not the object) when --dirs is not set.
   // Only consumed by rune-audit and rune-audit-deep.
 
   "context_map": "string | null — Phase 0.6 context-builder output. Structured markdown with Trust Boundaries, Data Flow Paths, State Invariants, Entry Points, and Key Dependencies. Capped at 80 lines (~2000 tokens). null when context building was skipped or failed. Injected into every Ash prompt via buildAshPrompt(). (v2.44.0+, rune-review only)",

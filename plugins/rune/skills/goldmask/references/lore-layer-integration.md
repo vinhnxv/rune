@@ -111,9 +111,6 @@ Output format: { "files": [{ "path", "tier", "risk_score", "metrics": { "frequen
 
 | Condition | Effect |
 |-----------|--------|
-| `talisman.goldmask.enabled === false` | Skip entirely |
-| `talisman.goldmask.{workflow}.enabled === false` | Skip entirely |
-| `talisman.goldmask.layers.lore.enabled === false` | Skip entirely |
 | `--no-lore` CLI flag | Skip entirely |
 | Non-git repo | Skip entirely |
 | No scope files (0 files) | Skip entirely |

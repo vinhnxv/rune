@@ -247,9 +247,7 @@ Process pending todos in batch (capped at 10 per session). Supports resolution-a
    ```
 2. Filter to `status: pending` (from frontmatter, NOT filename)
 3. Sort by priority (P1 first), then by `issue_id` (oldest first)
-4. If `talisman.file_todos.triage.auto_approve_p1 === true`:
-   - Auto-approve all P1 pending todos (set `status: ready`, update `updated` date, append Status History)
-   - Report auto-approved count separately
+4. v3.x: auto-approve is disabled — skip directly to interactive triage.
 5. Cap remaining items at 10
 6. For each pending todo, present via AskUserQuestion (v2 resolution-aware options):
 

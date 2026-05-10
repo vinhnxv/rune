@@ -9,7 +9,7 @@ disagrees with this file, the **skill is canonical** — update this file to mat
 The header comment `<!-- v3.x: defaults baked from former talisman.<section>; see references/v3-defaults.md -->`
 on a refactored file points the next reader here.
 
-Sections (every name passed to former `readTalismanSection(...)`): `arc`, `audit`, `devise`,
+Sections (every former talisman config section name): `arc`, `audit`, `devise`,
 `discipline`, `gates`, `goldmask`, `inspect`, `integrations`, `misc`, `plan`, `pr_comment`,
 `process_management`, `review`, `settings`, `teammate_lifecycle`, `testing`, `ux`, `work`.
 

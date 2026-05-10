@@ -267,9 +267,8 @@ Build a weighted evaluation matrix from all arena outputs.
 
 ### Evaluation Dimensions
 
-// NOTE: weights and convergence_threshold are read from talisman config if present,
-// but are not yet exposed in talisman.example.yml. See configuration-guide.md for current config surface.
-6 dimensions with default weights (configurable via `talisman.yml` `solution_arena.weights`):
+// NOTE: weights and convergence_threshold are baked-in v3.x literals; see references/v3-defaults.md.
+6 dimensions with hardcoded v3.x weights:
 
 | Dimension | Default Weight | Description |
 |-----------|---------------|-------------|

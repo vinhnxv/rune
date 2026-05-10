@@ -62,21 +62,20 @@ Design fidelity is a **conditional dimension** that extends `grace-warden` scope
 
 ### Gate
 
+<!-- v3.x: defaults baked from former talisman.misc.design_sync; see references/v3-defaults.md -->
+
 ```javascript
 // Phase 0.5: Evaluate design-fidelity gate
-const settings = readTalismanSection("settings")
-const designSync = settings?.design_sync ?? {}
-const designDimensionEnabled = designSync.inspect_design_dimension === true  // default false — explicit opt-in, matching design_review.enabled pattern
-
+// v3.x: design_sync subsystem is OFF by default ({} per v3-defaults.md misc table).
+// Design fidelity remains an explicit opt-in: only active when a plan carries a figma_url
+// AND a design inventory artifact exists on disk (VSM, design-prototype, or devise).
 // Discover design references (priority order: VSM > design-prototype > devise)
 const designInventory = Glob("tmp/plans/*/design-references/inventory.json")[0]
   || Glob("tmp/design-prototype/*/inventory.json")[0]
   || Glob("tmp/arc/*/vsm/*.json")[0]
 
 const designFidelityActive = (
-  designDimensionEnabled
-  && designSync.enabled === true
-  && !!(parsedPlan?.frontmatter ?? {})?.figma_url
+  !!(parsedPlan?.frontmatter ?? {})?.figma_url
   && !!designInventory
 )
 ```
@@ -147,11 +146,12 @@ Data flow integrity is a **conditional dimension** that extends `grace-warden` s
 
 ### Gate
 
+<!-- v3.x: defaults baked from former talisman.misc.data_flow; see references/v3-defaults.md -->
+
 ```javascript
 // Phase 0.5: Evaluate data-flow-integrity gate
-const inspectConfig = readTalismanSection("inspect")
-const dataFlowConfig = inspectConfig?.data_flow ?? {}
-const dataFlowEnabled = dataFlowConfig.enabled !== false  // default true — opt-out, unlike design-fidelity
+// v3.x: data_flow.enabled is unconditionally true (baked-in per v3-defaults.md misc).
+// The dimension activates whenever the plan references data models.
 
 // Detect data models in plan (schemas, entities, migrations, CRUD operations)
 function planHasDataModels(parsedPlan) {
@@ -164,10 +164,7 @@ function planHasDataModels(parsedPlan) {
   return dataModelPatterns.some(p => p.test(planText))
 }
 
-const dataFlowActive = (
-  dataFlowEnabled
-  && planHasDataModels(parsedPlan)
-)
+const dataFlowActive = planHasDataModels(parsedPlan)
 ```
 
 ### grace-warden Prompt Extension

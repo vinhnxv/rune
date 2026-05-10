@@ -278,7 +278,7 @@ Scan all source subdirectories. Process pending todos sorted by priority (P1 fir
 
 **v2 options per item**: Approve (ready), Defer (keep pending), False Positive (wont_fix + resolution), Duplicate (wont_fix + duplicate_of), Out of Scope (wont_fix + out_of_scope), Superseded (wont_fix + superseded).
 
-If `talisman.file_todos.triage.auto_approve_p1 === true`, P1 items auto-approve without user confirmation.
+In v3.x, P1 auto-approve is OFF (no config layer); every item is presented for triage.
 
 **Zero-state**: "No pending todos found. All items have been triaged."
 

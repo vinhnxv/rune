@@ -69,7 +69,7 @@ src/modules/orders/     → "orders" workflow
 commands/*.md → skills/*/SKILL.md → agents/*/*.md → scripts/*.sh
 ```
 
-Support additional patterns via `talisman.audit.incremental.tiers.workflows.patterns`.
+Patterns are baked-in v3.x literals.
 
 ### 4. Manual Definitions (OVERRIDE)
 

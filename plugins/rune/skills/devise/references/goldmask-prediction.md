@@ -8,7 +8,7 @@ After the plan is synthesized but before shatter assessment, runs a predictive G
 
 **Note**: Phase 2.3 runs AFTER Phase 1, which creates the plan team (`rune-plan-{timestamp}`). All Agent calls MUST use `team_name` (ATE-1 compliance — unlike Phase 0 sages which run before team creation).
 
-**Timeout inheritance**: Arc timeouts (from `talisman.arc.timeouts`) are NOT automatically propagated to Phase 2.3 devise agents. Phase 2.3 uses its own internal ceiling (`PHASE_23_TOTAL_CEILING_MS = 360_000`). If arc timeout is tighter than 6 min, Phase 2.3 agents may outlive the arc phase budget — ensure arc `forge` timeout accounts for Phase 2.3's contribution.
+**Timeout inheritance**: Arc timeouts (baked v3.x defaults) are NOT automatically propagated to Phase 2.3 devise agents. Phase 2.3 uses its own internal ceiling (`PHASE_23_TOTAL_CEILING_MS = 360_000`). If arc timeout is tighter than 6 min, Phase 2.3 agents may outlive the arc phase budget — ensure arc `forge` timeout accounts for Phase 2.3's contribution.
 
 **Non-blocking**: If any agent fails, the pipeline continues with partial data. All failures are recoverable.
 

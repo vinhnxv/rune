@@ -10,8 +10,6 @@ Deterministic blast-radius verification comparing mend output against Goldmask p
 
 | Condition | Effect |
 |-----------|--------|
-| `talisman.goldmask.enabled === false` | Skip entirely |
-| `talisman.goldmask.mend.quick_check === false` | Skip entirely |
 | No `goldmaskData.goldmaskMd` found | Skip entirely |
 | No MUST-CHANGE files overlap with TOME scope | Skip entirely |
 

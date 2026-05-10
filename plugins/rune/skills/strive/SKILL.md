@@ -274,7 +274,7 @@ When a plan contains YAML acceptance criteria (`AC-*` blocks), strive activates 
 
 **Phases**: Decompose → Review Tasks → Assign → Execute → Monitor → Review Work → Converge → Quality
 
-**Convergence**: Configurable via `talisman.discipline.max_convergence_iterations` (default: 3). Stagnation detection escalates to human after 2+ iterations with same failing criteria.
+**Convergence**: `max_convergence_iterations = 3` (v3.x baked-in). Stagnation detection escalates to human after 2+ iterations with same failing criteria.
 
 **Backward compatibility**: Plans without YAML criteria skip Phase 1.5 (cross-reference), Phase 4.5 (completion matrix), and Phase 5 (convergence loop). SOW contracts use file-based scope instead of criteria-based scope.
 

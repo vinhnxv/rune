@@ -149,9 +149,9 @@ waves sequentially with context forwarding.
 **Convergence re-review**: When the convergence loop retries the review phase (arc Phase 7.5),
 `allocateShards()` runs again on the narrowed progressive-focus file set. Since mend typically
 touches 5-15 files, this almost always falls below `SHARD_THRESHOLD` → standard specialist review.
-If re-review scope exceeds `reshard_threshold` (default: 30), standard review is forced rather
+If re-review scope exceeds `reshard_threshold` (v3.x baked-in: 30), standard review is forced rather
 than re-sharding, because re-sharding breaks finding prefix continuity and impairs oscillation
-detection. See `talisman.review.reshard_threshold`.
+detection.
 
 ## Wave Assignment
 

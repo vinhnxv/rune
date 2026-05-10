@@ -1,10 +1,12 @@
+<!-- v3.x: defaults baked from former talisman.review; see references/v3-defaults.md -->
+
 # Diff-Scope Engine — Line-Level Diff Range Generation
 
 Generates per-file line ranges from `git diff` output. Used by `/rune:appraise` Phase 0 to enrich inscription.json with diff scope data, enabling downstream TOME tagging (Phase 5.3) and scope-aware mend filtering.
 
 ## Algorithm
 
-**Inputs**: `defaultBranch` (string), `flags` (partial mode flag), talisman config
+**Inputs**: `defaultBranch` (string), `flags` (partial mode flag)
 **Outputs**: `diff_scope` object for inscription.json enrichment
 **Error handling**: On git diff failure, set `diff_scope.enabled = false` and default all findings to `scope="in-diff"` (preserving current behavior)
 
@@ -24,13 +26,8 @@ if (!BRANCH_NAME_REGEX.test(defaultBranch) || defaultBranch.includes('..')) {
 ```javascript
 // Performance: Single invocation — O(1) shell calls instead of O(N) per-file calls.
 // Three-dot syntax uses merge base, handling merge commits correctly.
-// readTalismanSection: "review"
-const review = readTalismanSection("review")
-const EXPANSION_ZONE = review?.diff_scope?.expansion ?? 8
-// SEC-010 FIX: Clamp expansion to 0-50 range (aligned with talisman.example.yml docs)
-// SEC-004 FIX: Type-guard before clamping — non-numeric values fallback to default 8
-const rawExpansion = typeof EXPANSION_ZONE === 'number' ? EXPANSION_ZONE : 8
-const expansion = Math.max(0, Math.min(50, rawExpansion))
+// v3.x: expansion baked at 8 (was former talisman.review).
+const expansion = 8
 
 let diffOutput
 if (flags['--partial']) {

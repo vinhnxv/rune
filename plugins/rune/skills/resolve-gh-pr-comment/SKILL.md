@@ -189,13 +189,11 @@ if (!commentData) {
 
 ## Phase 2: Detect Author & Parse Feedback
 
+<!-- v3.x: defaults baked from former talisman.arc.ship.bot_review; see references/v3-defaults.md -->
+
 Detect whether the comment is from a known bot or a human reviewer. Parse structured feedback.
 
 ```javascript
-// readTalismanSection: "arc"
-const arc = readTalismanSection("arc")
-const botReviewConfig = arc?.ship?.bot_review ?? {}
-
 // M-3 FIX: Explicit allowlist of known bot names — prevents spoofing via attacker[bot].
 const TRUSTED_BOTS = new Set([
   "gemini-code-assist[bot]",
@@ -207,10 +205,7 @@ const TRUSTED_BOTS = new Set([
   "renovate[bot]",
   "sonarcloud[bot]"
 ])
-const talismanBots = botReviewConfig.known_bots ?? []
-const validBots = talismanBots.length > 0
-  ? talismanBots.filter(b => TRUSTED_BOTS.has(b))
-  : [...TRUSTED_BOTS]
+const validBots = [...TRUSTED_BOTS]
 
 const authorLogin = commentData.user?.login ?? ""
 const authorType = commentData.user?.type ?? ""
@@ -256,11 +251,9 @@ log(`Phase 2: ${isBot ? "Bot" : "Human"} comment from ${authorLogin} with ${conc
 For review comments with file path references, read the actual file and verify the concern is valid.
 
 ```javascript
-const hallucinationCheckEnabled = botReviewConfig.hallucination_check !== false  // default: true
-
 let verificationResult = { valid: true, reason: "Not checked" }
 
-if (isBot && hallucinationCheckEnabled && filePath) {
+if (isBot && filePath) {
   try {
     const fileContent = Read(filePath)
 

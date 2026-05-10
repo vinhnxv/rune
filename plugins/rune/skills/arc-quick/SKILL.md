@@ -15,6 +15,8 @@ user-invocable: true
 argument-hint: "[prompt or plan-path] [--force]"
 ---
 
+<!-- v3.x: defaults baked from former talisman.arc (quick subsection); see references/v3-defaults.md -->
+
 # /rune:arc-quick --- Lightweight 4-Phase Pipeline
 
 Runs **Plan -> Work -> Review -> Mend** (`devise --quick` -> `strive` -> `appraise` -> `mend`) in one command.
@@ -54,7 +56,7 @@ Complexity Gate (always, after plan is available)
   If complex AND NOT --force: suggest /rune:arc
   If user accepts arc: Skill("rune:arc", planPath) --- then STOP
 
-Phase 2: WORK + EVALUATE LOOP (max_iterations from talisman, default 3)
+Phase 2: WORK + EVALUATE LOOP (max_iterations = 3 baked-in default)
   Loop:
     Skill("rune:strive", planPath)       // iteration 1: full, 2+: --resume
     evaluateIteration(planPath, N, baseRef)
@@ -185,16 +187,9 @@ if (isComplex && !force) {
 ### Step 5: Phase 2 --- WORK + EVALUATE LOOP
 
 ```javascript
-// readTalismanSection: "arc"
-const arcQuickConfig = readTalismanSection("arc")?.quick ?? {}
-let maxIterations = Math.max(1, Math.min(arcQuickConfig.max_iterations ?? 3, 10))
-let skipEvaluate = arcQuickConfig.skip_evaluate ?? false
-
-// FLAW-002: max_iterations:0 means "skip evaluator", not "skip work phase"
-if ((arcQuickConfig.max_iterations ?? 3) === 0) {
-  maxIterations = 1
-  skipEvaluate = true
-}
+// v3.x: defaults baked from former talisman.arc.quick; see references/v3-defaults.md
+let maxIterations = 3
+let skipEvaluate = false
 
 let iteration = 0
 const iterationHistory = []
@@ -368,8 +363,8 @@ ${iterationRows}
  * @returns {{ verdict, findings, confidence, iteration, timestamp, reason }}
  */
 function evaluateIteration(planPath, iterationNumber, baseRef) {
-  // BACK-001: Read evaluate_timeout_ms from talisman (default 60s)
-  const evaluateTimeoutMs = (readTalismanSection("arc")?.quick?.evaluate_timeout_ms) ?? 60000
+  // v3.x: evaluate_timeout_ms baked-in default; see references/v3-defaults.md
+  const evaluateTimeoutMs = 60000
   log(`Evaluator iteration ${iterationNumber}: starting (timeout: ${evaluateTimeoutMs}ms)`)
 
   // SEC-004: Validate git ref before interpolation

@@ -31,27 +31,24 @@ else
 fi
 ```
 
+<!-- v3.x: defaults baked from former talisman.review; see references/v3-defaults.md -->
 ### Diff Range Generation
 
 Generate line-level diff ranges for downstream TOME tagging (Phase 5.3) and scope-aware mend filtering. See `rune-orchestration/references/diff-scope.md` for the full algorithm.
 
 ```javascript
-// readTalismanSection: "review"
-const review = readTalismanSection("review")
-const diffScopeEnabled = review?.diff_scope?.enabled !== false  // Default: true
+// v3.x: diff_scope.enabled hardcoded to true, expansion hardcoded to 8
 
 let diffScope = { enabled: false }
 
-if (diffScopeEnabled && changed_files.length > 0) {
+if (changed_files.length > 0) {
   // SEC-WS-001: Validate defaultBranch before shell interpolation
   const BRANCH_NAME_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9._\/-]*$/
   if (!BRANCH_NAME_REGEX.test(default_branch) || default_branch.includes('..')) {
     warn(`Invalid default branch name: ${default_branch} — disabling diff scope`)
   } else {
     // Single-invocation diff — O(1) shell calls (see diff-scope.md STEP 2-3)
-    // SEC-010 FIX: Clamp to 0-50 (aligned with docs). SEC-004 FIX: Type-guard.
-    const rawExpansion = review?.diff_scope?.expansion ?? 8
-    const EXPANSION_ZONE = Math.max(0, Math.min(50, typeof rawExpansion === 'number' ? rawExpansion : 8))
+    const EXPANSION_ZONE = 8
     let diffOutput
     if (flags['--partial']) {
       diffOutput = Bash(`git diff --cached --unified=0 -M`)
@@ -125,18 +122,15 @@ if (flags['--scope-file']) {
 After file collection, determine review path:
 
 ```javascript
-// DEDUP: reuse `review` from readTalismanSection("review") above
-// SEC-004 FIX: Guard against prototype pollution on talisman config access
-const reviewConfig = review ?? {}
+// v3.x: chunk_threshold=20, chunk_target_size=15, max_chunks=5 (hardcoded)
 // SEC-006 FIX: parseInt with explicit radix 10
 // BACK-012 FIX: --chunk-size overrides CHUNK_THRESHOLD (file count trigger), not CHUNK_TARGET_SIZE
 const rawChunkSize = flags['--chunk-size'] ? parseInt(flags['--chunk-size'], 10) : NaN
 const CHUNK_THRESHOLD = (!Number.isNaN(rawChunkSize) && rawChunkSize >= 5 && rawChunkSize <= 200)
   ? rawChunkSize
-  : (reviewConfig?.chunk_threshold ?? 20)
-// QUAL-004 FIX: Read CHUNK_TARGET_SIZE from talisman review config (was missing)
-const CHUNK_TARGET_SIZE = reviewConfig?.chunk_target_size ?? 15
-const MAX_CHUNKS = reviewConfig?.max_chunks ?? 5
+  : 20
+const CHUNK_TARGET_SIZE = 15
+const MAX_CHUNKS = 5
 
 // BACK-013 FIX: Normalize flags access — use object key lookup consistently (not .includes())
 if (changed_files.length > CHUNK_THRESHOLD && !flags['--no-chunk']) {
@@ -150,8 +144,8 @@ if (changed_files.length > CHUNK_THRESHOLD && !flags['--no-chunk']) {
   //   - Cross-chunk TOME merge
   log(`Chunked review: ${changed_files.length} files > threshold ${CHUNK_THRESHOLD}`)
   log(`Token cost scales ~${Math.min(Math.ceil(changed_files.length / CHUNK_THRESHOLD), MAX_CHUNKS)}x vs single-pass.`)
-  // QUAL-003 FIX: Correct argument order — definition is (changed_files, identifier, flags, config)
-  runChunkedReview(changed_files, identifier, flags, reviewConfig)
+  // QUAL-003 FIX: Correct argument order — definition is (changed_files, identifier, flags)
+  runChunkedReview(changed_files, identifier, flags)
   return  // Phase 0 routing complete
 }
 // else: continue with single-pass review below (zero behavioral change)
@@ -206,7 +200,7 @@ if (cycleCount > 1) {
     // BACK-011 FIX: Explicit invocation pattern for Phase 2-7 per cycle.
     // Each cycle creates its own team, runs the full Roundtable Circle,
     // and produces a TOME at tmp/reviews/{cycleIdentifier}/TOME.md
-    runSinglePassReview(changed_files, cycleIdentifier, flags, reviewConfig)
+    runSinglePassReview(changed_files, cycleIdentifier, flags)
 
     // After cycle completes, collect the TOME path
     const cycleTomePath = `tmp/reviews/${cycleIdentifier}/TOME.md`
@@ -249,8 +243,8 @@ if (cycleCount > 1) {
     Write(`tmp/reviews/${identifier}/TOME.md`, formatMergedTome(mergedFindings, cycleTomes.length))
   }
 
-  // Auto-mend for multi-pass
-  const autoMendMulti = flags['--auto-mend'] || (review?.auto_mend === true)
+  // Auto-mend for multi-pass (v3.x: review.auto_mend hardcoded to false; only flag triggers)
+  const autoMendMulti = flags['--auto-mend']
   const mergedTomePath = `tmp/reviews/${identifier}/TOME.md`
   if (autoMendMulti && exists(mergedTomePath)) {
     const mergedTome = Read(mergedTomePath)

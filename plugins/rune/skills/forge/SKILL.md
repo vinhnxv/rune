@@ -121,9 +121,6 @@ See [lore-layer-integration.md](../goldmask/references/lore-layer-integration.md
 
 | Condition | Effect |
 |-----------|--------|
-| `talisman.goldmask.enabled === false` | Skip Phase 1.5 entirely |
-| `talisman.goldmask.forge.enabled === false` | Skip Phase 1.5 entirely |
-| `talisman.goldmask.layers.lore.enabled === false` | Skip Phase 1.5 entirely |
 | `--no-lore` CLI flag | Skip Phase 1.5 entirely |
 | Non-git repo | Skip Phase 1.5 |
 | No file references in plan (Phase 1.3) | Skip Phase 1.5 |

@@ -1,5 +1,7 @@
 # Phase 3.5: Design Asset Detection (conditional, all modes)
 
+<!-- v3.x: defaults baked from former talisman.misc.design_sync; see references/v3-defaults.md -->
+
 Reuse existing Figma URL detection pattern:
 
 ```javascript
@@ -55,42 +57,9 @@ if (figmaUrl) {
   Write(tmpMeta, JSON.stringify(existingMeta, null, 2))
   Bash(`mv "${tmpMeta}" "${metaPath}"`)
 
-  // Append Design Assets section to brainstorm context
-
-  // Component preview: list components when design_sync enabled (prefer Framelink for compressed data)
-  const miscConfig = readTalismanSection("misc") || {}
-  const designSyncEnabled = miscConfig.design_sync?.enabled === true
-
-  if (designSyncEnabled) {
-    try {
-      // SSRF defense: figmaUrl already validated by safeFigmaUrls filter above (lines 266-280)
-      // Composition: prefer Framelink (compressed), fall back to Rune
-      const parsedUrl = parseFigmaUrl(figmaUrl)
-      let components
-      try {
-        const rawData = mcp__plugin_rune_figma_context__get_figma_data({ fileKey: parsedUrl.fileKey, depth: 1 })
-        components = parseComponentsFromData(rawData)
-      } catch (e) {
-        components = mcp__plugin_rune_figma_to_react__figma_list_components({ url: figmaUrl })
-      }
-      const componentNames = (components || []).slice(0, 10).map(c => c.name)
-      if (componentNames.length > 0) {
-        const totalCount = (components || []).length
-        const previewList = componentNames.join(", ")
-        const suffix = totalCount > 10 ? ` (and ${totalCount - 10} more)` : ""
-        // Present component preview in brainstorm output
-        log(`Found ${totalCount} components: ${previewList}${suffix}`)
-        // Append to brainstorm context for advisor rounds
-        designPreviewBlock = `\n### Figma Component Preview\nFound ${totalCount} components: ${previewList}${suffix}\nFull design pipeline available via /rune:devise.`
-        // designPreviewBlock injection points:
-        // 1. Appended to round context for advisors in Phase 2 (featureDescription += designPreviewBlock)
-        // 2. Included in brainstorm-decisions.md output (Phase 6 capture)
-      }
-    } catch (e) {
-      // Non-blocking: preview failure does not block brainstorm
-      warn(`Figma component preview unavailable: ${e.message}. URL saved for /rune:devise.`)
-    }
-  }
+  // Append Design Assets section to brainstorm context.
+  // v3.x: misc.design_sync baked to {} (subsystem off) — Figma component preview
+  // block removed. Run /rune:design-prototype directly for full pipeline.
 } else if (hasDesignKeywords) {
   AskUserQuestion({ question: "Design keywords detected — do you have a Figma file URL to include?" })
 }

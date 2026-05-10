@@ -999,7 +999,7 @@ automatically by Rune Gaze Phase 1. No additional work needed in the arc phase i
 Spawns Inspector Ashes from `/rune:inspect` using its ash-prompt templates to perform a 9-dimension gap analysis on the committed implementation against the plan. Runs AFTER STEP A (deterministic) completes.
 
 **Team**: `arc-inspect-{id}` — follows ATE-1 pattern
-**Inspectors**: Default 2 (configurable via `talisman.arc.gap_analysis.inspectors`): `grace-warden` + `ruin-prophet`
+**Inspectors**: 2 (v3.x baked-in): `grace-warden` + `ruin-prophet`
 **Timeout**: 480_000ms (8 min inner polling)
 
 ```javascript

@@ -92,7 +92,7 @@ After API audit completes:
 API endpoints are selected independently from files and workflows:
 
 ```
-max_per_batch = talisman.audit.incremental.tiers.apis.max_per_batch || 5
+max_per_batch = 5   // v3.x baked-in
 scored = scoreAllEndpoints(apis)
 selected = sorted(scored, descending).slice(0, max_per_batch)
 ```

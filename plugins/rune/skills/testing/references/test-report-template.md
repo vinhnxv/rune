@@ -194,7 +194,7 @@ For audit phase consumption:
 
 ## Contract Validation Results
 
-Only present when `testing.contract.enabled` is true in talisman.yml. Written to `test-results-contract.md`.
+Only present when contract validation runs (off by default in v3.x). Written to `test-results-contract.md`.
 
 ```markdown
 ## Contract Validation Results
@@ -213,7 +213,7 @@ Only present when `testing.contract.enabled` is true in talisman.yml. Written to
 
 ## Extended Tier Results
 
-Only present when `testing.extended_tier.enabled` is true in talisman.yml. Written to `test-results-extended.md`.
+Only present when the extended tier runs (off by default in v3.x). Written to `test-results-extended.md`.
 
 ```markdown
 ## Extended Tier Results
@@ -234,7 +234,7 @@ Only present when `testing.extended_tier.enabled` is true in talisman.yml. Writt
 
 ## Production Readiness
 
-Only present when `testing.production_readiness.enabled` is true in talisman.yml.
+Only present when production readiness checks run (off by default in v3.x).
 
 ```markdown
 ## Production Readiness
@@ -259,13 +259,13 @@ Only present when `testing.production_readiness.enabled` is true in talisman.yml
 
 ## Test History
 
-Only present when `testing.history.enabled` is true in talisman.yml. Data sourced from `.rune/test-history/`.
+Always emitted in v3.x (test history is unconditionally on; see `plugins/rune/references/v3-defaults.md`). Data sourced from `.rune/test-history/`.
 
 ```markdown
 ## Test History
 
-**Regression threshold**: {talisman.testing.history.regression_threshold} — minimum recent passes (out of last 10) for a currently-failing test to be classified as a per-test regression (high-confidence flip from stable to failing)
-**Flaky threshold**: {talisman.testing.history.flaky_threshold} (failure rate)
+**Regression threshold**: 7 (v3.x baked) — minimum recent passes (out of last 10) for a currently-failing test to be classified as a per-test regression (high-confidence flip from stable to failing)
+**Flaky threshold**: 0.1 (v3.x baked failure rate)
 
 | Test | Last {N} Runs | Trend | Flaky? | Regression? |
 |------|--------------|-------|--------|------------|
@@ -281,13 +281,13 @@ Only present when `testing.history.enabled` is true in talisman.yml. Data source
 
 ## Scenario Coverage
 
-Only present when `testing.scenarios.enabled` is true in talisman.yml.
+Always emitted in v3.x (scenario gate is unconditionally on; see `plugins/rune/references/v3-defaults.md`).
 
 ```markdown
 ## Scenario Coverage
 
-**Scenario directory**: {talisman.testing.scenarios.directory}
-**Max scenarios per run**: {talisman.testing.scenarios.max_per_run}
+**Scenario directory**: `.rune/test-scenarios` (v3.x baked)
+**Max scenarios per run**: 50 (v3.x baked)
 
 | Scenario | Declared In | Exercised | Result |
 |----------|------------|-----------|--------|

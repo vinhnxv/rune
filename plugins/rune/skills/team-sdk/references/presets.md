@@ -68,11 +68,11 @@ agents:
   dynamic:
     - name: rune-smith
       role: implementation
-      count: "talisman.work.max_workers ?? 3"
+      count: 3   # v3.x baked-in (max_workers)
     - name: trial-forger
       role: testing
       count: "derived from task decomposition"
-max_agents: "talisman.work.max_workers ?? 3"
+max_agents: 3   # v3.x baked-in (max_workers)
 state_file: "tmp/.rune-work-{id}.json"
 signal_dir: "tmp/.rune-signals/rune-work-{id}"
 readonly: false

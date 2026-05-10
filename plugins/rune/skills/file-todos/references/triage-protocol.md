@@ -70,13 +70,7 @@ Triage Complete
 
 ## Auto-Approve Rules
 
-If `talisman.file_todos.triage.auto_approve_p1` is `true`:
-
-- P1 todos are automatically approved (pending -> ready) without user interaction
-- Report auto-approved items separately:
-  ```
-  Auto-approved: 2 P1 items (talisman.file_todos.triage.auto_approve_p1)
-  ```
+v3.x: auto-approve is disabled (no config layer). All items, including P1, are presented for triage. The auto-approve code path is retained for future reactivation but never fires under v3.x defaults.
 
 ## Triage Criteria Guidelines
 

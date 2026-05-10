@@ -38,14 +38,14 @@
     {
       "id": 3,
       "prompt": "Describe the Understanding Rounds phase in detail. How do rounds work in Solo vs Team/Deep mode? What are the 4 round topics? When does the system advance phases?",
-      "expected_output": "Understanding Rounds (Phase 2): Solo mode: Lead asks questions directly via AskUserQuestion (one at a time). Team/Deep mode: Lead orchestrates advisor rounds — sends context to each advisor via SendMessage, waits for responses (signal files + TaskList fallback, advisorTimeoutMs default 90s), curates inputs, presents to user. 4 round topics: Round 1 Understanding (purpose, users, motivation), Round 2 Approaches (proposals, challenges, trade-offs), Round 3 Refinement (edge cases, constraints, priorities), Round 4 Convergence (optional — final alignment, open concerns). Max 4 rounds (configurable via talisman misc.brainstorm.max_rounds). Advance when idea is clear OR user says 'proceed'. Word limit: 300 words per advisor (configurable). YAGNI applied throughout.",
+      "expected_output": "Understanding Rounds (Phase 2): Solo mode: Lead asks questions directly via AskUserQuestion (one at a time). Team/Deep mode: Lead orchestrates advisor rounds — sends context to each advisor via SendMessage, waits for responses (signal files + TaskList fallback, advisorTimeoutMs hardcoded 90000ms in v3.x), curates inputs, presents to user. 4 round topics: Round 1 Understanding (purpose, users, motivation), Round 2 Approaches (proposals, challenges, trade-offs), Round 3 Refinement (edge cases, constraints, priorities), Round 4 Convergence (optional — final alignment, open concerns). Max 4 rounds (hardcoded in v3.x; see references/v3-defaults.md). Advance when idea is clear OR user says 'proceed'. Word limit: 300 words per advisor (hardcoded in v3.x). YAGNI applied throughout.",
       "files": [],
       "expectations": [
         "Distinguishes Solo mode (AskUserQuestion) from Team/Deep mode (advisor rounds)",
         "Lists 4 round topics with descriptions",
         "Notes Round 4 is optional",
-        "Mentions advisorTimeoutMs default 90s",
-        "Notes max 4 rounds from talisman config",
+        "Mentions advisorTimeoutMs hardcoded 90000ms in v3.x",
+        "Notes max 4 rounds hardcoded in v3.x (no talisman config layer)",
         "Notes 300-word limit per advisor contribution",
         "Mentions YAGNI principle",
         "Describes advance condition: idea clear OR user says 'proceed'"
@@ -189,16 +189,16 @@
     },
     {
       "id": 13,
-      "prompt": "What talisman configuration options affect brainstorm? How are defaults resolved? What happens when the misc section is absent?",
-      "expected_output": "Talisman brainstorm config lives under misc.brainstorm: advisor_timeout_ms (default 90000), max_rounds (default 4), advisor_word_limit (default 300). Read via readTalismanSection('misc'). When misc section is absent: all defaults apply (90s timeout, 4 rounds, 300 words). Merge order: defaults < global talisman < project talisman. Configuration is non-blocking — missing talisman doesn't prevent brainstorm from running.",
+      "prompt": "What configuration values affect brainstorm in v3.x? Where are they sourced? Is there a user config layer?",
+      "expected_output": "In v3.x there is no longer a talisman.yml user config layer — all brainstorm configuration values are hardcoded at the consumer call sites. The three values that affect brainstorm are: advisor_timeout_ms = 90000 (90 second per-advisor response timeout), max_rounds = 4 (max Understanding Rounds before phase advance), advisor_word_limit = 300 (per-advisor contribution word cap). These live as inline literals in the brainstorm SKILL.md and are documented under the `## misc` section of plugins/rune/references/v3-defaults.md as the canonical source-of-truth. Configuration is non-blocking by construction — there is no config file to be missing. To change a value, edit the literal in the skill and update v3-defaults.md to match (the skill is canonical when the two disagree).",
       "files": [],
       "expectations": [
-        "Lists 3 config options: advisor_timeout_ms, max_rounds, advisor_word_limit",
-        "Lists defaults: 90000ms, 4 rounds, 300 words",
-        "Notes config lives under misc.brainstorm",
-        "Notes readTalismanSection('misc') is used",
-        "Notes all defaults apply when misc section is absent",
-        "Notes configuration is non-blocking"
+        "States there is no talisman.yml user config layer in v3.x",
+        "Lists 3 values: advisor_timeout_ms = 90000, max_rounds = 4, advisor_word_limit = 300",
+        "Notes values are hardcoded in v3.x",
+        "Notes references/v3-defaults.md as the source-of-truth (under ## misc)",
+        "Notes configuration is non-blocking (no file to be missing)",
+        "Notes the skill is canonical when v3-defaults.md disagrees"
       ]
     },
     {

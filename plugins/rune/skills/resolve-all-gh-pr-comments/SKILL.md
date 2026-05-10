@@ -61,20 +61,17 @@ if owner is empty or repo is empty:
   error("Cannot resolve repository owner/name. Ensure gh CLI is configured.")
   exit
 
-# readTalismanSection: "arc"
-arc = readTalismanSection("arc")
-botConfig = arc?.ship?.bot_review ?? {}
-
-BATCH_SIZE = botConfig.max_comment_batch_size ?? 10
-AUTO_RESOLVE_OUTDATED = botConfig.auto_resolve_outdated ?? true
-HALLUCINATION_CHECK = botConfig.hallucination_check ?? true
-KNOWN_BOTS = botConfig.known_bots ?? [
+# v3.x: defaults baked from former talisman.arc.ship.bot_review; see references/v3-defaults.md
+BATCH_SIZE = 10
+AUTO_RESOLVE_OUTDATED = true
+HALLUCINATION_CHECK = true
+KNOWN_BOTS = [
   "gemini-code-assist[bot]",
   "coderabbitai[bot]",
   "copilot[bot]",
   "cubic-dev-ai[bot]",
 ]
-QUALITY_COMMANDS = botConfig.quality_commands ?? []
+QUALITY_COMMANDS = []
 ```
 
 ## Phase 2: Checkout PR Branch
@@ -270,21 +267,21 @@ log(summary)
 - **SEC-DECREE-003**: All `gh` commands prefixed with `GH_PROMPT_DISABLED=1`
 - **Input validation**: PR number validated as positive integer before shell interpolation
 - **Thread ID validation**: GraphQL thread IDs validated with `/^[A-Za-z0-9_=-]+$/` before mutation
-- **Bot name validation**: Known bot names read from talisman config, escaped for regex
+- **Bot name validation**: Known bot names baked into the skill, escaped for regex
 - **No context overload**: Comments written to tmp files and processed in BATCH_SIZE batches
-- **Quality commands**: Only executed from talisman config (user-controlled)
+- **Quality commands**: Empty by default in v3.x; baked literal at top of skill
 
-## Talisman Configuration
+## Defaults (v3.x)
 
-All behavior is configurable via `arc.ship.bot_review` in `.rune/talisman.yml`:
+Behavior is hardcoded in v3.x — no user config layer. See `references/v3-defaults.md`.
 
-| Key | Default | Description |
-|-----|---------|-------------|
-| `max_comment_batch_size` | `10` | Comments per processing batch |
-| `auto_resolve_outdated` | `true` | Auto-resolve outdated review threads |
-| `hallucination_check` | `true` | Verify bot findings against actual code |
-| `known_bots` | 5 bots | List of known review bot usernames |
-| `quality_commands` | `[]` | Commands to run after fixes (e.g., lint, typecheck) |
+| Key | Value | Description |
+|-----|-------|-------------|
+| `BATCH_SIZE` | `10` | Comments per processing batch |
+| `AUTO_RESOLVE_OUTDATED` | `true` | Auto-resolve outdated review threads |
+| `HALLUCINATION_CHECK` | `true` | Verify bot findings against actual code |
+| `KNOWN_BOTS` | 4 bots | gemini-code-assist, coderabbitai, copilot, cubic-dev-ai |
+| `QUALITY_COMMANDS` | `[]` | Reserved — runs no commands by default |
 
 ## Error Handling
 

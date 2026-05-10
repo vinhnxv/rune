@@ -6,11 +6,9 @@
 ## Constants
 
 ```javascript
-// QUAL-001 + QUAL-008 FIX: Config namespace is `review:` (not `rune-gaze:`).
-// talisman.example.yml and review.md both use `review:` — reference docs must match.
+// QUAL-001 + QUAL-008 FIX: Config namespace was `review:` (now baked-in literal).
 // QUAL-009 NOTE: CHUNK_THRESHOLD default (20) appears in: chunk-scoring.md, chunk-orchestrator.md, review.md.
-// The authoritative value is talisman.review.chunk_threshold. These are documentation defaults only —
-// all runtime code reads from config ?? 20. If changing the default, update all 3 files.
+// v3.x: the value is hardcoded `20`. If changing the default, update all 3 files.
 const CHUNK_THRESHOLD   = 20   // Files above this trigger chunking (configurable: review.chunk_threshold)
 const CHUNK_TARGET_SIZE = 15   // Target files per chunk (configurable: review.chunk_target_size)
 const MAX_CHUNKS        = 5    // Circuit breaker — prevents runaway review loops (configurable: review.max_chunks)

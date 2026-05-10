@@ -306,8 +306,7 @@ function computeConvergenceScore(scopeStats, checkpoint, config) {
   // Component 4: Base (weight: 0.1) — always contributes minimum score
   const base = 1.0
 
-  // BACK-007: CANONICAL SOURCE for convergence weights (also documented in talisman.example.yml).
-  // Hardcoded for v1.38.0. Talisman-configurable in future version.
+  // BACK-007: CANONICAL SOURCE for convergence weights (v3.x: hardcoded values).
   // Sum must equal 1.0: 0.4 + 0.3 + 0.2 + 0.1 = 1.0
   const total = 0.4 * p3Ratio + 0.3 * preExistingRatio + 0.2 * trendDecreasing + 0.1 * base
 

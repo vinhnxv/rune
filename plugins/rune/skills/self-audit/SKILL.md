@@ -83,11 +83,17 @@ The static analysis pipeline follows 7 phases using Agent Teams for parallel exe
 
 ### Phase 0: Pre-flight
 
+<!-- v3.x: defaults baked from former talisman.misc.self_audit; see references/v3-defaults.md -->
+
 ```
-Read talisman config:
-  const talisman = readTalismanSection('misc')
-  const config = talisman?.self_audit ?? { enabled: true }
-  if (!config.enabled) { inform("Self-audit disabled via talisman"); return }
+Self-audit defaults (v3.x baked-in, see references/v3-defaults.md § misc):
+  enabled = true                # always on; legacy disable knob removed
+  phase_injection = true
+  auto_suggest_threshold = 3
+  promotion_threshold = 3
+  max_injection_entries = 3
+  auto_suggest_debounce_hours = 24
+  max_injection_tokens = 500
 
 Parse arguments:
   const mode = $ARGUMENTS match --mode → extract value, else "static"
@@ -382,7 +388,7 @@ Regression verdicts are auto-flagged for review in the next audit report.
 
 ## Phase-Specific Echo Injection
 
-Enabled by `talisman.self_audit.phase_injection` (default: `true`).
+Phase injection runs unconditionally in v3.x.
 
 During arc runs, the stop hook reads meta-qa echoes tagged for the current phase
 and injects them as warnings into the phase prompt. This surfaces recurring
@@ -397,30 +403,31 @@ See [phase-injection.md](references/phase-injection.md) for implementation detai
 When 3+ recent arc runs have marginal QA scores (<70), the stop hook suggests
 running `/rune:self-audit --mode all`. Debounced to once per 24 hours.
 
-Controlled by:
-- `talisman.self_audit.auto_suggest_threshold` (default: 3)
-- `talisman.self_audit.auto_suggest_debounce_hours` (default: 24)
+Defaults (v3.x baked-in, see references/v3-defaults.md § misc):
+- `auto_suggest_threshold` = 3
+- `auto_suggest_debounce_hours` = 24
 
 ## Configuration
 
-All settings in `talisman.yml` under `self_audit:`:
+<!-- v3.x: defaults baked from former talisman.misc.self_audit; see references/v3-defaults.md -->
 
-```yaml
-self_audit:
-  enabled: true
-  phase_injection: true
-  max_injection_entries: 3
-  max_injection_tokens: 500
-  auto_suggest_threshold: 3
-  auto_suggest_debounce_hours: 24
-  apply_mode:
-    require_high_confidence: true
-    min_recurrence: 3
-    atomic_commits: true
-  effectiveness:
-    track: true
-    regression_alert: true
-```
+In v3.x, self-audit defaults are baked-in literals — there is no user-tunable
+`talisman.self_audit` section. Effective values:
+
+| Key | Value |
+|---|---|
+| `enabled` | `true` |
+| `phase_injection` | `true` |
+| `max_injection_entries` | `3` |
+| `max_injection_tokens` | `500` |
+| `auto_suggest_threshold` | `3` |
+| `auto_suggest_debounce_hours` | `24` |
+| `promotion_threshold` | `3` |
+| `apply_mode.require_high_confidence` | `true` |
+| `apply_mode.min_recurrence` | `3` |
+| `apply_mode.atomic_commits` | `true` |
+| `effectiveness.track` | `true` |
+| `effectiveness.regression_alert` | `true` |
 
 ## --history — Audit History with Trends
 
@@ -501,7 +508,6 @@ overall_score = avg(all active dimension scores)
 | Grounding check finds hallucinated citations | Drop finding, log in report "Grounding Verification" section |
 | Echo MEMORY.md doesn't exist | Create with initial template |
 | Echo MEMORY.md exceeds 150 lines | Trigger pruning per echo protocol |
-| Talisman `self_audit.enabled` is false | Inform user and exit cleanly |
 | Team creation fails | Retry with teamTransition protocol |
 | Self-referential finding about meta-QA | Tag with `self_referential: true`, require human review |
 

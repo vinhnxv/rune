@@ -1,3 +1,5 @@
+<!-- v3.x: defaults baked from former talisman.work and talisman.teammate_lifecycle; see references/v3-defaults.md -->
+
 # Monitoring Patterns — Team Progress and Health Tracking
 
 > Extracted monitoring patterns from Roundtable Circle's `waitForCompletion()`. The SDK provides these as reusable utilities so each workflow does not inline its own polling loop.
@@ -272,16 +274,17 @@ When force_shutdown is detected, the orchestrator must immediately:
 
 ## Stuck Worker Detection
 
-Workers that exceed `max_runtime_minutes` (from talisman) are flagged for intervention.
+Workers that exceed `max_runtime_minutes` are flagged for intervention. v3.x bakes the
+threshold at 20 minutes (former `talisman.teammate_lifecycle.max_runtime_minutes`).
 
 ```
 // Per poll cycle, after TaskList
+const MAX_RUNTIME_MINUTES = 20
 for (const task of inProgress) {
-  const maxMinutes = talisman?.teammate_lifecycle?.max_runtime_minutes ?? 20
   const elapsedMinutes = task.stale / 60_000
 
-  if (elapsedMinutes > maxMinutes) {
-    warn(`Worker for task #${task.id} exceeded max runtime (${maxMinutes}min)`)
+  if (elapsedMinutes > MAX_RUNTIME_MINUTES) {
+    warn(`Worker for task #${task.id} exceeded max runtime (${MAX_RUNTIME_MINUTES}min)`)
     // Send progress check to worker via SendMessage
     // If no response after next poll cycle, consider auto-release
   }
@@ -290,55 +293,50 @@ for (const task of inProgress) {
 
 ## Smart Reassignment
 
-Reassigns overdue tasks to idle workers. Runs per poll cycle, BEFORE stuck worker detection. Gated by `work.reassignment.enabled` (default: `true`).
+Reassigns overdue tasks to idle workers. Runs per poll cycle, BEFORE stuck worker detection.
+v3.x bakes the reassignment policy below; the feature is always on for fungible presets.
 
-### Configuration
+### Defaults
 
-```yaml
-# talisman.yml
-work:
-  reassignment:
-    enabled: true
-    multiplier: 2.0       # Threshold = multiplier * estimated_minutes
-    grace_seconds: 60     # Grace period after threshold before reassignment
-```
+| Key | Value |
+|---|---|
+| `multiplier` | `2.0` (threshold = multiplier × estimated_minutes) |
+| `grace_seconds` | `60` (buffer after threshold before action) |
+| Max reassignments per task | `2` (then escalate) |
 
 ### Algorithm
 
 ```
-const reassignConfig = readTalismanSection("work")?.reassignment
-if (reassignConfig?.enabled !== false) {
-  const multiplier = reassignConfig?.multiplier ?? 2.0
-  const graceSeconds = reassignConfig?.grace_seconds ?? 60
+const REASSIGN_MULTIPLIER = 2.0
+const REASSIGN_GRACE_SECONDS = 60
 
-  for (const task of inProgress) {
-    const estimatedMin = task.metadata?.estimated_minutes ?? 5
-    const elapsedMs = task.stale
-    const thresholdMs = multiplier * estimatedMin * 60_000
+for (const task of inProgress) {
+  const estimatedMin = task.metadata?.estimated_minutes ?? 5
+  const elapsedMs = task.stale
+  const thresholdMs = REASSIGN_MULTIPLIER * estimatedMin * 60_000
 
-    if (elapsedMs > thresholdMs + graceSeconds * 1000) {
-      const reassignCount = task.metadata?.reassignment_count ?? 0
-      if (reassignCount >= 2) {
-        // Max 2 reassignments per task — escalate instead
-        warn(`Task #${task.id} hit reassignment cap (2). Escalating.`)
-        continue
-      }
-
-      // First time: send progress check (warning)
-      if (!task.metadata?.reassignment_warned) {
-        SendMessage(task.owner, "Progress check: are you blocked?")
-        TaskUpdate({ taskId: task.id, metadata: { reassignment_warned: true } })
-        continue
-      }
-
-      // Second time: actually reassign
-      TaskUpdate({
-        taskId: task.id,
-        owner: "",
-        status: "pending",
-        metadata: { reassignment_count: reassignCount + 1, reassignment_warned: false }
-      })
+  if (elapsedMs > thresholdMs + REASSIGN_GRACE_SECONDS * 1000) {
+    const reassignCount = task.metadata?.reassignment_count ?? 0
+    if (reassignCount >= 2) {
+      // Max 2 reassignments per task — escalate instead
+      warn(`Task #${task.id} hit reassignment cap (2). Escalating.`)
+      continue
     }
+
+    // First time: send progress check (warning)
+    if (!task.metadata?.reassignment_warned) {
+      SendMessage(task.owner, "Progress check: are you blocked?")
+      TaskUpdate({ taskId: task.id, metadata: { reassignment_warned: true } })
+      continue
+    }
+
+    // Second time: actually reassign
+    TaskUpdate({
+      taskId: task.id,
+      owner: "",
+      status: "pending",
+      metadata: { reassignment_count: reassignCount + 1, reassignment_warned: false }
+    })
   }
 }
 ```

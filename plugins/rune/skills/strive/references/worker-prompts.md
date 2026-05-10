@@ -1320,10 +1320,9 @@ const siblingWorkerContext = buildSiblingContext(
 
 When a task has `isFrontend === true` AND a design system profile exists at `frontend-design-patterns/references/profiles/{library}-profile.md`, inject step 4.8 into rune-smith's lifecycle between step 4.7 (DESIGN SPEC) and step 5 (Read FULL target files). When conditions are not met, this step is omitted entirely — zero overhead.
 
-**Triple-gate pattern**: All three gates must pass before injecting:
-- Gate 1 (talisman): `talisman.strive.frontend_component_context.enabled` is true (opt-in)
-- Gate 2 (task): `task.metadata.isFrontend` is true
-- Gate 3 (profile): design system profile file exists on disk
+**Dual-gate pattern**: Both gates must pass before injecting (v3.x: the former talisman opt-in is now unconditional):
+- Gate 1 (task): `task.metadata.isFrontend` is true
+- Gate 2 (profile): design system profile file exists on disk
 
 **Sidecar pattern**: To avoid context overflow (~1300 tokens for an inline profile), workers receive a file path reference (~50 tokens) and read the profile themselves on demand. The profile is NOT inlined into the prompt.
 

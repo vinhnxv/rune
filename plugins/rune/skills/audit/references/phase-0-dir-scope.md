@@ -11,12 +11,9 @@ const SAFE_PATH_PATTERN = /^[a-zA-Z0-9._\/-]+$/
 const flagDirs     = (flags['--dirs']         || "").split(",").map(s => s.trim()).filter(Boolean)
 const flagExcludes = (flags['--exclude-dirs'] || "").split(",").map(s => s.trim()).filter(Boolean)
 
-// 2. Merge with talisman defaults (flags override when both present)
-//    Array.isArray() guard: talisman values may be strings or undefined
-const talismanDirs     = Array.isArray(talisman?.audit?.dirs)         ? talisman.audit.dirs         : []
-const talismanExcludes = Array.isArray(talisman?.audit?.exclude_dirs) ? talisman.audit.exclude_dirs : []
-const includeDirs  = flagDirs.length     > 0 ? flagDirs     : talismanDirs      // flags override talisman
-const excludeDirs  = [...new Set([...talismanExcludes, ...flagExcludes])]        // merge both exclude lists
+// 2. v3.x: only CLI flags are honored (no config-layer fallback).
+const includeDirs  = flagDirs
+const excludeDirs  = [...new Set(flagExcludes)]
 
 // 3. Validate paths — reject absolute paths and path traversal
 const validateDir = (p) => {

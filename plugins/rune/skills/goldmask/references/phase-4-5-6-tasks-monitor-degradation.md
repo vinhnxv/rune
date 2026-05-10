@@ -37,13 +37,14 @@ Spawn Wisdom Sage after all Phase 1+2 tasks complete:
 
 ## Phase 5: Monitor with Polling
 
+<!-- v3.x: defaults baked from former talisman.goldmask; see references/v3-defaults.md -->
+
 Use correct polling pattern (POLL-001 compliant):
 
 ```
-// readTalismanSection: "goldmask"
-const goldmask = readTalismanSection("goldmask")
-pollIntervalMs = goldmask?.poll_interval_ms ?? 30000
-timeoutMs = goldmask?.timeout_ms ?? 300000  // 5 minutes default
+// v3.x: poll/timeout values are hardcoded — no user config layer.
+pollIntervalMs = 30000
+timeoutMs = 300000  // 5 minutes default
 maxIterations = ceil(timeoutMs / pollIntervalMs)
 
 for i in 1..maxIterations:

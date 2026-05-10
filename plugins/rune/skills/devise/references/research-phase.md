@@ -1,5 +1,7 @@
 # Phase 1: Research (Conditional, up to 7 agents)
 
+<!-- v3.x: defaults baked from former talisman.plan + talisman.ux; see references/v3-defaults.md -->
+
 Create an Agent Teams team and summon research tasks using the conditional research pipeline.
 
 ## Phase 1A: Local Research (always runs)
@@ -20,11 +22,11 @@ Research scope for: {feature}
                + best practices, framework docs (if external research triggered)
 ```
 
-**Phase 0.3 UX Research** (runs BEFORE Phase 1, see SKILL.md): When `talisman.ux.enabled` is true and frontend files are detected, `ux-pattern-analyzer` runs as a bare Agent to inventory existing UX patterns (loading, error handling, forms, navigation, empty states, confirmation/undo, feedback). Its output feeds `brainstormContext.ux_maturity` for Phase 2 synthesis. Integrates with [ui-ux-planning-protocol.md](ui-ux-planning-protocol.md) Step 0 for greenfield/brownfield methodology routing.
+**Phase 0.3 UX Research** (runs BEFORE Phase 1, see SKILL.md): When frontend files are detected (UX subsystem always on in v3.x), `ux-pattern-analyzer` runs as a bare Agent to inventory existing UX patterns (loading, error handling, forms, navigation, empty states, confirmation/undo, feedback). Its output feeds `brainstormContext.ux_maturity` for Phase 2 synthesis. Integrates with [ui-ux-planning-protocol.md](ui-ux-planning-protocol.md) Step 0 for greenfield/brownfield methodology routing.
 
 If the user redirects ("skip git history" or "also research X"), adjust agent selection before spawning.
 
-**Inputs**: `feature` (sanitized string, from Phase 0), `timestamp` (validated identifier, from session), talisman config (from `.rune/talisman.yml`)
+**Inputs**: `feature` (sanitized string, from Phase 0), `timestamp` (validated identifier, from session)
 **Outputs**: Research agent outputs in `tmp/plans/{timestamp}/research/`, `inscription.json`
 **Error handling**: TeamDelete fallback on cleanup, identifier validation before rm -rf
 
@@ -280,50 +282,20 @@ All research agents (repo-surveyor, echo-reader, git-miner, wiring-cartographer,
 
 After local research completes, evaluate whether external research is needed.
 
-Phase 1B encompasses three sub-steps in order: (1) talisman bypass check, (2) URL sanitization with SSRF defense (see [URL Sanitization](#url-sanitization-ssrf-defense) below), and (3) risk + local sufficiency scoring. All three run before any external agent is spawned.
-
-### Talisman Config Read
-
-```javascript
-// Read plan config from talisman (pre-resolved shard for token efficiency)
-const planConfig = readTalismanSection("plan")
-// planConfig shape: { external_research?: string, research_urls?: string[] }
-// external_research values: "always" | "auto" | "never"
-// Absent plan section = null (legacy behavior — 0.35 threshold unchanged)
-```
+Phase 1B encompasses two sub-steps in order: (1) URL sanitization with SSRF defense (see [URL Sanitization](#url-sanitization-ssrf-defense) below), and (2) risk + local sufficiency scoring. Both run before any external agent is spawned.
 
 ### Bypass Logic (before scoring)
 
-```javascript
-// BYPASS: When external_research is explicitly "always" or "never", skip scoring entirely
-const externalResearch = planConfig?.external_research
-
-if (externalResearch === "always") {
-  // Force external research — skip scoring, proceed to Phase 1C
-  info("plan.external_research = always — skipping risk scoring, running Phase 1C")
-  // → jump to Phase 1C
-}
-
-if (externalResearch === "never") {
-  // Skip external research entirely — skip scoring, skip Phase 1C
-  info("plan.external_research = never — skipping risk scoring AND Phase 1C")
-  // → jump to Phase 1D
-}
-
-// Unknown values treated as "auto" with warning (graceful degradation)
-if (externalResearch && !["always", "auto", "never"].includes(externalResearch)) {
-  warn(`Unknown plan.external_research value: "${externalResearch}". Treating as "auto".`)
-}
-
-// If externalResearch === "auto" or absent (null) → proceed with scoring below
-```
+v3.x bakes `external_research = "auto"` — the bypass branches for "always"/"never" no longer exist.
+Always proceed with scoring below.
 
 ### URL Sanitization (SSRF defense)
 
-When the user provides `research_urls` in talisman config, sanitize them before passing to agents.
+v3.x bakes `research_urls = []`. The sanitization pipeline below remains intact for users who edit
+this skill to inject URLs at runtime, but the default path produces an empty `sanitizedUrls`.
 
 ```javascript
-const rawUrls = planConfig?.research_urls ?? []
+const rawUrls = []  // v3.x: plan.research_urls baked to []
 
 // SEC: URL sanitization pipeline
 // URL_PATTERN requires a TLD suffix (.[a-zA-Z]{2,}) which implicitly blocks:
@@ -454,14 +426,11 @@ if (unfamiliarFramework) {
 riskScore = Math.min(1.0, baseRiskScore + riskBonus)
 ```
 
-**Thresholds** (backwards-compatible):
+**Thresholds**:
 
 ```javascript
-// BACKWARDS COMPAT (P1): When plan section is ABSENT, use legacy thresholds.
-// The lowered LOW_RISK threshold (0.25) ONLY applies when external_research
-// is explicitly set to "auto". This ensures existing users without talisman
-// plan config see no behavior change.
-const LOW_RISK_THRESHOLD = (externalResearch === "auto") ? 0.25 : 0.35
+// v3.x: external_research baked to "auto" — use the lower 0.25 threshold.
+const LOW_RISK_THRESHOLD = 0.25
 ```
 
 - HIGH_RISK >= 0.65: Run external research
@@ -577,20 +546,15 @@ Validates external research outputs for trustworthiness before they influence pl
 Phase 1C.5 is skipped under any of these conditions:
 
 ```javascript
-// Skip method 1: Talisman config disables verification
-const planConfig = readTalismanSection("plan")
-const verificationEnabled = planConfig?.research_verification?.enabled !== false  // default: true
-
-// Skip method 2: CLI flags
+// Skip method 1: CLI flags (v3.x: research_verification always enabled — no config knob)
 const skipVerification = args.includes("--no-verify-research") || args.includes("--quick")
 
-// Skip method 3: No external research outputs to verify
+// Skip method 2: No external research outputs to verify
 // externalResearchRan is set in Phase 1B/1C when practice-seeker or lore-scholar were summoned
 const hasExternalResearch = externalResearchRan === true
 
-if (!verificationEnabled || skipVerification || !hasExternalResearch) {
-  info(`Phase 1C.5 skipped — verification=${verificationEnabled}, ` +
-       `skipFlag=${skipVerification}, externalResearch=${hasExternalResearch}`)
+if (skipVerification || !hasExternalResearch) {
+  info(`Phase 1C.5 skipped — skipFlag=${skipVerification}, externalResearch=${hasExternalResearch}`)
   // → jump to Phase 1D
 }
 ```
@@ -600,14 +564,13 @@ if (!verificationEnabled || skipVerification || !hasExternalResearch) {
 The research-verifier runs **serially and blocking** (NOT `run_in_background`), because Phase 1D and Phase 1.5 depend on its output.
 
 ```javascript
-// Read per-dimension controls from talisman (all enabled by default)
-const verifyConfig = planConfig?.research_verification ?? {}
+// v3.x: all 5 dimensions always enabled. Per-dimension toggles removed.
 const enabledDimensions = {
-  relevance: verifyConfig.relevance !== false,     // weight: 25%
-  accuracy: verifyConfig.accuracy !== false,       // weight: 30%
-  freshness: verifyConfig.freshness !== false,      // weight: 20%
-  cross_validation: verifyConfig.cross_validation !== false,  // weight: 15%
-  security: verifyConfig.security !== false         // weight: 10%
+  relevance: true,         // weight: 25%
+  accuracy: true,          // weight: 30%
+  freshness: true,         // weight: 20%
+  cross_validation: true,  // weight: 15%
+  security: true           // weight: 10%
 }
 
 // Collect research output file paths for the agent prompt

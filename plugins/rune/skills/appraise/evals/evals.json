@@ -6,7 +6,7 @@
     {
       "id": 1,
       "prompt": "Run /rune:appraise on my current branch changes. Walk me through what happens in Phase 0 (Pre-flight) and Phase 1 (Rune Gaze). Explain: (1) How are changed files detected? (2) What is the file classification algorithm? (3) How are Ashes selected for each file type? (4) What is the dry-run exit path? Don't actually execute anything \u2014 just explain the decision tree.",
-      "expected_output": "A detailed walkthrough of: (1) Phase 0 Pre-flight \u2014 detect default_branch from git remote, build changed_files list (committed + staged + unstaged + untracked or staged-only for --partial), filter non-existent files and symlinks, generate diff ranges for Phase 5.3 scope tagging. Abort conditions: no changed files or only non-reviewable files. (2) Phase 1 Rune Gaze \u2014 classify files by extension (Python \u2192 Forge Warden backend review; TypeScript \u2192 Glyph Scribe frontend review; all files \u2192 Ward Sentinel security, Pattern Weaver quality, Veil Piercer truthbinding), discover custom Ashes from talisman.yml, add UX reviewers when talisman.ux.enabled + frontend files detected. Always-on Ashes: Ward Sentinel, Pattern Weaver, Veil Piercer. Dry-run exits after Phase 1 with summary.",
+      "expected_output": "A detailed walkthrough of: (1) Phase 0 Pre-flight \u2014 detect default_branch from git remote, build changed_files list (committed + staged + unstaged + untracked or staged-only for --partial), filter non-existent files and symlinks, generate diff ranges for Phase 5.3 scope tagging. Abort conditions: no changed files or only non-reviewable files. (2) Phase 1 Rune Gaze \u2014 classify files by extension (Python \u2192 Forge Warden backend review; TypeScript \u2192 Glyph Scribe frontend review; all files \u2192 Ward Sentinel security, Pattern Weaver quality, Veil Piercer truthbinding), discover custom Ashes from settings.ashes.custom (v3.x defaults to []). Always-on Ashes: Ward Sentinel, Pattern Weaver, Veil Piercer. UX reviewer agents are available but no longer auto-spawn in v3.x (UX subsystem off by default). Dry-run exits after Phase 1 with summary.",
       "files": [],
       "expectations": [
         "Describes Phase 0 changed file detection from git diff",
@@ -17,8 +17,8 @@
         "Mentions always-on Ashes: Ward Sentinel, Pattern Weaver, Veil Piercer",
         "Mentions Forge Warden for backend files",
         "Mentions Glyph Scribe for frontend files",
-        "Mentions custom Ash discovery from talisman.yml",
-        "Describes UX reviewer conditional addition based on talisman.ux.enabled",
+        "Mentions custom Ash discovery from settings.ashes.custom (v3.x defaults to [])",
+        "Notes UX subsystem is off by default in v3.x (no auto-spawn)",
         "Notes dry-run exits after Phase 1 with summary"
       ]
     },
@@ -133,31 +133,31 @@
     {
       "id": 10,
       "prompt": "How does Phase 0.5 Lore Layer work in /rune:appraise? When is it skipped? What does lore-analyst output? How does it affect file ordering?",
-      "expected_output": "Phase 0.5 Lore Layer: Purpose: git history risk scoring runs BEFORE team creation. lore-analyst agent (bare Agent, no team yet \u2014 ATE-1 exemption) outputs risk-map.json and lore-analysis.md. Risk tiers: CRITICAL, HIGH, MEDIUM, LOW, STALE. File re-sorting: changed_files re-sorted by risk tier (CRITICAL \u2192 HIGH \u2192 MEDIUM \u2192 LOW \u2192 STALE). Skip conditions: non-git repo, --no-lore flag, talisman.goldmask.layers.lore.enabled === false, fewer than 5 commits in lookback window (G5 guard). The risk scores are used for prioritized review ordering and injected into inscription.json.",
+      "expected_output": "Phase 0.5 Lore Layer: Purpose: git history risk scoring runs BEFORE team creation. lore-analyst agent (bare Agent, no team yet \u2014 ATE-1 exemption) outputs risk-map.json and lore-analysis.md. Risk tiers: CRITICAL, HIGH, MEDIUM, LOW, STALE. File re-sorting: changed_files re-sorted by risk tier (CRITICAL \u2192 HIGH \u2192 MEDIUM \u2192 LOW \u2192 STALE). Skip conditions in v3.x: non-git repo, --no-lore flag, fewer than 5 commits in lookback window (G5 guard). (The former goldmask config gates are baked-in true and no longer skip conditions.) The risk scores are used for prioritized review ordering and injected into inscription.json.",
       "files": [],
       "expectations": [
         "Notes lore-analyst runs as bare Agent (ATE-1 exemption)",
         "Lists outputs: risk-map.json, lore-analysis.md",
         "Lists risk tiers: CRITICAL, HIGH, MEDIUM, LOW, STALE",
         "Describes file re-sorting by risk tier",
-        "Lists skip conditions: non-git, --no-lore, lore.enabled === false, <5 commits (G5 guard)",
+        "Lists v3.x skip conditions: non-git, --no-lore, <5 commits (G5 guard)",
         "Notes risk scores injected into inscription.json"
       ]
     },
     {
       "id": 11,
       "prompt": "Explain Phase 0.3 Context Intelligence and Phase 0.4 Linter Detection for /rune:appraise. What metadata is gathered? How does linter awareness prevent duplicate findings?",
-      "expected_output": "Phase 0.3 Context Intelligence: Gathers PR metadata and linked issue context via gh CLI. Injects contextIntel into inscription.json. Includes sanitizeUntrustedText() for CDX-001/CVE-2021-42574 protection (Unicode bidi character stripping). Skipped when no gh CLI, --partial, or disabled in talisman. Phase 0.4 Linter Detection: Discovers project linters (eslint, prettier, ruff, clippy, etc.) via manifest scanning. Injects linter_context into inscription.json. Linter awareness suppresses duplicate findings \u2014 Ash skip reporting issues that linters would catch. SEC-*/VEIL-* findings are NEVER suppressed (security always reported). Configurable via talisman.review.linter_awareness.",
+      "expected_output": "Phase 0.3 Context Intelligence: Gathers PR metadata and linked issue context via gh CLI. Injects contextIntel into inscription.json. Includes sanitizeUntrustedText() for CDX-001/CVE-2021-42574 protection (Unicode bidi character stripping). Skipped when no gh CLI, --partial mode, or non-git repo. Phase 0.4 Linter Detection: Discovers project linters (eslint, prettier, ruff, clippy, etc.) via manifest scanning. Injects linter_context into inscription.json. Linter awareness suppresses duplicate findings \u2014 Ash skip reporting issues that linters would catch. SEC-*/VEIL-* findings are NEVER suppressed (security always reported). v3.x: linter awareness is unconditional.",
       "files": [],
       "expectations": [
         "Describes Phase 0.3: PR metadata, linked issues via gh CLI",
         "Mentions sanitizeUntrustedText() for Unicode bidi protection",
-        "Notes skip conditions: no gh CLI, --partial, disabled",
+        "Notes skip conditions: no gh CLI, --partial, non-git repo",
         "Describes Phase 0.4: linter discovery via manifest scanning",
         "Lists example linters: eslint, prettier, ruff, clippy",
         "Notes linter awareness suppresses duplicate findings",
         "Mentions SEC-*/VEIL-* findings are NEVER suppressed",
-        "Notes configurable via talisman.review.linter_awareness"
+        "Notes v3.x: linter awareness is unconditional"
       ]
     },
     {
@@ -193,16 +193,16 @@
     {
       "id": 14,
       "prompt": "What is Phase 4.5 Doubt Seer in /rune:appraise? When does it run? What is the verdict format? How does BLOCK verdict affect the workflow?",
-      "expected_output": "Phase 4.5 Doubt Seer: CONDITIONAL \u2014 strict opt-in via talisman.doubt_seer.enabled = true. Purpose: cross-examines P1/P2 findings with adversarial questioning. Timeout: 5 minutes. Output: VERDICT field in doubt-seer.md. Verdicts: BLOCK (unproven P1 findings detected, sets workflow_blocked flag), CONCERN (unproven claims exist but workflow continues), PASS (all findings have supporting evidence). BLOCK verdict: when block_on_unproven: true in talisman, halts workflow and requires user intervention. Spawned as bare Agent (no team context) for cross-examination.",
+      "expected_output": "Phase 4.5 Doubt Seer: in v3.x doubt_seer is disabled by default (the subsystem is retained for explicit invocation but does not auto-spawn). When invoked, its purpose is to cross-examine P1/P2 findings with adversarial questioning. Timeout: 5 minutes. Output: VERDICT field in doubt-seer.md. Verdicts: BLOCK (unproven P1 findings detected, sets workflow_blocked flag), CONCERN (unproven claims exist but workflow continues), PASS (all findings have supporting evidence). BLOCK verdict: halts workflow and requires user intervention (block_on_unproven is baked-in false by v3.x default, so BLOCK only fires when an explicit caller opts in). Spawned as bare Agent (no team context) for cross-examination.",
       "files": [],
       "expectations": [
-        "Notes strict opt-in: talisman.doubt_seer.enabled = true",
+        "Notes v3.x: doubt_seer is disabled by default (no auto-spawn)",
         "States purpose: cross-examine P1/P2 findings",
         "Notes 5 minute timeout",
         "Lists verdicts: BLOCK, CONCERN, PASS",
         "Describes BLOCK verdict: sets workflow_blocked flag",
         "Notes spawned as bare Agent (no team context)",
-        "Mentions block_on_unproven talisman setting"
+        "Notes block_on_unproven is baked-in false by default"
       ]
     },
     {
@@ -310,14 +310,12 @@
     {
       "id": 23,
       "prompt": "Explain Phase 1.5 UX Reviewer Selection in /rune:appraise. When are UX reviewers added? What UX agents are available? How does --deep affect UX selection?",
-      "expected_output": "Phase 1.5 UX Reviewer Selection: Gated by talisman.ux.enabled === true AND frontend files detected in changed_files (extensions: .tsx, .jsx, .vue, .svelte, .css, .scss). Default UX agent: ux-heuristic-reviewer (UXH-prefixed findings, non-blocking). With --deep flag: adds ux-flow-validator (UXF-prefixed, validates loading/error/empty states), ux-interaction-auditor (UXI-prefixed, checks hover/focus/touch targets). Optional (talisman.ux.cognitive_walkthrough === true): ux-cognitive-walker (UXC-prefixed, expensive opus model, simulates first-time user). Skip conditions: talisman.ux.enabled not true, or no frontend files in diff. UX findings are non-blocking by default \u2014 they inform but don't block workflows.",
+      "expected_output": "Phase 1.5 UX Reviewer Selection: in v3.x the UX subsystem is off by default (no user opt-in layer). UX reviewer agents (ux-heuristic-reviewer with UXH prefix, ux-flow-validator with UXF prefix, ux-interaction-auditor with UXI prefix, ux-cognitive-walker with UXC prefix) are retained as standalone agents for explicit invocation but no longer auto-spawn during appraise. Frontend file extensions remain .tsx, .jsx, .vue, .svelte, .css, .scss. UX findings are non-blocking by default \u2014 they inform but don't block workflows.",
       "files": [],
       "expectations": [
-        "Notes gate: talisman.ux.enabled AND frontend files",
+        "Notes v3.x: UX subsystem is off by default (no auto-spawn)",
         "Lists frontend extensions: .tsx, .jsx, .vue, .svelte, .css, .scss",
-        "Describes default: ux-heuristic-reviewer (UXH prefix, non-blocking)",
-        "Notes --deep adds ux-flow-validator and ux-interaction-auditor",
-        "Mentions ux-cognitive-walker requires opt-in, uses opus",
+        "Lists the four UX agents and their finding prefixes (UXH, UXF, UXI, UXC)",
         "Notes UX findings are non-blocking by default"
       ]
     },
@@ -484,7 +482,7 @@
     {
       "id": 35,
       "prompt": "How does the Inner Flame self-review protocol work for Ashes? What are the 3 layers? How is it enforced?",
-      "expected_output": "Inner Flame self-review protocol for Ashes: 3 layers \u2014 (1) Grounding: verify all claims reference actual code from the reviewed files, not hallucinated content. (2) Completeness: confirm all assigned files were reviewed, no gaps. (3) Self-Adversarial: challenge own findings \u2014 would a skeptic accept this evidence? Enforcement: validate-inner-flame.sh TaskCompleted hook checks output for Grounding/Completeness/Self-Adversarial markers. Missing markers \u2192 advisory warning (non-blocking for review Ashes). Configurable via talisman.inner_flame.enabled. The protocol is adapted per agent role: review Ashes focus on evidence quality, work Ashes focus on implementation correctness, fixer Ashes focus on change scope. The hook uses pattern matching to detect marker presence, not semantic validation.",
+      "expected_output": "Inner Flame self-review protocol for Ashes: 3 layers \u2014 (1) Grounding: verify all claims reference actual code from the reviewed files, not hallucinated content. (2) Completeness: confirm all assigned files were reviewed, no gaps. (3) Self-Adversarial: challenge own findings \u2014 would a skeptic accept this evidence? Enforcement: validate-inner-flame.sh TaskCompleted hook checks output for Grounding/Completeness/Self-Adversarial markers. Missing markers \u2192 advisory warning (non-blocking for review Ashes). v3.x: inner-flame is unconditional. The protocol is adapted per agent role: review Ashes focus on evidence quality, work Ashes focus on implementation correctness, fixer Ashes focus on change scope. The hook uses pattern matching to detect marker presence, not semantic validation.",
       "files": [],
       "expectations": [
         "Lists 3 layers: Grounding, Completeness, Self-Adversarial",
@@ -492,7 +490,7 @@
         "Describes Completeness: all assigned files reviewed",
         "Describes Self-Adversarial: challenge own findings",
         "Notes hook: validate-inner-flame.sh on TaskCompleted",
-        "Mentions configurable via talisman.inner_flame.enabled",
+        "Notes v3.x: inner-flame is unconditional",
         "Notes adapted per agent role"
       ]
     },
@@ -513,14 +511,14 @@
     {
       "id": 37,
       "prompt": "What happens when Phase 0.4 detects multiple linters for the same file type? How does linter awareness suppress findings? Which finding types are NEVER suppressed?",
-      "expected_output": "Multiple linters for same file type: Phase 0.4 detects all configured linters, not just one. Example: a TypeScript project may have eslint, prettier, AND typescript compiler checks. All are included in linter_context. Finding suppression logic: when an Ash would report an issue that a configured linter already catches, the finding is suppressed to avoid duplicate noise. NEVER suppressed: SEC-* (security findings always reported regardless of linter), VEIL-* (truthbinding violations always reported), P1 critical findings (safety net \u2014 even if linter should catch it, report anyway). Rationale: security issues may slip through linter gaps, and truthbinding violations indicate fundamental problems that require human attention. Configurable via talisman.review.linter_awareness.",
+      "expected_output": "Multiple linters for same file type: Phase 0.4 detects all configured linters, not just one. Example: a TypeScript project may have eslint, prettier, AND typescript compiler checks. All are included in linter_context. Finding suppression logic: when an Ash would report an issue that a configured linter already catches, the finding is suppressed to avoid duplicate noise. NEVER suppressed: SEC-* (security findings always reported regardless of linter), VEIL-* (truthbinding violations always reported), P1 critical findings (safety net \u2014 even if linter should catch it, report anyway). Rationale: security issues may slip through linter gaps, and truthbinding violations indicate fundamental problems that require human attention. v3.x: linter awareness is unconditional.",
       "files": [],
       "expectations": [
         "Notes all configured linters detected, not just one",
         "Gives example: TypeScript with eslint + prettier + tsc",
         "Describes suppression: avoid duplicate findings",
         "Lists NEVER suppressed: SEC-*, VEIL-*, P1 critical",
-        "Notes configurable via talisman.review.linter_awareness",
+        "Notes v3.x: linter awareness is unconditional",
         "Explains rationale: security may slip through, truthbinding needs attention"
       ]
     },
