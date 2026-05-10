@@ -100,7 +100,7 @@
       },
       {
         "matcher": "Bash",
-        "_rationale": "BASH-TIMEOUT-001: Wraps long-running Bash commands with timeout/gtimeout during active Rune workflows. Default 300s. Pattern allowlist: test runners, build tools, package managers, containers, JVM. Configurable via talisman process_management.bash_timeout. OPERATIONAL — fail-forward.",
+        "_rationale": "BASH-TIMEOUT-001: Wraps long-running Bash commands with timeout/gtimeout during active Rune workflows. Default 300s. Pattern allowlist: test runners, build tools, package managers, containers, JVM. Hardcoded 300s default in v3.x (see references/v3-defaults.md). OPERATIONAL — fail-forward.",
         "hooks": [
           {
             "type": "command",
@@ -318,18 +318,6 @@
         ]
       },
       {
-        "matcher": "Write|Edit",
-        "_rationale": "Talisman shard invalidation. Fast-path exit (<5ms) via grep for non-talisman writes. Only triggers full resolver (~0.6s) when talisman.yml is modified. PostToolUse (not PreToolUse) so it does not block the write.",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/talisman-invalidate.sh",
-            "timeout": 5,
-            "statusMessage": "Checking talisman invalidation..."
-          }
-        ]
-      },
-      {
         "matcher": "Read|Write|Edit|Bash|Glob|Grep|Task|Agent|WebFetch",
         "_rationale": "Monitor high-frequency tools that indicate active work. Excludes TeamCreate/TeamDelete/SendMessage (low context impact). Task/Agent catches agent spawning (highest context cost).",
         "hooks": [
@@ -492,20 +480,7 @@
       },
       {
         "matcher": "startup|resume",
-        "_rationale": "Resolves talisman.yml into per-namespace JSON shards for 94% token reduction. Must run after session-start.sh (workflow routing + venv setup) and before team hygiene. Not async — shards must be ready before first readTalismanSection() call. Excluded from clear (no workflows run) and compact (shards still valid).",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/talisman-resolve.sh",
-            "timeout": 5,
-            "async": false,
-            "statusMessage": "Resolving talisman config..."
-          }
-        ]
-      },
-      {
-        "matcher": "startup|resume",
-        "_rationale": "Lightweight doc pack staleness check. Runs after talisman-resolve.sh (needs staleness_days from talisman config). Checks installed pack manifests in $CHOME/echoes/global/manifests/ for age > threshold. Fail-forward (OPERATIONAL). Per enrichment C4.",
+        "_rationale": "Lightweight doc pack staleness check. Checks installed pack manifests in $CHOME/echoes/global/manifests/ for age > threshold (hardcoded staleness_days default in v3.x — see references/v3-defaults.md). Fail-forward (OPERATIONAL). Per enrichment C4.",
         "hooks": [
           {
             "type": "command",

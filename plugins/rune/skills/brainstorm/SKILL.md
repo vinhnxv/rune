@@ -80,7 +80,7 @@ Output: docs/brainstorms/YYYY-MM-DD-<topic>-brainstorm.md
 
 ## Configuration
 
-<!-- v3.x: defaults baked from former talisman.misc.brainstorm; see references/v3-defaults.md -->
+<!-- v3.x: defaults baked from former v2.x talisman config (misc.brainstorm); see references/v3-defaults.md -->
 
 ```javascript
 // v3.x: misc.brainstorm tunables baked in.

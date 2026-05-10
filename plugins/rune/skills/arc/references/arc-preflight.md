@@ -1,6 +1,6 @@
 # Pre-flight — Full Algorithm
 
-<!-- v3.x: defaults baked from former talisman.arc.sharding; see references/v3-defaults.md -->
+<!-- v3.x: defaults baked from former v2.x talisman config (arc.sharding); see references/v3-defaults.md -->
 
 Pre-flight sequence: branch strategy, concurrent arc prevention, plan path validation,
 inter-phase cleanup guard, and stale team scan.

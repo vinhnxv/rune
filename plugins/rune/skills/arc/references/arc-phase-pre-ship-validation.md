@@ -228,7 +228,7 @@ function preShipValidator(checkpoint, planPath) {
   //
   // Computes Spec Compliance Rate (SCR) and proof coverage from evidence
   // artifacts. Advisory for initial rollout — WARN only, never BLOCK.
-  // v3.x: discipline always enabled (former talisman.discipline.enabled default: true).
+  // v3.x: discipline always enabled (former v2.x talisman config (discipline.enabled) default: true).
 
   {
     try {

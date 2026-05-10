@@ -83,7 +83,7 @@ The static analysis pipeline follows 7 phases using Agent Teams for parallel exe
 
 ### Phase 0: Pre-flight
 
-<!-- v3.x: defaults baked from former talisman.misc.self_audit; see references/v3-defaults.md -->
+<!-- v3.x: defaults baked from former v2.x talisman config (misc.self_audit); see references/v3-defaults.md -->
 
 ```
 Self-audit defaults (v3.x baked-in, see references/v3-defaults.md § misc):
@@ -409,7 +409,7 @@ Defaults (v3.x baked-in, see references/v3-defaults.md § misc):
 
 ## Configuration
 
-<!-- v3.x: defaults baked from former talisman.misc.self_audit; see references/v3-defaults.md -->
+<!-- v3.x: defaults baked from former v2.x talisman config (misc.self_audit); see references/v3-defaults.md -->
 
 In v3.x, self-audit defaults are baked-in literals — there is no user-tunable
 `talisman.self_audit` section. Effective values:

@@ -1,6 +1,6 @@
 # Sibling Context — strive Phase 2 Reference
 
-<!-- v3.x: defaults baked from former talisman.work.sibling_awareness; see references/v3-defaults.md -->
+<!-- v3.x: defaults baked from former v2.x talisman config (work.sibling_awareness); see references/v3-defaults.md -->
 
 Worker prompt injection providing explicit sibling awareness. Each worker
 receives a view of what other workers are implementing and which files they own,

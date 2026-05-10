@@ -61,7 +61,7 @@ if owner is empty or repo is empty:
   error("Cannot resolve repository owner/name. Ensure gh CLI is configured.")
   exit
 
-# v3.x: defaults baked from former talisman.arc.ship.bot_review; see references/v3-defaults.md
+# v3.x: defaults baked from former v2.x talisman config (arc.ship.bot_review); see references/v3-defaults.md
 BATCH_SIZE = 10
 AUTO_RESOLVE_OUTDATED = true
 HALLUCINATION_CHECK = true

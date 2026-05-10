@@ -62,7 +62,7 @@ Design fidelity is a **conditional dimension** that extends `grace-warden` scope
 
 ### Gate
 
-<!-- v3.x: defaults baked from former talisman.misc.design_sync; see references/v3-defaults.md -->
+<!-- v3.x: defaults baked from former v2.x talisman config (misc.design_sync); see references/v3-defaults.md -->
 
 ```javascript
 // Phase 0.5: Evaluate design-fidelity gate
@@ -146,7 +146,7 @@ Data flow integrity is a **conditional dimension** that extends `grace-warden` s
 
 ### Gate
 
-<!-- v3.x: defaults baked from former talisman.misc.data_flow; see references/v3-defaults.md -->
+<!-- v3.x: defaults baked from former v2.x talisman config (misc.data_flow); see references/v3-defaults.md -->
 
 ```javascript
 // Phase 0.5: Evaluate data-flow-integrity gate

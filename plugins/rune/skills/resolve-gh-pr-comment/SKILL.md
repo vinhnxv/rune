@@ -189,7 +189,7 @@ if (!commentData) {
 
 ## Phase 2: Detect Author & Parse Feedback
 
-<!-- v3.x: defaults baked from former talisman.arc.ship.bot_review; see references/v3-defaults.md -->
+<!-- v3.x: defaults baked from former v2.x talisman config (arc.ship.bot_review); see references/v3-defaults.md -->
 
 Detect whether the comment is from a known bot or a human reviewer. Parse structured feedback.
 

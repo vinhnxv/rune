@@ -17,25 +17,22 @@ Sections (every former talisman config section name): `arc`, `audit`, `devise`,
 
 | Key path | Value |
 |---|---|
-| `defaults.no_forge / approve / skip_freshness / confirm / no_test / no_browser_test` | `false` |
+| `defaults.no_forge / approve / skip_freshness / confirm / no_test / no_browser_test / step_groups` | `false` |
 | `defaults.accept_external_changes` | `true` |
-| `defaults.step_groups` | `false` |
 | `ship.auto_pr / rebase_before_merge / merge_verification.enabled / pre_merge_checks.*` | `true` |
-| `ship.auto_merge / wait_ci / draft / pr_monitoring / ci_check.enabled / ci_check.retrigger_on_push` | `false` |
+| `ship.auto_merge / wait_ci / draft / pr_monitoring / ci_check.enabled / ci_check.retrigger_on_push / bot_review` | `false` (bot_review handled by external pr-guardian) |
 | `ship.merge_strategy` | `"squash"` (allowlist `squash` \| `rebase` \| `merge`) |
 | `ship.labels / pre_merge_checks.migration_paths / skip_phases` | `[]` |
-| `ship.ci_check.timeout_ms / poll_interval_ms / fix_timeout_ms / escalation_timeout_ms` | `900000 / 30000 / 300000 / 1800000` |
-| `ship.ci_check.fix_retries` | `2` |
+| `ship.ci_check.{timeout_ms,poll_interval_ms,fix_timeout_ms,escalation_timeout_ms,fix_retries}` | `900000 / 30000 / 300000 / 1800000 / 2` |
 | `ship.ci_check.conclusion_allowlist` | `["success","skipped","neutral"]` |
 | `ship.merge_verification.timeout_ms` | `60000` |
-| `timeouts.forge / work / code_review / mend / test` | `900000 / 2100000 / 900000 / 1380000 / 900000` |
-| `timeouts.gap_analysis / gap_remediation / audit / merge / ship` | `720000 / 900000 / 1200000 / 600000 / 300000` |
-| `timeouts.plan_review / plan_refine / verify_mend / verification` | `900000 / 180000 / 240000 / 30000` |
-| `gap_analysis.halt_threshold / inspectors` | `50 / 2` |
-| `gap_analysis.remediation.enabled / max_fixes / timeout` | `true / 20 / 600000` |
+| `timeouts.{forge,work,code_review,mend,test}` | `900000 / 2100000 / 900000 / 1380000 / 900000` |
+| `timeouts.{gap_analysis,gap_remediation,audit,merge,ship}` | `720000 / 900000 / 1200000 / 600000 / 300000` |
+| `timeouts.{plan_review,plan_refine,verify_mend,verification}` | `900000 / 180000 / 240000 / 30000` |
+| `gap_analysis.{halt_threshold,inspectors}` | `50 / 2` |
+| `gap_analysis.remediation.{enabled,max_fixes,timeout}` | `true / 20 / 600000` |
 | `inspect.enabled / verify.enabled` | `true` |
-| `bot_review` | `false` (external pr-guardian) |
-| `state_file.stale_multiplier / heartbeat_interval_sec` | `3 / 60` |
+| `state_file.{stale_multiplier,heartbeat_interval_sec}` | `3 / 60` |
 
 ## audit
 
@@ -47,9 +44,9 @@ Sections (every former talisman config section name): `arc`, `audit`, `devise`,
 | `deep.ashes` | `["rot-seeker","strand-tracer","decree-auditor","fringe-watcher"]` |
 | `deep.dimensions` | `["truth-seeker","ruin-watcher","breach-hunter","order-auditor","ember-seer","signal-watcher","decay-tracer"]` |
 
-## devise
+## devise / integrations / pr_comment / ux
 
-Empty `{}`. Devise behaviour comes from `goldmask.devise.{enabled,depth}` plus CLI flags.
+All empty `{}`. Devise behaviour comes from `goldmask.devise.{enabled,depth}` + CLI flags. Cross-cutting integrations live under `misc`. Bot-review wait moved to the external pr-guardian harness. UX subsystem retained for inspector heuristics; no user knobs consumed (`industry: null`).
 
 ## discipline
 
@@ -91,14 +88,9 @@ Empty `{}`. Devise behaviour comes from `goldmask.devise.{enabled,depth}` plus C
 
 | Key | Value |
 |---|---|
-| `completion_threshold / gap_threshold / max_inspectors / max_fixes` | `80 / 20 / 4 / 20` |
-| `fix_timeout` | `600000` |
+| `completion_threshold / gap_threshold / max_inspectors / max_fixes / fix_timeout` | `80 / 20 / 4 / 20 / 600000` |
 | `detect_wiring_heuristics` | `true` |
 | `wiring_patterns / wiring_exclusions` | `["barrel_exports","migrations"] / ["**/__fixtures__/**","**/__mocks__/**"]` |
-
-## integrations
-
-Empty `{}`. Cross-cutting integrations live under `misc`.
 
 ## misc
 
@@ -146,10 +138,6 @@ Catch-all; sub-sections enabled by default unless noted.
 | `freshness.warn_threshold / block_threshold / max_commit_distance` | `0.7 / 0.4 / 100` |
 | `verification_patterns` | `[]` |
 
-## pr_comment
-
-Empty `{}`. Bot-review wait phase moved to the external pr-guardian harness.
-
 ## process_management
 
 Lives under `misc.process_management` in resolved shards.
@@ -175,8 +163,7 @@ Lives under `misc.process_management` in resolved shards.
 | `shard_model_policy / context_building` | `"auto"` |
 | `context_building_threshold` | `{ lines: 500, files: 5 }` |
 | `context_building_timeout` | `60000` |
-| `arc_convergence_finding_threshold / arc_convergence_p2_threshold` | `0` |
-| `arc_convergence_improvement_ratio` | `0.5` |
+| `arc_convergence_{finding_threshold,p2_threshold,improvement_ratio}` | `0 / 0 / 0.5` |
 | `convergence.convergence_threshold / smart_scoring` | `0.7 / true` |
 | `pre_aggregate.enabled` | `true`; `threshold_bytes` `25000` |
 | `diff_scope.enabled / fix_pre_existing_p1 / tag_pre_existing` | `true`; `expansion` `8` |
@@ -206,13 +193,11 @@ Lives under `misc.teammate_lifecycle` in resolved shards.
 
 | Key | Value |
 |---|---|
-| `cleanup.enabled / process_cleanup / stale_lead_wakeup.enabled` | `true` |
-| `cleanup.grace_period_seconds / escalation_timeout_seconds` | `10 / 5` |
+| `cleanup.{enabled,process_cleanup} / stale_lead_wakeup.enabled` | `true` |
+| `cleanup.{grace_period_seconds,escalation_timeout_seconds}` | `10 / 5` |
 | `shutdown_signal_threshold / max_runtime_minutes` | `35 / 20` |
-| `max_turns.work / aggregation` | `60` |
-| `max_turns.research / utility` | `40` |
-| `max_turns.review` | `30` |
-| `max_turns.investigation / testing` | `0` (deprecated) |
+| `max_turns.{work,aggregation}` / `{research,utility}` / `review` | `60 / 40 / 30` |
+| `max_turns.{investigation,testing}` | `0` (deprecated) |
 | `stale_lead_wakeup.debounce_seconds` | `300` |
 
 ## testing
@@ -230,10 +215,6 @@ Lives under `misc.teammate_lifecycle` in resolved shards.
 | `history.flaky_threshold / pass_rate_drop_threshold / regression_threshold` | `0.1 / 0.05 / 7` |
 | `browser.ui_first / test_plan / infrastructure_discovery / report_out_of_scope` | `true` |
 
-## ux
-
-`industry: null`. UX subsystem retained for inspector heuristics; no user knobs consumed.
-
 ## work
 
 | Key | Value |
@@ -245,11 +226,8 @@ Lives under `misc.teammate_lifecycle` in resolved shards.
 | `pr_monitoring / skip_branch_check / worktree.enabled` | `false` |
 | `ward_commands` | `["make check","npm test"]` |
 | `sibling_awareness.enabled` | `true`; `max_sibling_files` `5` |
-| `task_decomposition.enabled` | `true` |
-| `task_decomposition.complexity_threshold / max_subtasks / model` | `5 / 4 / "haiku"` |
-| `worktree.auto_cleanup` | `true` |
-| `worktree.conflict_resolution / merge_strategy` | `"escalate" / "sequential"` |
-| `worktree.max_workers_per_wave` | `3` |
+| `task_decomposition.{enabled,complexity_threshold,max_subtasks,model}` | `true / 5 / 4 / "haiku"` |
+| `worktree.{auto_cleanup,conflict_resolution,merge_strategy,max_workers_per_wave}` | `true / "escalate" / "sequential" / 3` |
 
 ## reactions (schema v26)
 

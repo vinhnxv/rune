@@ -1,6 +1,6 @@
 # Worktree Mode Detection & MCP Integration Discovery
 
-<!-- v3.x: defaults baked from former talisman.work.worktree; see references/v3-defaults.md -->
+<!-- v3.x: defaults baked from former v2.x talisman config (work.worktree); see references/v3-defaults.md -->
 
 ## Worktree Mode Detection (Phase 0)
 

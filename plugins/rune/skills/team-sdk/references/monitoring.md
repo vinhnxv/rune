@@ -275,7 +275,7 @@ When force_shutdown is detected, the orchestrator must immediately:
 ## Stuck Worker Detection
 
 Workers that exceed `max_runtime_minutes` are flagged for intervention. v3.x bakes the
-threshold at 20 minutes (former `talisman.teammate_lifecycle.max_runtime_minutes`).
+threshold at 20 minutes (former v2.x talisman config: teammate_lifecycle.max_runtime_minutes).
 
 ```
 // Per poll cycle, after TaskList

@@ -34,7 +34,6 @@ The four-pillar essence (v3.0.0-alpha.3): `/rune:arc` + checkpoint framework, QA
 | **self-audit** | Meta-QA on Rune's own workflow system |
 | **cc-inspect** | Claude Code runtime environment inspector |
 | **skill-testing** | TDD methodology for skills |
-| **talisman** | Init, audit, update, configure `talisman.yml` — scaffolds project-specific config and explains every key |
 | **tarnished** | Master router — natural-language entry to all workflows |
 | **using-rune** | Workflow discovery and intent routing |
 | **status** | Background dispatch status |
@@ -88,7 +87,7 @@ Rune implements structural discipline enforcement across all pipelines. See `doc
 - Workers MUST write Worker Report (Echo-Back, Implementation Notes, Evidence, Self-Review) to task file
 - The Discipline Work Loop (8-phase convergence cycle) activates automatically when plans have YAML criteria
 - Plans without criteria degrade gracefully to existing linear execution
-- Default: BLOCK mode (`block_on_fail: true`). Opt out: `discipline.block_on_fail: false` in talisman
+- BLOCK mode is hardcoded in v3.x (`block_on_fail: true`) — no opt-out
 
 ## Core Rules
 
@@ -131,29 +130,19 @@ All agents MUST have `maxTurns` in their YAML frontmatter — platform-level saf
 | Investigation  | 20-40            |
 | Testing        | 15-40            |
 
-Override via `talisman.yml` → `teammate_lifecycle.max_turns.{category}`.
+Defaults are hardcoded in v3.x (see [references/v3-defaults.md](references/v3-defaults.md)) — no per-project override.
 
 ### Agent `model` Field — Intentional Omission
 
-Most agents intentionally omit the `model` field. When omitted → the agent inherits the spawning session's model. The orchestrator uses `resolveModelForAgent()` to dynamically select models based on `talisman.yml` → `cost_tier` setting. Hardcoding `model:` in every agent reduces flexibility.
+Most agents intentionally omit the `model` field. When omitted → the agent inherits the spawning session's model. The orchestrator uses `resolveModelForAgent()` to dynamically select models based on the v3.x hardcoded `cost_tier` (see [references/v3-defaults.md](references/v3-defaults.md)). Hardcoding `model:` in every agent reduces flexibility.
 
 See [cost-tier-mapping.md](references/cost-tier-mapping.md) for the full category-to-tier resolution logic.
 
 ## Core Pseudo-Functions
 
-### readTalisman() / readTalismanSection()
-
-Reads `.rune/talisman.yml` (project) → `$CHOME/talisman.yml` (global) → `{}`. Where `CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`.
-
-**Preferred**: Use `readTalismanSection(sectionName)` — reads pre-resolved JSON shards from `tmp/.talisman-resolved/`. Available shards: `arc`, `review`, `work`, `goldmask`, `plan`, `gates`, `settings`, `inspect`, `testing`, `audit`, `ux`, `misc`.
-
-**Rule**: Use SDK `Read()` — NEVER `Bash("cat ...")`. `Read()` auto-resolves `CLAUDE_CONFIG_DIR` and tilde.
-
-See [references/read-talisman.md](references/read-talisman.md).
-
 ### resolveModelForAgent()
 
-Centralized model selection based on `cost_tier` config. Maps agent name → category → tier → model string.
+Centralized model selection based on the v3.x hardcoded `cost_tier`. Maps agent name → category → tier → model string.
 
 **Tiers**: `opus` (all agents on strongest), `balanced` (default — truth-tellers on Opus, others on Sonnet/Haiku), `efficient` (Sonnet primary, Haiku for mechanical), `minimal` (Haiku for most, Sonnet for reasoning-heavy).
 
@@ -170,7 +159,7 @@ Every change to this plugin MUST include updates to all four files:
 
 ### Version Bumping Rules
 
-- **MAJOR**: Breaking changes to agent protocols, hook contracts, or talisman schema
+- **MAJOR**: Breaking changes to agent protocols or hook contracts
 - **MINOR**: New agents, skills, commands, or workflow features
 - **PATCH**: Bug fixes, doc updates, minor improvements
 
@@ -190,7 +179,7 @@ Every change to this plugin MUST include updates to all four files:
 
 ## CLI-Backed Ashes
 
-External models can participate in the Roundtable Circle as CLI-backed Ashes. Define in `talisman.yml` → `ashes.custom[]` with `cli:` field. When `cli:` is present, `agent` and `source` become optional. Subject to `max_cli_ashes` sub-cap (default: 2) within `max_ashes`. Prompt generated from `external-model-template.md` with ANCHOR/RE-ANCHOR Truthbinding and 4-step Hallucination Guard.
+External models can participate in the Roundtable Circle as CLI-backed Ashes. The `ashes.custom[]` registry is no longer user-configurable in v3.x — custom Ashes must be wired directly in the orchestration layer with the `cli:` field. When `cli:` is present, `agent` and `source` become optional. Subject to the v3.x hardcoded `max_cli_ashes` sub-cap (see [references/v3-defaults.md](references/v3-defaults.md)) within `max_ashes`. Prompt generated from `external-model-template.md` with ANCHOR/RE-ANCHOR Truthbinding and 4-step Hallucination Guard.
 
 **References**: [custom-ashes.md](skills/roundtable-circle/references/custom-ashes.md), [external-model-template.md](skills/roundtable-circle/references/external-model-template.md).
 
@@ -298,7 +287,7 @@ echo "Commands: $(find plugins/rune/commands -name '*.md' -not -path '*/referenc
 - [Key concepts](references/key-concepts.md) — Tarnished, Ash, TOME, Arc, Mend, Forge Gaze
 - [Lore glossary](references/lore-glossary.md) — Elden Ring terminology mapping
 - [Output conventions](references/output-conventions.md)
-- [Configuration](references/configuration-guide.md) — talisman.yml schema and defaults
+- [v3.x Defaults](references/v3-defaults.md) — inventory of baked-in former-config values
 - [Session handoff](references/session-handoff.md)
 - [Delegation checklist](skills/arc/references/arc-delegation-checklist.md)
 - [Persuasion guide](references/persuasion-guide.md)

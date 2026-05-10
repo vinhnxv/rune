@@ -1,4 +1,4 @@
-<!-- v3.x: defaults baked from former talisman.gates.quality_commands; see references/v3-defaults.md -->
+<!-- v3.x: defaults baked from former v2.x talisman config (gates.quality_commands); see references/v3-defaults.md -->
 
 # Quality Gate — Phase 5
 

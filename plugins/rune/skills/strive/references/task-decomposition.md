@@ -1,6 +1,6 @@
 # Task Decomposition — strive Phase 1.1 Reference
 
-<!-- v3.x: defaults baked from former talisman.work.task_decomposition; see references/v3-defaults.md -->
+<!-- v3.x: defaults baked from former v2.x talisman config (work.task_decomposition); see references/v3-defaults.md -->
 
 LLM-driven task classification and decomposition. Runs in Phase 1 after
 `extractFileTargets()` and `scoreTaskComplexity()` complete, but **before**

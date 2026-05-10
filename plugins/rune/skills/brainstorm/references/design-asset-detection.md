@@ -1,6 +1,6 @@
 # Phase 3.5: Design Asset Detection (conditional, all modes)
 
-<!-- v3.x: defaults baked from former talisman.misc.design_sync; see references/v3-defaults.md -->
+<!-- v3.x: defaults baked from former v2.x talisman config (misc.design_sync); see references/v3-defaults.md -->
 
 Reuse existing Figma URL detection pattern:
 

@@ -96,7 +96,7 @@ if (goldmaskEnabled && loreEnabled && isGitRepo && !flags['--no-lore']) {
 ## Doubt Seer — Phase 4.5 (disabled in v3.x)
 
 The Doubt Seer cross-examination phase is disabled by default in v3.x
-(former `talisman.gates.doubt_seer.enabled` default: `false`). No code path
+(former v2.x talisman config: gates.doubt_seer.enabled, default: `false`). No code path
 spawns the doubt-seer agent. Proceed directly to Phase 5 (Aggregate).
 
 ## Deep Investigation Pass (Phase 5.6)

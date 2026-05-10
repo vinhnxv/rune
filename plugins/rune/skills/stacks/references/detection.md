@@ -434,7 +434,7 @@ prioritize(specialist_selections, max_stack_ashes):
 
 ## Stack Override (v3.x: removed)
 
-Earlier versions allowed a `talisman.stack_awareness.override` block to short-circuit
+Earlier versions allowed a v2.x talisman config (stack_awareness.override) block to short-circuit
 detection. v3.x removes the override mechanism entirely — `detectStack()` is always
 the source of truth. If the manifest scan misclassifies a project, fix the detector
 in this file rather than reintroducing a config-layer escape hatch.

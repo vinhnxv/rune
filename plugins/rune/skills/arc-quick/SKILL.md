@@ -187,7 +187,7 @@ if (isComplex && !force) {
 ### Step 5: Phase 2 --- WORK + EVALUATE LOOP
 
 ```javascript
-// v3.x: defaults baked from former talisman.arc.quick; see references/v3-defaults.md
+// v3.x: defaults baked from former v2.x talisman config (arc.quick); see references/v3-defaults.md
 let maxIterations = 3
 let skipEvaluate = false
 

@@ -14,7 +14,7 @@ Before entering --apply mode:
 
 ## Eligibility Criteria
 
-<!-- v3.x: defaults baked from former talisman.misc.self_audit.apply_mode; see references/v3-defaults.md -->
+<!-- v3.x: defaults baked from former v2.x talisman config (misc.self_audit.apply_mode); see references/v3-defaults.md -->
 
 Not all findings produce proposals. A finding must meet ALL of:
 

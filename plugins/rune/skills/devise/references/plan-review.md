@@ -59,7 +59,7 @@ After scroll review and refinement, run deterministic checks with zero LLM hallu
 
 ```javascript
 // v3.x: plan.verification_patterns defaults to []; project-specific custom patterns
-// would have been read from talisman.plan.verification_patterns in v2.x.
+// would have been read from v2.x talisman config (plan.verification_patterns) in v2.x.
 const customPatterns = []
 
 // 2. Run custom patterns (if configured)

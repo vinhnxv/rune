@@ -293,7 +293,7 @@ fileGroups = {
 
 ## Scope-Aware Priority Filtering
 
-<!-- v3.x: defaults baked from former talisman.review.diff_scope; see references/v3-defaults.md -->
+<!-- v3.x: defaults baked from former v2.x talisman config (review.diff_scope); see references/v3-defaults.md -->
 
 When findings have `scope` attributes (from review.md Phase 5.3 diff-scope tagging), apply scope-aware priority to focus mend budget on PR-relevant findings:
 
