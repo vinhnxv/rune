@@ -139,26 +139,22 @@ This lets Rune agents use external tools during workflows like planning, impleme
 MCP servers provide AI-accessible tools via a standard protocol. Rune integrates these
 at the workflow level — controlling which phases can use which tools, and when to activate them.
 
-### 3 Levels of Integration
+### v3.x Integration Model
+
+Rune v3.x has **two tiers** of MCP integration:
 
 ```
-Level 1 (Basic): .mcp.json only
-├── Tools available to Claude but NOT workflow-aware
-├── No phase routing, no trigger conditions
+Tier 1 (Basic): .mcp.json only
+├── Tools available to Claude across all sessions
+├── No workflow-aware routing in v3.x (the former talisman.yml integrations
+│   layer was removed in v3.0.0-alpha.4)
 └── Example: claude mcp add --transport http my-tool https://api.example.com
 
-Level 2 (Talisman): + integrations.mcp_tools in talisman.yml
-├── Phase routing: which Rune phases can use the tools (devise/strive/forge/arc...)
-├── Trigger conditions: auto-activate based on file types, paths, keywords
-├── Skill binding: auto-load companion skill when active
-└── Rules injection: inject project-specific rules into agent prompts
-
-Level 3 (Full): + companion skill + rules files + metadata
-├── Dedicated skill with deep domain knowledge
-├── Project-specific rules for quality enforcement
-├── Metadata for discoverability (library name, homepage, MCP endpoint)
-└── No bundled reference implementation (the prior untitledui-mcp example
-    was removed in v3.0.0-alpha.1; pattern documented but not shipped)
+Tier 2 (Full): + companion skill that carries domain knowledge
+├── A skill with `name: <tool>-mcp` (e.g., `untitledui-mcp` pattern from v2.x)
+├── The skill describes when and how Rune agents should call the MCP tools
+└── No bundled reference implementation in v3.x — the pattern is documented
+    but not shipped.
 ```
 
 ### Setting Up an MCP Integration
@@ -168,42 +164,17 @@ Level 3 (Full): + companion skill + rules files + metadata
 claude mcp add --transport http my-tool https://api.example.com
 ```
 
-**Step 2**: Configure in talisman (for workflow-aware integration)
-```yaml
-# .rune/talisman.yml
-integrations:
-  mcp_tools:
-    my-tool:
-      server_name: "my-tool"
-      tools:
-        - name: "search_items"
-          category: "search"
-        - name: "get_item_details"
-          category: "details"
-      phases:
-        devise: true     # Available during planning
-        strive: true     # Available during implementation
-        forge: true      # Available during enrichment
-      trigger:
-        extensions: [".tsx", ".jsx"]
-        keywords: ["frontend", "ui"]
-```
-
-<!-- Removed in v3.0.0-alpha.1: UntitledUI Canonical MCP Integration Example.
-     The companion skill `untitledui-mcp` and the dependent `design-system-discovery`
-     skill were both removed in alpha.1. Level 3 MCP integration tier currently has
-     no shipped reference implementation. -->
-
-**Key functions** (used by strive, devise, forge):
-- `resolveMCPIntegrations(phase, context)` — triple-gated activation (config + phase + trigger)
-- `buildMCPContextBlock(integrations)` — generates prompt injection for agents
+**Step 2**: (Optional) Add a companion skill at `plugins/rune/skills/<tool>-mcp/SKILL.md`
+or `.claude/skills/<tool>-mcp/SKILL.md` describing the tool surface and usage patterns.
+Without a companion skill, agents can still call MCP tools but lack project-specific
+guidance.
 
 ### MCP Integration Tips
 
-For MCP integration troubleshooting in v3.x: edit `.mcp.json` directly and validate JSON syntax. The legacy `/rune:talisman` configurator was removed in v3.0.0-alpha.4.
-
-1. The `trigger.always: true` setting forces the integration active for all matching phases
-2. File-based triggers (`extensions`, `paths`) only fire during strive/forge (not devise, since no files exist yet during planning)
+For MCP integration troubleshooting in v3.x: edit `.mcp.json` directly and validate JSON
+syntax. The legacy `/rune:talisman` configurator was removed in v3.0.0-alpha.4 — there is
+no `talisman.yml` config layer to inspect. See [`v3-defaults.md`](../../../references/v3-defaults.md)
+for the `integrations` defaults inventory.
 
 ## Common Pitfalls & Tips
 

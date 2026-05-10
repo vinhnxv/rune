@@ -501,7 +501,7 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 |-------|---------|
 | Prompt Linter | Lints agent definition files for consistency (15 rules) |
 | Workflow Auditor | Audits arc workflow definitions for structural integrity |
-| Rule Consistency Auditor | Detects contradictions between CLAUDE.md, skills, and talisman |
+| Rule Consistency Auditor | Detects contradictions between CLAUDE.md and skills |
 | Hook Integrity Auditor | Validates hooks.json entries match actual scripts |
 | Improvement Advisor | Generates fix proposals for meta-QA findings |
 | Hallucination Detector | Detects phantom claims and evidence fabrication in arc artifacts |
@@ -567,7 +567,6 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | `test-browser` | Testing | Standalone browser E2E testing (no agent teams) |
 | `untitledui-mcp` | Integration | UntitledUI MCP integration (6 tools, builder-protocol) |
 | `ux-design-process` | Intelligence | UX design methodology (heuristic evaluation, flow validation) |
-| `talisman` | Configuration | Deep talisman.yml management (init, audit, update, guide, status) |
 | `cc-inspect` | Workflow | Run Claude Code built-in inspection script |
 | `discipline` | Quality | Proof-based orchestration discipline for spec compliance |
 | `post-findings` | Workflow | Post review findings to GitHub PR as formatted comment |
@@ -587,113 +586,14 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 
 ## Configuration
 
-Rune is configured via `talisman.yml` (dozens of top-level sections, 100+ keys):
+Rune v3.x ships with hardcoded defaults — there is no `talisman.yml` config layer. See [`plugins/rune/references/v3-defaults.md`](plugins/rune/references/v3-defaults.md) for the full inventory of baked-in values across `arc`, `audit`, `devise`, `gates`, `goldmask`, `inspect`, `integrations`, `misc`, `plan`, `pr_comment`, `process_management`, `review`, `settings`, `teammate_lifecycle`, `testing`, `ux`, and `work` sections.
 
-```bash
-# Project-level (highest priority)
-.rune/talisman.yml
+To deviate from a baked default, use one of the override paths documented in [`v3-defaults.md`](plugins/rune/references/v3-defaults.md):
 
-# User-global
-~/.rune/talisman.yml
-```
+1. **Per-session env vars** — A subset of defaults are env-readable (`${VAR:-default}` patterns in scripts). Set the env var in `.envrc` or your shell profile.
+2. **Local fork of an agent definition** — Custom Ashes are wired in the orchestration layer rather than configured. Place your custom agent at `.claude/agents/<name>.md` and update the relevant skill's summon list. See [`custom-ashes.md`](plugins/rune/skills/roundtable-circle/references/custom-ashes.md) for the wiring contract.
 
-<details>
-<summary>Example configuration</summary>
-
-```yaml
-version: 1
-
-# File classification — decides which Ashes get summoned
-rune-gaze:
-  backend_extensions: [.py]
-  skip_patterns: ["**/migrations/**", "**/__pycache__/**"]
-
-# Work execution
-work:
-  ward_commands: ["ruff check .", "mypy .", "pytest --tb=short -q"]
-  max_workers: 3
-
-# Arc pipeline
-arc:
-  timeouts:
-    forge: 900000               # 15 min
-    work: 2100000               # 35 min
-    code_review: 900000         # 15 min
-  ship:
-    auto_pr: true
-    merge_strategy: "squash"
-
-# Review settings
-review:
-  diff_scope:
-    enabled: true
-    expansion: 8
-
-# Goldmask impact analysis
-goldmask:
-  enabled: true
-  devise:
-    depth: enhanced             # basic | enhanced | full
-
-# Cross-model verification
-
-# Custom Ashes
-ashes:
-  custom:
-    - name: "my-reviewer"
-      agent: "my-custom-agent"
-      source: ".claude/agents/my-custom-agent.md"
-```
-</details>
-
-See [`plugins/rune/references/v3-defaults.md`](plugins/rune/references/v3-defaults.md) for the full v3.x defaults catalog.
-
----
-
-
-## MCP Tool Integrations (Optional)
-
-Rune supports third-party MCP servers for component libraries and design tools. Declare them in `talisman.yml` and Rune routes them into the right workflow phases automatically.
-
-### UI Builder Protocol (v1.133.0+)
-
-The **UI Builder Protocol** integrates any component library MCP (UntitledUI, shadcn/ui, custom) into Rune's full pipeline — planning, implementation, design sync, and code review:
-
-| Integration Point | What happens |
-|------------------|-------------|
-| `/rune:devise` | Plan includes `ui_builder` frontmatter section + Component Strategy |
-| `/rune:strive` | Workers injected with builder workflow (search → get → customize) |
-| `/rune:design-sync` | Phase 1.5 Component Match: reference code → library search → annotated VSM |
-| `/rune:appraise` | Compliance reviewer generates `DSYS-BLD-*` findings for convention violations |
-
-**UntitledUI** is supported out of the box — register the MCP server and add talisman config. No project skill needed.
-
-**shadcn/ui and custom libraries**: create a builder skill with `builder-protocol` frontmatter.
-
-```yaml
-# .rune/talisman.yml — minimal builder integration
-integrations:
-  mcp_tools:
-    untitledui:
-      server_name: "untitledui"
-      tools:
-        - { name: "search_components", category: "search" }
-        - { name: "get_component", category: "details" }
-      phases: { devise: true, strive: true, arc: true }
-      skill_binding: "untitledui-mcp"   # built-in plugin skill
-      trigger:
-        extensions: [".tsx", ".ts"]
-        keywords: ["ui", "component"]
-        always: false
-```
-
-See [docs/guides/ui-builder-protocol.en.md](docs/guides/ui-builder-protocol.en.md) for the full developer guide.
-
-### MCP Integration Framework (v1.131.0+)
-
-Declarative `integrations.mcp_tools` talisman config routes any MCP tool into the right workflow phases, with trigger conditions, rules injection, and companion skill auto-loading.
-
-See [docs/guides/mcp-integration-spec.en.md](docs/guides/mcp-integration-spec.en.md) for the full spec (3 integration levels, schema reference, trigger system, worked examples).
+> **Migration note for v2.x users:** Existing `.rune/talisman.yml` is silently ignored in v3.x. SessionStart warns once when this file is detected. To restore prior behavior, pin to v2.x in your `marketplace.json`.
 
 ---
 
@@ -738,7 +638,6 @@ Every Rune workflow is an explicit state machine with named phases, conditional 
 | **Tarnished** | The orchestrator/lead agent that coordinates workflows |
 | **Ash** | Any teammate agent (reviewer, worker, researcher) |
 | **TOME** | Aggregated findings document from a review |
-| **Talisman** | Configuration file (`talisman.yml`) |
 | **Forge Gaze** | Topic-aware agent matching for plan enrichment |
 | **Rune Echoes** | 5-tier persistent agent memory (`.rune/echoes/`) |
 | **Inscription** | Contract file (`inscription.json`) for agent coordination |

@@ -242,21 +242,12 @@ load [rune-knowledge.md](references/rune-knowledge.md) and provide educational g
   Route to: `Skill("rune:ash-guide")`
 
 → For "force agent" / "always use agent" / "always run agent":
-  Explain `trigger.always` in `ashes.custom[].trigger`:
-  ```yaml
-  ashes:
-    custom:
-      - name: "compliance-reviewer"
-        agent: "compliance-reviewer"
-        source: local
-        workflows: [review, audit]
-        trigger:
-          always: true  # Always summoned, regardless of file types
-        context_budget: 20
-        finding_prefix: "COMP"
-  ```
-  Note: `trigger.always` agents receive all changed files up to `context_budget`.
-  They are still subject to `max_ashes` hard limit but are last to be trimmed.
+  In v3.x, custom Ashes are wired in the orchestration layer rather than configured.
+  Route to: `plugins/rune/skills/roundtable-circle/references/custom-ashes.md` for the
+  `cli:` field contract and `trigger.always` semantics. Guide the user to create the
+  agent at `.claude/agents/<name>.md` and update the relevant skill's summon list.
+  The legacy `ashes.custom[]` YAML block was removed in v3.0.0-alpha.4 alongside the
+  `talisman.yml` config layer.
 
 ### Troubleshooting
 ```
