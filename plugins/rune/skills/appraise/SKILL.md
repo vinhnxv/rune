@@ -1,11 +1,11 @@
 ---
 name: appraise
 description: |
-  Multi-agent code review using Agent Teams. Summons up to 7 built-in Ashes in standard mode
-  (plus custom Ash from talisman.yml), each with their own dedicated context window.
+  Multi-agent code review using Agent Teams. Summons up to 7 built-in Ashes in standard mode,
+  each with their own dedicated context window.
   Handles scope selection, team creation, review orchestration, aggregation, verification, and cleanup.
   Optional `--deep` runs multi-wave deep review with up to 18 Ashes across 3 waves.
-  Phase 1.5 adds UX reviewers when `talisman.ux.enabled` + frontend files detected.
+  Phase 1.5 adds UX reviewers when frontend files are detected (UX subsystem hardcoded in v3.x).
   Phase 1.7 adds data flow integrity reviewer (FLOW prefix) when 2+ stack layers detected in diff.
 user-invocable: true
 disable-model-invocation: false
@@ -73,7 +73,7 @@ const params = {
   workflow: "rune-review",
   focusArea: "full",                       // Appraise has no --focus flag
   // + configDir, ownerPid, sessionId (session isolation)
-  // + selectedAsh, fileList, maxAgents, flags, talisman
+  // + selectedAsh, fileList, maxAgents, flags
 }
 ```
 
@@ -145,35 +145,33 @@ After file collection — route to chunked path if `changed_files.length > CHUNK
 
 ## Phase 0.3: Context Intelligence
 
-Gathers PR metadata and linked issue context. Injects `contextIntel` into inscription.json (Phase 2). Includes `sanitizeUntrustedText()` for CDX-001/CVE-2021-42574 protection. Skipped when no `gh` CLI, `--partial`, or disabled in talisman.
+Gathers PR metadata and linked issue context. Injects `contextIntel` into inscription.json (Phase 2). Includes `sanitizeUntrustedText()` for CDX-001/CVE-2021-42574 protection. Skipped when no `gh` CLI or `--partial`. Always enabled in v3.x.
 
 ## Phase 0.4: Linter Detection
 
-Discovers project linters (eslint, prettier, ruff, clippy, etc.) to suppress duplicate findings. SEC-*/VEIL-* findings are NEVER suppressed. Configurable via `talisman.review.linter_awareness`.
+Discovers project linters (eslint, prettier, ruff, clippy, etc.) to suppress duplicate findings. SEC-*/VEIL-* findings are NEVER suppressed. Always enabled in v3.x.
 
-See [phase-0.3-0.4-context-and-linter.md](references/phase-0.3-0.4-context-and-linter.md) for full pseudocode, sanitization function, and talisman config.
+See [phase-0.3-0.4-context-and-linter.md](references/phase-0.3-0.4-context-and-linter.md) for full pseudocode and sanitization function.
 
 ## Phase 0.5: Lore Layer (Risk Intelligence)
 
 Runs BEFORE team creation. Summons `lore-analyst` as a bare Agent (no team yet — ATE-1 exemption). Outputs `risk-map.json` and `lore-analysis.md`. Re-sorts `changed_files` by risk tier (CRITICAL → HIGH → MEDIUM → LOW → STALE).
 
-**Skip conditions**: non-git repo, `--no-lore`, `talisman.goldmask.layers.lore.enabled === false`, fewer than 5 commits in lookback window (G5 guard).
+**Skip conditions**: non-git repo, `--no-lore`, fewer than 5 commits in lookback window (G5 guard). Lore layer is enabled by default in v3.x.
 
+<!-- v3.x: defaults baked from former talisman.review; see references/v3-defaults.md -->
 ## Phase 0.6: Context Building (Conditional)
 
 Runs BEFORE team creation. Spawns `context-builder` as a bare Agent (no TaskCreate, no team_name — same pattern as Phase 0.5 Lore Layer). Produces `context-map.md` for injection into Ash prompts.
 
-**Gate logic** (talisman `review.context_building`):
+**Gate logic** (hardcoded in v3.x):
 ```
-const reviewConfig = readTalismanSection("review")
-const contextBuilding = reviewConfig?.context_building ?? "auto"
-const threshold = reviewConfig?.context_building_threshold ?? { lines: 500, files: 5 }
-const timeoutMs = reviewConfig?.context_building_timeout ?? 60000
+const contextBuilding = "auto"
+const threshold = { lines: 500, files: 5 }
+const timeoutMs = 60000
 
-if (contextBuilding === "never") → skip
 if (flags['--dry-run']) → skip
-if (contextBuilding === "always") → run
-if (contextBuilding === "auto" && (diffLineCount > threshold.lines || fileCount >= threshold.files)) → run
+if (diffLineCount > threshold.lines || fileCount >= threshold.files) → run
 else → skip("[Context] Skipped — diff below threshold ({diffLineCount} lines, {fileCount} files)")
 ```
 
@@ -217,7 +215,7 @@ CONSTRAINTS:
   model: "sonnet"
 })
 
-// Check timeout after blocking call returns (timeoutMs from talisman, default 60000)
+// Check timeout after blocking call returns (timeoutMs hardcoded to 60000 in v3.x)
 // Known limitation: context_building_timeout is a soft budget advisory via prompt instruction,
 // not a hard platform-level timeout. The Agent tool does not support explicit timeouts.
 const contextElapsed = Date.now() - contextStartTime
@@ -240,7 +238,7 @@ try {
 }
 ```
 
-**Skip conditions**: `--dry-run`, `review.context_building === "never"`, diff below auto thresholds.
+**Skip conditions**: `--dry-run`, diff below auto thresholds (500 lines / 5 files).
 
 ## Phase 1: Rune Gaze (Scope Selection)
 
@@ -256,7 +254,7 @@ See [phase-2-forge-team.md](references/phase-2-forge-team.md) for full pseudocod
 
 ## Phase 3: Summon Ash
 
-Read and execute [ash-summoning.md](references/ash-summoning.md) for the full prompt generation contract, inscription contract, talisman custom Ashes, CLI-backed Ashes, and elicitation sage security context.
+Read and execute [ash-summoning.md](references/ash-summoning.md) for the full prompt generation contract, inscription contract, custom Ashes, CLI-backed Ashes, and elicitation sage security context.
 
 **Key rules:**
 - Summon ALL selected Ash in a **single message** (parallel execution)
@@ -288,8 +286,8 @@ for iteration in 1..MAX_ITERATIONS:
 Read and execute [tome-aggregation.md](references/tome-aggregation.md) for the full Runebinder aggregation, Doubt Seer cross-examination, diff-scope tagging, and Truthsight verification protocols.
 
 **Summary of phases:**
-- **Phase 4.5 (Doubt Seer)**: Conditional. Strict opt-in (`talisman.doubt_seer.enabled = true`). Cross-examines P1/P2 findings. 5-min timeout. VERDICT: BLOCK sets `workflow_blocked` flag.
-- **Phase 5 (Runebinder)**: Aggregates all Ash findings. Deduplicates using the canonical hierarchy in `talisman-defaults.json` → `settings.dedup_hierarchy` (default order: `SEC > BACK > VEIL > DOUBT > PY > TSR > RST > PHP > FAPI > DJG > LARV > SQLA > TDD > DDD > DI > API > DOM > PERF > FLOW > DOC > QUAL > FRONT > DES > AESTH > UXF > UXC > CDX`). Writes `TOME.md`. Every finding MUST be wrapped in `<!-- RUNE:FINDING ... -->` markers for mend parsing. (UXH/UXI retired in v3.0.0-alpha.3 — see CHANGELOG.)
+- **Phase 4.5 (Doubt Seer)**: Disabled by default in v3.x (`doubt_seer.enabled = false`). When enabled, cross-examines P1/P2 findings with 5-min timeout. VERDICT: BLOCK sets `workflow_blocked` flag.
+- **Phase 5 (Runebinder)**: Aggregates all Ash findings. Deduplicates using the canonical v3.x dedup hierarchy: `SEC > BACK > VEIL > DOUBT > PY > TSR > RST > PHP > FAPI > DJG > LARV > SQLA > TDD > DDD > DI > API > DOM > PERF > FLOW > DOC > QUAL > FRONT > DES > AESTH > UXF > UXC > CDX` (hardcoded — see references/v3-defaults.md `settings.dedup_hierarchy`). Writes `TOME.md`. Every finding MUST be wrapped in `<!-- RUNE:FINDING ... -->` markers for mend parsing. (UXH/UXI retired in v3.0.0-alpha.3 — see CHANGELOG.)
 - **Phase 5.3 (Diff-Scope Tagging)**: Orchestrator-only. Tags findings with `scope="in-diff"` or `scope="pre-existing"`.
 - **Phase 6 (Truthsight)**: Layer 0 inline checks + Layer 2 verifier for P1 findings.
 

@@ -20,7 +20,7 @@ allowed-tools:
 
 # /rune:post-findings -- Post Review Findings to GitHub PR
 
-Post structured review findings from a TOME file to a GitHub PR as a formatted, collapsible markdown comment. Supports auto-detection of TOME path and PR number, talisman-based filtering, dry-run preview, and idempotency.
+Post structured review findings from a TOME file to a GitHub PR as a formatted, collapsible markdown comment. Supports auto-detection of TOME path and PR number, baked-in v3.x severity filtering, dry-run preview, and idempotency.
 
 ## Usage
 
@@ -111,21 +111,19 @@ if (!/^[1-9]\d*$/.test(prNumber)) {
 }
 ```
 
-### Phase 3: Read Talisman Config
+### Phase 3: Filter Defaults (v3.x baked-in)
+
+<!-- v3.x: defaults baked from former talisman.pr_comment; see references/v3-defaults.md -->
 
 ```javascript
-// Read pr_comment config for filtering preferences
-// readTalismanSection reads pre-resolved JSON shards from tmp/.talisman-resolved/
-const config = readTalismanSection("pr_comment") || {}
-
-// Apply defaults
-const severityFilter = config.severity_filter || ["P1", "P2"]
-const confidenceThreshold = config.confidence_threshold || 50
-const maxFindings = config.max_findings || 30
-const includeTraces = config.include_traces !== false
-const includeFixSuggestions = config.include_fix_suggestions !== false
-const collapseThreshold = config.collapse_threshold || 5
-const showFooter = config.footer !== false
+// v3.x bakes pr_comment defaults — there is no user config layer.
+const severityFilter = ["P1", "P2"]
+const confidenceThreshold = 50
+const maxFindings = 30
+const includeTraces = true
+const includeFixSuggestions = true
+const collapseThreshold = 5
+const showFooter = true
 ```
 
 ### Phase 4: Parse TOME

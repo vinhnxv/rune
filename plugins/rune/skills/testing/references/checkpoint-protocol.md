@@ -90,10 +90,10 @@ updateHeartbeat(id, checkpoint):
 
 ### Heartbeat Timing
 
-| Parameter | Source | Default |
-|-----------|--------|---------|
-| `checkpoint_interval_ms` | `talisman.testing.extended_tier.checkpoint_interval_ms` | 300,000 (5 min) |
-| `stale_threshold_multiplier` | `talisman.testing.extended_tier.stale_threshold_multiplier` | 2 |
+| Parameter | v3.x value |
+|-----------|------------|
+| `checkpoint_interval_ms` | 300,000 (5 min) |
+| `stale_threshold_multiplier` | 2 |
 
 **Heartbeat schedule**: Updated at every `checkpoint_interval_ms`, regardless of scenario
 progress. The runner updates heartbeat even if no scenario has completed since the last
@@ -110,7 +110,8 @@ The orchestrator detects stalled runners via heartbeat age:
 
 ```
 isStale(checkpoint, checkpointInterval):
-  staleMultiplier = talismanConfig.testing?.extended_tier?.stale_threshold_multiplier ?? 2
+  // v3.x: stale_threshold_multiplier is baked at 2
+  staleMultiplier = 2
   heartbeatAge = Date.now() - Date.parse(checkpoint.last_heartbeat)
   staleThreshold = checkpointInterval * staleMultiplier
 
@@ -136,7 +137,7 @@ effectiveBudget = Math.min(extendedBudget, remainingBudget())
 ```
 
 Where:
-- `extendedBudget` = `talisman.testing.extended_tier.timeout_ms` (default: 3,600,000ms = 60min)
+- `extendedBudget` = `3,600,000` ms (60 min) — v3.x baked
 - `remainingBudget()` = phase 7.7 inner budget minus time already consumed by STEPS 0-7
 
 ### Per-Scenario Timeout
@@ -145,9 +146,8 @@ Each scenario has an individual timeout to prevent a single scenario from consum
 the entire budget:
 
 ```
-max_scenario_duration_ms = scenario.timeout_ms
-                        ?? talisman.testing.extended_tier.max_scenario_duration_ms
-                        ?? 600_000  // 10 min default
+// v3.x: per-scenario default is 600_000ms (10 min)
+max_scenario_duration_ms = scenario.timeout_ms ?? 600_000
 ```
 
 If a scenario exceeds its timeout, the runner:
@@ -309,19 +309,17 @@ aggregateCheckpoints(id, scenarioNames):
 ```
 
 Default is sequential execution. Parallel opt-in via `scenario.parallel: true`.
-Max concurrent runners: `talisman.testing.extended_tier.max_concurrent ?? 2`.
+Max concurrent runners: `2` (v3.x baked).
 
-## Talisman Configuration
+## v3.x Baked Defaults
 
-```yaml
-testing:
-  extended_tier:
-    enabled: false                     # Default: disabled (backward-compatible)
-    timeout_ms: 3600000                # 60 min default budget
-    checkpoint_interval_ms: 300000     # 5 min heartbeat interval
-    stale_threshold_multiplier: 2      # 2x interval = stale
-    max_scenario_duration_ms: 600000   # 10 min per-scenario cap
-    max_concurrent: 2                  # Max parallel scenario runners
-```
+| Key | Value |
+|-----|-------|
+| `extended_tier.enabled` | `false` (backward-compatible — extended tier off by default) |
+| `extended_tier.timeout_ms` | `3_600_000` (60 min) |
+| `extended_tier.checkpoint_interval_ms` | `300_000` (5 min) |
+| `extended_tier.stale_threshold_multiplier` | `2` |
+| `extended_tier.max_scenario_duration_ms` | `600_000` (10 min) |
+| `extended_tier.max_concurrent` | `2` |
 
-All configuration keys have defaults matching current behavior (no extended tier = skip).
+See `plugins/rune/references/v3-defaults.md` for the canonical list.

@@ -11,6 +11,8 @@ description: |
 user-invocable: true
 ---
 
+<!-- v3.x: defaults baked from former talisman.misc; see references/v3-defaults.md -->
+
 # Supply Chain Audit
 
 Standalone skill for analyzing the supply chain threat landscape of a project's direct dependencies.
@@ -29,7 +31,7 @@ Standalone skill for analyzing the supply chain threat landscape of a project's 
 
 | Flag | Effect |
 |------|--------|
-| `--max N` | Maximum dependencies to analyze (default: 50, from talisman) |
+| `--max N` | Maximum dependencies to analyze (default: 50) |
 | `--manager TYPE` | Force package manager: npm, pip, cargo, go, composer |
 
 ## Workflow
@@ -39,18 +41,9 @@ const args = "$ARGUMENTS".trim()
 const maxFlag = args.match(/--max\s+(\d+)/)
 const managerFlag = args.match(/--manager\s+(\w+)/)
 
-// Read talisman config
-// readTalismanSection: "misc"
-const talismanMisc = readTalismanSection("misc") ?? {}
-const supplyChainConfig = talismanMisc.supply_chain ?? {}
-
-if (supplyChainConfig.enabled === false) {
-  log("Supply chain audit is disabled in talisman. Set supply_chain.enabled: true to enable.")
-  return
-}
-
-const maxDeps = maxFlag ? parseInt(maxFlag[1]) : (supplyChainConfig.max_dependencies ?? 50)
-const riskThreshold = supplyChainConfig.risk_threshold ?? "medium"
+// v3.x: defaults baked-in; see references/v3-defaults.md
+const maxDeps = maxFlag ? parseInt(maxFlag[1]) : 50
+const riskThreshold = "medium"
 
 // Step 1: Auto-detect package manager
 const manifests = {
@@ -181,18 +174,19 @@ The skill produces a formatted risk report directly in the conversation with:
 - Alternative package suggestions for high-risk dependencies
 - Packages that could not be analyzed (API failures)
 
-## Talisman Configuration
+## Configuration (v3.x baked-in defaults)
 
-```yaml
-# .rune/talisman.yml
-supply_chain:
-  enabled: true              # Enable supply chain analysis
-  max_dependencies: 50       # Cap on dependencies to analyze
-  risk_threshold: "medium"   # Minimum risk level to report: low|medium|high
-  registries:                # Override registry API endpoints (optional)
-    npm: "https://registry.npmjs.org"
-    pypi: "https://pypi.org/pypi"
-```
+In v3.x there is no `talisman.yml` user config layer — these values are inlined at the consumer call sites above:
+
+| Key | Value |
+|---|---|
+| `enabled` | `true` (always on) |
+| `max_dependencies` | `50` |
+| `risk_threshold` | `"medium"` |
+| `registries.npm` | `"https://registry.npmjs.org"` |
+| `registries.pypi` | `"https://pypi.org/pypi"` |
+
+See [references/v3-defaults.md](../../references/v3-defaults.md) for the canonical source-of-truth.
 
 ## Error Handling
 

@@ -1,3 +1,5 @@
+<!-- v3.x: defaults baked from former talisman.devise/design_sync/stack_awareness; see references/v3-defaults.md -->
+
 # Stack Detection Engine
 
 Deterministic tech stack detection from project manifest files. Zero LLM cost.
@@ -100,37 +102,30 @@ detectStack(repoRoot):
   # Step 5: Design system sub-pipeline
   # Runs after framework detection so stack.languages and stack.frameworks are populated.
   # Sequential (not parallel) — shares evidence_files with parent stack for unified provenance.
-  # Gated by talisman.devise.design_system_discovery.enabled (default: true).
+  # v3.x: design system discovery is always on for frontend stacks (no opt-out flag).
   is_frontend = (
     stack.languages intersects ["typescript", "javascript"]
     AND stack.frameworks intersects ["react", "nextjs", "vuejs", "nuxt", "vite", "svelte", "astro", "remix", "solidjs", "qwik", "react-native", "expo"]
   )
 
   if is_frontend:
-    talisman = readTalismanSection("devise")
-    dsd_enabled = talisman?.design_system_discovery?.enabled ?? true
+    # discoverDesignSystem() is a sub-pipeline defined in design-system-discovery skill.
+    # It runs Tier 0 → Tier 1 → Tier 2 scanning internally and early-exits when confident.
+    ds_profile = discoverDesignSystem(repoRoot)
 
-    if dsd_enabled:
-      # discoverDesignSystem() is a sub-pipeline defined in design-system-discovery skill.
-      # It runs Tier 0 → Tier 1 → Tier 2 scanning internally and early-exits when confident.
-      ds_profile = discoverDesignSystem(repoRoot)
+    # Merge evidence files from design system scan into parent stack provenance
+    for f in ds_profile.evidence_files:
+      if f not in stack.evidence_files:
+        stack.evidence_files.push(f)
 
-      # Merge evidence files from design system scan into parent stack provenance
-      for f in ds_profile.evidence_files:
-        if f not in stack.evidence_files:
-          stack.evidence_files.push(f)
+    # Store the full profile on the returned stack for downstream consumers
+    # (context-router, strive Phase 1.5, arc Phase 2.8)
+    stack.design_system = ds_profile
 
-      # Store the full profile on the returned stack for downstream consumers
-      # (context-router, strive Phase 1.5, arc Phase 2.8)
-      stack.design_system = ds_profile
-
-      # Elevate confidence if design system was conclusively identified
-      # (high-confidence design system detection is strong evidence of a real TS/JS frontend)
-      if ds_profile.confidence >= 0.90 AND stack.confidence < 0.95:
-        stack.confidence = 0.95
-    else:
-      # Discovery disabled — leave stack.design_system unset
-      stack.design_system = null
+    # Elevate confidence if design system was conclusively identified
+    # (high-confidence design system detection is strong evidence of a real TS/JS frontend)
+    if ds_profile.confidence >= 0.90 AND stack.confidence < 0.95:
+      stack.confidence = 0.95
   else:
     # Non-frontend stack — skip discovery entirely
     stack.design_system = null
@@ -376,7 +371,6 @@ Step 5 runs **after** Steps 1–4 so that `stack.languages` and `stack.framework
 
 **Output field**: `detectedStack.design_system` — a `design-system-profile.yaml` object. Null when:
 - Stack is not frontend (no react/nextjs/vuejs/nuxt/vite framework)
-- `talisman.devise.design_system_discovery.enabled` is `false`
 - `discoverDesignSystem()` runs but returns `confidence: 0.0` (no signals found)
 
 **Downstream consumers** of `detectedStack.design_system`:
@@ -426,7 +420,7 @@ prioritize(specialist_selections, max_stack_ashes):
     "fastapi-reviewer", "django-reviewer", "laravel-reviewer", "sqlalchemy-reviewer",
     # Pattern specialists (conditional)
     "tdd-compliance-reviewer", "ddd-reviewer", "di-reviewer",
-    # Design specialists (conditional on talisman.design_sync.enabled)
+    # Design specialists (conditional on detected design system / frontend stack)
     "design-implementation-reviewer"
   ]
 
@@ -438,37 +432,9 @@ prioritize(specialist_selections, max_stack_ashes):
   return sorted[:max_stack_ashes]
 ```
 
-## Talisman Override
+## Stack Override (v3.x: removed)
 
-When `talisman.stack_awareness.override` is set, skip detection and use the override values directly with confidence = 1.0:
-
-```
-VALID_LANGUAGES = ["python", "typescript", "rust", "php"]
-VALID_FRAMEWORKS = ["fastapi", "django", "flask", "laravel", "symfony", "sqlalchemy",
-                    "nextjs", "react", "vuejs", "nuxt", "express", "nestjs",
-                    "actix-web", "axum", "rocket",
-                    "react-native", "expo", "expo-router",
-                    "figma", "storybook"]
-
-if talisman?.stack_awareness?.override:
-  override = talisman.stack_awareness.override
-
-  # SEC-003: Validate override values against known enumerations
-  if override.primary_language NOT IN VALID_LANGUAGES:
-    log warning: "Invalid override.primary_language '" + override.primary_language + "' — ignoring override"
-    # Fall through to normal detection
-
-  if override.frameworks:
-    override.frameworks = filter(override.frameworks, fw => fw IN VALID_FRAMEWORKS)
-
-  return {
-    primary_language: override.primary_language,
-    languages: [override.primary_language],
-    frameworks: override.frameworks ?? [],
-    databases: override.databases ?? [],
-    libraries: override.libraries ?? [],
-    tooling: [],
-    confidence: 1.0,
-    evidence_files: ["talisman.yml (override)"]
-  }
-```
+Earlier versions allowed a v2.x talisman config (stack_awareness.override) block to short-circuit
+detection. v3.x removes the override mechanism entirely — `detectStack()` is always
+the source of truth. If the manifest scan misclassifies a project, fix the detector
+in this file rather than reintroducing a config-layer escape hatch.

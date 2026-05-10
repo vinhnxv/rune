@@ -4,7 +4,6 @@ Tích hợp bất kỳ thư viện component MCP nào (UntitledUI, shadcn/ui, tu
 
 Các hướng dẫn liên quan:
 - [MCP Integration Spec](mcp-integration-spec.vi.md)
-- [Talisman chi tiết](rune-talisman-deep-dive-guide.vi.md)
 - [Agent và extension tuỳ chỉnh](rune-custom-agents-and-extensions-guide.vi.md)
 - [Xử lý sự cố và tối ưu hoá](rune-troubleshooting-and-optimization-guide.vi.md)
 
@@ -318,22 +317,30 @@ Kiểm tra `builder-protocol` có `library`, `mcp_server`, `capabilities.search`
 
 ### Bước 2: Xác thực cấu hình Talisman
 
-```
-/rune:talisman audit
+Kiểm tra thủ công các trường metadata của builder skill bằng cách inspect cả hai file:
+
+```bash
+# Xác nhận server_name khớp với khoá trong .mcp.json
+yq '.integrations.mcp_tools[].server_name' .rune/talisman.yml
+jq '.mcpServers | keys' .mcp.json
+
+# Xác nhận skill_binding trỏ đúng
+yq '.integrations.mcp_tools[].skill_binding' .rune/talisman.yml
+ls .claude/skills/ plugins/rune/skills/ 2>/dev/null
 ```
 
-Audit kiểm tra:
+Tự kiểm tra rằng:
 - `server_name` khớp với một khoá trong `.mcp.json`
 - `skill_binding` trỏ tới một skill đã cài đặt
 - Ít nhất một cờ `phases` là `true`
 - Trigger có ít nhất một điều kiện
 
-**Kiểm tra đồng bộ builder skill** (kiểm tra lệch 3 thành phần): `/rune:talisman audit` cũng xác thực rằng ba thành phần protocol đang đồng bộ:
+**Kiểm tra đồng bộ builder skill** (kiểm tra lệch 3 thành phần): tự cross-check rằng ba thành phần protocol đang đồng bộ bằng cách so sánh danh sách `provides:` (capabilities) của skill với `requires:` của builder (server_name + skill_binding + đường dẫn conventions):
 1. Mọi `skill_binding` trong talisman tham chiếu tới một skill đã cài đặt trong `.claude/skills/` hoặc plugin
-2. Mỗi skill được tham chiếu có frontmatter `builder-protocol:`
-3. Đường dẫn `conventions:` trong frontmatter đó tồn tại tương đối với thư mục gốc của skill
+2. Mỗi skill được tham chiếu có frontmatter `builder-protocol:` (xác minh bằng `grep -n 'builder-protocol:' .claude/skills/{name}/SKILL.md`)
+3. Đường dẫn `conventions:` trong frontmatter đó tồn tại tương đối với thư mục gốc của skill (xác minh bằng `ls .claude/skills/{name}/{conventions_path}`)
 
-Nếu bất kỳ thành phần nào trong ba thành phần trên không đồng bộ, audit phát ra cảnh báo thay vì thất bại âm thầm tại thời điểm chạy.
+Nếu bất kỳ thành phần nào trong ba thành phần trên không đồng bộ, tích hợp sẽ thất bại âm thầm tại thời điểm chạy --- không có bộ phát hiện tự động, vì vậy hãy đưa kiểm tra này vào quy trình review PR khi talisman hoặc builder skill thay đổi.
 
 ### Bước 3: Xác minh MCP Server
 
@@ -630,8 +637,8 @@ Worker thấy khối ngữ cảnh MCP nhưng chuyển sang Tailwind chung:
 # Verify MCP server is connected
 claude mcp list
 
-# Check if talisman resolves the integration
-/rune:talisman status
+# Tự xác nhận khối tích hợp talisman trỏ đúng server + skill
+yq '.integrations.mcp_tools' .rune/talisman.yml
 ```
 
 ### Vi phạm convention trong đánh giá
@@ -673,7 +680,7 @@ grep -n "builder-protocol:" .claude/skills/{skill_name}/SKILL.md
 ls .claude/skills/{skill_name}/references/{path}
 ```
 
-Sau đó chạy `/rune:talisman audit` --- nó sẽ đánh dấu skill thiếu và đường dẫn conventions bị hỏng.
+Sau đó đi qua checklist thủ công ở Bước 2 phía trên --- `yq '.integrations.mcp_tools[].skill_binding' .rune/talisman.yml` cộng với một lệnh `ls` lên thư mục skill được trỏ tới sẽ phát hiện skill thiếu và đường dẫn conventions bị hỏng.
 
 ### Lưu ý chuyển đổi TrueDigital
 
@@ -744,7 +751,7 @@ builder-protocol:
 
 2. Tạo/cập nhật file tham chiếu conventions tại `references/agent-conventions.md`
 
-3. Chạy `/rune:talisman audit` để xác thực
+3. Xác thực thủ công bằng cách đi qua checklist Bước 2 (`yq` trên `talisman.yml`, `jq` trên `.mcp.json`, `ls` đường dẫn skill + conventions)
 
 Không cần thay đổi cấu hình talisman --- `skill_binding` đã liên kết skill của bạn. Khi skill có frontmatter `builder-protocol`, `discoverUIBuilder()` tự động nhận diện.
 

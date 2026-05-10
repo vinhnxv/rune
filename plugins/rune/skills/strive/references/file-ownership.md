@@ -139,10 +139,8 @@ function buildOwnershipGraph(tasks) {
   const fileToTasks = {}  // Map<filePath, taskId[]>
   const dirToTasks = {}   // Map<dirPath, taskId[]>
 
-  // Load unrestricted shared files from talisman (excluded from conflict detection)
-  const unrestrictedFiles = new Set(
-    readTalismanSection("work")?.unrestricted_shared_files || []
-  )
+  // v3.x: no unrestricted shared files by default (empty allowlist).
+  const unrestrictedFiles = new Set()
 
   for (const task of tasks) {
     const taskId = String(task.id)

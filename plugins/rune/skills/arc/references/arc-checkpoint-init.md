@@ -1,5 +1,7 @@
 # Initialize Checkpoint (ARC-2) — Full Algorithm
 
+<!-- v3.x: defaults baked from former talisman.{arc,work,misc,ux,gates,process_management}; see references/v3-defaults.md -->
+
 Checkpoint initialization: config resolution (3-layer), session identity,
 checkpoint schema v30 creation, skip map computation, and initial state write.
 
@@ -35,27 +37,9 @@ const sessionNonce = rawNonce
 // SEC-011 FIX: Null guard — parseDiffStats may return null on empty/malformed git output
 const diffStats = parseDiffStats(Bash(`git diff --stat ${defaultBranch}...HEAD`)) ?? { insertions: 0, deletions: 0, files: [] }
 const planMeta = extractYamlFrontmatter(Read(planFile))
-// readTalismanSection: "arc", "work"
-// FIX (v1.163.1): Replace abstract readTalismanSection("arc") with explicit shard read.
-// Root cause: LLM bypassed the pseudo-function and checked arc.yml (wrong extension)
-// instead of arc.json, causing silent fallback to hardcoded defaults.
-// Explicit Read() with the correct path eliminates the indirection that enabled the bypass.
-let arc = null
-try {
-  arc = JSON.parse(Read("tmp/.talisman-resolved/arc.json"))
-} catch (e) {
-  // Fallback: try full talisman file (covers case where shards were not resolved)
-  try {
-    const fullTalisman = Read(".rune/talisman.yml")
-    // parseYaml is a dispatcher utility — parses YAML string to object
-    const full = parseYaml(fullTalisman)
-    arc = full?.arc ?? {}
-  } catch (e2) {
-    arc = {}
-    warn("No talisman config available — using hardcoded defaults for arc config")
-  }
-}
-const work = readTalismanSection("work")
+// v3.x: arc + work configs baked from defaults (see references/v3-defaults.md)
+const arc = {}
+const work = { co_authors: [] }
 ```
 
 ## 3-Layer Config Resolution
@@ -203,12 +187,10 @@ Pre-compute deterministic phase skip decisions from talisman config, plan frontm
 Phases in the skip map are auto-skipped by the stop hook without LLM dispatch — saving ~30s per skipped phase.
 
 ```javascript
-// ── Gather talisman inputs for skip map ──
-// readTalismanSection: "misc", "ux"
-const miscConfig = readTalismanSection("misc") ?? {}
-const designSync = miscConfig.design_sync ?? {}
-const storybook = miscConfig.storybook ?? {}
-const ux = readTalismanSection("ux") ?? {}
+// ── v3.x: design_sync / storybook / ux baked off; see references/v3-defaults.md ──
+const designSync = {}
+const storybook = {}
+const ux = {}
 
 /**
  * computeSkipMap — Pre-compute deterministic phase skip decisions.
@@ -271,20 +253,11 @@ function computeSkipMap(arcConfig, designSync, storybook, ux, planMeta, planFile
 
   // ── QA gate phase skip propagation ──
   // QUAL-001 FIX: Order matches PHASE_ORDER canonical sequence
+  // v3.x: qa_gates enabled by default — propagate skips from parent phases only
   const QA_GATED_PHASES = ['forge', 'work', 'gap_analysis', 'code_review', 'mend', 'test']
-  // readTalismanSection: "gates"
-  const gatesConfig = readTalismanSection("gates") ?? {}
-  const qaEnabled = gatesConfig?.qa_gates?.enabled !== false  // default: true
-  if (!qaEnabled) {
-    for (const phase of QA_GATED_PHASES) {
-      map[`${phase}_qa`] = "qa_gates_disabled"
-    }
-  } else {
-    // If parent phase is skipped, auto-skip the corresponding QA phase
-    for (const phase of QA_GATED_PHASES) {
-      if (map[phase]) {
-        map[`${phase}_qa`] = `parent_${phase}_skipped`
-      }
+  for (const phase of QA_GATED_PHASES) {
+    if (map[phase]) {
+      map[`${phase}_qa`] = `parent_${phase}_skipped`
     }
   }
 
@@ -479,55 +452,18 @@ Write(checkpointPath, {
   qa: {
     global_retry_count: 0,                // quality retries only (not incremented on infra failures)
     infra_global_retry_count: 0,          // infra retries only (timeout/crash — separate budget)
-    max_global_retries: (() => { const g = readTalismanSection("gates"); return g?.qa_gates?.max_global_retries ?? 6 })(),
-    max_infra_global_retries: (() => { const g = readTalismanSection("gates"); return g?.qa_gates?.max_infra_global_retries ?? 12 })(),  // 6 phases × 2 retries
-    pass_threshold: (() => { const g = readTalismanSection("gates"); return g?.qa_gates?.pass_threshold ?? 70 })(),
-    max_phase_retries: (() => { const g = readTalismanSection("gates"); return g?.qa_gates?.max_phase_retries ?? 2 })(),
-    enabled: (() => { const g = readTalismanSection("gates"); return g?.qa_gates?.enabled !== false })()
+    max_global_retries: 6,
+    max_infra_global_retries: 12,         // 6 phases × 2 retries
+    pass_threshold: 70,
+    max_phase_retries: 2,
+    enabled: true
   },
   // Schema v26 addition (v2.5.1): Declarative reaction engine config.
-  // Reads reactions from resolved talisman shard with fallback chain.
-  // Backward-compat: when reactions.* absent, falls back to legacy paths
-  // (gates.qa_gates.*, process_management.*). reactions.* takes precedence.
-  reactions: (() => {
-    let reactions = null
-    try {
-      reactions = JSON.parse(Read("tmp/.talisman-resolved/reactions.json"))
-    } catch (e) {
-      try {
-        const fullTalisman = Read(".rune/talisman.yml")
-        const full = parseYaml(fullTalisman)
-        reactions = full?.reactions ?? {}
-      } catch (e2) {
-        reactions = {}
-        warn("No reactions config available — using hardcoded defaults")
-      }
-    }
-    // Backward-compat aliasing (v2.5.1): when reactions.* keys are absent,
-    // fall back to legacy talisman paths. reactions.* takes precedence.
-    // Legacy paths: gates.qa_gates.* → reactions.qa_gate_failed.*
-    //               process_management.* → reactions.teammate_stuck.*
-    const gatesConfig = readTalismanSection("gates") ?? {}
-    const pmConfig = readTalismanSection("misc")?.process_management ?? readTalismanSection("process_management") ?? {}
-    if (!reactions.qa_gate_failed && gatesConfig.qa_gates) {
-      warn("DEPRECATION: gates.qa_gates.* used as fallback for reactions.qa_gate_failed — migrate to reactions: section")
-      reactions.qa_gate_failed = {
-        action: "retry",
-        retries: gatesConfig.qa_gates.max_phase_retries ?? 2,
-        pass_threshold: gatesConfig.qa_gates.pass_threshold ?? 70,
-        max_global_retries: gatesConfig.qa_gates.max_global_retries ?? 6
-      }
-    }
-    if (!reactions.teammate_stuck && pmConfig.teammate_stuck_threshold) {
-      warn("DEPRECATION: process_management.teammate_stuck_threshold used as fallback for reactions.teammate_stuck — migrate to reactions: section")
-      reactions.teammate_stuck = {
-        action: "escalate",
-        threshold_ms: (pmConfig.teammate_stuck_threshold ?? 180) * 1000,
-        force_stop_after_ms: 300000
-      }
-    }
-    return reactions
-  })(),
+  // v3.x: defaults baked from former talisman.reactions; see references/v3-defaults.md
+  reactions: {
+    qa_gate_failed: { action: "retry", retries: 2, pass_threshold: 70, max_global_retries: 6 },
+    teammate_stuck: { action: "escalate", threshold_ms: 180000, force_stop_after_ms: 300000 }
+  },
   // Schema v26 addition: Per-event reaction state tracking for retry budgets and escalation.
   // Tracks attempt counts and first-attempt timestamps per reaction event.
   // On --resume: firstAttemptMs is reset to current time (EC-7 fix), attemptCount preserved.

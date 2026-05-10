@@ -29,7 +29,7 @@ Talisman keys under `review.pre_aggregate`:
 | `truncate_trace_lines` | number | `3` | Max Rune Trace code lines retained for P3 findings. Hardcoded in practice; no use case for adjustment. |
 | `nit_summary_only` | boolean | `true` | Convert N (nit) findings to single-line summaries. Always true — no use case for false. |
 
-**Config access pattern**: `talisman?.review?.pre_aggregate ?? {}` — follows standard `readTalisman()` convention.
+**Config access pattern**: Defaults are baked literals in v3.x (see `references/v3-defaults.md` review.pre_aggregate section). Function does not accept a config arg.
 
 ### Noise Filter (Phase 5.0.5)
 
@@ -41,7 +41,7 @@ Talisman keys under `review.noise_filter`:
 | `confidence_floor` | number | `35` | Minimum confidence_score for P3 findings. P3 below this are suppressed (unless PROVEN). |
 | `max_p3_ratio` | number | `0.40` | Maximum ratio of P3 findings to total. Excess P3 suppressed by lowest confidence first (PROVEN exempt). |
 
-**Config access pattern**: `talisman?.review?.noise_filter ?? {}` — follows standard `readTalisman()` convention.
+**Config access pattern**: Defaults are baked literals in v3.x (see `references/v3-defaults.md` — noise filter defaults: `enabled: true`, `confidence_floor: 35`, `max_p3_ratio: 0.40`). Function does not accept a config arg.
 
 ## Main Algorithm: preAggregate()
 
@@ -52,18 +52,19 @@ Talisman keys under `review.noise_filter`:
 // OUTPUT: {output_dir}/condensed/{ash-slug}.md for each Ash
 //         {output_dir}/condensed/_compression-report.md
 //
-// THRESHOLD: talisman.review.pre_aggregate.threshold_bytes (default 25000)
+// THRESHOLD: 25000 bytes (v3.x baked-in)
 // SKIP WHEN: combined size < threshold OR pre_aggregate.enabled === false
 // RUNS AT:   Tarnished level — NO subagent spawned (would add context pressure)
 
-function preAggregate(outputDir, talisman) {
-  const config = talisman?.review?.pre_aggregate ?? {}
-  if (config.enabled === false) return  // Master toggle
+function preAggregate(outputDir) {
+  // v3.x baked defaults — see references/v3-defaults.md review.pre_aggregate section
+  const config = { enabled: true, threshold_bytes: 25000 }
+  if (config.enabled === false) return  // Master toggle (always true in v3.x; kept for clarity)
 
-  const threshold = config.threshold_bytes ?? 25000
-  const preservePriorities = config.preserve_priorities ?? ["P1", "P2"]
-  const truncateTraceLines = config.truncate_trace_lines ?? 3
-  const nitSummaryOnly = config.nit_summary_only ?? true
+  const threshold = config.threshold_bytes
+  const preservePriorities = ["P1", "P2"]   // v3.x baked default
+  const truncateTraceLines = 3              // v3.x baked default
+  const nitSummaryOnly = true               // v3.x baked default
 
   // 1. Discover Ash output files (exclude TOME and internal files)
   const ashFiles = Glob(`${outputDir}*.md`)
@@ -112,12 +113,10 @@ function preAggregate(outputDir, talisman) {
     const findings = extractFindingBlocks(content)
 
     // 4b.5 (Phase 5.0.5): Apply noise filter — suppress low-signal P3 findings
-    //   Gated by talisman.review.noise_filter.enabled (default: true)
+    //   Gate: noise filter is unconditional in v3.x (baked defaults)
     //   INVARIANT: PROVEN findings are NEVER suppressed by any rule
-    const noiseConfig = talisman?.review?.noise_filter ?? {}
-    const { kept, suppressed } = (noiseConfig.enabled !== false)
-      ? noiseFilterFindings(findings, noiseConfig)
-      : { kept: findings, suppressed: [] }
+    const noiseConfig = { enabled: true, confidence_floor: 35, max_p3_ratio: 0.40 }
+    const { kept, suppressed } = noiseFilterFindings(findings, noiseConfig)
 
     // 4c. Apply priority-based compression per finding
     const compressed = kept.map(f => compressFinding(f, {
@@ -298,7 +297,7 @@ function normalizeConfidenceScore(rawScore) {
 // After all rules: MINIMUM-SURVIVING FLOOR — if all findings would be suppressed,
 // the highest-confidence finding is rescued back to the kept set.
 //
-// CONFIG: talisman.review.noise_filter (see Configuration section above)
+// CONFIG: noise_filter defaults baked in v3.x (see references/v3-defaults.md)
 
 function noiseFilterFindings(findings, config) {
   const confidenceFloor = config.confidence_floor ?? 35

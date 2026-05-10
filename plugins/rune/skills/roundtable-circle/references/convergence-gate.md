@@ -235,9 +235,9 @@ function passesThresholds(density, evidence, confidence, coverage, isCode, confi
         confidence: clampNumeric(config?.convergence_confidence_threshold, 0.0, 1.0, 0.6),
         coverage:   clampNumeric(config?.convergence_coverage_threshold,   0.0, 1.0, 0.4),
       }
-    // BACK-006 NOTE: Doc-chunk thresholds are intentionally hardcoded (not configurable via talisman).
+    // BACK-006 NOTE: Doc-chunk thresholds are intentionally hardcoded.
     // Doc thresholds are stable — density/coverage expectations for docs are universally lower.
-    // If customization is needed, add convergence_doc_*_threshold keys to talisman.example.yml.
+    // v3.x: thresholds are baked-in literals; no customization layer.
     : { density: 0.1, evidence: 0.5, confidence: 0.5, coverage: 0.2 }
   return density >= t.density && evidence >= t.evidence &&
          confidence >= t.confidence && coverage >= t.coverage

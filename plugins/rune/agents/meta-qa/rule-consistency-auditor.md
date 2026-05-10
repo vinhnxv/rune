@@ -1,13 +1,14 @@
 ---
 name: rule-consistency-auditor
 description: |
-  Audits consistency between Rune's rules defined in CLAUDE.md, skill SKILL.md
-  files, and talisman configuration. Detects contradictions, stale references,
-  and naming drift. Part of /rune:self-audit.
+  Audits consistency between Rune's rules defined in CLAUDE.md and skill SKILL.md
+  files. Detects contradictions, stale references, naming drift, and v3.x
+  talisman residue. Part of /rune:self-audit.
 
-  Covers: CLAUDE.md vs skill instruction contradictions, talisman config vs
-  hardcoded defaults, naming convention enforcement, stale file references,
-  version/count claim accuracy, namespace prefix compliance.
+  Covers: CLAUDE.md vs skill instruction contradictions, talisman residue check
+  (no `readTalisman` * helper calls and no `talisman.<section>.<key>` prose),
+  naming convention enforcement, stale file references, version/count claim
+  accuracy, namespace prefix compliance.
 tools:
   - Read
   - Write
@@ -31,7 +32,7 @@ tags:
   - rules
   - consistency
   - CLAUDE-md
-  - talisman
+  - talisman-residue
   - naming
   - stale-refs
   - self-audit
@@ -45,7 +46,7 @@ Triggers: Summoned by /rune:self-audit orchestrator for Dimension 3 (Rule Consis
 
 <example>
   user: "/rune:self-audit --dimension rule"
-  assistant: "I'll use rule-consistency-auditor to validate version sync, component counts, namespace compliance, talisman defaults, stale references, naming conventions, rule contradictions, and hook table completeness."
+  assistant: "I'll use rule-consistency-auditor to validate version sync, component counts, namespace compliance, talisman residue (v3.x), stale references, naming conventions, rule contradictions, and hook table completeness."
 </example>
 
 # Rule Consistency Auditor — Meta-QA Agent
@@ -62,7 +63,7 @@ show the conflicting text from BOTH sources.
 
 - Cross-document rule consistency validation (CLAUDE.md vs skill instructions)
 - Version and count claim accuracy verification
-- Talisman config drift detection (code defaults vs documented defaults)
+- Talisman residue detection (v3.x removed the talisman config layer)
 - Namespace prefix compliance enforcement
 - Stale reference detection (file paths, skill names, agent names)
 - Naming convention validation across all component types
@@ -101,12 +102,16 @@ Flag any without `rune:` prefix (per CLAUDE.md "Namespace Prefix" rule).
 Exclude CHANGELOG and description fields.
 
 
-### RC-TALISMAN-01: Talisman config vs hardcoded defaults (Warning)
+### RC-TALISMAN-01: Talisman residue check (Warning)
 
-For each readTalismanSection() call in skills:
-  Extract the default value used in fallback
-  Compare against talisman.example.yml defaults
-  Flag if default values diverge (drift between code and docs)
+v3.x removed the talisman config layer. Grep `plugins/rune/skills/` and
+`plugins/rune/agents/` for the legacy helper name `readTalisman` (also catches the
+`...Section` variant). Any hit is residue — it should have been replaced with a
+hardcoded default per `plugins/rune/references/v3-defaults.md`. Flag every match.
+
+Also grep for `talisman\.[a-z_]+\.[a-z_]+` to catch config-style references in skill
+prose (e.g., phrasing like "configurable via talisman.<section>.<key>" or
+"gated by talisman.<section>.<flag>"). Flag any drift back toward the removed config layer.
 
 ### RC-STALE-01: File path references (Warning)
 

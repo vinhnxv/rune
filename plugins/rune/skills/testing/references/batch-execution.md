@@ -19,8 +19,7 @@ const MIN_BATCH_SIZE = 1
 const MAX_BATCH_SIZE = 50                  // Raised from 20 — each batch has own context
 const HARD_BATCH_TIMEOUT_MS = 420_000      // 7 min hard cap per batch (was 4 min)
 const MAX_BATCH_ITERATIONS = 50            // Safety cap against infinite re-injection
-const MAX_BATCHES_TOTAL = 15               // Cap total batches to prevent 40+ turn sessions
-                                           // Override via talisman.testing.batch.max_batches_total
+const MAX_BATCHES_TOTAL = 15               // Cap total batches to prevent 40+ turn sessions (v3.x baked-in)
 
 const DEFAULT_AVG_DURATION = {
   unit:        10_000,    // 10s per test file
@@ -68,7 +67,7 @@ function computeBatchSize(testType, talisman) {
 | e2e | 60s | 3 |
 | extended | 120s | 1 |
 
-Override via `talisman.testing.batch.avg_duration.<type>` (integer, milliseconds).
+v3.x: per-tier averages are baked-in literals.
 
 ## Testing Plan Generator
 
@@ -107,13 +106,13 @@ function generateTestingPlan(id, talisman, context) {
   //   - Files matching known component directories (backend/, frontend/, dashboard/,
   //     admin/, api/, web/, server/, client/, packages/*/) get grouped by component.
   //   - Files not matching any component pattern go into a "root" group.
-  //   - Configurable via talisman.testing.batch.component_dirs (string[]).
+  //   - v3.x: COMPONENT_PATTERNS is hardcoded.
   //
   // Batch ordering: fast-first strategy
   //   backend-unit → frontend-unit → backend-contract → backend-integration → frontend-e2e → extended
   //   This gives early feedback on unit tests before slow integration/e2e batches.
 
-  const COMPONENT_PATTERNS = talisman?.testing?.batch?.component_dirs ?? [
+  const COMPONENT_PATTERNS = [
     "backend", "frontend", "dashboard", "admin", "api", "web",
     "server", "client", "app", "mobile", "packages"
   ]

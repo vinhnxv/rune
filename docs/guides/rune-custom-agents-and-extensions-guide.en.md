@@ -4,7 +4,6 @@ Extend Rune's review pipeline with project-specific agents, CLI-backed external 
 
 Related guides:
 - [Getting started](rune-getting-started.en.md)
-- [Talisman deep dive guide](rune-talisman-deep-dive-guide.en.md)
 - [Code review and audit guide](rune-code-review-and-audit-guide.en.md)
 - [Troubleshooting and optimization guide](rune-troubleshooting-and-optimization-guide.en.md)
 

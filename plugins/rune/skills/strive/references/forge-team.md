@@ -1,5 +1,7 @@
 # Phase 1: Forge Team — Inline Implementation
 
+<!-- v3.x: defaults baked from former talisman.work.{complexity_ordering,task_decomposition,max_workers,tasks_per_worker}; see references/v3-defaults.md -->
+
 Detailed implementation code for Phase 1 of `/rune:strive`. Called after plan parsing (Phase 0)
 and environment setup (Phase 0.5).
 
@@ -41,57 +43,44 @@ Bash(`mkdir -p "tmp/work/${timestamp}/patches" "tmp/work/${timestamp}/proposals"
 
 ```javascript
 // --- Complexity-aware task ordering (sort before wave computation) ---
-// Gate: readTalismanSection("work")?.complexity_ordering?.enabled !== false
-//
-// Scoring is additive: Score = (fileCount × wFile) + (wTest if test task) + (wRefactor if refactor keyword)
-//                             + (wLargeScope if fileCount > 5)
-// Tasks are sorted descending by score so highest-complexity tasks start first.
-// Score is a relative ranking, not a time estimate — use estimateTaskMinutes() for time budgeting.
-// Default weights (overridable via talisman complexity_ordering.weights):
-//   wFile=2: cost per touched file — more files → more risk of conflicts
-//   wTest=3: test tasks are slightly harder (require understanding existing coverage)
-//   wRefactor=5: refactors touch structural patterns and carry high regression risk
-//   wLargeScope=3: bonus for >5 files — coordination overhead grows super-linearly
-// Used in both scoreTaskComplexity() and estimateTaskMinutes()
+// Always on in v3.x. Score is additive:
+//   Score = (fileCount × 2) + (3 if test task) + (5 if refactor keyword) + (3 if fileCount > 5)
+// Highest-complexity tasks start first. Score is a relative ranking — see estimateTaskMinutes()
+// for time budgeting. Used by both scoreTaskComplexity() and estimateTaskMinutes().
 const REFACTOR_KEYWORDS = ["refactor", "restructure", "extract", "migrate", "rename", "reorganize"]
+const COMPLEXITY_W_FILE = 2         // cost per touched file (conflict risk)
+const COMPLEXITY_W_TEST = 3         // test tasks: must understand existing coverage
+const COMPLEXITY_W_REFACTOR = 5     // refactors carry high regression risk
+const COMPLEXITY_W_LARGE_SCOPE = 3  // bonus for >5 files (super-linear coordination)
 
-const complexityConfig = readTalismanSection("work")?.complexity_ordering
-if (complexityConfig?.enabled !== false) {
-  const weights = complexityConfig?.weights ?? {}
-  const wFile = weights.file_count ?? 2
-  const wTest = weights.test ?? 3
-  const wRefactor = weights.refactor ?? 5
-  const wLargeScope = weights.large_scope ?? 3
+function scoreTaskComplexity(task) {
+  const fileCount = (task.fileTargets?.length ?? 0) + (task.dirTargets?.length ?? 0)
+  if (fileCount === 0 && !task.subject && !task.description) return 0  // missing metadata → 0
 
-  function scoreTaskComplexity(task) {
-    const fileCount = (task.fileTargets?.length ?? 0) + (task.dirTargets?.length ?? 0)
-    if (fileCount === 0 && !task.subject && !task.description) return 0  // missing metadata → 0
-
-    let estimate = fileCount * wFile
-    if (task.type === "test") estimate += wTest
-    const text = `${task.subject ?? ''} ${task.description ?? ''}`.toLowerCase()
-    if (REFACTOR_KEYWORDS.some(kw => text.includes(kw))) estimate += wRefactor
-    if (fileCount > 5) estimate += wLargeScope
-    return estimate
-  }
-
-  // Score and sort descending (highest complexity first)
-  for (const task of extractedTasks) {
-    task._complexityScore = scoreTaskComplexity(task)
-    log(`COMPLEXITY-SCORE: task #${task.id} "${task.subject}" → ${task._complexityScore}`)
-  }
-  extractedTasks.sort((a, b) => b._complexityScore - a._complexityScore)
+  let estimate = fileCount * COMPLEXITY_W_FILE
+  if (task.type === "test") estimate += COMPLEXITY_W_TEST
+  const text = `${task.subject ?? ''} ${task.description ?? ''}`.toLowerCase()
+  if (REFACTOR_KEYWORDS.some(kw => text.includes(kw))) estimate += COMPLEXITY_W_REFACTOR
+  if (fileCount > 5) estimate += COMPLEXITY_W_LARGE_SCOPE
+  return estimate
 }
+
+// Score and sort descending (highest complexity first)
+for (const task of extractedTasks) {
+  task._complexityScore = scoreTaskComplexity(task)
+  log(`COMPLEXITY-SCORE: task #${task.id} "${task.subject}" → ${task._complexityScore}`)
+}
+extractedTasks.sort((a, b) => b._complexityScore - a._complexityScore)
 ```
 
 ## Phase 1.1: Task Decomposition (after complexity scoring, before conflict detection)
 
 ```javascript
 // Phase 1.1: LLM-driven task classification + decomposition
-// Gated by work.task_decomposition.enabled (default: true)
-// See references/task-decomposition.md for the full runTaskDecomposition() implementation.
-const workConfig = readTalismanSection("work")
-extractedTasks = runTaskDecomposition(extractedTasks, workConfig)
+// Always enabled in v3.x. See references/task-decomposition.md for the full
+// runTaskDecomposition() implementation (defaults: complexity_threshold=5,
+// max_subtasks=4, model="haiku").
+extractedTasks = runTaskDecomposition(extractedTasks, {})
 // After expansion, re-write inscription.json task_ownership with subtask entries (EC-9)
 // See task-decomposition.md "inscription.json Re-write" section for the re-write pattern.
 ```

@@ -4,7 +4,7 @@
 
 Gather PR metadata and linked issue context for downstream Ash consumption. Runs AFTER Phase 0, BEFORE Phase 0.5.
 
-**Skip conditions**: `talisman.review.context_intelligence.enabled === false`, no `gh` CLI, `--partial` mode, non-git repo.
+**Skip conditions**: no `gh` CLI, `--partial` mode, non-git repo. (v3.x: context_intelligence is unconditional.)
 
 See [context-intelligence.md](../../roundtable-circle/references/context-intelligence.md) for the full contract, schema, and security model.
 
@@ -37,7 +37,7 @@ Each ash-prompt template receives a conditional `## PR Context` section when `co
 Discover project linters from config files and provide linter awareness context to Ashes. Prevents Ashes from flagging issues that project linters already handle (formatting, import order, unused vars).
 
 **Position**: After Phase 0.3, before Phase 0.5.
-**Skip conditions**: `talisman.review.linter_awareness.enabled === false`.
+**Skip conditions**: none in v3.x (linter awareness is unconditional).
 
 Detects: eslint, prettier, biome, typescript (JS/TS), ruff, black, flake8, mypy, pyright, isort (Python), rubocop, standard (Ruby), golangci-lint (Go), clippy, rustfmt (Rust), editorconfig (general).
 

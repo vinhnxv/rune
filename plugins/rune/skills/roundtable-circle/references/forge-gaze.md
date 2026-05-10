@@ -329,7 +329,7 @@ score(section, agent, detected_stack=null):
   # relevant agents cross the threshold without dominating topic-matched generalists.
   stack_bonus = 0.0
   if agent.stack_affinities AND detected_stack:
-    stack_affinity_bonus = talisman.forge.stack_affinity_bonus ?? 0.2
+    stack_affinity_bonus = 0.2  // v3.x baked-in
     for affinity in agent.stack_affinities:
       if affinity in detected_stack.frameworks \
          OR affinity in detected_stack.libraries \
@@ -371,7 +371,7 @@ exclusion_penalty(section, agent, section_topics=null):
 
 The penalty scales linearly with the fraction of excluded topics found, up to `EXCLUSION_PENALTY_WEIGHT` (default 0.5). Combined with the floor at 0.0 in `score()`, an agent can never receive a negative score.
 
-> **VEIL-002: EXCLUSION_PENALTY_WEIGHT rationale** — The default 0.5 was chosen as a midpoint that demotes but does not eliminate agents with partial exclusion matches. At 0.5, an agent matching 100% of its excluded topics loses 0.5 from its score (typically enough to drop below the 0.30 threshold), while matching only 1 of 3 excluded topics loses ~0.17 (allowing the agent to remain if its keyword score is strong). This balances false negatives (agent excluded despite genuine expertise) against false positives (agent selected for an irrelevant section). The value is configurable via `talisman.forge.exclusion_penalty_weight` for projects that need stricter or more lenient exclusion behavior.
+> **VEIL-002: EXCLUSION_PENALTY_WEIGHT rationale** — The 0.5 value is a midpoint that demotes but does not eliminate agents with partial exclusion matches. At 0.5, an agent matching 100% of its excluded topics loses 0.5 from its score (typically enough to drop below the 0.30 threshold), while matching only 1 of 3 excluded topics loses ~0.17 (allowing the agent to remain if its keyword score is strong). This balances false negatives (agent excluded despite genuine expertise) against false positives (agent selected for an irrelevant section). v3.x bakes this value in.
 
 ### MCP-First Topic Discovery (v1.170.0+)
 
@@ -468,7 +468,7 @@ forge_select(plan_sections, topic_registry, mode="default"):
 | `MAX_TOTAL_AGENTS` | 8 | 12 | Hard cap across all sections |
 | `MAX_FORGE_SAGES` | 6 | 6 | Max elicitation sages per forge session (not configurable via talisman) |
 | `EXCLUSION_PENALTY_WEIGHT` | 0.5 | 0.5 | Maximum exclusion penalty applied when agent.excludes topics match section |
-| `STACK_AFFINITY_BONUS` | 0.05 | 0.05 | Score bonus for agents whose stack affinities match the detected project stack. Overridable via `talisman.forge.stack_affinity_bonus` (default 0.2 in talisman, 0.05 built-in fallback) |
+| `STACK_AFFINITY_BONUS` | 0.05 | 0.05 | Score bonus for agents whose stack affinities match the detected project stack. (v3.x: hardcoded 0.05) |
 
 These can be overridden via `talisman.yml`:
 

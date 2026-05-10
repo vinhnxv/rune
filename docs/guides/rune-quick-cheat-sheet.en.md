@@ -25,12 +25,6 @@ In `.claude/settings.json`:
 }
 ```
 
-Optional:
-
-```bash
-/rune:talisman init
-```
-
 ---
 
 ## Pick Commands by Goal

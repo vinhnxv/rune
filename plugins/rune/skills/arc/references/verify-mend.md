@@ -1,5 +1,7 @@
 # Phase 7.5: Verify Mend (Review-Mend Convergence Controller) — Full Algorithm
 
+<!-- v3.x: defaults baked from former talisman.{settings,review,discipline}; see references/v3-defaults.md -->
+
 Full convergence controller that evaluates mend results, determines whether to loop back for another review-mend cycle, or proceed to test. Replaces the previous single-pass spot-check with an adaptive multi-cycle review-mend loop.
 
 **Team**: None for convergence decision. Delegates full re-review to `/rune:appraise` (Phase 6) via dispatcher loop-back.
@@ -49,13 +51,10 @@ updateCheckpoint({ phase: "verify_mend", status: "in_progress", phase_sequence: 
 
 ```javascript
 // ARTIFACT EXTRACTION (v1.141.0): Extract TOME metrics via shell script for convergence checks.
-// readTalismanSection: "settings"
-const extractionEnabled = readTalismanSection("settings")?.artifact_extraction?.enabled !== false
-if (extractionEnabled) {
-  try {
-    Bash(`cd "${CWD}" && bash plugins/rune/scripts/artifact-extract.sh tome-digest "${id}" "${mendRound}"`)
-  } catch (e) { warn(`artifact-extract tome-digest (round ${mendRound}) failed: ${e.message} — falling back`) }
-}
+// v3.x: settings.artifact_extraction.enabled defaults true — always extract.
+try {
+  Bash(`cd "${CWD}" && bash plugins/rune/scripts/artifact-extract.sh tome-digest "${id}" "${mendRound}"`)
+} catch (e) { warn(`artifact-extract tome-digest (round ${mendRound}) failed: ${e.message} — falling back`) }
 // Digest available at: tmp/arc/${id}/tome-digest${mendRound > 0 ? '-round-' + mendRound : ''}.json
 // Used below for quick-check metrics; full TOME still read for detailed convergence logic.
 
@@ -197,20 +196,22 @@ Uses shared `evaluateConvergence()` from review-mend-convergence.md. Passes `p2C
 
 **evaluateConvergence cascade** (3 key gates): (1) minCycles gate — `round + 1 < minCycles` → forced retry, (2) P1 AND P2 threshold — `p1Count <= findingThreshold && p2Count <= p2Threshold` (default p2Threshold=0 — any P2 blocks), (3) smart scoring via `computeConvergenceScore()` when diff-scope enabled — 4-component formula: `0.4*p3Ratio + 0.3*preExistingRatio + 0.2*trendDecreasing + 0.1*base` against convergenceThreshold=0.7 (default). P2 hard gate: returns score 0.0 if `p2Count > p2Threshold`.
 
-<!-- p2Threshold: configurable via talisman review.arc_convergence_p2_threshold
-     Default: 0 (strict — all P2 must be resolved). Recommended opt-in: 2.
-     Users set arc_convergence_p2_threshold: 2 in talisman.yml to allow up to 2 remaining P2 findings. -->
+<!-- p2Threshold: v3.x baked at 0 (strict — all P2 must be resolved).
+     Override by passing a non-empty `review.arc_convergence_p2_threshold` value into
+     evaluateConvergence(); see review-mend-convergence.md for the parser. -->
 
 ```javascript
-// readTalismanSection: "review"
-const review = readTalismanSection("review")
-// Wrap in {review} to match evaluateConvergence() expected shape
-const talisman = { review }
+// v3.x: review.* keys baked — empty object lets evaluateConvergence/computeConvergenceScore
+// fall through to their internal defaults (matches former talisman defaults exactly:
+// finding_threshold=0, p2_threshold=0, improvement_ratio=0.5, smart_scoring=true,
+// convergence_threshold=0.7, diff_scope.enabled=true).
+const talisman = { review: {} }
 const verdict = evaluateConvergence(currentFindingCount, p1Count, p2Count, checkpoint, talisman, scopeStats)
 
 // v1.38.0: Compute convergence score for history record (observability — R6 mitigation)
+// v3.x: diff_scope.enabled defaults true — always score when scopeStats available.
 let convergenceScore = null
-if (scopeStats && review?.diff_scope?.enabled !== false) {
+if (scopeStats) {
   convergenceScore = computeConvergenceScore(scopeStats, checkpoint, talisman)
 }
 
@@ -266,14 +267,9 @@ if (scm && scm.total > 0) {
     warn(`DISCIPLINE: Criteria regression detected — SCR dropped from ${(previousScr * 100).toFixed(1)}% to ${(currentScr * 100).toFixed(1)}% after mend. Previously-PASS criteria may have moved to FAIL (F10 CRITERIA_REGRESSION).`)
   }
 
-  // Criteria converge when SCR >= threshold (default 0.8) or no regression
-  // readTalismanSection: "settings"
-  // NOTE: Default 0.8 here is intentionally lower than strive's 0.95 (work-loop-convergence.md)
-  // because arc operates at pipeline level where some criteria may be addressed in later phases.
-  // Both read from discipline.scr_threshold if set in talisman — only the defaults diverge.
-  // readTalismanSection: "discipline"
-  const disciplineConfig = readTalismanSection("discipline") ?? {}
-  const scrThreshold = disciplineConfig.scr_threshold ?? 0.8
+  // v3.x: arc-level SCR threshold baked at 0.8 (intentionally lower than strive's 0.95
+  // — arc operates at pipeline level where some criteria may be addressed in later phases).
+  const scrThreshold = 0.8
   if (currentScr < scrThreshold && !criteriaRegression) {
     warn(`DISCIPLINE: SCR ${(currentScr * 100).toFixed(1)}% below threshold ${scrThreshold * 100}% — criteria not converged`)
     criteriaConverged = false

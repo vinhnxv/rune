@@ -14,33 +14,34 @@ Before entering --apply mode:
 
 ## Eligibility Criteria
 
+<!-- v3.x: defaults baked from former v2.x talisman config (misc.self_audit.apply_mode); see references/v3-defaults.md -->
+
 Not all findings produce proposals. A finding must meet ALL of:
 
-| Criterion | Default | Talisman key |
-|-----------|---------|-------------|
-| Echo tier >= Etched | Etched or higher | (not configurable) |
-| Recurrence count >= N | 3 | `self_audit.apply_mode.min_recurrence` |
-| Confidence = HIGH | Required | `self_audit.apply_mode.require_high_confidence` |
-| Not previously rejected | No `suppress_future: true` | (automatic) |
-| Not in deferred state | No active arc | (automatic) |
+| Criterion | v3.x value | Notes |
+|-----------|-----------|-------|
+| Echo tier >= Etched | Etched or higher | not configurable |
+| Recurrence count >= N | 3 | baked-in (was `self_audit.apply_mode.min_recurrence`) |
+| Confidence = HIGH | Required | baked-in (was `self_audit.apply_mode.require_high_confidence`) |
+| Not previously rejected | No `suppress_future: true` | automatic |
+| Not in deferred state | No active arc | automatic |
 
 ## Proposal Generation
 
 ### Step 1: Filter Eligible Findings
 
 ```javascript
-function filterEligible(findings, echoEntries) {
-  const minRecurrence = readTalismanSection('misc')
-    ?.self_audit?.apply_mode?.min_recurrence ?? 3
-  const requireHigh = readTalismanSection('misc')
-    ?.self_audit?.apply_mode?.require_high_confidence ?? true
+// v3.x: thresholds are baked-in literals (see references/v3-defaults.md § misc).
+const MIN_RECURRENCE = 3
+const REQUIRE_HIGH_CONFIDENCE = true
 
+function filterEligible(findings, echoEntries) {
   return findings.filter(f => {
     const echo = echoEntries.find(e => e.finding_id === f.id)
     if (!echo) return false
     if (echo.layer !== 'etched' && echo.layer !== 'inscribed') return false
-    if (echo.recurrence_count < minRecurrence) return false
-    if (requireHigh && echo.confidence !== 'HIGH') return false
+    if (echo.recurrence_count < MIN_RECURRENCE) return false
+    if (REQUIRE_HIGH_CONFIDENCE && echo.confidence !== 'HIGH') return false
     if (echo.suppress_future) return false
     return true
   })

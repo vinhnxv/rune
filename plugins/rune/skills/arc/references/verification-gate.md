@@ -44,9 +44,8 @@ if (!hasCriteria) issues.push("No acceptance criteria found (missing '- [ ]' ite
 const todos = extractTodosOutsideCodeBlocks(enrichedPlanPath)
 if (todos.length > 0) issues.push(`${todos.length} TODO/FIXME markers in plan prose`)
 
-// readTalismanSection: "plan"
-const plan = readTalismanSection("plan")
-const customPatterns = plan?.verification_patterns || []
+// v3.x: plan.verification_patterns hardcoded to [] (no custom patterns).
+const customPatterns = []
 // Security patterns: SAFE_REGEX_PATTERN, SAFE_PATH_PATTERN -- see security-patterns.md
 // SAFE_REGEX_PATTERN allows $ (for regex anchors). Shell interpolation risk mitigated by safeRgMatch() -- see security-patterns.md.
 // which excludes $, |, (, ) for stricter contexts.

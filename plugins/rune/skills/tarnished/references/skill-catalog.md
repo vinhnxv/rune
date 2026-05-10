@@ -24,7 +24,6 @@ Complete reference for `/rune:tarnished` routing decisions.
 | `debug` | `/rune:debug` | — | Failure description | ACH parallel investigation |
 | `elicit` | `/rune:elicit` | — | Topic (optional) | Structured reasoning output |
 | `rest` | `/rune:rest` | — | None | Cleans tmp/ |
-| `talisman` | `/rune:talisman` | — | Subcommand (init/audit/update/guide/status) | Talisman config |
 | `file-todos` | `/rune:file-todos` | — | Subcommand | TODO files in `tmp/` |
 | `resolve-all-gh-pr-comments` | `/rune:resolve-all-gh-pr-comments` | — | PR number (auto) | Resolved PR threads |
 | `resolve-gh-pr-comment` | `/rune:resolve-gh-pr-comment` | — | PR comment URL/ID | Resolved thread |

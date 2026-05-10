@@ -2,7 +2,7 @@
 
 Multi-agent engineering orchestration for [Claude Code](https://claude.ai/claude-code). Plan features, implement with swarm workers, review code, and ship — all with parallel AI agents that each get their own dedicated context window.
 
-**Current version**: [3.0.0-alpha.3](CHANGELOG.md) — v3 lean rebuild. Day-2 consolidations land: 7 specialist QA verifiers → 1 `phase-qa-verifier`, 12 inspector mode-variants → 4 base inspectors, 4 arc phases trimmed (Goldmask correlation/verification, bot review wait, PR comment resolution). Self-audit run 1778278942 produced a 40-file drift fix bundle. PHASE_ORDER bash↔JS now both at 26 entries. See [CHANGELOG.md](CHANGELOG.md) for details.
+**Current version**: [3.0.0-alpha.4](CHANGELOG.md) — v3 lean rebuild. Day-3 talisman complete removal lands: 157 call sites baked, talisman skill+scripts+4 docs deleted, ~10.5K LoC removed.
 
 ## What Is This?
 
@@ -125,7 +125,6 @@ For the full workflow state machines, see [docs/state-machine.md](../../docs/sta
 1. **Install the plugin** via marketplace or local development (see [Install](#install))
 2. **Enable Agent Teams** — add `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: "1"` to settings
 3. **Include output directories** — add `includedGitignorePatterns` for `plans/`, `tmp/`, `.rune/`
-4. **(Optional) Initialize talisman** — run `/rune:talisman init` to generate `.rune/talisman.yml` tailored to your stack
 
 > v3.0.0-alpha.1 removed all bundled MCP servers (echo-search, agent-search, context7, figma-to-react, figma-context). MCP integrations are now opt-in at the user level via `~/.claude/mcp.json`.
 
@@ -181,7 +180,6 @@ Rune is a token-intensive multi-agent system. Each workflow summons multiple age
 | Command | What It Does |
 |---------|-------------|
 | `/rune:rest` | Clean up tmp/ artifacts |
-| `/rune:talisman` | Configure Rune settings |
 | `/rune:elicit` | Structured reasoning (Tree of Thoughts, Pre-mortem, etc.) |
 | `/rune:self-audit` | Meta-QA audit of Rune's own system health |
 | `/rune:pr-guardian` | Automated PR shepherd loop — cron-based auto-merge |
@@ -228,13 +226,7 @@ For detailed Arc (end-to-end pipeline) phase documentation, see the [Arc & Batch
 
 ## Configuration
 
-Rune is configured via `.rune/talisman.yml`. Initialize with:
-
-```bash
-/rune:talisman init
-```
-
-Key settings: review depth, convergence tiers, cost optimization, custom Ash (review agent) definitions, and more. See the [Talisman Deep Dive Guide](../../docs/guides/rune-talisman-deep-dive-guide.en.md).
+v3.x ships with baked-in defaults — there is no user config layer. See [`references/v3-defaults.md`](references/v3-defaults.md) for the inventory of every former-config knob and its baked v3.x value.
 
 ## User Documentation
 
@@ -245,7 +237,6 @@ Key settings: review depth, convergence tiers, cost optimization, custom Ash (re
 | [Planning Guide](../../docs/guides/rune-planning-and-plan-quality-guide.en.md) | devise, forge, plan-review, inspect |
 | [Code Review & Audit](../../docs/guides/rune-code-review-and-audit-guide.en.md) | appraise, audit, mend |
 | [Work Execution](../../docs/guides/rune-work-execution-guide.en.md) | strive, goldmask |
-| [Talisman Configuration](../../docs/guides/rune-talisman-deep-dive-guide.en.md) | All configuration options |
 | [Troubleshooting](../../docs/guides/rune-troubleshooting-and-optimization-guide.en.md) | Common issues and optimization |
 | [FAQ](../../docs/guides/rune-faq.en.md) | Frequently asked questions |
 | [Quick Cheat Sheet](../../docs/guides/rune-quick-cheat-sheet.en.md) | Command reference card |
@@ -295,7 +286,7 @@ Rune implements proof-based orchestration ensuring specification compliance. Pla
 <details>
 <summary>Agent Architecture</summary>
 
-Rune includes 116 specialized agents — 74 core (in `agents/`: 13 review + 23 investigation + 16 utility + 7 research + 5 work + 1 qa + 9 meta-qa) + 42 extended (in `registry/`: 25 review + 6 testing + 5 utility + 4 work + 2 investigation), plus 13 shared resources in `agents/shared/`. Each agent gets its own dedicated context window via Agent Teams. Custom agents can be defined via `talisman.yml`. See the [Ash Guide skill](skills/ash-guide/SKILL.md) and [agent-registry.md](references/agent-registry.md) for the full registry.
+Rune includes 116 specialized agents — 74 core (in `agents/`: 13 review + 23 investigation + 16 utility + 7 research + 5 work + 1 qa + 9 meta-qa) + 42 extended (in `registry/`: 25 review + 6 testing + 5 utility + 4 work + 2 investigation), plus 13 shared resources in `agents/shared/`. Each agent gets its own dedicated context window via Agent Teams. Custom agents must be added directly to the plugin's agent registry. See the [Ash Guide skill](skills/ash-guide/SKILL.md) and [agent-registry.md](references/agent-registry.md) for the full registry.
 
 </details>
 
@@ -314,12 +305,11 @@ Rune includes 116 specialized agents — 74 core (in `agents/`: 13 review + 23 i
 | [Documentation Hub](../../docs/README.md) | Guide index (English + Vietnamese) |
 | [Getting Started](../../docs/guides/rune-getting-started.en.md) | First-time user walkthrough |
 | [Arc & Batch Guide](../../docs/guides/rune-arc-and-batch-guide.en.md) | End-to-end pipeline, batch mode |
-| [Talisman Deep Dive](../../docs/guides/rune-talisman-deep-dive-guide.en.md) | Full configuration reference |
 | [Troubleshooting](../../docs/guides/rune-troubleshooting-and-optimization-guide.en.md) | Debugging, cost, optimization |
 | [State Machines](../../docs/state-machine.md) | Mermaid diagrams of all 10 workflows |
 | [Discipline Engineering](../../docs/discipline-engineering.md) | Proof-based architecture foundation |
 | [Changelog](CHANGELOG.md) | Release history |
-| [talisman.example.yml](talisman.example.yml) | Full configuration schema with all options |
+| [v3.x Defaults](references/v3-defaults.md) | Inventory of baked-in former-config values |
 
 ## License
 

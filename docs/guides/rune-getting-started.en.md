@@ -67,17 +67,9 @@ Rune generates output files (plans, reviews, temporary artifacts) in directories
 >
 > Use `settings.local.json` if you don't want to commit these settings to your repository.
 
-### 3. Configure Your Project (Optional)
+### 3. Configure Your Project
 
-Generate a `talisman.yml` configuration file tailored to your project's tech stack:
-
-```bash
-/rune:talisman init
-```
-
-This auto-detects your stack (Python, TypeScript, Rust, PHP, Go, etc.) and generates `.rune/talisman.yml` with appropriate ward commands, file classification, and agent settings. You can skip this step — Rune works with sensible defaults.
-
-See the [Talisman Deep Dive](rune-talisman-deep-dive-guide.en.md) for all configuration options.
+Rune v3.x uses hardcoded defaults — no manual configuration step needed. See [`plugins/rune/references/v3-defaults.md`](../../plugins/rune/references/v3-defaults.md) for the defaults catalog.
 
 ### 4. Verify
 
@@ -305,7 +297,6 @@ Once you're comfortable with the basic workflow, explore these advanced commands
 - [Work execution guide](rune-work-execution-guide.en.md) — Swarm workers
 - [Advanced workflows guide](rune-advanced-workflows-guide.en.md) — Hierarchical plans, GitHub Issues, self-learning
 - [Custom agents and extensions guide](rune-custom-agents-and-extensions-guide.en.md) — Custom reviewers and CLI-backed Ashes (review agents)
-- [Talisman deep dive guide](rune-talisman-deep-dive-guide.en.md) — Full configuration reference
 - [Troubleshooting and optimization guide](rune-troubleshooting-and-optimization-guide.en.md) — Debugging, cost optimization
 
 ---
@@ -338,6 +329,3 @@ Yes.
 
 **Q: How does Rune learn from past sessions?**
 Use `/rune:learn` to extract CLI correction patterns and review recurrence findings from your session history. These are persisted to Rune Echoes (persistent memory) for future sessions.
-
-**Q: What is the talisman shard resolver?**
-Starting from v1.114.0, Rune pre-processes `talisman.yml` into per-namespace JSON shards at session start, giving a 94% token reduction. This happens automatically — no configuration needed.

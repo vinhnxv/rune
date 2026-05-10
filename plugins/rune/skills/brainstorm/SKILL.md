@@ -80,11 +80,13 @@ Output: docs/brainstorms/YYYY-MM-DD-<topic>-brainstorm.md
 
 ## Configuration
 
+<!-- v3.x: defaults baked from former v2.x talisman config (misc.brainstorm); see references/v3-defaults.md -->
+
 ```javascript
-const miscConfig = readTalismanSection("misc") || {}
-const advisorTimeoutMs = miscConfig.brainstorm?.advisor_timeout_ms ?? 90000
-const maxRounds = miscConfig.brainstorm?.max_rounds ?? 4
-const wordLimit = miscConfig.brainstorm?.advisor_word_limit ?? 300
+// v3.x: misc.brainstorm tunables baked in.
+const advisorTimeoutMs = 90000
+const maxRounds = 4
+const wordLimit = 300
 ```
 
 ## Workflow Lock (writer)

@@ -94,14 +94,8 @@ if (!/^[a-zA-Z0-9][a-zA-Z0-9._\/-]*$/.test(defaultBranch)) {
 }
 const diffStat = Bash(`git diff --stat "${defaultBranch}"..."${currentBranch}"`).trim()
 
-// readTalismanSection: "work"
-const work = readTalismanSection("work")
-const monitoringRequired = work?.pr_monitoring ?? false
-const coAuthors = work?.co_authors ?? []
-
-// 5. Build co-author lines
-const validCoAuthors = coAuthors.filter(a => /^[^<>\n]+\s+<[^@\n]+@[^>\n]+>$/.test(a))
-const coAuthorLines = validCoAuthors.map(a => `Co-Authored-By: ${a}`).join('\n')
+const monitoringRequired = false
+const coAuthorLines = ''
 
 // 6. Capture variables from earlier phases
 const commitCount = committedTaskIds.size

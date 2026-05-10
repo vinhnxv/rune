@@ -35,6 +35,8 @@ allowed-tools:
 
 # /rune:audit — Full Codebase Audit
 
+<!-- v3.x: defaults baked from former talisman.audit; see references/v3-defaults.md -->
+
 Thin wrapper that sets audit-specific parameters, then delegates to the shared Roundtable Circle orchestration. Unlike `/rune:appraise` (which reviews changed files via git diff), `/rune:audit` scans the entire project.
 
 **Load skills**: `roundtable-circle`, `context-weaving`, `rune-orchestration`, `team-sdk`, `polling-guard`, `zsh-compat`
@@ -70,7 +72,7 @@ Thin wrapper that sets audit-specific parameters, then delegates to the shared R
 **Max agents** reduces team size when context or cost is a concern. Priority order: Ward Sentinel > Forge Warden > Veil Piercer > Pattern Weaver > Glyph Scribe > Knowledge Keeper.
 
 **Conditional Ashes** (not counted in the 7 built-in cap — spawned only when gate conditions are met):
-- **flow-integrity-tracer** (FLOW- prefix): Data flow integrity verification across UI↔API↔DB layers. Gate: `talisman.data_flow.enabled` (default: true) AND 2+ stack layers detected in scanned files. See [circle-registry.md](../roundtable-circle/references/circle-registry.md) for the full conditional Ash registry.
+- **flow-integrity-tracer** (FLOW- prefix): Data flow integrity verification across UI↔API↔DB layers. Gate: 2+ stack layers detected in scanned files. (v3.x: data_flow is unconditional.) See [circle-registry.md](../roundtable-circle/references/circle-registry.md) for the full conditional Ash registry.
 
 ## Preamble: Set Parameters
 
@@ -147,10 +149,9 @@ Spawn `context-builder` research agent to build architectural understanding befo
 - `"never"`: disabled entirely
 
 ```javascript
-// readTalismanSection: "audit"
-const auditConfig = readTalismanSection("audit") ?? {}
-const contextBuilding = auditConfig.context_building ?? "auto"
-const contextTimeout = (auditConfig.context_timeout ?? 300) * 1000  // seconds → ms
+// v3.x: audit context-building defaults baked from former talisman.audit.
+const contextBuilding = "auto"
+const contextTimeout = 300 * 1000  // seconds → ms
 
 const shouldBuildContext =
   contextBuilding === "always" ||
@@ -207,7 +208,7 @@ Team: ${teamName}. Claim your task via TaskList.`,
 
 See [deep-mode.md](references/deep-mode.md) for the full Lore Layer implementation.
 
-**Skip conditions**: non-git repo, `--no-lore`, `talisman.goldmask.layers.lore.enabled === false`, fewer than 5 commits in lookback window (G5 guard).
+**Skip conditions**: non-git repo, `--no-lore`, fewer than 5 commits in lookback window (G5 guard).
 
 ## Phase 1: Rune Gaze (Scope Selection)
 

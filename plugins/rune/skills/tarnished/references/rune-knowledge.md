@@ -189,9 +189,6 @@ integrations:
         keywords: ["frontend", "ui"]
 ```
 
-**Step 3** (optional): Use `/rune:talisman init` — it auto-detects custom MCP servers
-in `.mcp.json` and scaffolds the integrations section for you.
-
 <!-- Removed in v3.0.0-alpha.1: UntitledUI Canonical MCP Integration Example.
      The companion skill `untitledui-mcp` and the dependent `design-system-discovery`
      skill were both removed in alpha.1. Level 3 MCP integration tier currently has
@@ -203,11 +200,10 @@ in `.mcp.json` and scaffolds the integrations section for you.
 
 ### MCP Integration Tips
 
-1. Use `/rune:talisman guide integrations` for detailed configuration help
-2. Use `/rune:talisman audit` to validate your integration config
-3. Use `/rune:talisman status` to check if MCP servers are connected
-4. The `trigger.always: true` setting forces the integration active for all matching phases
-5. File-based triggers (`extensions`, `paths`) only fire during strive/forge (not devise, since no files exist yet during planning)
+For MCP integration troubleshooting in v3.x: edit `.mcp.json` directly and validate JSON syntax. The legacy `/rune:talisman` configurator was removed in v3.0.0-alpha.4.
+
+1. The `trigger.always: true` setting forces the integration active for all matching phases
+2. File-based triggers (`extensions`, `paths`) only fire during strive/forge (not devise, since no files exist yet during planning)
 
 ## Common Pitfalls & Tips
 
@@ -235,12 +231,9 @@ Use `/rune:arc --resume` — it reads the checkpoint file and continues from whe
 - **Audit** (`/rune:audit`) — reviews the entire codebase
 
 ### 7. "Can I customize which agents run?"
-Yes, via `talisman.yml` configuration. You can disable agents, add custom agents,
-adjust thresholds, and configure review behavior. Use `/rune:talisman` for deep
-configuration management:
-- `/rune:talisman init` — scaffold a new talisman.yml for your project
-- `/rune:talisman audit` — find missing or outdated configuration keys
-- `/rune:talisman update` — add missing sections to existing talisman
+Yes — wire custom Ashes via the orchestration layer (`.claude/agents/<name>.md`). See `plugins/rune/skills/roundtable-circle/references/custom-ashes.md` for the wiring pattern.
+
+- Rune v3.x ships with hardcoded defaults. To inspect baked-in values, see `plugins/rune/references/v3-defaults.md`. There is no user-config layer to initialize, audit, or update.
 
 ## Advanced Workflows
 

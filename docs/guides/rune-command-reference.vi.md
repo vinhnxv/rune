@@ -83,7 +83,6 @@ Hướng dẫn liên quan:
 | Lệnh | Mục đích |
 |------|----------|
 | `/rune:tarnished` | Router thống nhất theo ngôn ngữ tự nhiên |
-| `/rune:talisman` | Cấu hình và audit `talisman.yml` (`init`, `audit`, `update`, `guide`, `status`) |
 | `/rune:elicit` | Chọn phương pháp suy luận có cấu trúc |
 | `/rune:file-todos` | Quản lý todo file-based theo session |
 | `/rune:rest` | Dọn artifact workflow đã hoàn thành trong `tmp/` |
@@ -117,5 +116,4 @@ Hướng dẫn liên quan:
 
 ## 8. Ghi chú độ chính xác
 
-- Tài liệu này chủ động tránh hard-code các con số nội bộ dễ thay đổi (ví dụ tổng số section talisman).
-- Dùng `/rune:talisman status` để lấy trạng thái cấu hình thực tế của dự án hiện tại.
+- Tài liệu này chủ động tránh hard-code các con số nội bộ dễ thay đổi.

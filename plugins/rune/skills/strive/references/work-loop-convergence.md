@@ -35,7 +35,10 @@ with single-pass results.
 | `discipline.block_on_fail` | `true` | Whether convergence failure blocks task completion (WARN vs BLOCK) |
 | `discipline.enabled` | `true` | Master switch for the discipline work loop |
 
-All values read via `readTalismanSection("discipline")` (dedicated discipline shard — FLAW-001 fix).
+<!-- v3.x: defaults baked from former talisman.discipline; see references/v3-defaults.md -->
+
+In v3.x these values are inlined as literals at consumer call sites. The table above
+documents the baked defaults for reference.
 
 ---
 
@@ -387,12 +390,11 @@ implementation quality issues; many F8s suggest infrastructure problems).
 // Phase 5: Convergence Loop
 // Run AFTER Phase 4.5 (Completion Matrix), when SCR < threshold
 function convergenceLoop(timestamp, matrixResult, planCriteriaMap) {
-  // FLAW-001 FIX: Read from dedicated discipline shard (not full talisman parse)
-  const disciplineConfig = readTalismanSection("discipline")
-  const maxIterations = disciplineConfig?.max_convergence_iterations ?? 3
-  const scrThreshold = disciplineConfig?.scr_threshold ?? 100
-  const iterationTimeoutMs = disciplineConfig?.iteration_timeout_ms ?? 1_200_000  // 20 min per iteration
-  const wallClockLimitMs = (disciplineConfig?.max_convergence_wall_clock_min ?? 60) * 60_000
+  // v3.x: discipline defaults baked — see references/v3-defaults.md
+  const maxIterations = 3
+  const scrThreshold = 100
+  const iterationTimeoutMs = 1_200_000  // 20 min per iteration
+  const wallClockLimitMs = 60 * 60_000  // 60 min total convergence budget
   const convergenceStartTime = Date.now()
 
   // FLAW-002 FIX: Guard — no criteria = no convergence

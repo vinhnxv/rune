@@ -1,5 +1,7 @@
 # Discipline Work Loop — 8-Phase Convergence Cycle
 
+<!-- v3.x: defaults baked from former talisman.discipline; see references/v3-defaults.md -->
+
 The Discipline Work Loop replaces strive's linear task execution with an 8-phase convergence cycle. Each phase builds on the previous, ensuring that every plan criterion is addressed, verified, and evidenced before completion.
 
 **Activation gate**: Plan has YAML acceptance criteria (`AC-*` blocks in code fences). Plans without criteria degrade to the existing strive linear execution (backward compatibility).
@@ -388,10 +390,8 @@ function crossReferenceVerification(timestamp, planPath, taskCriteriaMap) {
   Write(`tmp/work/${timestamp}/cross-reference.md`, report)
   Write(`tmp/work/${timestamp}/task-review/coverage-matrix.md`, report)
 
-  // BLOCK if any MISSING criteria (when discipline enabled)
-  // readTalismanSection: "discipline"
-  const disciplineConfig = readTalismanSection("discipline")
-  if (disciplineConfig?.enabled !== false && results.missing > 0) {
+  // BLOCK if any MISSING criteria (discipline always enabled in v3.x)
+  if (results.missing > 0) {
     error(`CROSS-REFERENCE BLOCK: ${results.missing} plan criteria missing from task files`)
   }
 
@@ -643,8 +643,7 @@ Iterative re-work loop for non-PASS criteria. Each iteration:
 ```javascript
 // Phase 5: Convergence Loop
 function convergenceLoop(timestamp, matrixResult, tasks, planCriteria, maxIterations) {
-  // readTalismanSection: "discipline"
-  const scrThreshold = readTalismanSection("discipline")?.scr_threshold ?? 100
+  const scrThreshold = 100  // v3.x discipline.scr_threshold default
   let iteration = 0
   let prevFailingIds = new Set()
 

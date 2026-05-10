@@ -1,5 +1,7 @@
 # Worker Prompts — strive Phase 2 Reference
 
+<!-- v3.x: defaults baked from former talisman.work; see references/v3-defaults.md -->
+
 Templates for summoning rune-smith and trial-forger swarm workers.
 
 ## Worker Scaling
@@ -1296,14 +1298,15 @@ Config: `work.sibling_awareness` talisman section.
 
 ```javascript
 // In buildWorkerPrompt() — called for each worker during Phase 2 spawning:
+const WORK_DEFAULTS = { sibling_awareness: { enabled: true, max_sibling_files: 5 } }
 const siblingWorkerContext = buildSiblingContext(
   claimedTask,          // the task being assigned to this worker
   allTasks,             // full expanded task list (post-decomposition)
   taskOwnership,        // inscription.json task_ownership map
-  readTalismanSection("work")
+  WORK_DEFAULTS
 )
 // Inject after nonGoalsBlock, before "YOUR LIFECYCLE:"
-// Returns "" when sibling_awareness.enabled=false or no siblings with file targets
+// Returns "" when no siblings with file targets
 ```
 
 **Distinct from**:
@@ -1317,10 +1320,9 @@ const siblingWorkerContext = buildSiblingContext(
 
 When a task has `isFrontend === true` AND a design system profile exists at `frontend-design-patterns/references/profiles/{library}-profile.md`, inject step 4.8 into rune-smith's lifecycle between step 4.7 (DESIGN SPEC) and step 5 (Read FULL target files). When conditions are not met, this step is omitted entirely — zero overhead.
 
-**Triple-gate pattern**: All three gates must pass before injecting:
-- Gate 1 (talisman): `talisman.strive.frontend_component_context.enabled` is true (opt-in)
-- Gate 2 (task): `task.metadata.isFrontend` is true
-- Gate 3 (profile): design system profile file exists on disk
+**Dual-gate pattern**: Both gates must pass before injecting (v3.x: the former talisman opt-in is now unconditional):
+- Gate 1 (task): `task.metadata.isFrontend` is true
+- Gate 2 (profile): design system profile file exists on disk
 
 **Sidecar pattern**: To avoid context overflow (~1300 tokens for an inline profile), workers receive a file path reference (~50 tokens) and read the profile themselves on demand. The profile is NOT inlined into the prompt.
 
@@ -1489,13 +1491,9 @@ When sibling awareness is enabled, inject context about other workers' tasks int
 See [sibling-context.md](sibling-context.md) for the `buildSiblingContext()` function.
 
 ```javascript
-// readTalismanSection: "work"
-const siblingEnabled = readTalismanSection("work")?.sibling_awareness?.enabled ?? true
-
-if (siblingEnabled) {
-  const siblingContext = buildSiblingContext(claimedTask, allTasks, taskOwnership)
-  if (siblingContext) {
-    prompt += siblingContext  // Insert after task list, before non-goals
-  }
+// v3.x: work.sibling_awareness.enabled defaults to true — always run
+const siblingContext = buildSiblingContext(claimedTask, allTasks, taskOwnership)
+if (siblingContext) {
+  prompt += siblingContext  // Insert after task list, before non-goals
 }
 ```

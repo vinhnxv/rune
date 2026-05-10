@@ -166,7 +166,7 @@ Summon mend-fixer teammates with ANCHOR/RE-ANCHOR Truthbinding. When 6+ file gro
 
 When Goldmask data is available from Phase 0.5, inject risk context into each fixer's prompt. Three sections: risk tiers, wisdom advisories, and blast-radius warnings.
 
-**Skip condition**: When `talisman.goldmask.mend.inject_context === false`, or when no Goldmask data exists, fixer prompts remain unchanged.
+**Skip condition**: When no Goldmask data exists, fixer prompts remain unchanged. (v3.x: injection is unconditional when data is present.)
 
 See [goldmask-mend-context.md](references/goldmask-mend-context.md) for the full protocol — `renderRiskContextTemplate()`, `filterWisdomForFiles()`, `extractMustChangeFiles()`, `sanitizeFindingText()`, and SEC-001 sanitization rules.
 
@@ -322,10 +322,6 @@ See [phase-7-cleanup.md](references/phase-7-cleanup.md) for full pseudocode. See
 
 | Condition | Effect |
 |-----------|--------|
-| `talisman.goldmask.enabled === false` | Skip Phase 0.5 and 5.95 entirely |
-| `talisman.goldmask.mend.enabled === false` | Skip all Goldmask integration in mend |
-| `talisman.goldmask.mend.inject_context === false` | Skip risk/wisdom injection into fixer prompts (Phase 3) |
-| `talisman.goldmask.mend.quick_check === false` | Skip Phase 5.95 |
 | No existing Goldmask data found | Proceed without risk context (graceful degradation) |
 | No GOLDMASK.md for quick check | Skip Phase 5.95 |
 | risk-map.json parse error | Proceed without risk overlay (Phase 1 and 3 skip Goldmask) |

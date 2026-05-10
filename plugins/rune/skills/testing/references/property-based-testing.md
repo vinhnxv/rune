@@ -296,4 +296,4 @@ function discoverPBTTests(changedFiles) {
 
 PBT tests run with the same test runner as unit tests (vitest, pytest, cargo test, go test). No special runner needed — PBT libraries integrate natively with each language's test framework.
 
-**Timeout**: PBT tests run with a 2x timeout multiplier vs unit tests (property generation is CPU-intensive). Configurable via `talisman.testing.tiers.pbt.timeout_multiplier` (default: 2).
+**Timeout**: PBT tests run with a 2x timeout multiplier vs unit tests (property generation is CPU-intensive). v3.x: `2` is baked-in.

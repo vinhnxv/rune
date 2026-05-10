@@ -77,7 +77,6 @@ Related guides:
 | Command | Purpose |
 |---------|---------|
 | `/rune:tarnished` | Unified natural-language router across workflows |
-| `/rune:talisman` | Configure and audit `talisman.yml` (`init`, `audit`, `update`, `guide`, `status`, `split`, `merge`) |
 | `/rune:elicit` | Structured reasoning method selection |
 | `/rune:file-todos` | Session-scoped file-based todo operations |
 | `/rune:rest` | Clean completed workflow artifacts under `tmp/` |
@@ -111,5 +110,4 @@ Related guides:
 
 ## 8. Accuracy Notes
 
-- This reference intentionally avoids hard-coding volatile internal counts (for example, exact talisman section totals).
-- Use `/rune:talisman status` for live configuration health in your current project.
+- This reference intentionally avoids hard-coding volatile internal counts.

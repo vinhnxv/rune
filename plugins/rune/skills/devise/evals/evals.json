@@ -163,14 +163,14 @@
     },
     {
       "id": 12,
-      "prompt": "How does the Predictive Goldmask phase (2.3) work? What are the 3 depth modes? What talisman config controls it? When is it skipped?",
-      "expected_output": "Predictive Goldmask analysis: Depth modes: basic (2 agents, default), enhanced (6 agents), full (8 agents). Controlled via talisman.goldmask.devise.depth. Skip conditions: --quick mode, goldmask.enabled === false, goldmask.devise.enabled === false, non-git repo. Purpose: runs predictive risk analysis on files likely affected by the plan before implementation. Outputs risk scores and wisdom advisories that get injected into the plan. Non-blocking on failure \u2014 proceeds with partial data or skips injection.",
+      "prompt": "How does the Predictive Goldmask phase (2.3) work? What are the 3 depth modes and the v3.x default? When is it skipped?",
+      "expected_output": "Predictive Goldmask analysis: Depth modes: basic (2 agents), enhanced (6 agents), full (8 agents). v3.x bakes the depth at 'basic' (see references/v3-defaults.md \u2014 the goldmask.devise.depth knob). Skip conditions: --quick mode, non-git repo. Goldmask + the devise predictive layer are always enabled in v3.x. Purpose: runs predictive risk analysis on files likely affected by the plan before implementation. Outputs risk scores and wisdom advisories that get injected into the plan. Non-blocking on failure \u2014 proceeds with partial data or skips injection.",
       "files": [],
       "expectations": [
         "Lists 3 depth modes: basic (2 agents), enhanced (6 agents), full (8 agents)",
-        "Notes basic is the default depth mode",
-        "Identifies talisman.goldmask.devise.depth as the config control",
-        "Lists skip conditions: --quick, goldmask.enabled === false, goldmask.devise.enabled === false, non-git repo",
+        "Notes 'basic' is the v3.x baked default and points to references/v3-defaults.md",
+        "Lists skip conditions: --quick, non-git repo",
+        "Notes goldmask + devise predictive layer are always on in v3.x",
         "Notes non-blocking behavior on failure",
         "Mentions risk scores and wisdom advisories are outputs"
       ]
@@ -178,10 +178,10 @@
     {
       "id": 14,
       "prompt": "How does Phase 0.3 UX Pattern Analysis work? When does it run? What conditions must be met? What output does it produce for Phase 2 synthesis?",
-      "expected_output": "UX Pattern Analysis (Phase 0.3): Conditions: talisman.ux.enabled === true AND frontend files detected (src/components/**/*.{tsx,jsx}, components/**/*.{tsx,jsx}, or app/**/*.{tsx,jsx} > 10 files). Spawns ux-pattern-analyzer agent to inventory existing UX patterns (7 categories: loading, error handling, form validation, navigation, empty states, confirmation/undo, feedback). Output: brainstormContext.ux_maturity object with analyzed: true, process type, cognitive_walkthrough flag. Used by Phase 2 synthesis to include 'UX Considerations' section in plan. Skipped when UX disabled or no frontend files.",
+      "expected_output": "UX Pattern Analysis (Phase 0.3): Conditions: frontend files detected (src/components/**/*.{tsx,jsx}, components/**/*.{tsx,jsx}, or app/**/*.{tsx,jsx} > 10 files). The UX subsystem is retained for inspector heuristics in v3.x with no user knobs (see references/v3-defaults.md). Spawns ux-pattern-analyzer agent to inventory existing UX patterns (7 categories: loading, error handling, form validation, navigation, empty states, confirmation/undo, feedback). Output: brainstormContext.ux_maturity object with analyzed: true, process type, cognitive_walkthrough flag. Used by Phase 2 synthesis to include 'UX Considerations' section in plan. Skipped when no frontend files are detected.",
       "files": [],
       "expectations": [
-        "Identifies the trigger conditions: ux.enabled === true AND frontend files detected",
+        "Identifies the trigger condition: frontend files detected (>10 components)",
         "Lists frontend file patterns: src/components, components, app directories",
         "Names the agent: ux-pattern-analyzer",
         "Lists 7 UX pattern categories",

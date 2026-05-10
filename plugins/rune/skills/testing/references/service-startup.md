@@ -12,7 +12,7 @@ Detection order (first match wins):
    → docker compose up -d --wait
    → Hard timeout: 3 minutes
 
-2. talisman.testing.service.startup_command is set
+2. A project-defined service startup command is set (passed via testingConfig.service.startup_command)
    → Validate: must match SAFE_TEST_COMMAND_PATTERN (/^[a-zA-Z0-9._\-\/ ]+$/)
    → Reject with error if validation fails (command injection prevention)
    → Run the validated command with quoted variable: Bash(`"${startup_command}"`)
@@ -36,7 +36,7 @@ After service startup, verify readiness:
 
 1. Determine health endpoint:
    - /health, /healthz, /api/health (try in order)
-   - Or: talisman.testing.tiers.e2e.base_url + /health
+   - Or: configured base_url + /health
 
 2. Poll loop:
    - HTTP GET to health endpoint
@@ -200,8 +200,7 @@ docker compose down -v --timeout 10 --remove-orphans
 # From docker-compose.yml
 docker compose config --format json | jq '.services[].ports[]'
 
-# From talisman
-# talisman.testing.tiers.e2e.base_url → extract port
+# From v3.x baked-in default base_url → extract port
 
 # From package.json (heuristic)
 grep -o 'PORT=[0-9]*' package.json || echo "3000"

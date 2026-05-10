@@ -68,11 +68,11 @@ agents:
   dynamic:
     - name: rune-smith
       role: implementation
-      count: "talisman.work.max_workers ?? 3"
+      count: 3   # v3.x baked-in (max_workers)
     - name: trial-forger
       role: testing
       count: "derived from task decomposition"
-max_agents: "talisman.work.max_workers ?? 3"
+max_agents: 3   # v3.x baked-in (max_workers)
 state_file: "tmp/.rune-work-{id}.json"
 signal_dir: "tmp/.rune-signals/rune-work-{id}"
 readonly: false
@@ -284,4 +284,4 @@ function resolvePreset(presetName, talisman) {
 - [protocols.md](protocols.md) — Cleanup protocol references preset `cleanup` config
 - [monitor-utility.md](../../roundtable-circle/references/monitor-utility.md) — Per-command monitoring config (source of truth for timeout values)
 - [agent-registry.md](../../../references/agent-registry.md) — Registered agent names
-- [configuration-guide.md](../../../references/configuration-guide.md) — talisman.yml schema
+- [v3-defaults.md](../../../references/v3-defaults.md) — v3.x baked-in defaults inventory

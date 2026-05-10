@@ -99,14 +99,11 @@ Before scanning for sediment, query Rune Echoes for previously identified infras
 
 **Exception**: Check first 5 lines for `# SDMT-IGNORE: <reason>` annotation.
 
-### SDMT-002: Dead Config
+### SDMT-002: Dead Config (RETIRED in v3.x)
 
-**What**: `talisman.example.yml` sections with zero consumers in `skills/` or `scripts/`.
-
-**Detection**:
-1. `Read("talisman.example.yml")` or `Read(".rune/talisman.yml")` — extract top-level section names
-2. For each section, `Grep(section_name, path: "skills/", glob: "**/*.md")` and `Grep(section_name, path: "scripts/", glob: "**/*.sh")`
-3. If zero references → SDMT-002
+**What**: Previously scanned `talisman.example.yml` sections with zero consumers. Retired
+in v3.x because `talisman.yml` no longer exists — defaults are baked literals (see
+`references/v3-defaults.md`). This detector is a no-op; do not emit SDMT-002 findings.
 
 ### SDMT-003: Dead Command
 
@@ -262,7 +259,7 @@ done | sort | uniq -c | sort -rn | head -5
 
 ### Analysis Todo
 1. [ ] **SDMT-001**: Cross-reference all agents against spawn sites
-2. [ ] **SDMT-002**: Cross-reference talisman config sections against consumers
+2. [ ] **SDMT-002**: RETIRED in v3.x — skip (talisman.yml deleted; defaults baked in v3-defaults.md)
 3. [ ] **SDMT-003**: Cross-reference commands against external invokers
 4. [ ] **SDMT-004**: Cross-reference scripts against hooks.json and skill references
 5. [ ] **SDMT-005**: Cross-reference user-invocable skills against router tables

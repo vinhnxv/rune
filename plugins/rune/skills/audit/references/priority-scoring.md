@@ -15,7 +15,7 @@ priority_score = (
 )
 ```
 
-## Default Weights (configurable via talisman)
+## Default Weights (hardcoded in v3.x — see references/v3-defaults.md audit section)
 
 | Factor | Weight | Score Range | Description |
 |--------|--------|-------------|-------------|
@@ -25,8 +25,6 @@ priority_score = (
 | Complexity | 0.10 | 0-10 | Line count normalized. |
 | Novelty | 0.10 | 0-10 | File creation recency. |
 | Role | 0.05 | 0-10 | File role heuristic (entry point, core, etc.). |
-
-**Weight normalization**: If talisman weights do not sum to 1.0 (tolerance 0.001), normalize by dividing each by the sum. Log a warning. Normalization happens as pre-processing in readTalisman() resolution.
 
 ## Score Functions
 

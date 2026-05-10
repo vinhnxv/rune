@@ -1,5 +1,7 @@
 # Phase 2: PLAN REVIEW — Full Algorithm
 
+<!-- v3.x: defaults baked from former talisman.gates; see references/v3-defaults.md -->
+
 Three to six parallel reviewers evaluate the enriched plan. Any BLOCK verdict halts the pipeline.
 
 **Team**: `arc-plan-review-{id}`
@@ -53,8 +55,8 @@ This phase creates a team and spawns agents. It MUST follow the Agent Teams patt
 | decree-arbiter | `agents/utility/decree-arbiter.md` | Always | Technical soundness |
 | knowledge-keeper | `agents/utility/knowledge-keeper.md` | Always | Documentation coverage |
 | veil-piercer-plan | `agents/utility/veil-piercer-plan.md` | Always | Plan truth-telling (reality vs fiction) |
-| horizon-sage | `agents/utility/horizon-sage.md` | `talisman.horizon.enabled !== false` | Strategic depth assessment |
-| evidence-verifier | `agents/utility/evidence-verifier.md` | `talisman.evidence.enabled !== false` | Evidence-based plan grounding |
+| horizon-sage | `agents/utility/horizon-sage.md` | Always (v3.x baked-in) | Strategic depth assessment |
+| evidence-verifier | `agents/utility/evidence-verifier.md` | Always (v3.x baked-in) | Evidence-based plan grounding |
 
 ## Algorithm
 
@@ -126,47 +128,33 @@ const reviewers = [
   { name: "veil-piercer-plan", agent: "agents/utility/veil-piercer-plan.md", focus: "Plan truth-telling (reality vs fiction)" }
 ]
 
-// readTalismanSection: "gates"
-const gates = readTalismanSection("gates")
+// v3.x: gates.{horizon,evidence,state_weaver} all enabled by default — always add these reviewers.
 
 // Horizon Sage — strategic depth assessment (v1.47.0+)
-// Skipped if talisman horizon.enabled === false
-const horizonEnabled = gates?.horizon?.enabled !== false
-if (horizonEnabled) {
-  const planFrontmatter = extractYamlFrontmatter(Read(`tmp/arc/${id}/enriched-plan.md`))
-  const VALID_INTENTS = ["long-term", "quick-win", "auto"]
-  const intentDefault = gates?.horizon?.intent_default ?? "long-term"
-  const strategicIntent = VALID_INTENTS.includes(planFrontmatter?.strategic_intent)
-    ? planFrontmatter.strategic_intent : intentDefault
-  reviewers.push({
-    name: "horizon-sage",
-    agent: "agents/utility/horizon-sage.md",
-    focus: `Strategic depth assessment (intent: ${strategicIntent})`
-  })
-}
+const planFrontmatter = extractYamlFrontmatter(Read(`tmp/arc/${id}/enriched-plan.md`))
+const VALID_INTENTS = ["long-term", "quick-win", "auto"]
+const strategicIntent = VALID_INTENTS.includes(planFrontmatter?.strategic_intent)
+  ? planFrontmatter.strategic_intent : "long-term"
+reviewers.push({
+  name: "horizon-sage",
+  agent: "agents/utility/horizon-sage.md",
+  focus: `Strategic depth assessment (intent: ${strategicIntent})`
+})
 
 // Evidence Verifier — evidence-based plan validation (v1.113.0)
-// Skipped if talisman evidence.enabled === false
-const evidenceEnabled = gates?.evidence?.enabled !== false
-if (evidenceEnabled) {
-  const evidenceExternalSearch = gates?.evidence?.external_search === true
-  reviewers.push({
-    name: "evidence-verifier",
-    agent: "agents/utility/evidence-verifier.md",
-    focus: `Evidence-based plan grounding (external_search: ${evidenceExternalSearch})`
-  })
-}
+// v3.x: gates.evidence.external_search default false → codebase + docs only.
+reviewers.push({
+  name: "evidence-verifier",
+  agent: "agents/utility/evidence-verifier.md",
+  focus: `Evidence-based plan grounding (external_search: false)`
+})
 
 // State Weaver — plan state machine validation (v1.127.0)
-// Skipped if talisman state_weaver.enabled === false
-const stateWeaverEnabled = gates?.state_weaver?.enabled !== false
-if (stateWeaverEnabled) {
-  reviewers.push({
-    name: "state-weaver",
-    agent: "agents/utility/state-weaver.md",
-    focus: "Plan state machine validation (phases, transitions, I/O contracts)"
-  })
-}
+reviewers.push({
+  name: "state-weaver",
+  agent: "agents/utility/state-weaver.md",
+  focus: "Plan state machine validation (phases, transitions, I/O contracts)"
+})
 
 // Create tasks for all reviewers (required for TaskList-based monitoring)
 for (const reviewer of reviewers) {
@@ -190,7 +178,6 @@ for (const reviewer of reviewers) {
       Include structured verdict marker: <!-- VERDICT:${reviewer.name}:{PASS|CONCERN|BLOCK} -->
       IMPORTANT: When done, claim your task via TaskList + TaskUpdate (status: "completed").`
   if (reviewer.name === "state-weaver") {
-    const swConfig = gates?.state_weaver ?? {}
     reviewerPrompt = `<!-- ANCHOR: You are state-weaver. Your ONLY role is plan state machine validation. -->
       Review plan for: ${reviewer.focus}
       Plan: tmp/arc/${id}/enriched-plan.md
@@ -202,17 +189,16 @@ for (const reviewer of reviewers) {
       <!-- RE-ANCHOR: Extract phases, build transition graph, validate completeness (10 checks), verify I/O contracts. Dead-end states and loops-without-exit are P1. -->`
   }
   if (reviewer.name === "evidence-verifier") {
-    const evConfig = gates?.evidence ?? {}
     reviewerPrompt = `<!-- ANCHOR: You are evidence-verifier. Your ONLY role is grounding verification. -->
       Review plan for: ${reviewer.focus}
       Plan: tmp/arc/${id}/enriched-plan.md
       Output: tmp/arc/${id}/reviews/${reviewer.name}-verdict.md
-      Evidence config: block_threshold=${evConfig.block_threshold ?? 0.4}, concern_threshold=${evConfig.concern_threshold ?? 0.6}
-      External search: ${evConfig.external_search === true ? "ALLOWED (WebSearch/WebFetch permitted)" : "DISABLED (codebase + documentation only)"}
+      Evidence config: block_threshold=0.4, concern_threshold=0.6
+      External search: DISABLED (codebase + documentation only)
       Evidence types (strength order): CODEBASE > DOCUMENTATION > EXTERNAL > OBSERVED > NOVEL
       Include structured verdict marker: <!-- VERDICT:${reviewer.name}:{PASS|CONCERN|BLOCK} -->
       IMPORTANT: When done, claim your task via TaskList + TaskUpdate (status: "completed").
-      <!-- RE-ANCHOR: Evaluate grounding score. Below ${evConfig.block_threshold ?? 0.4} → BLOCK, below ${evConfig.concern_threshold ?? 0.6} → CONCERN, otherwise PASS. -->`
+      <!-- RE-ANCHOR: Evaluate grounding score. Below 0.4 → BLOCK, below 0.6 → CONCERN, otherwise PASS. -->`
   }
   Agent({
     team_name: `arc-plan-review-${id}`, name: reviewer.name,

@@ -180,12 +180,13 @@ ${agentRiskContext ? `
 
 ## Elicitation Sage Spawning
 
+<!-- v3.x: defaults baked from former v2.x talisman config (gates.elicitation); see references/v3-defaults.md -->
+
 ```javascript
-// readTalismanSection: "gates"
-const elicitEnabled = readTalismanSection("gates")?.elicitation?.enabled !== false
-if (elicitEnabled) {
-  // MAX_FORGE_SAGES caps total elicitation sages to prevent resource exhaustion.
-  // Future: configurable via talisman.yml elicitation.max_sages (range 1-10). Currently hardcoded.
+// v3.x: the elicitation gate is unconditional (gates.elicitation.enabled = true, baked-in).
+// MAX_FORGE_SAGES caps total elicitation sages to prevent resource exhaustion.
+// Hardcoded; not user-configurable in v3.x.
+{
   let totalSagesSpawned = 0
   const MAX_FORGE_SAGES = 6
 
@@ -252,7 +253,7 @@ if (elicitEnabled) {
     })
     totalSagesSpawned++
   }
-} // end elicitEnabled guard
+} // end MAX_FORGE_SAGES loop block
 
 // ── FORGE-SYNC-001 (v2.56.1): Sage spawns also participate in the single
 // waitForCompletion() call — expectedCount includes both forge agents AND sages.

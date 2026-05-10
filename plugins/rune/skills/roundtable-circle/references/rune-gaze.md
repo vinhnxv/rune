@@ -1,5 +1,7 @@
 # Rune Gaze — Scope Selection
 
+<!-- v3.x: defaults baked from former talisman.misc + talisman.settings + talisman.stack_awareness; see references/v3-defaults.md -->
+
 > Extension-based file classification for Ash selection. Generic and configurable.
 
 ## Table of Contents
@@ -96,8 +98,9 @@ for each file in changed_files:
 # No hardcoded specialist list exists here — detection drives selection.
 
 stack = detectStack(repoRoot)
-confidence_threshold = talisman.stack_awareness.confidence_threshold ?? 0.6
-max_stack_ashes = talisman.stack_awareness.max_stack_ashes ?? 3
+# v3.x: hardcoded — formerly talisman.stack_awareness.{confidence_threshold,max_stack_ashes}
+confidence_threshold = 0.6
+max_stack_ashes = 3
 
 if stack.confidence >= confidence_threshold:
   specialist_selections = []
@@ -126,31 +129,17 @@ if stack.confidence >= confidence_threshold:
   if stack.libraries intersects ["dishka", "dependency-injector", "tsyringe"]:
     specialist_selections.add("di-reviewer")
 
-  # 4. Design Fidelity Gate (conditional on talisman + frontend + VSM)
+  # 4. Design Fidelity Gate — REMOVED in v3.x.
+  # talisman.design_sync was baked to {} (subsystem off). The Figma-to-code
+  # fidelity reviewer is now opt-in via /rune:design-sync directly.
   hasFrontend = any(file.ext in [".tsx", ".jsx", ".css", ".scss", ".vue", ".svelte"] for file in changed_files)
-  hasVSM = exists("tmp/arc/*/vsm/") OR exists("tmp/design/")
-  if talisman.design_sync?.enabled AND hasFrontend:
-    if "figma" in stack.frameworks OR hasVSM:
-      specialist_selections.add("design-implementation-reviewer")
-      # Write design context to inscription
-      inscription.design_context = {
-        enabled: true,
-        vsm_dir: find_vsm_dir() ?? null,
-        dcd_dir: find_dcd_dir() ?? null,
-        figma_url: talisman.design_sync?.figma_url ?? null,
-        fidelity_threshold: talisman.design_sync?.fidelity_threshold ?? 0.8,
-        components: parse_vsm_components() ?? [],
-        token_system: detect_token_system() ?? null
-      }
 
-  # 4.5. Design System Compliance Gate (conditional on frontend + design system detection)
+  # 4.5. Design System Compliance Gate (always on in v3.x when frontend + design system detected)
   # Triggered by: frontend files (.tsx, .jsx, .css, .scss) AND design system confidence >= 0.5
   # Keywords: design system, tokens, CVA, cn(), tailwind, component patterns
-  # Separate from design-implementation-reviewer (FIDE): DSYS validates codebase conventions;
-  # FIDE validates Figma-to-code fidelity. Both can be active simultaneously without overlap.
+  # Validates codebase conventions independent of Figma fidelity.
   ds_confidence = stack.design_system?.confidence ?? 0
-  ds_disabled = talisman.stack_awareness?.design_compliance == false
-  if hasFrontend AND NOT ds_disabled AND ds_confidence >= 0.5:
+  if hasFrontend AND ds_confidence >= 0.5:
     specialist_selections.add("design-system-compliance-reviewer")
 
   # 5. Enforce cap
@@ -173,25 +162,23 @@ if scope === "full" AND exists(".claude-plugin/plugin.json"):
 # ── Schema Drift Detection (v1.161.0+) ──
 # When diff contains schema or migration files, tag inscription so
 # Forge Warden activates Perspective 10 (schema-drift-detector).
-# Gate: readTalismanSection("misc").schema_drift?.enabled !== false
-schema_drift_disabled = readTalismanSection("misc").schema_drift?.enabled === false
-if NOT schema_drift_disabled:
-  schema_patterns = [
-    "db/schema.rb", "db/structure.sql", "db/migrate/",
-    "prisma/schema.prisma", "prisma/migrations/",
-    "alembic/versions/", "*/migrations/",
-    "drizzle/schema.ts", "drizzle/migrations/",
-    "src/migrations/", "migrations/",
-    "*.changelog.xml", "*.changelog.yaml",
-    "V*__*.sql"
-  ]
-  has_schema_files = false
-  for each file in changed_files:
-    if file.path matches any schema_patterns:
-      has_schema_files = true
-      break
-  if has_schema_files:
-    inscription.schema_drift_active = true  # Forge Warden reads this to activate Perspective 10
+# v3.x: misc.schema_drift.enabled is baked to true — gate removed.
+schema_patterns = [
+  "db/schema.rb", "db/structure.sql", "db/migrate/",
+  "prisma/schema.prisma", "prisma/migrations/",
+  "alembic/versions/", "*/migrations/",
+  "drizzle/schema.ts", "drizzle/migrations/",
+  "src/migrations/", "migrations/",
+  "*.changelog.xml", "*.changelog.yaml",
+  "V*__*.sql"
+]
+has_schema_files = false
+for each file in changed_files:
+  if file.path matches any schema_patterns:
+    has_schema_files = true
+    break
+if has_schema_files:
+  inscription.schema_drift_active = true  # Forge Warden reads this to activate Perspective 10
 
 # ── Static Ash selection only (v3.x+) ──
 # CORE agents (agents/*.md) are selected via the hardcoded logic above.
@@ -224,8 +211,8 @@ for each cli_ash in cli_ashes:
 # BEFORE Phase 2 (TeamCreate + TaskCreate). Spawning happens in Phase 3 (ash-summoning.md).
 current_workflow = "review"  # or "audit" depending on calling skill
 custom_agent_ashes = []
-if talisman.ashes?.custom:
-  for each entry in talisman.ashes.custom:
+if settings.ashes?.custom:
+  for each entry in settings.ashes.custom:  // v3.x: defaults to []
     # Skip CLI-backed entries (handled above by detectAllCLIAshes)
     if entry.cli:
       continue
@@ -287,7 +274,7 @@ if talisman.ashes?.custom:
   #   2. Trigger-matched custom agents (trigger.always == false)
   #   3. trigger.always custom agents (last to trim — user explicitly wants these)
   total_ashes = len(ash_selections)
-  max_ashes = talisman.settings?.max_ashes ?? 9
+  max_ashes = 9  # v3.x: settings.max_ashes baked
   trimmed_agents = []  # Track all trimmed agents for inscription
 
   if total_ashes > max_ashes:
@@ -324,7 +311,7 @@ if talisman.ashes?.custom:
   inscription.trimmed_agents = trimmed_agents  # Record which agents were dropped and why
 ```
 
-**`DOC_LINE_THRESHOLD`**: Default 10. Configurable via `talisman.yml` → `rune-gaze.doc_line_threshold`.
+**`DOC_LINE_THRESHOLD`**: 10 (hardcoded in v3.x).
 
 ## Extension Groups
 
@@ -420,46 +407,15 @@ Gemfile.lock, pnpm-lock.yaml, go.sum, composer.lock
 | Infra + docs | Selected | **Always** | **Always** | **Always** | - | Selected | **CLI-gated** |
 | All types | Selected | **Always** | **Always** | **Always** | Selected | Selected | **CLI-gated** |
 
-**Note:** The "Only `.claude/` files" row assumes `.claude/**/*.md`. Non-md files in `.claude/` (e.g., `.rune/talisman.yml`) follow standard classification rules and may also select Forge Warden via CONFIG_EXTENSIONS.
+**Note:** The "Only `.claude/` files" row assumes `.claude/**/*.md`. Non-md files in `.claude/` follow standard classification rules and may also select Forge Warden via CONFIG_EXTENSIONS.
 
+**External CLI-backed Ashes (v1.57.0+):** Custom Ashes with `cli:` field are detected via `detectAllCLIAshes()`. Each validated CLI-backed Ash is added to `ash_selections`. Subject to `max_cli_ashes` sub-partition (2) within `max_ashes`.
 
+**Max built-in Ash:** 7. With custom Ashes, total can reach 9 (`settings.max_ashes` baked to 9 in v3.x). CLI-backed Ashes are capped at `max_cli_ashes` (2) within that total. Plus 1 Runebinder (utility) for aggregation.
 
-**External CLI-backed Ashes (v1.57.0+):** Custom Ashes with `cli:` field are detected via `detectAllCLIAshes()`. Each validated CLI-backed Ash is added to `ash_selections`. Subject to `max_cli_ashes` sub-partition (default: 2) within `max_ashes`.
+## Defaults (Hardcoded in v3.x)
 
-**Max built-in Ash:** 7. With custom Ashes (via `talisman.yml`), total can reach 9 (`settings.max_ashes`). CLI-backed Ashes are capped at `max_cli_ashes` (default: 2) within that total. Plus 1 Runebinder (utility) for aggregation.
-
-## Configurable Overrides
-
-Projects can override the default extension groups via `.rune/talisman.yml`:
-
-```yaml
-# .rune/talisman.yml (optional)
-rune-gaze:
-  backend_extensions:
-    - .py
-    - .go
-  frontend_extensions:
-    - .tsx
-    - .ts
-  infra_extensions:
-    - .tf
-    - .sh
-    - .sql
-  config_extensions:
-    - .yml
-    - .yaml
-    - .json
-    - .toml
-  doc_line_threshold: 10        # Min lines changed to summon Knowledge Keeper (default: 10)
-  skip_patterns:
-    - "**/*.generated.ts"
-    - "**/migrations/**"
-  always_review:
-    - "CLAUDE.md"
-    - ".claude/**/*.md"
-```
-
-If no config file exists, use the defaults above.
+The extension groups, skip patterns, and `always_review` list are now hardcoded in this skill — they are no longer overridable per-project. To customise them, fork this skill.
 
 ## Special File Handling
 

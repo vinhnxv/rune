@@ -13,8 +13,8 @@
   "plugins": [
     {
       "name": "rune",
-      "description": "Multi-agent engineering orchestration for Claude Code. Plan, work, review, mend, ship via /rune:arc with checkpoint framework, QA phases, Discipline Engineering, and Agent Teams. v3.0.0-alpha.3: self-audit-driven doc/registry/runtime drift fix from run 1778278942 — bash PHASE_ORDER synced to JS canonical, registry counts corrected, phantom agents/skills purged from 37 files.",
-      "version": "3.0.0-alpha.3",
+      "description": "Multi-agent engineering orchestration for Claude Code. Plan, work, review, mend, ship via /rune:arc with checkpoint framework, QA phases, Discipline Engineering, and Agent Teams. v3.0.0-alpha.4: Day 3 Talisman complete removal — 157 call sites baked, skill+scripts+docs deleted, ~10.5K LoC removed.",
+      "version": "3.0.0-alpha.4",
       "author": {
         "name": "vinhnxv",
         "email": "vinh.ngxv@gmail.com",
@@ -83,7 +83,6 @@
         "./skills/strive",
         "./skills/supply-chain-audit",
         "./skills/systematic-debugging",
-        "./skills/talisman",
         "./skills/tarnished",
         "./skills/team-sdk",
         "./skills/team-status",

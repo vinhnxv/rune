@@ -370,4 +370,4 @@ Dedup hierarchy: SEC > BACK > VEIL > DOUBT > API > DOC > QUAL > FRONT
 - [Dedup Runes](dedup-runes.md) — Deduplication algorithm and extended hierarchy
 - [Circle Registry](circle-registry.md) — Built-in Ash agent mapping
 - [Inscription Protocol](../../rune-orchestration/references/inscription-protocol.md) — Output contract and Seal format
-- [Example Config](../../../talisman.example.yml) — Full example `talisman.yml`
+- [v3.x Defaults Reference](../../../references/v3-defaults.md) — baked-in values per former section

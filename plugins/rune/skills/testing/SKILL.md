@@ -41,7 +41,7 @@ PBT tests invariants with randomly generated inputs, catching edge cases that ex
 
 **Skip conditions**: No PBT library in dependencies AND no PBT-suitable patterns detected in changed code.
 **Discovery**: Check `package.json` for `fast-check`, `requirements.txt`/`pyproject.toml` for `hypothesis`, `Cargo.toml` for `proptest`, `go.mod` for `rapid`. If library present, run PBT tier. If absent but patterns detected, suggest adding the library.
-**Timeout**: 2x unit test timeout (PBT generation is CPU-intensive). Configurable via `talisman.testing.tiers.pbt.timeout_multiplier` (default: 2).
+**Timeout**: 2x unit test timeout (PBT generation is CPU-intensive). v3.x baked default: `2`.
 
 See [property-based-testing.md](references/property-based-testing.md) for library selection, code templates, discovery protocol, and common property patterns.
 
@@ -318,7 +318,7 @@ Applied to ALL commands parsed from project config files (package.json, pytest.i
 Validates all file paths. Rejects `..` traversal. Always quote: `"$file"`.
 
 ### E2E URL Scope Restriction
-E2E URLs MUST be scoped to `localhost` or the `talisman.testing.tiers.e2e.base_url` host.
+E2E URLs MUST be scoped to `localhost` or the testing E2E base URL host (v3.x default `http://localhost:3000`; see `plugins/rune/references/v3-defaults.md`).
 External URLs are rejected to prevent agent-browser from navigating to untrusted sites.
 
 ### Output Truncation

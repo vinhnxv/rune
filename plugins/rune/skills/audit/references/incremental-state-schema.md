@@ -19,7 +19,7 @@
     └── archive/          # Compressed old snapshots
 ```
 
-**Default**: `.rune/audit-state/` is gitignored. Set `talisman.audit.incremental.version_controlled: true` to track in git.
+**Default**: `.rune/audit-state/` is gitignored. (v3.x has no override; users who want to track audit state in git must commit the directory manually.)
 
 ## manifest.json Schema
 

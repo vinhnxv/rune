@@ -1,11 +1,13 @@
 # Phase 5.5: Implementation Gap Analysis — Full Algorithm
 
+<!-- v3.x: defaults baked from former talisman.{settings,arc}; see references/v3-defaults.md -->
+
 Hybrid analysis: deterministic orchestrator-only checks (STEP A) + 9-dimension LLM analysis via Inspector Ashes (STEP B) + merged unified report (STEP C) + configurable halt decision (STEP D).
 
 **Team**: `arc-inspect-{id}` (STEP B only — follows ATE-1 pattern)
 **Tools**: Read, Glob, Grep, Bash (git diff, grep), Agent, TaskCreate, TaskUpdate, TaskList, TeamCreate, TeamDelete, SendMessage
 **Timeout**: 720_000ms (12 min: inner 8m + 2m setup + 2m aggregate)
-**Talisman key**: `arc.gap_analysis`
+**Defaults**: `arc.gap_analysis` (halt_threshold=50, inspectors=2, remediation.enabled=true, max_fixes=20, timeout=600000)
 
 ## STEP A: Deterministic Checks
 
@@ -17,18 +19,14 @@ _(Formerly STEP 1–5. All logic unchanged — orchestrator-only, zero LLM cost.
 // ARTIFACT EXTRACTION: Pre-extract plan and work-summary digests via shell script.
 // Shell extraction: zero LLM tokens, sub-second. Digests used for orchestrator's
 // quick checks only — gap analysis inspectors still read full artifacts for deep context.
-// readTalismanSection: "settings"
-const extractionEnabled = readTalismanSection("settings")?.artifact_extraction?.enabled !== false
+// v3.x: settings.artifact_extraction.enabled defaults true — always extract.
+try {
+  Bash(`cd "${CWD}" && bash plugins/rune/scripts/artifact-extract.sh plan "${id}"`)
+} catch (e) { warn(`artifact-extract plan digest failed: ${e.message}`) }
 
-if (extractionEnabled) {
-  try {
-    Bash(`cd "${CWD}" && bash plugins/rune/scripts/artifact-extract.sh plan "${id}"`)
-  } catch (e) { warn(`artifact-extract plan digest failed: ${e.message}`) }
-
-  try {
-    Bash(`cd "${CWD}" && bash plugins/rune/scripts/artifact-extract.sh work-summary "${id}"`)
-  } catch (e) { warn(`artifact-extract work-summary digest failed: ${e.message}`) }
-}
+try {
+  Bash(`cd "${CWD}" && bash plugins/rune/scripts/artifact-extract.sh work-summary "${id}"`)
+} catch (e) { warn(`artifact-extract work-summary digest failed: ${e.message}`) }
 
 // Read digests for orchestrator quick-checks (tiny JSON, ~300 tokens each)
 const planDigest = (() => {
@@ -127,11 +125,7 @@ const consistencyGuardPass =
   (taskStats.completed / taskStats.total) >= 0.5
 
 if (consistencyGuardPass) {
-  // readTalismanSection: "arc"
-  const arcConfig = readTalismanSection("arc")
-  const customChecks = arcConfig?.consistency?.checks || []
-
-  // Default checks when talisman does not define any
+  // v3.x: arc.consistency.checks is no longer configurable — always use DEFAULT_CONSISTENCY_CHECKS.
   const DEFAULT_CONSISTENCY_CHECKS = [
     {
       name: "version_sync",
@@ -153,7 +147,7 @@ if (consistencyGuardPass) {
     }
   ]
 
-  const checks = customChecks.length > 0 ? customChecks : DEFAULT_CONSISTENCY_CHECKS
+  const checks = DEFAULT_CONSISTENCY_CHECKS
 
   // Security patterns: SAFE_REGEX_PATTERN_CC, SAFE_PATH_PATTERN, SAFE_GLOB_PATH_PATTERN — see security-patterns.md
   // QUAL-003: _CC suffix = "Consistency Check" — narrower than SAFE_REGEX_PATTERN (excludes $, |, parens)
@@ -774,16 +768,15 @@ Produces a per-criterion status matrix with 4 states. Feeds into the gap analysi
 halt decision via RED criteria counts.
 
 **CDX-SV-002**: Initial rollout uses WARN mode — RED criteria create remediation tasks rather than BLOCK.
-Configure `arc.gap_analysis.spec_compliance_mode` in talisman to switch to BLOCK when ready.
+v3.x bakes `specComplianceMode = "warn"` (see STEP A.12 below); flip the literal to `"block"` when ready.
 
 ```javascript
 // STEP A.12: Spec Compliance Matrix
 // Read ALL acceptance criteria from plan (reuses criteria from STEP A.1)
 // Cross-reference against: (1) code evidence in diff, (2) test evidence in diff
 
-// readTalismanSection: "arc"
-const arcConfig = readTalismanSection("arc")
-const specComplianceMode = arcConfig?.gap_analysis?.spec_compliance_mode ?? "warn"  // "warn" | "block"
+// v3.x: arc.gap_analysis.spec_compliance_mode baked at "warn" (initial rollout posture).
+const specComplianceMode = "warn"  // "warn" | "block"
 
 // Parse test files from diff (files matching common test patterns)
 const testFilePattern = /\b(test|spec|__tests__|__mocks__|e2e|integration)\b/i
@@ -1006,7 +999,7 @@ automatically by Rune Gaze Phase 1. No additional work needed in the arc phase i
 Spawns Inspector Ashes from `/rune:inspect` using its ash-prompt templates to perform a 9-dimension gap analysis on the committed implementation against the plan. Runs AFTER STEP A (deterministic) completes.
 
 **Team**: `arc-inspect-{id}` — follows ATE-1 pattern
-**Inspectors**: Default 2 (configurable via `talisman.arc.gap_analysis.inspectors`): `grace-warden` + `ruin-prophet`
+**Inspectors**: 2 (v3.x baked-in): `grace-warden` + `ruin-prophet`
 **Timeout**: 480_000ms (8 min inner polling)
 
 ```javascript
@@ -1638,8 +1631,8 @@ if (needsRemediation && !headlessMode) {
   error(`Phase 5.5 GAP ANALYSIS halted:\n${haltMessage}\n\n` +
     `Unified report: tmp/arc/${id}/gap-analysis-unified.md\n` +
     (taskCompletionFailed
-      ? `Task completion floor is ${TASK_COMPLETION_FLOOR}%. Adjust via arc.gap_analysis.task_completion_floor in talisman.yml (range: 50-100).\n`
-      : `To proceed despite gaps: set arc.gap_analysis.halt_on_critical: false in talisman.yml\n`) +
+      ? `Task completion floor is ${TASK_COMPLETION_FLOOR}% (v3.x baked default 100%, range: [50, 100]).\n`
+      : `v3.x: halt_on_critical baked true; lower the literal to bypass.\n`) +
     `Or resume after manual fixes: /rune:arc --resume`)
 }
 
@@ -1647,15 +1640,11 @@ if (needsRemediation && !headlessMode) {
 // When a high proportion of acceptance criteria are MISSING, the original plan
 // may be fundamentally misaligned with the codebase — warn before wasting effort
 // on incremental gap fixes.
-const arcConfig = readTalismanSection("arc")
-const reassessmentEnabled = arcConfig?.gap_analysis?.reassessment?.enabled !== false  // Default: true
-let driftThreshold = arcConfig?.gap_analysis?.reassessment?.drift_threshold ?? 0.40
-if (driftThreshold < 0 || driftThreshold > 1) {
-  warn(`STEP D.6: drift_threshold ${driftThreshold} is outside valid range [0.0, 1.0] — using default 0.40`)
-  driftThreshold = 0.40
-}
+// v3.x: arc.gap_analysis.reassessment.enabled baked true (always run);
+//       drift_threshold baked at 0.40 (40% MISSING triggers warning).
+const driftThreshold = 0.40
 
-if (reassessmentEnabled) {
+{
   const totalCriteria = gaps.length
   const missingCount = gaps.filter(g => g.status === "MISSING").length
   const driftRatio = totalCriteria > 0 ? missingCount / totalCriteria : 0
@@ -1688,7 +1677,7 @@ if (reassessmentEnabled) {
       warn(`STEP D.6: Plan drift detected — ${driftPct}% of acceptance criteria are MISSING ` +
         `(${missingCount}/${totalCriteria}, threshold: ${(driftThreshold * 100).toFixed(0)}%).\n` +
         `Consider revising the plan before proceeding with gap remediation.\n` +
-        `To disable: set arc.gap_analysis.reassessment.enabled: false in talisman.yml`)
+        `To disable in v3.x: remove the STEP D.6 block from gap-analysis.md.`)
     }
   }
 }

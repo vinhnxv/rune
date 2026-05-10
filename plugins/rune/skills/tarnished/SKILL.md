@@ -234,21 +234,9 @@ load [rune-knowledge.md](references/rune-knowledge.md) and provide educational g
 /rune:tarnished always use agent
 ```
 → For "add agent" / "custom reviewer" / "custom ash":
-  Guide user to add `ashes.custom[]` entry in `.rune/talisman.yml`:
-  ```yaml
-  ashes:
-    custom:
-      - name: "my-reviewer"
-        agent: "my-reviewer"
-        source: local        # local (.claude/agents/) or global (~/.claude/agents/)
-        workflows: [review]
-        trigger:
-          extensions: [".py", ".ts"]
-        context_budget: 20
-        finding_prefix: "MYR"
-  ```
+  Guide user to add a custom Ash via the orchestration layer (`.claude/agents/<name>.md`) — the legacy `ashes.custom[]` registry was removed in v3.0.0-alpha.4. See `plugins/rune/skills/roundtable-circle/references/custom-ashes.md` for the wiring pattern.
   Then suggest: "Create the agent at `.claude/agents/my-reviewer.md`"
-  Or route to: `/rune:talisman guide`
+  Or route to: `plugins/rune/skills/roundtable-circle/references/custom-ashes.md` (custom-ash wiring reference)
 
 → For "which agents" / "agent list" / "list agents":
   Route to: `Skill("rune:ash-guide")`

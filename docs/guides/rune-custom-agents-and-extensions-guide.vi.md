@@ -4,7 +4,6 @@ Mở rộng pipeline review của Rune với agent theo dự án, model bên ngo
 
 Hướng dẫn liên quan:
 - [Bắt đầu nhanh](rune-getting-started.vi.md)
-- [Hướng dẫn cấu hình Talisman](rune-talisman-deep-dive-guide.vi.md)
 - [Hướng dẫn review và audit](rune-code-review-and-audit-guide.vi.md)
 - [Hướng dẫn xử lý sự cố và tối ưu](rune-troubleshooting-and-optimization-guide.vi.md)
 

@@ -16,7 +16,7 @@ Conditional deployment artifact generation via `deployment-verifier` agent. Spaw
 
 Phase 7.9 runs between Phase 7.7 TEST and Phase 8.5 PRE-SHIP VALIDATION. Conditional on both talisman config and diff content.
 
-**Talisman gate**: `readTalismanSection("misc").deployment_verification?.enabled !== false` (default: enabled)
+**Activation gate**: disabled by default in v3.x (`misc.deployment_verification.enabled = false`). Phase is a no-op unless re-enabled at the call site.
 
 **Diff content gate**: At least one changed file matches deployment-relevant patterns:
 - Migration files: `**/migrations/**`, `**/migrate/**`, `*.sql`
@@ -35,11 +35,11 @@ If neither gate passes, the phase is skipped with zero overhead.
 
 if (!/^[a-zA-Z0-9_-]+$/.test(id)) throw new Error(`Phase 7.9: unsafe id value: "${id}"`)
 
-const miscConfig = readTalismanSection("misc") || {}
-const deployEnabled = miscConfig.deployment_verification?.enabled !== false
+// v3.x: deployment verification disabled by default (see references/v3-defaults.md)
+const deployEnabled = false
 
 if (!deployEnabled) {
-  warn(`Phase 7.9: skipped — deployment_verification.enabled is false in talisman`)
+  warn(`Phase 7.9: skipped — deployment verification disabled by default in v3.x`)
   updateCheckpoint({
     phase: "deploy_verify", status: "skipped",
     phase_sequence: 7.9

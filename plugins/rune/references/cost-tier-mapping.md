@@ -79,14 +79,14 @@ Centralized reference for the `cost_tier` system that controls which Claude mode
 
 ## resolveModelForAgent()
 
-**Inputs**: `agentName` (string — agent name from Agent call), `talisman` (object — parsed talisman.yml)
+**Inputs**: `agentName` (string — agent name from Agent call)
 **Outputs**: `model` (string — "opus" | "sonnet" | "haiku")
-**Preconditions**: `talisman` loaded via `readTalisman()`, `COST_TIER_TABLE` populated from this file
+**Preconditions**: `COST_TIER` constant set to `"balanced"` (v3.x baked default — see `references/v3-defaults.md`)
 **Error handling**: Unknown agent → return tier default. Invalid tier value → fallback to "balanced".
 
 ```javascript
-function resolveModelForAgent(agentName, talisman) {
-  const tier = talisman?.cost_tier ?? "balanced"
+function resolveModelForAgent(agentName) {
+  const tier = "balanced"  // v3.x baked default; was talisman.cost_tier in v2.x
   const validTiers = ["opus", "balanced", "efficient", "minimal"]
   const effectiveTier = validTiers.includes(tier) ? tier : "balanced"
 
@@ -156,7 +156,7 @@ function resolveFullModelId(alias) {
 
 **Usage pattern:**
 ```javascript
-const alias = resolveModelForAgent(agentName, talisman)   // → "sonnet"
+const alias = resolveModelForAgent(agentName)             // → "sonnet"
 const modelId = resolveFullModelId(alias)                  // → "claude-sonnet-4-6"
 ```
 
@@ -164,7 +164,7 @@ const modelId = resolveFullModelId(alias)                  // → "claude-sonnet
 
 - **Custom Ashes** defined by users are NOT affected by `cost_tier` — they may use non-Claude models
 - **Main session model** is controlled by Claude Code settings — NOT affected
-- **Agent frontmatter `model:`** becomes the fallback when `cost_tier` is not set in talisman
+- **Agent frontmatter `model:`** becomes the fallback when an agent is not categorized; the v3.x baked `cost_tier` (`"balanced"`) is always present
 - Unknown agents (e.g., future agents not yet categorized) fall back to `TIER_DEFAULTS`
 - **Tracers vs Research asymmetry**: Tracers get haiku on `balanced` tier while research gets sonnet — tracers perform mechanical reference traversal (follow imports, extract structured data) while research agents need reasoning to interpret search results and synthesize findings
 - **Pseudocode nature**: `resolveModelForAgent()` above is reference pseudocode — actual callers pass the resolved model string as the `model:` parameter in their Task spawn call. See individual skill SKILL.md files for call sites

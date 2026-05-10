@@ -42,13 +42,9 @@ See [data-discovery.md](../../goldmask/references/data-discovery.md) for the dis
 
 | Condition | Effect |
 |-----------|--------|
-| `talisman.goldmask.enabled === false` | Skip Phase 1.3 entirely |
-| `talisman.goldmask.inspect.enabled === false` | Skip Phase 1.3 entirely |
-| `talisman.goldmask.layers.lore.enabled === false` | Skip Phase 1.3 entirely |
 | `--no-lore` flag | Skip Phase 1.3 entirely |
 | Non-git repo | Skip Phase 1.3 |
 | < 5 commits in lookback window (G5 guard) | Skip Phase 1.3 |
-| `talisman.goldmask.inspect.wisdom_passthrough === false` | Skip wisdom injection in Phase 3 only |
 | Existing risk-map found (>= 30% scope overlap) | Reuse instead of spawning agent |
 
 ### Steps 1.3.1–1.3.2 — Skip Gate, Discovery, and Spawning

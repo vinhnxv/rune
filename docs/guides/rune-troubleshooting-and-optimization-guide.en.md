@@ -4,7 +4,6 @@ Diagnose common failures, reduce token costs, and optimize Rune's multi-agent wo
 
 Related guides:
 - [Getting started](rune-getting-started.en.md)
-- [Talisman deep dive guide](rune-talisman-deep-dive-guide.en.md)
 - [Custom agents and extensions guide](rune-custom-agents-and-extensions-guide.en.md)
 - [Arc and batch guide](rune-arc-and-batch-guide.en.md)
 

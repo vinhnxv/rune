@@ -325,11 +325,8 @@ On resume, validate checkpoint integrity before proceeding:
        }
      }
      if (!checkpoint.qa) {
-       // SEC-001 FIX: Respect talisman config instead of hardcoding enabled: true.
-       // Migrated checkpoints (pre-QA) should default to false (conservative) unless
-       // the project's talisman explicitly enables QA gates.
-       const qaEnabled = readTalismanSection("gates")?.qa_gates?.enabled ?? false
-       checkpoint.qa = { global_retry_count: 0, max_global_retries: 6, enabled: qaEnabled }
+       // v3.x: qa_gates enabled by default (see references/v3-defaults.md)
+       checkpoint.qa = { global_retry_count: 0, max_global_retries: 6, enabled: true }
      }
      checkpoint.schema_version = 25
    }
@@ -338,15 +335,10 @@ On resume, validate checkpoint integrity before proceeding:
    ```javascript
    // Step 3z: v25 → v26 (Declarative reaction engine config + reaction state + CI status)
    if (checkpoint.schema_version < 26) {
-     // Add reactions config (read from resolved shard or empty default)
+     // v3.x: reactions are baked-in defaults (see references/v3-defaults.md § reactions).
+     // Migration sets empty {}; runtime substitutes the v3.x reaction defaults.
      if (!checkpoint.reactions) {
-       let reactions = {}
-       try {
-         reactions = JSON.parse(Read("tmp/.talisman-resolved/reactions.json"))
-       } catch (e) {
-         // Fallback: empty reactions — defaults will be used at runtime
-       }
-       checkpoint.reactions = reactions
+       checkpoint.reactions = {}
      }
      // Add reaction state with per-event counters
      if (!checkpoint.reaction_state) {

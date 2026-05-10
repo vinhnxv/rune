@@ -1,24 +1,22 @@
+<!-- v3.x: defaults baked from former v2.x talisman config (gates.quality_commands); see references/v3-defaults.md -->
+
 # Quality Gate — Phase 5
 
-Quality check configuration and talisman integration.
+Quality check configuration. v3.x auto-detects quality commands from the project manifest;
+there is no longer a config-layer override for the command list.
 
 ## Quality Commands
 
-Read from talisman configuration:
-
 ```javascript
-const qualityCommands = readTalismanSection("gates")?.quality_commands ?? []
+const qualityCommands = []
 
-// Default quality checks (if no talisman config)
-if (qualityCommands.length === 0) {
-  // Auto-detect from project
-  if ((Glob("package.json") ?? []).length > 0) {
-    qualityCommands.push("npm run lint --if-present")
-    qualityCommands.push("npm run typecheck --if-present")
-  }
-  if ((Glob("pyproject.toml") ?? []).length > 0) {
-    qualityCommands.push("python -m ruff check .")
-  }
+// Auto-detect from project manifest
+if ((Glob("package.json") ?? []).length > 0) {
+  qualityCommands.push("npm run lint --if-present")
+  qualityCommands.push("npm run typecheck --if-present")
+}
+if ((Glob("pyproject.toml") ?? []).length > 0) {
+  qualityCommands.push("python -m ruff check .")
 }
 ```
 
@@ -147,17 +145,6 @@ if (!qualityPassed) {
     }
   }
 }
-```
-
-## Talisman Configuration
-
-```yaml
-# .rune/talisman.yml
-gates:
-  quality_commands:
-    - "npm run lint"
-    - "npm run typecheck"
-    - "npm run test -- --passWithNoTests"
 ```
 
 ## Single Execution Guarantee

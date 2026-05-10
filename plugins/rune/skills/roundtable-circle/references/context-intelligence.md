@@ -24,7 +24,6 @@ Phase 1   (Rune Gaze)          → file classification, Ash selection
 - `## PR Context` section injected into ash-prompt templates
 
 **Skip conditions:**
-- `talisman.review.context_intelligence.enabled === false`
 - No `gh` CLI installed
 - `--partial` mode (reviewing staged files only)
 - Non-git repository

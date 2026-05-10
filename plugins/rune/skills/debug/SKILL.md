@@ -50,18 +50,20 @@ investigators — each assigned ONE hypothesis to confirm or falsify with eviden
 | 3+ failures in single-agent debug | Yes (escalation) | No |
 | test-failure-analyst LOW confidence | Yes (arc trigger) | No |
 
-## Configuration (talisman.yml)
+<!-- v3.x: defaults baked from former talisman.misc; see references/v3-defaults.md -->
 
-```yaml
-debug:
-  max_investigators: 4        # 1-6, default 4
-  timeout_ms: 420_000         # 7 min per investigation round
-  model: sonnet               # default investigators model; overridden by cost_tier via resolveModelForAgent()
-  re_triage_rounds: 1         # max re-triage rounds before escalating to user
-  # echo_on_verdict removed in v3.0.0-alpha.1: persistent memory layer was retired
-```
+## Configuration (v3.x baked-in defaults)
 
-Read config via `readTalismanSection("misc")` — see [read-talisman.md](../../references/read-talisman.md).
+In v3.x there is no `talisman.yml` user config layer — these debug values are inlined at the consumer call sites below:
+
+| Key | Value |
+|---|---|
+| `max_investigators` | `4` |
+| `timeout_ms` | `420000` (7 min per investigation round) |
+| `model` | `"sonnet"` (overridden by cost_tier via `resolveModelForAgent()`) |
+| `re_triage_rounds` | `1` |
+
+See [references/v3-defaults.md](../../references/v3-defaults.md) under `## misc` for the canonical source-of-truth.
 
 ---
 
@@ -125,12 +127,11 @@ fall back to single-agent `systematic-debugging` methodology. Do NOT spawn a tea
 ### Step 0.5 — Read Config
 
 ```
-// readTalismanSection: "misc"
-const misc = readTalismanSection("misc")
-maxInvestigators = misc?.debug?.max_investigators ?? 4
-timeoutMs = misc?.debug?.timeout_ms ?? 420000
-investigatorModel = misc?.debug?.model ?? "sonnet"
-maxReTriageRounds = misc?.debug?.re_triage_rounds ?? 1
+// v3.x: defaults baked from former talisman.misc; see references/v3-defaults.md
+const maxInvestigators = 4
+const timeoutMs = 420000
+const investigatorModel = "sonnet"
+const maxReTriageRounds = 1
 ```
 
 Cap hypotheses at `maxInvestigators`.

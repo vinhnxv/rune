@@ -9,7 +9,7 @@ When `--resume` is passed, the orchestrator scans for a valid checkpoint from a 
 const resumeRequested = args.includes("--resume")
 
 if (resumeRequested) {
-  const checkpointMaxAgeMs = readTalismanSection("work")?.checkpoint_max_age_ms ?? 86400000  // 24h default
+  const checkpointMaxAgeMs = 86400000  // 24h default
   const configDir = Bash(`cd "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" 2>/dev/null && pwd -P`).trim()
   let checkpointFile = null
   let checkpoint = null

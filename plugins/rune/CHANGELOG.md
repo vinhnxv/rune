@@ -1,5 +1,52 @@
 # Changelog
 
+## [3.0.0-alpha.4] — 2026-05-10
+
+**Day 3 Talisman complete removal (re-baselined).** Day 3 of the v3.x lean rebuild attacks the Talisman user-tweakable config layer — the second biggest architectural simplification of v3 (after Day 1's skill/agent cuts and Day 2's phase consolidation). Net delta: **−1 skill, −8 scripts/test files (incl. `talisman-defaults.json`), −2 hooks.json entries, −4 doc files (2 user-facing guides + 2 internal references), ~10,500 LoC removed across 5 commits.**
+
+**157 call sites baked (commits 1-3):** every `readTalismanSection()` call across 22 skills + 1 agent (`rule-consistency-auditor`) replaced with hardcoded v3.x defaults. Distribution by skill: `arc` (57 calls, 15 files), `strive` (41 / 16), `appraise` (8), `devise` (5), `roundtable-circle` (4), `inspect` (4), `brainstorm` (4), `audit` (4), `self-audit` (3), `forge` (3), `debug` (3), `arc-quick` (3), plus 10 smaller consumers. Substitution strategy preserved every default value as-baked — no behavior change.
+
+**Infrastructure deletion (commit 4):**
+
+- `plugins/rune/skills/talisman/` — entire skill (8 files) deleted.
+- `plugins/rune/talisman.example.yml` (1,966 lines) — root user-facing example deleted.
+- `plugins/rune/references/read-talisman.md` — protocol doc with 28 internal `readTalismanSection` refs deleted.
+- `plugins/rune/references/configuration-guide.md` (989 lines) — describes a removed system.
+- `docs/guides/rune-talisman-deep-dive-guide.{en,vi}.md` (1,277 lines combined) — user-facing config guides for removed system.
+- 4 standalone scripts (`talisman-resolve.sh` SessionStart resolver, `talisman-invalidate.sh` PostToolUse invalidator, `build-talisman-defaults.py`, `validate-talisman-consistency.sh`) + `talisman-defaults.json` + 3 test scripts.
+- **Test coverage:** The 3 deleted test files (`test_build_talisman_defaults.py`, `tests/test-talisman-{invalidate,resolve}.sh`) are retired alongside the system being tested — no replacement tests are needed because v3.x defaults are static literals (verifiable by direct comparison against `references/v3-defaults.md`).
+- 2 `hooks.json` entries (SessionStart shard resolver + PostToolUse invalidator).
+- `.claude-plugin/marketplace.json` — `./skills/talisman` removed from `plugins[0].skills` array (parallels the alpha.3 phantom-purge cluster).
+- `plugins/rune/README.md` — 9 broken talisman references stripped (Quick Start step, Workflows table row, Configuration section, doc-link rows, agent narrative).
+- `plugins/rune/CLAUDE.md` — `readTalisman()/readTalismanSection()` subsection deleted, Skills table row dropped, 4 override directives rewritten, Configuration link repointed to `references/v3-defaults.md`.
+
+**New developer reference:**
+
+- `plugins/rune/references/v3-defaults.md` (250 lines) — single dev-facing inventory of every former-config knob and its baked v3.x value, organized by former section name (`arc`, `audit`, `discipline`, `gates`, `goldmask`, `inspect`, `misc`, `plan`, `process_management`, `review`, `settings`, `teammate_lifecycle`, `testing`, `work`, plus `reactions` schema v26). Replaces both the 1,966-line `talisman.example.yml` and the 989-line `configuration-guide.md`. Pointer comments in modified skill files (`<!-- v3.x: defaults baked from former v2.x talisman config (...); see references/v3-defaults.md -->`) link back to this inventory.
+
+**Breaking change:** users with custom `talisman.yml` will see baseline behavior only. There is no longer a way to override v3.x defaults via configuration.
+
+**Optional cleanup:** `rm -rf ~/.claude/.rune/talisman-resolved/ tmp/.talisman-resolved/` — orphan caches at both paths; harmless if left.
+
+**Day 4 follow-up:** 24 shell scripts still source `lib/talisman-shard-path.sh` (residual coupling). Day 4 (alpha.5) refactors those scripts and removes the lib. The cached resolved shards continue to be readable in alpha.4 for transition convenience; values match the hardcoded defaults exactly.
+
+**Commits / PR:** [PR #526](https://github.com/vinhnxv/rune/pull/526)
+1. `037125f0` — bake talisman defaults in arc + audit (commit 1/5)
+2. `c08b0e2d` — bake talisman defaults in strive (commit 2/5)
+3. `3ee45cc4` — bake talisman defaults in tail (commit 3/5)
+4. `d4b78343` — delete talisman skill + scripts + 3 docs + hooks + README/CLAUDE/marketplace cleanup (commit 4/5)
+5. `6c636df3` — bump to 3.0.0-alpha.4 + CHANGELOG Day 3 entry (commit 5/5)
+6. `78730c4b` — chore: drop dangling refs to deleted talisman files (commit 4 fixup)
+
+**Out of scope (deferred):**
+
+- Script-layer refactor (24 scripts source `lib/talisman-shard-path.sh`) — Day 4 (alpha.5).
+- `arc-quick → arc --quick-mode` collapse — Day 4.
+- `self-audit` skill cut — Day 5 (developer-only tooling — keep through Day 3-4 for refactor verification).
+- Migration tooling for existing v2.x users with custom talisman.yml — deliberate non-goal per brainstorm.
+
+**Re-baseline note:** the previous Day 3 plan (`plans/2026-05-10-chore-rune-v3-day3-talisman-removal-plan.md`) was BLOCKED at `/rune:arc` Phase 2 plan_review for inventory drift — its file inventories listed talisman touch counts that didn't match HEAD. This release ships from a re-baselined plan (HEAD `1bf3fe0f`) with corrected counts (157 actual calls in 22 skills + 1 agent), commit boundary realignment (strive isolated as commit 2/5), explicit Documentation Cleanup scope (README, CLAUDE.md, marketplace.json, configuration-guide.md, deep-dive guides), and explicit Script-Layer Scope Decision (defer to Day 4 with documented residual coupling).
+
 ## [3.0.0-alpha.3] — 2026-05-09
 
 **Self-audit-driven drift fix (run 1778278942).** `/rune:self-audit --mode static` produced 49 findings (20 P1 / 20 P2 / 9 P3) across workflow, prompt, rule, and hook dimensions. Verdict: CRITICAL (overall 19/100). All valid findings fixed in this release. 37 files changed, registry now passes `audit-agent-registry.sh`.

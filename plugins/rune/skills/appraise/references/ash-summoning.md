@@ -1,12 +1,12 @@
 # Ash Summoning — Phase 3 Reference
 
-This reference covers Phase 3 of `/rune:appraise`: Ash selection, prompt generation, inscription contract, talisman custom Ashes, and CLI-backed Ashes.
+This reference covers Phase 3 of `/rune:appraise`: Ash selection, prompt generation, inscription contract, custom Ashes, and CLI-backed Ashes.
 
 ### Agent Discovery Protocol (v1.170.0+)
 
 When `inscription.mcp_discovery.enabled` is true:
 - **CORE agents** (from `agents/`): Spawned via `subagent_type: "general-purpose"` with prompt loaded from agent file (existing behavior)
-- **EXTENDED/USER agents** (from `registry/` or talisman): Spawned via `subagent_type: "general-purpose"` with full body injected via `prompt:` parameter
+- **EXTENDED/USER agents** (from `registry/`): Spawned via `subagent_type: "general-purpose"` with full body injected via `prompt:` parameter
 - Both paths use the same team, task pool, and inscription contract
 
 **Discovery Rules:**
@@ -109,25 +109,23 @@ if (inscription.mcp_discovery?.enabled) {
 }
 ```
 
+<!-- v3.x: defaults baked from former talisman.gates; see references/v3-defaults.md -->
 ## Elicitation Sage — Security Context (v1.31)
 
 When security-relevant files are reviewed (3+ files matching `.py`, `.ts`, `.rb`, `.go` in `auth/`, `api/`, `security/` paths), summon 1-2 elicitation-sage teammates for structured security reasoning alongside the review Ashes.
 
-Skipped if talisman `elicitation.enabled` is `false`.
+Elicitation is enabled by default in v3.x (`gates.elicitation.enabled = true`).
 
 ```javascript
 // ATE-1: subagent_type: "general-purpose", identity via prompt
 // NOTE: Review uses path-based activation (security file patterns), not keyword-based.
 // See elicitation-sage.md for keyword-based activation used by forge.md and plan.md.
-// readTalismanSection: "gates"
-const gates = readTalismanSection("gates")
-const elicitEnabled = gates?.elicitation?.enabled !== false
 const securityFiles = changedFiles.filter(f =>
   /\/(auth|api|security|middleware)\//.test(f) ||
   /\b(auth|login|token|session|password|secret)\b/i.test(f)
 )
 
-if (elicitEnabled && securityFiles.length >= 3) {
+if (securityFiles.length >= 3) {
   // REVIEW-002: Sanitize file paths before prompt interpolation — reject paths with
   // shell metacharacters, backticks, $() constructs, or path traversal sequences.
   const SAFE_PATH_PATTERN = /^[a-zA-Z0-9._\-\/]+$/
@@ -140,7 +138,7 @@ if (elicitEnabled && securityFiles.length >= 3) {
   // NOTE: Elicitation sages are supplementary and NOT counted in ashCount.
   // Phase 7 dynamic member discovery handles sage shutdown via team config.members.
   // Sage output is advisory-only (see REVIEW-010 below).
-  // NOTE: Sage teammates are NOT counted toward the max_ashes cap from talisman.yml.
+  // NOTE: Sage teammates are NOT counted toward the v3.x max_ashes cap (9).
   // They are auto-summoned based on security file heuristics, independent of Ash selection.
 
   for (let i = 0; i < securitySageCount; i++) {
@@ -209,7 +207,7 @@ Write("tmp/reviews/{identifier}/inscription.json", {
 })
 ```
 
-## Talisman Custom Ashes
+## Custom Ashes
 
 Agent-backed custom Ashes are **discovered in Phase 1 (Rune Gaze)** — NOT here in Phase 3.
 The discovery step in `rune-gaze.md` validates, trigger-matches, and stores results in
@@ -245,9 +243,9 @@ See `roundtable-circle/references/custom-ashes.md` for full schema and validatio
 
 External models can participate as CLI-backed Ashes (v1.57.0+). Unlike agent-backed custom Ashes, CLI-backed Ashes invoke an external CLI binary (e.g., `gemini`, `llama`):
 
-- Define in `talisman.yml` → `ashes.custom[]` with `cli:` field
+- Defined via `ashes.custom[]` entries with `cli:` field (default `[]` in v3.x — see references/v3-defaults.md `settings.ashes.custom`)
 - When `cli:` is present, `agent` and `source` become optional
-- Subject to `max_cli_ashes` sub-cap (default: 2) within `max_ashes`
+- Subject to `max_cli_ashes` sub-cap (hardcoded to 2 in v3.x) within `max_ashes` (9)
 - Prompt generated from `external-model-template.md` with Truthbinding
 - **Nonce-bounded content injection**: Diffs and file content are injected via nonce-bounded markers to prevent prompt injection
 

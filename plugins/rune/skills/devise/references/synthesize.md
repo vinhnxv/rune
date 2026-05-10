@@ -1199,10 +1199,6 @@ Files that must stay in sync when this plan's changes are applied:
 - [ ] {list files that reference each other}
 - [ ] {list docs that cite the same source of truth}
 
-### Talisman Sync
-- [ ] talisman.example.yml reflects any new config fields
-- [ ] CLAUDE.md configuration section matches talisman schema
-
 ## Documentation Impact & Plan
 
 Files that must be updated when this feature ships:

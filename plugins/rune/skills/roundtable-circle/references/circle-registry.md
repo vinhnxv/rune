@@ -125,9 +125,9 @@ Each Ash entry carries two scheduling fields used by [wave-scheduling.md](wave-s
 | sqlalchemy-reviewer | `specialist-prompts/sqlalchemy-reviewer.md` | `detected_stack.frameworks.includes('sqlalchemy')` | SQLA | 20 files |
 | tdd-compliance-reviewer | `specialist-prompts/tdd-compliance-reviewer.md` | Test files in diff | TDD | 25 files |
 
-**Cap**: `max_stack_ashes` (default: 3) from `talisman.stack_awareness.max_stack_ashes`.
+**Cap**: `max_stack_ashes` (v3.x baked-in: 3).
 
-> **design-implementation-reviewer** is NOT a stack-specialist Ash. It is activated via the **Phase 1.6 Design Fidelity gate** in `appraise/references/phase-1-rune-gaze.md`, gated by `talisman.design_review.enabled`. It uses finding prefix `DES`. This placement avoids duplicate activation that would otherwise occur if it were listed as both a stack-specialist and a Phase 1.6 reviewer.
+> **design-implementation-reviewer** is NOT a stack-specialist Ash. It is activated via the **Phase 1.6 Design Fidelity gate** in `appraise/references/phase-1-rune-gaze.md`. It uses finding prefix `DES`. This placement avoids duplicate activation that would otherwise occur if it were listed as both a stack-specialist and a Phase 1.6 reviewer.
 
 ### Shard Reviewers (Inscription Sharding, v1.98.0+)
 

@@ -1,5 +1,7 @@
 # Sibling Context — strive Phase 2 Reference
 
+<!-- v3.x: defaults baked from former v2.x talisman config (work.sibling_awareness); see references/v3-defaults.md -->
+
 Worker prompt injection providing explicit sibling awareness. Each worker
 receives a view of what other workers are implementing and which files they own,
 preventing duplicate work and cross-worker file conflicts.
@@ -9,14 +11,13 @@ See [file-ownership.md](file-ownership.md) for the `taskOwnership` map that feed
 
 ## Configuration
 
-```yaml
-work:
-  sibling_awareness:
-    enabled: true          # Inject sibling context into worker prompts (default: true)
-    max_sibling_files: 5   # Max files shown per sibling entry (token cap, default: 5)
-```
+v3.x baked defaults (no user knobs):
 
-Read via `readTalismanSection("work")?.sibling_awareness`.
+| Key | Value |
+|---|---|
+| `sibling_awareness.enabled` | `true` (always inject) |
+| `sibling_awareness.max_sibling_files` | `5` |
+| `sibling_awareness.max_sibling_tasks` | `10` |
 
 ## buildSiblingContext()
 
@@ -109,11 +110,12 @@ The `siblingWorkerContext` variable is injected between the non-goals block and 
 
 ```javascript
 // In buildWorkerPrompt() (see worker-prompts.md):
+const WORK_DEFAULTS = { sibling_awareness: { enabled: true, max_sibling_files: 5 } }
 const siblingContext = buildSiblingContext(
   claimedTask,
   allTasks,
   taskOwnership,
-  readTalismanSection("work")
+  WORK_DEFAULTS
 )
 // Inject after nonGoalsBlock, before "YOUR LIFECYCLE:"
 prompt += siblingContext

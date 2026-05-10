@@ -107,17 +107,9 @@ Rune requires [Agent Teams](https://code.claude.com/docs/en/agent-teams). Enable
 
 `includedGitignorePatterns` lets Claude Code read Rune's output directories that are typically gitignored.
 
-### Quick Configuration (Optional)
+### Configuration (v3.x)
 
-Generate a `talisman.yml` tailored to your project's tech stack:
-
-```bash
-/rune:talisman init      # Auto-detect stack and generate .rune/talisman.yml
-/rune:talisman audit     # Check existing config for missing/outdated sections
-/rune:talisman status    # Overview of current configuration health
-```
-
-See the [Talisman deep dive](docs/guides/rune-talisman-deep-dive-guide.en.md) for full configuration coverage.
+Rune v3.x ships with hardcoded defaults — no per-project config file. To inspect baked-in defaults (cost tiers, agent gates, hook settings) see [`plugins/rune/references/v3-defaults.md`](plugins/rune/references/v3-defaults.md).
 
 ---
 
@@ -605,8 +597,6 @@ Rune is configured via `talisman.yml` (dozens of top-level sections, 100+ keys):
 ~/.rune/talisman.yml
 ```
 
-**Quickest way to configure:** Run `/rune:talisman init` to auto-detect your stack and generate a tailored config.
-
 <details>
 <summary>Example configuration</summary>
 
@@ -656,7 +646,7 @@ ashes:
 ```
 </details>
 
-See [`talisman.example.yml`](plugins/rune/talisman.example.yml) for the full schema with all options.
+See [`plugins/rune/references/v3-defaults.md`](plugins/rune/references/v3-defaults.md) for the full v3.x defaults catalog.
 
 ---
 
@@ -732,7 +722,6 @@ rune/
         │   └── hooks.json
         ├── scripts/              # Hook & utility scripts (256 .sh/.py files)
         ├── .mcp.json             # MCP server config (5 servers: echo-search, figma-to-react, agent-search, context7, figma-context)
-        ├── talisman.example.yml  # Configuration reference
         ├── CLAUDE.md             # Plugin instructions
         ├── CHANGELOG.md
         └── README.md             # Detailed component reference
@@ -798,7 +787,7 @@ See the [Troubleshooting guide](docs/guides/rune-troubleshooting-and-optimizatio
 | [Getting Started](docs/guides/rune-getting-started.en.md) | First-time walkthrough — plan, work, review in 3 commands |
 | [Plugin Component Reference](plugins/rune/README.md) | All agents, skills, commands, hooks in detail |
 | [Arc & Batch Guide](docs/guides/rune-arc-and-batch-guide.en.md) | End-to-end pipeline, batch mode, GitHub Issues |
-| [Talisman Configuration](docs/guides/rune-talisman-deep-dive-guide.en.md) | Full configuration reference |
+| [v3.x Defaults Catalog](plugins/rune/references/v3-defaults.md) | Hardcoded defaults reference |
 | [Troubleshooting](docs/guides/rune-troubleshooting-and-optimization-guide.en.md) | Debugging, cost optimization, common issues |
 | [Documentation Hub](docs/README.md) | All guides, English + Vietnamese |
 | [State Machines](docs/state-machine.md) | Mermaid diagrams of all 10 workflow state machines |
@@ -826,8 +815,6 @@ See the [Troubleshooting guide](docs/guides/rune-troubleshooting-and-optimizatio
 - [Thuật ngữ Rune (Tiếng Việt)](docs/guides/rune-glossary.vi.md) — bảng giải thích thuật ngữ ngắn gọn
 - [Rune command reference (English)](docs/guides/rune-command-reference.en.md) — complete slash-command catalog by workflow
 - [Bảng tra lệnh Rune (Tiếng Việt)](docs/guides/rune-command-reference.vi.md) — danh mục đầy đủ lệnh slash theo workflow
-- [Rune talisman deep dive (English)](docs/guides/rune-talisman-deep-dive-guide.en.md) — full talisman configuration reference
-- [Hướng dẫn talisman chuyên sâu Rune (Tiếng Việt)](docs/guides/rune-talisman-deep-dive-guide.vi.md) — tham chiếu đầy đủ cấu hình talisman
 - [Rune custom agents and extensions (English)](docs/guides/rune-custom-agents-and-extensions-guide.en.md) — build custom Ashes, CLI-backed reviewers, Forge Gaze integration
 - [Hướng dẫn custom agent và mở rộng Rune (Tiếng Việt)](docs/guides/rune-custom-agents-and-extensions-guide.vi.md) — xây dựng custom Ash, CLI reviewer, tích hợp Forge Gaze
 - [Rune troubleshooting and optimization (English)](docs/guides/rune-troubleshooting-and-optimization-guide.en.md) — debug failures, reduce token cost, tune performance
@@ -836,7 +823,6 @@ See the [Troubleshooting guide](docs/guides/rune-troubleshooting-and-optimizatio
 - [Giải pháp kỹ thuật Rune (Tiếng Việt)](docs/solutions/architecture/rune-engineering-solutions.vi.md) — 30 giải pháp đặc biệt qua hơn 200 commits
 - [State machine reference](docs/state-machine.md) — mermaid diagrams of all 10 workflow state machines
 - [Changelog](plugins/rune/CHANGELOG.md) — release history
-- [Configuration guide](plugins/rune/talisman.example.yml) — full talisman schema
 
 ---
 

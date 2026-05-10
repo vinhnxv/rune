@@ -4,7 +4,6 @@ Integrate any component library MCP (UntitledUI, shadcn/ui, custom) into Rune's 
 
 Related guides:
 - [MCP Integration Spec](mcp-integration-spec.en.md)
-- [Talisman deep dive](rune-talisman-deep-dive-guide.en.md)
 - [Custom agents and extensions](rune-custom-agents-and-extensions-guide.en.md)
 - [Troubleshooting and optimization](rune-troubleshooting-and-optimization-guide.en.md)
 
@@ -318,22 +317,30 @@ Verify `builder-protocol` has `library`, `mcp_server`, `capabilities.search`, `c
 
 ### Step 2: Validate Talisman Config
 
-```
-/rune:talisman audit
+Manually verify the builder skill's metadata fields by inspecting both files:
+
+```bash
+# Confirm server_name matches a .mcp.json key
+yq '.integrations.mcp_tools[].server_name' .rune/talisman.yml
+jq '.mcpServers | keys' .mcp.json
+
+# Confirm skill_binding resolves
+yq '.integrations.mcp_tools[].skill_binding' .rune/talisman.yml
+ls .claude/skills/ plugins/rune/skills/ 2>/dev/null
 ```
 
-The audit checks:
+Manually check that:
 - `server_name` matches a key in `.mcp.json`
 - `skill_binding` resolves to an installed skill
 - At least one `phases` flag is `true`
 - Trigger has at least one condition
 
-**Builder skill alignment** (3-component drift check): `/rune:talisman audit` also validates that the three protocol components are in sync:
+**Builder skill alignment** (3-component drift check): manually cross-check that the three protocol components are in sync by comparing the skill's `provides:` (capabilities) list with the builder's `requires:` (server_name + skill_binding + conventions path):
 1. Every `skill_binding` in talisman references an installed skill in `.claude/skills/` or the plugin
-2. Each referenced skill has `builder-protocol:` frontmatter
-3. The `conventions:` path in that frontmatter exists relative to the skill root
+2. Each referenced skill has `builder-protocol:` frontmatter (verify with `grep -n 'builder-protocol:' .claude/skills/{name}/SKILL.md`)
+3. The `conventions:` path in that frontmatter exists relative to the skill root (verify with `ls .claude/skills/{name}/{conventions_path}`)
 
-If any of these three are out of sync, the audit emits a warning rather than failing silently at runtime.
+If any of these three are out of sync, the integration will fail silently at runtime — there is no automated detector, so include this check in your PR review process whenever talisman or a builder skill changes.
 
 ### Step 3: Verify MCP Server
 
@@ -630,8 +637,8 @@ Workers see the MCP context block but fall back to generic Tailwind:
 # Verify MCP server is connected
 claude mcp list
 
-# Check if talisman resolves the integration
-/rune:talisman status
+# Manually confirm the talisman integration block resolves the server + skill
+yq '.integrations.mcp_tools' .rune/talisman.yml
 ```
 
 ### Convention violations in review
@@ -673,7 +680,7 @@ grep -n "builder-protocol:" .claude/skills/{skill_name}/SKILL.md
 ls .claude/skills/{skill_name}/references/{path}
 ```
 
-Then run `/rune:talisman audit` — it will flag missing skills and broken conventions paths.
+Then walk the manual checklist in Step 2 above — `yq '.integrations.mcp_tools[].skill_binding' .rune/talisman.yml` plus an `ls` of the resolved skill directory will surface missing skills and broken conventions paths.
 
 ### TrueDigital Migration Note
 
@@ -744,7 +751,7 @@ builder-protocol:
 
 2. Create/update the conventions reference file at `references/agent-conventions.md`
 
-3. Run `/rune:talisman audit` to validate
+3. Manually validate by walking the Step 2 checklist (`yq` on `talisman.yml`, `jq` on `.mcp.json`, `ls` of the skill + conventions path)
 
 No talisman config changes required — the `skill_binding` already links your skill. Once the skill has `builder-protocol` frontmatter, `discoverUIBuilder()` picks it up automatically.
 

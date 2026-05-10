@@ -120,7 +120,7 @@ Three paths based on flags:
 
 3. **Default**: Delegate to the brainstorm protocol defined in `skills/brainstorm/SKILL.md`. Brainstorm runs with these devise-specific overrides: advisors join existing `rune-plan-{timestamp}` team (not a separate team), workspace co-located at `tmp/brainstorm-{timestamp}/`, also writes to `tmp/plans/{timestamp}/brainstorm-decisions.md` (legacy location), skips the brainstorm handoff phase (devise continues to research). After decisions are captured, sends `shutdown_request` to brainstorm advisors and sages before Phase 1 (mid-pipeline cleanup — they have no role in subsequent phases).
 
-**Elicitation**: After approach selection, summons 1-3 elicitation-sage teammates (keyword-count fan-out, 15-keyword list). Skippable via `talisman.elicitation.enabled: false`.
+**Elicitation**: After approach selection, summons 1-3 elicitation-sage teammates (keyword-count fan-out, 15-keyword list). Always enabled in v3.x.
 
 **Output**: `tmp/plans/{timestamp}/brainstorm-decisions.md` with mandatory sections: Non-Goals, Constraint Classification, Success Criteria, Scope Boundary.
 
@@ -206,9 +206,9 @@ See [synthesize.md](references/synthesize.md) for the full protocol.
 
 ## Phase 2.3: Predictive Goldmask
 
-Runs predictive risk analysis on files likely affected by the plan. Supports 3 depth modes (basic/enhanced/full) controlled via `talisman.goldmask.devise.depth`.
+Runs predictive risk analysis on files likely affected by the plan. Supports 3 depth modes (basic/enhanced/full); v3.x defaults to `basic` (see `references/v3-defaults.md`).
 
-**Skip conditions**: `--quick` mode, `goldmask.enabled === false`, `goldmask.devise.enabled === false`, non-git repo.
+**Skip conditions**: `--quick` mode, non-git repo. (Goldmask + devise predictive layer are always enabled in v3.x.)
 
 See [goldmask-prediction.md](references/goldmask-prediction.md) for the full protocol — depth modes, agent spawning, plan injection, and error handling.
 

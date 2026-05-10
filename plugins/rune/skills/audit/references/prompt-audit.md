@@ -147,4 +147,3 @@ Example finding line in TOME.md:
 
 - [audit SKILL.md](../SKILL.md) — Phase 0.5B: Custom Prompt Resolution pseudocode
 - [orchestration-phases.md](../../roundtable-circle/references/orchestration-phases.md) — Parameter #21 `customPromptBlock` threading
-- [talisman.example.yml](../../../talisman.example.yml) — `audit.default_prompt_file` schema

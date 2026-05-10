@@ -293,12 +293,13 @@ fileGroups = {
 
 ## Scope-Aware Priority Filtering
 
+<!-- v3.x: defaults baked from former v2.x talisman config (review.diff_scope); see references/v3-defaults.md -->
+
 When findings have `scope` attributes (from review.md Phase 5.3 diff-scope tagging), apply scope-aware priority to focus mend budget on PR-relevant findings:
 
 ```javascript
-// readTalismanSection: "review"
-const review = readTalismanSection("review")
-const fixPreExistingP1 = review?.diff_scope?.fix_pre_existing_p1 !== false  // Default: true
+// v3.x: review.diff_scope.fix_pre_existing_p1 is hardcoded `true` (always fix pre-existing P1).
+const fixPreExistingP1 = true
 
 // Apply scope-aware priority
 // QUAL-003: scope = raw TOME attribute ("in-diff"|"pre-existing"|undefined).

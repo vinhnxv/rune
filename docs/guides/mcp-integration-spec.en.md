@@ -163,7 +163,7 @@ integrations:
         access_token_env: "UNTITLEDUI_ACCESS_TOKEN"
 ```
 
-**What you get:** Everything from Level 2, plus: companion skill is auto-loaded when integration activates (providing persistent component knowledge), metadata enables discovery via `/rune:talisman audit`, and rules ensure consistent coding patterns across all agents.
+**What you get:** Everything from Level 2, plus: companion skill is auto-loaded when integration activates (providing persistent component knowledge), metadata is surfaced when you manually inspect `talisman.yml` (e.g., `yq '.integrations.mcp_tools' .rune/talisman.yml`), and rules ensure consistent coding patterns across all agents.
 
 ## Quick Start Guide
 
@@ -215,20 +215,27 @@ integrations:
 
 ### Step 3: Verify Configuration
 
-Run the talisman audit to validate:
+Manually validate your `.mcp.json` and `.rune/talisman.yml` against the expected schema:
 
-```
-/rune:talisman audit
+```bash
+# Verify .mcp.json syntax (and that your server_name key exists)
+jq . .mcp.json
+jq '.mcpServers | keys' .mcp.json
+
+# Verify talisman.yml is parseable and inspect the integration block
+yq '.integrations.mcp_tools' .rune/talisman.yml
 ```
 
-The audit checks:
+Manually check that:
 - `server_name` matches a key in `.mcp.json`
 - All tool names are valid identifiers
-- Categories are from the allowed set
+- Categories are from the allowed set (`search`, `details`, `compose`, `suggest`, `generate`, `validate`)
 - At least one phase is enabled
 - Trigger has at least one condition (or `always: true`)
-- Rules files exist on disk (if specified)
-- `skill_binding` skill exists (if specified)
+- Rules files exist on disk (if specified) — `ls .claude/rules/`
+- `skill_binding` skill exists (if specified) — `ls .claude/skills/` or `ls plugins/rune/skills/`
+
+Then re-run your skill on a small test task to confirm the MCP server connects and tools activate.
 
 ### Step 4: Use in Any Workflow
 
@@ -263,7 +270,7 @@ Known metadata keys (all optional):
 | Key | Type | Description |
 |-----|------|-------------|
 | `library_name` | string | Human-readable library name (e.g., "UntitledUI PRO"). Used as display name in agent prompts. |
-| `component_count` | number | Total component count. Informational for `/rune:talisman status`. |
+| `component_count` | number | Total component count. Informational — visible when you manually inspect `talisman.yml`. |
 | `version` | string | Library version (e.g., "1.9.1"). Informational. |
 | `homepage` | string | Library homepage URL. Informational. |
 
@@ -409,7 +416,7 @@ The arc pipeline inherits integration settings across all sub-phases. When `arc:
 
 - **Do not use overlapping tool categories.** If a tool both searches and generates, pick the primary purpose. A tool categorized as `search` receives read-oriented prompt framing; miscategorizing a `generate` tool as `search` confuses agents about its side effects.
 
-- **Do not skip `server_name` validation.** Always run `/rune:talisman audit` after adding or modifying integrations. A typo in `server_name` silently disables the integration (no error, tools just never activate).
+- **Do not skip `server_name` validation.** After adding or modifying an integration, manually validate your `.mcp.json` against the JSON schema (e.g., `jq . .mcp.json` for syntax + `jq '.mcpServers | keys' .mcp.json` to confirm the key exists). A typo in `server_name` silently disables the integration (no error, tools just never activate).
 
 - **Do not add metadata without a server.** The `metadata` field is informational. It does not substitute for a working MCP server in `.mcp.json`. Metadata without a valid `server_name` passes audit but provides no runtime value.
 
@@ -516,16 +523,26 @@ For project-specific coding rules, create `.claude/rules/untitledui-conventions.
 - React Aria imports: always prefix with Aria* (import { Button as AriaButton })
 ```
 
-### 5. Verify with Audit
+### 5. Verify Manually
 
-```
-/rune:talisman audit
+Verify the integration by inspecting both config files:
+
+```bash
+# Confirm untitledui server is registered
+jq '.mcpServers.untitledui' .mcp.json
+
+# Confirm talisman integration block is parseable and complete
+yq '.integrations.mcp_tools.untitledui' .rune/talisman.yml
+
+# Confirm skill_binding resolves
+ls plugins/rune/skills/untitledui-mcp/SKILL.md 2>/dev/null \
+  || ls .claude/skills/untitledui-builder/SKILL.md
 ```
 
-Expected output includes validation of:
-- `untitledui` server found in `.mcp.json`
+You should see:
+- `untitledui` server present in `.mcp.json`
 - 6 tools declared with valid categories
-- `skill_binding` resolves to built-in `untitledui-mcp` skill (or project override)
+- `skill_binding` resolves to the built-in `untitledui-mcp` skill (or project override)
 - Trigger has 4 conditions configured
 
 ### 6. Use in Workflow
@@ -542,7 +559,7 @@ Because the task mentions "settings" and workers touch `.tsx` files, the integra
 A: No. Integrations are purely declarative via `talisman.yml` and `.mcp.json`. No changes to plugin skills, agents, or hooks are required.
 
 **Q: What if my MCP server is not in `.mcp.json`?**
-A: The integration will not activate. The `server_name` field must match a key in `.mcp.json`. Register the server first, then add the integration config. `/rune:talisman audit` will flag missing servers.
+A: The integration will not activate. The `server_name` field must match a key in `.mcp.json`. Register the server first, then add the integration config. Confirm the key exists with `jq '.mcpServers | keys' .mcp.json` before relying on the integration.
 
 **Q: Can I use multiple MCP integrations simultaneously?**
 A: Yes. Each namespace under `mcp_tools` is independent. All integrations whose triggers match the current context will activate. Their context blocks are concatenated in the agent prompt.
@@ -595,17 +612,17 @@ A: An active integration adds approximately 100-300 tokens to each agent prompt 
 
 ### Validation Errors
 
-Run `/rune:talisman audit` to detect common configuration issues:
+Manually inspect your `.rune/talisman.yml` and `.mcp.json` for these common configuration issues:
 
-- **Missing `server_name`**: Every namespace must have a `server_name` that matches a key in `.mcp.json`
+- **Missing `server_name`**: Every namespace must have a `server_name` that matches a key in `.mcp.json` — verify with `jq '.mcpServers | keys' .mcp.json`
 - **Invalid tool categories**: Only `search`, `details`, `compose`, `suggest`, `generate`, `validate` are accepted
 - **Rule file paths**: Must be relative paths without `..` traversal — absolute paths and parent directory references are rejected
 - **Skill binding format**: Must match `[a-z0-9-]+` (lowercase kebab-case)
 
 ### Debug Checklist
 
-1. Verify MCP server is registered: check `.mcp.json` for `server_name` key
-2. Verify talisman config: run `/rune:talisman audit` for schema validation
+1. Verify MCP server is registered: check `.mcp.json` for `server_name` key (`jq '.mcpServers | keys' .mcp.json`)
+2. Verify talisman config: manually inspect `.rune/talisman.yml` syntax with `yq '.integrations.mcp_tools' .rune/talisman.yml` and walk the schema items above
 3. Check phase routing: ensure the workflow phase has `true` in `phases`
 4. Check triggers: verify `file_extensions` or `keywords` match your context
 5. Check agent prompts: look for `MCP TOOL INTEGRATIONS (Active)` section in agent output

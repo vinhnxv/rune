@@ -1,8 +1,10 @@
 # Wave-Based Execution (Phase 2)
 
+<!-- v3.x: defaults baked from former talisman.work; see references/v3-defaults.md -->
+
 ## Wave Capacity Calculation
 
-Wave capacity determines how many tasks run per wave. Derived from talisman config:
+Wave capacity is derived from the v3.x `work` defaults (`max_workers = 3`, `tasks_per_worker = 3`):
 
 ```javascript
 const TASKS_PER_WORKER = talisman?.work?.tasks_per_worker ?? 3
@@ -17,7 +19,7 @@ The last wave may contain fewer tasks than `waveCapacity` (remainder from the di
 
 Instead of using a static `workerCount = maxWorkers` for every wave, the orchestrator dynamically computes the number of workers per wave based on remaining tasks and feedback from prior waves.
 
-**Gate**: Adaptive wave sizing is enabled by default and can be disabled via `readTalismanSection("work")?.adaptive_wave?.enabled !== false`.
+**Gate**: Adaptive wave sizing is always enabled in v3.x (no user knob exposed).
 
 ### `computeWaveWorkerCount(remainingTasks, maxWorkers, tasksPerWorker, prevWaveMetrics, talisman)`
 
@@ -50,15 +52,11 @@ Instead of using a static `workerCount = maxWorkers` for every wave, the orchest
 -->
 
 ```javascript
-function computeWaveWorkerCount(remainingTasks, maxWorkers, tasksPerWorker, prevWaveMetrics, talisman) {
-  const adaptiveConfig = readTalismanSection("work")?.adaptive_wave ?? {}
-  if (adaptiveConfig.enabled === false) {
-    return maxWorkers  // Disabled — fall back to static sizing
-  }
-
-  const failureThreshold = adaptiveConfig.failure_threshold ?? 0.3
-  const speedThreshold = adaptiveConfig.speed_threshold ?? 0.5
-  const minWorkers = adaptiveConfig.min_workers ?? 1
+function computeWaveWorkerCount(remainingTasks, maxWorkers, tasksPerWorker, prevWaveMetrics) {
+  // v3.x: adaptive wave sizing always on; no user knobs exposed
+  const failureThreshold = 0.3
+  const speedThreshold = 0.5
+  const minWorkers = 1
 
   // Base count: only as many workers as needed for remaining tasks
   let baseCount = Math.min(maxWorkers, Math.ceil(remainingTasks / tasksPerWorker))
