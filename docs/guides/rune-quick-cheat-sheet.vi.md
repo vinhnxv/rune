@@ -25,12 +25,6 @@ Trong `.claude/settings.json`:
 }
 ```
 
-Tùy chọn:
-
-```bash
-/rune:talisman init
-```
-
 ---
 
 ## Chọn lệnh theo mục tiêu
