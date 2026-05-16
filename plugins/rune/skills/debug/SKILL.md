@@ -246,7 +246,7 @@ Agent({
 
 ### Step 1.4 — Monitor Progress
 
-Use polling loop (see `polling-guard` skill):
+Use polling loop (TaskList every cycle; see `roundtable-circle/references/monitor-utility.md`):
 
 ```
 pollIntervalMs = 30000

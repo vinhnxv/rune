@@ -30,7 +30,7 @@ allowed-tools:
 
 # Roundtable Circle Skill
 
-**Load skills**: `rune-orchestration`, `context-weaving`, `team-sdk`, `polling-guard`
+**Load skills**: `rune-orchestration`, `context-weaving`, `team-sdk`
 
 Orchestrates multi-agent code reviews using Claude Code Agent Teams. Each Ash teammate gets its own dedicated context window, eliminating single-context bottlenecks.
 
@@ -263,7 +263,7 @@ Use the shared monitoring utility to poll TaskList with timeout and stale detect
 > - `Bash("sleep 45 && echo poll check")` — skips TaskList, provides zero visibility
 > - `Bash("sleep 60 && echo poll check 2")` — wrong interval AND skips TaskList
 >
-> **CORRECT**: Call `TaskList` on every poll cycle. See [references/monitor-utility.md](references/monitor-utility.md) and the `polling-guard` skill for the canonical monitoring loop.
+> **CORRECT**: Call `TaskList` on every poll cycle. See [references/monitor-utility.md](references/monitor-utility.md) for the canonical monitoring loop; the POLL-001 hook (`enforce-polling.sh`) blocks `sleep+echo` anti-patterns at runtime.
 
 ```javascript
 // See references/monitor-utility.md

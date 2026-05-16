@@ -210,7 +210,7 @@ for (const reviewer of reviewers) {
 
 // Monitor with timeout — see roundtable-circle/references/monitor-utility.md
 // ANTI-PATTERN — NEVER DO: Bash("sleep N && echo poll check") — skips TaskList entirely.
-// CORRECT: Call TaskList on every poll cycle. See monitor-utility.md and polling-guard skill.
+// CORRECT: Call TaskList on every poll cycle. See monitor-utility.md and the POLL-001 hook (enforce-polling.sh).
 const result = waitForCompletion(`arc-plan-review-${id}`, reviewers.length, {
   timeoutMs: PHASE_TIMEOUTS.plan_review, staleWarnMs: STALE_THRESHOLD,
   pollIntervalMs: 30_000, label: "Arc: Plan Review"

@@ -30,7 +30,7 @@ allowed-tools:
 
 # /rune:brainstorm — Collaborative Idea Exploration
 
-**Load skills**: `roundtable-circle`, `context-weaving`, `rune-orchestration`, `elicitation`, `team-sdk`, `polling-guard`
+**Load skills**: `roundtable-circle`, `context-weaving`, `rune-orchestration`, `elicitation`, `team-sdk`
 
 Explore WHAT to build before planning HOW. Three modes of structured dialogue — from solo conversation to multi-agent roundtable with elicitation sages.
 

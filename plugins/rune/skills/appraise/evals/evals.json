@@ -73,7 +73,7 @@
     {
       "id": 5,
       "prompt": "Explain Phase 4 (Monitor) and the polling loop pattern. What are the polling parameters? How is stale detection handled? What happens when an Ash times out?",
-      "expected_output": "Phase 4 Monitor: Polling parameters: POLL_INTERVAL = 30 seconds, MAX_ITERATIONS = 20 (ceil(600000/30000) = 10 min timeout), STALE_WARN = 300000 (5 min). Correct pattern: TaskList() \u2192 count completed \u2192 check stale/timeout \u2192 Bash('sleep 30') \u2192 repeat. Stale detection: any task in_progress > 5 min logs warning, no auto-release (review findings are non-fungible). Ash timeout (>5 min): proceed with partial results, report gap in TOME.md. Total timeout (>10 min): final sweep, collect partial results, report incomplete. The polling-guard skill provides background knowledge, and POLL-001 hook blocks sleep+echo anti-patterns.",
+      "expected_output": "Phase 4 Monitor: Polling parameters: POLL_INTERVAL = 30 seconds, MAX_ITERATIONS = 20 (ceil(600000/30000) = 10 min timeout), STALE_WARN = 300000 (5 min). Correct pattern: TaskList() \u2192 count completed \u2192 check stale/timeout \u2192 Bash('sleep 30') \u2192 repeat. Stale detection: any task in_progress > 5 min logs warning, no auto-release (review findings are non-fungible). Ash timeout (>5 min): proceed with partial results, report gap in TOME.md. Total timeout (>10 min): final sweep, collect partial results, report incomplete. The POLL-001 hook (enforce-polling.sh) blocks sleep+echo anti-patterns at runtime.",
       "files": [],
       "expectations": [
         "States POLL_INTERVAL = 30 seconds",

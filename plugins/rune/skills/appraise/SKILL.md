@@ -35,7 +35,7 @@ allowed-tools:
 
 Orchestrate a multi-agent code review using the Roundtable Circle architecture. Each Ash gets its own dedicated context window via Agent Teams.
 
-**Load skills**: `roundtable-circle`, `context-weaving`, `rune-orchestration`, `team-sdk`, `polling-guard`
+**Load skills**: `roundtable-circle`, `context-weaving`, `rune-orchestration`, `team-sdk`
 
 ## Spec-Aware Review (Discipline Integration)
 
