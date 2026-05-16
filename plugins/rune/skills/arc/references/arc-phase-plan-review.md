@@ -253,7 +253,8 @@ if (result.timedOut) {
 Parse structured verdict markers using anchored regex. Defaults to CONCERN if marker is missing or malformed.
 
 ```javascript
-// Also duplicated in arc-phase-plan-refine.md for self-containment — keep in sync.
+// Was duplicated in arc-phase-plan-refine.md before that file was absorbed into
+// plan_review (v3.0.0-alpha.6 Day 5 C4a). Now the single source.
 const parseVerdict = (reviewer, output) => {
   const pattern = /^<!-- VERDICT:([a-zA-Z_-]+):(PASS|CONCERN|BLOCK) -->$/m
   const match = output.match(pattern)

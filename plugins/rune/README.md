@@ -221,7 +221,7 @@ See the [Glossary](../../docs/guides/rune-glossary.en.md) for the complete termi
 
 ### Arc (End-to-End Pipeline)
 
-Chains 26 phases (default; v3.0.0-alpha.2): Forge (plan enrichment) → Plan Review → Work → Gap Analysis → Code Review → Verify (finding verification) → Mend (auto-fix findings) → Test → Ship → Merge. Checkpoint-based resume (`--resume`) available if interrupted.
+Chains 19 phases (default; v3.0.0-alpha.6): Forge (plan enrichment) → Plan Review → Work → Gap Analysis → Inspect (plan-vs-impl audit + fix + convergence in one phase) → Code Review → Verify (finding verification) → Mend (auto-fix findings) → Test → Ship → Merge. Each phase has its own QA gate (forge_qa, work_qa, etc.). Checkpoint-based resume (`--resume`) available if interrupted.
 
 For detailed Arc (end-to-end pipeline) phase documentation, see the [Arc & Batch Guide](../../docs/guides/rune-arc-and-batch-guide.en.md).
 
