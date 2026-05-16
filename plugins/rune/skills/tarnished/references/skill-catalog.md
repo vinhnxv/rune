@@ -28,7 +28,7 @@ Complete reference for `/rune:tarnished` routing decisions.
 | `resolve-gh-pr-comment` | `/rune:resolve-gh-pr-comment` | — | PR comment URL/ID | Resolved thread |
 | `resolve-todos` | `/rune:resolve-todos` | — | TODO file path | Fixed code |
 | `skill-testing` | `/rune:skill-testing` | — | Skill name | Test results |
-| `team-status` | `/rune:team-status` | — | None | Team health report |
+| `status` / `team-status` | `/rune:status` | — | Optional: timestamp or team-name | Team + dispatch health report |
 | `supply-chain-audit` | `/rune:supply-chain-audit` | — | None | Dependency risk report |
 | `variant-hunt` | `/rune:variant-hunt` | — | Finding ID / pattern | Variant findings |
 | `pr-guardian` | `/rune:pr-guardian` | — | None (cron) | Auto-merge loop |
@@ -87,6 +87,6 @@ Complete reference for `/rune:tarnished` routing decisions.
 | `resolve-gh-pr-comment` | None | 1-3 min |
 | `resolve-todos` | Per batch | 5-15 min |
 | `skill-testing` | None | 2-10 min |
-| `team-status` | None | < 1 min |
+| `status` | Optional (timestamp or team-name) | < 1 min |
 | `pr-guardian` | None (cron) | 5 min/tick |
 | `rest` | None | < 1 min |

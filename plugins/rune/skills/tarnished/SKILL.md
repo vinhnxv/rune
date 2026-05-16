@@ -63,7 +63,7 @@ Fast-path keywords: `plan`, `work`, `review`, `brainstorm`, `explore`, `devise`,
 `forge`, `mend`, `inspect`, `goldmask`, `elicit`, `rest`, `variant-hunt`, `supply-chain-audit`, `post-findings`,
 `ship`, `fix`, `debug`, `cancel`,
 `file-todos`, `resolve-comments`, `resolve-comment`, `resolve-todos`,
-`skill-testing`, `team-status`, `team-delegate`,
+`skill-testing`, `status`, `team-delegate`,
 `self-audit`.
 
 > Note: `verify` and `arc-quick` are no longer fast-path keywords — both were

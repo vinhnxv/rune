@@ -781,7 +781,7 @@ function cleanup(handle) {
 
 ## getStatus(handle) -> TeamStatus
 
-Returns current team status for diagnostics and the `/rune:team-status` command.
+Returns current team status for diagnostics and the `/rune:status` command.
 
 ```javascript
 function getStatus(handle) {

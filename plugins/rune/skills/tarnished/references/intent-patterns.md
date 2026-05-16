@@ -33,7 +33,7 @@ These keywords at the START of `$ARGUMENTS` trigger immediate routing (no classi
 | `resolve-comment` / `fix comment` | `/rune:resolve-gh-pr-comment` | Yes |
 | `resolve-todos` / `fix todos` | `/rune:resolve-todos` | Yes |
 | `skill-testing` / `test skill` / `eval skill` | `/rune:skill-testing` | Yes |
-| `team-status` / `team health` | `/rune:team-status` | Yes |
+| `status` / `team-status` / `team health` / `dispatch status` | `/rune:status` | Yes |
 | `self-audit` / `meta-qa` / `lint agents` / `check rune health` / `rune health` | `/rune:self-audit` | Yes |
 | `variant-hunt` / `find similar` / `find more like this` / `variant analysis` | `/rune:variant-hunt` | Yes |
 | `supply-chain-audit` / `dependency risk` / `check dependencies` / `package security` | `/rune:supply-chain-audit` | Yes |
