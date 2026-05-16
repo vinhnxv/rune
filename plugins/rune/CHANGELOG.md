@@ -1,5 +1,64 @@
 # Changelog
 
+## [3.0.0-alpha.6] — 2026-05-16
+
+**Day 5 arc surface trim — final alpha bump before beta-prep.** Days 1-4 (alpha.1 → alpha.5) cleared the deletion-shaped cuts from the brainstorm cut list (knowledge skills, design skills, arc variants, memory layer, Codex residue, the talisman config layer + its residue). Day 5 takes the lowest-risk slice of the brainstorm's **"Day 8-14 (refactor — preserves essence)"** track: collapsing arc's command/skill surface and phase count. Net delta: **−2 skills (arc-quick + verify), −7 arc phases (26 → 19 in PHASE_ORDER), −3 reference files deleted (arc-phase-inspect-fix.md, verify-inspect.md, arc-phase-deploy-verify.md), −1 standalone skill directory inlined (verify → inspect/references/verify-tome.md, arc-quick → arc Quick Mode section).**
+
+Brainstorm success-criteria progress: **#1** (skills ≤ 15) **44 → 42**; **#4** (arc phases ≤ 15) **26 → 19** — closer but not at target; **#8** (arc still ships a working PR end-to-end) retained via stop-hook + phase-groups regression.
+
+**Cluster 1 — `arc-quick` skill merged into `arc --quick-mode`:** The 4-phase quick-pipeline (devise --quick → strive with evaluator loop → appraise → mend) moves into arc/SKILL.md as a "Quick Mode" branch that short-circuits checkpoint init. `/rune:quick` natural-language alias still works; `/rune:arc --quick-mode` is the new canonical invocation. arc-quick/ directory deleted entirely (~407 LoC). _Commit: `86d75b75`_
+
+**Cluster 2 — `verify` skill merged into `inspect --verify-tome`:** TOME-finding classifier (TRUE_POSITIVE / FALSE_POSITIVE / NEEDS_CONTEXT) moves into `inspect/references/verify-tome.md`; inspect/SKILL.md gains `--verify-tome <path>` flag handling. The arc-phase `verify` gate (Phase 6.7) is preserved — it now dispatches `/rune:inspect --verify-tome` instead of `/rune:verify`. ARC_TEAM_PREFIXES adds `rune-verify-tome-` (the standalone-skill team prefix); verify/ directory deleted entirely (~471 LoC). _Commit: `1a181ccb`_
+
+**Cluster 3 — Router skill-catalog updates:** Drop `arc-quick` and `verify` from `tarnished/references/skill-catalog.md` fast-path keywords. The natural-language router now resolves "run a quick arc" → `/rune:arc --quick-mode` and "verify TOME findings" → `/rune:inspect --verify-tome` automatically. Per the plan's open question Q1, no transitional command shims were added — the alpha series has no backward-compat contract. _Commit: `a103e71d`_
+
+**Cluster 4a — `plan_refine` absorbed into `plan_review`:** plan_refine was an orchestrator-only 3-min CONCERN-extraction post-step that read the verdict files plan_review already wrote. Folded into plan_review.md as Sub-step 2.5 (after team-cleanup). Drops the phase boundary with zero behavior change. _Commit: `ddd86176`_
+
+**Cluster 4b — `drift_review` absorbed into `work`:** drift_review was an orchestrator-only 2-min advisory phase that aggregated worker drift signals after the work phase. Folded into work.md as a final sub-step (before work_qa). Preserves session-isolation filter (`config_dir` + `owner_pid` + `kill -0` liveness) and the AskUserQuestion escalation on blocker-severity signals. _Commit: `d0697858`_
+
+**Cluster 4c — `inspect_fix` + `verify_inspect` absorbed into `inspect`:** The audit-fix-converge convergence loop now lives in a single 34-min phase (15m audit + 15m fix + 4m convergence eval per round). On retry, the phase resets itself to `pending`; the dispatcher's first-pending scan re-enters from STEP 1 with an incremented `inspect_convergence.round`. `arc-inspect-fix-` team prefix consolidates under the unified `inspect` key in PHASE_PREFIX_MAP. Reference files `arc-phase-inspect-fix.md` and `verify-inspect.md` deleted (their algorithms inlined as STEP 5 and STEP 6 of `arc-phase-inspect.md`). _Commit: `5851b2d3`_
+
+**Cluster 4d — `verify_mend` absorbed into `mend_qa` as a post-step:** The 4-min convergence controller (decide converge/retry/halt; reset code_review + mend on retry) now runs inside `runQAGate()` for mend_qa as the `runMendQAConvergence()` post-step. Algorithm reference stays at `verify-mend.md` (no longer a PHASE_ORDER phase, just an algorithm reference). mend_qa timeout bumped 5m → 9m to absorb the convergence budget. `checkpoint.phases.verify_mend` retained as a transitional state container (the algorithm still mutates it). _Commit: `44943ff6`_
+
+**Cluster 4e — `pre_ship_validation` absorbed into `ship`; `deploy_verify` removed entirely:** `preShipValidator()` (zero-LLM-cost dual-gate completion check — artifact integrity + criteria convergence) now runs as STEP -0.5 inside arc-phase-ship.md before any `gh` activity. Ship timeout bumped 5m → 11m. The 529-line algorithm reference is retained at arc-phase-pre-ship-validation.md (now marked a ship pre-step). `deploy_verify` was disabled by default in v3.x (always-skip path was the only path) — removed entirely; arc-phase-deploy-verify.md deleted (restore from git history to re-enable). `arc-deploy-` removed from ARC_TEAM_PREFIXES. _Commit: `eddf9a4d`_
+
+**Cluster 5a — Downstream consumer sweep:** Sync 14 callers/dashboards/tables to the new 19-phase PHASE_ORDER: arc-checkpoint-init.md (schema), arc-phase-cleanup.md (PHASE_PREFIX_MAP), arc-naming-conventions.md (file table + checkpoint key example), arc-resume.md (legacy migration annotations), rune-status.sh (display PHASE_ORDER + convergence label), session-compact-recovery.sh (delegation hints), arc-phase-qa-gate.md (PHASE_ORDER examples), commands/cancel-arc.md (PHASE_LABELS table + legacyMap), arc/SKILL.md (phase mapping table + Total: 19 prose), arc-failure-policy.md (failure rows), arc-phase-completion-stamp.md (stamp output table), references/key-concepts.md (arc pipeline narrative), references/v3-defaults.md (timeouts table), arc-phase-constants.md (computeSkipMap comments). _Commits: `fa66beb7`, `5271b7ff`, `d12337ed`_
+
+**Cluster 5b — Version bump:** `plugin.json` + `marketplace.json` to `3.0.0-alpha.6`; `arc-quick` and `verify` skill entries removed from `marketplace.json` plugins[].skills[]; descriptions rewritten. README.md "Chains 26 phases" prose updated to 19. _This commit._
+
+**Schema notes:** Two checkpoint state containers are retained alongside the 19 PHASE_ORDER keys: `verify_mend` (C4d) and `pre_ship_validation` (C4e). Both are written to by their absorbed post-step algorithms for backward-compatible state tracking. The schema invariant comment explicitly documents this exception.
+
+**Acceptance criteria verification (per plan):**
+
+- AC-1: Skill count reduced to 42 ✓ (`find plugins/rune/skills -mindepth 2 -name SKILL.md | wc -l` → 42)
+- AC-2: PHASE_ORDER has exactly 19 entries ✓ (`bash plugins/rune/scripts/validate-phase-order-sync.sh` → `OK: arc PHASE_ORDER in sync (19 phases)`)
+- AC-3: Three deleted reference files (`arc-phase-inspect-fix.md`, `verify-inspect.md`, `arc-phase-deploy-verify.md`) ✓ — note: pre-execution audit (R-4) confirmed `arc-phase-verify-inspect.md` and `arc-phase-verify-mend.md` never existed as standalone files; verify_inspect logic was inline (now absorbed in C4c) and verify-mend.md remains as a post-step algorithm reference (not deleted).
+- AC-4: `arc --quick-mode` flag exists ✓ (Cluster 1)
+- AC-5: `inspect --verify-tome <path>` flag exists ✓ (Cluster 2)
+- AC-6: `commands/quick.md` forwards to `arc --quick-mode`; verify-skill router alias forwards to `inspect --verify-tome` ✓
+- AC-7: Stop hook advances correctly through new PHASE_ORDER ✓ (`bash -n` exits 0; phase-groups test 38/38 pass)
+- AC-9: Version bumps to `3.0.0-alpha.6` in `plugin.json`, `marketplace.json`, and this CHANGELOG ✓
+- AC-8 (arc end-to-end smoke) and AC-10 (self-audit clean) — to be verified during PR review.
+
+**Commits (chronological):**
+
+- `86d75b75` — merge arc-quick into arc --quick-mode (Cluster 1)
+- `1a181ccb` — merge verify into inspect --verify-tome (Cluster 2)
+- `a103e71d` — drop verify and arc-quick from tarnished fast-path keywords (Cluster 3)
+- `ddd86176` — absorb plan_refine into plan_review (Cluster 4a; PHASE_ORDER 26 → 25)
+- `d0697858` — absorb drift_review into work (Cluster 4b; PHASE_ORDER 25 → 24)
+- `5851b2d3` — absorb inspect_fix + verify_inspect into inspect (Cluster 4c; PHASE_ORDER 24 → 22)
+- `44943ff6` — absorb verify_mend into mend_qa post-step (Cluster 4d; PHASE_ORDER 22 → 21)
+- `eddf9a4d` — absorb pre_ship_validation into ship; drop deploy_verify (Cluster 4e; PHASE_ORDER 21 → 19)
+- `fa66beb7` — downstream consumer sweep for new 19-phase PHASE_ORDER (Cluster 5a)
+- `5271b7ff` — restore pre_ship_validation transitional state container (Cluster 5a follow-up)
+- `d12337ed` — regression sweep — README + plan-review comment (Cluster 5a follow-up)
+- _this commit_ — bump to 3.0.0-alpha.6 + CHANGELOG (Cluster 5b)
+
+**Branch:** `chore/v3-day5-arc-surface-trim`. **PR:** TBD.
+
+**Next:** Day 6 (alpha.7) begins the inspect engine consolidation: merge the `gap_analysis` family (gap_analysis + gap_analysis_qa + gap_remediation, 3 phases) into the unified inspect engine. Brings PHASE_ORDER 19 → 16 — closer to the brainstorm target ≤ 15.
+
 ## [3.0.0-alpha.5] — 2026-05-10
 
 **Day 4 Talisman residue sweep — milestone complete.** Day 3 (alpha.4) deleted the talisman skill, scripts, hooks, deep-dive guides, and `/rune:talisman` command. Day 4 cleans the **prose/config-instruction residue** that taught an obsolete config-reading model — fragments that misled workers and polluted grep/agent-search results. Net delta: **−4 doc files (mcp-integration-spec EN+VI + ui-builder-protocol EN+VI, ~2,800 LoC), 28 reference files baked, `lib/talisman-shard-path.sh` + 7 callers + ~20 dead probes cleaned, README + tarnished orphans rewritten, RC-TALISMAN-01 repurposed as regression guard.**
