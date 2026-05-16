@@ -16,9 +16,8 @@ The four-pillar essence (v3.0.0-alpha.4): `/rune:arc` + checkpoint framework, QA
 | **appraise** | Multi-agent code review with up to 7 Ashes. `--deep` runs multi-wave |
 | **audit** | Full codebase audit (deep by default). `--incremental` for stateful 3-tier auditing |
 | **forge** | Deepen plan with Forge Gaze topic-aware agent enrichment |
-| **inspect** | Plan-vs-implementation audit with 4 Inspector Ashes (11 dimensions, 9 gap categories) |
+| **inspect** | Plan-vs-implementation audit with 4 Inspector Ashes (11 dimensions, 9 gap categories). Use `--verify-tome` to classify TOME findings (TRUE_POSITIVE / FALSE_POSITIVE / NEEDS_CONTEXT) — absorbed from the prior `verify` skill in v3.0.0-alpha.6 |
 | **mend** | Parallel finding resolution from TOME |
-| **verify** | Classify TOME findings TRUE_POSITIVE / FALSE_POSITIVE / NEEDS_CONTEXT before mend |
 | **brainstorm** | Collaborative idea exploration — Solo, Roundtable Advisors, or Deep mode |
 | **goldmask** | Cross-layer impact analysis (Wisdom + Lore) |
 | **debug** | ACH-based parallel debugging via competing hypotheses |

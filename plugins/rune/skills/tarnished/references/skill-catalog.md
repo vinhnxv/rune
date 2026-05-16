@@ -18,8 +18,7 @@ Complete reference for `/rune:tarnished` routing decisions.
 | `arc-quick` / `quick` / `fast` / `nhanh` | `/rune:arc --quick-mode` | — | Prompt or plan file | Lightweight 4-phase pipeline (plan → work+eval → review → mend) |
 | `forge` | `/rune:forge` | — | Plan file path | Enriched plan |
 | `mend` | `/rune:mend` | — | TOME file path | Fixed code |
-| `verify` | `/rune:verify` | — | TOME file path | Verified findings |
-| `inspect` | `/rune:inspect` | — | Plan file path | `tmp/inspect/*/VERDICT.md` |
+| `inspect` / `verify` / `verify findings` | `/rune:inspect` | — | Plan file path (default) or TOME file path with `--verify-tome` | `tmp/inspect/*/VERDICT.md` (default) or `tmp/verify/*/VERDICTS.md` (--verify-tome) |
 | `goldmask` | `/rune:goldmask` | — | Diff spec / file list | Impact report |
 | `debug` | `/rune:debug` | — | Failure description | ACH parallel investigation |
 | `elicit` | `/rune:elicit` | — | Topic (optional) | Structured reasoning output |

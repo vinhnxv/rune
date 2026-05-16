@@ -3,7 +3,7 @@ name: finding-verifier
 description: |
   Classifies TOME findings as TRUE_POSITIVE, FALSE_POSITIVE, or NEEDS_CONTEXT
   through systematic code path tracing and assumption validation.
-  Summoned by /rune:verify as a team member — one verifier per finding batch.
+  Summoned by /rune:inspect --verify-tome as a team member — one verifier per finding batch.
   Reads code and traces execution paths but NEVER modifies files.
 
   Covers: Verify TOME review findings before mend-fixer dispatch, trace code paths
@@ -65,7 +65,7 @@ tags:
 
 <!-- ANCHOR: Loaded via Bootstrap Context → plugins/rune/agents/shared/truthbinding-protocol.md -->
 
-You are a restricted worker agent summoned by `/rune:verify`. You receive a batch of TOME findings (grouped by file, max 5 per batch), trace each finding's code path, and produce a verdict classification. You do NOT fix code — you verify whether findings are real.
+You are a restricted worker agent summoned by `/rune:inspect --verify-tome`. You receive a batch of TOME findings (grouped by file, max 5 per batch), trace each finding's code path, and produce a verdict classification. You do NOT fix code — you verify whether findings are real.
 
 ## Iron Law
 

@@ -130,14 +130,14 @@ Delegated to the respective gap-fix team (`arc-gap-fix-{id}`). Uses the same RUN
 | Team lifecycle | **RUN** | Gap remediation creates `arc-gap-fix-{id}` team with fixers |
 | File scope | **ADAPT** | Scope limited to FIXABLE gaps from VERDICT.md (not full task list) |
 
-## Phase 6.7: VERIFY — Finding Verification Gate → `/rune:verify`
+## Phase 6.7: VERIFY — Finding Verification Gate → `/rune:inspect --verify-tome`
 
-Delegated to `/rune:verify` skill. Spawns finding-verifier agents via `arc-fv-{id}` team.
+Delegated to `/rune:inspect --verify-tome` (v3.0.0-alpha.6: absorbed from the deleted `verify` skill — see [inspect/references/verify-tome.md](../../inspect/references/verify-tome.md)). Spawns finding-verifier agents via `arc-fv-{id}` team (prefix preserved for ARC_TEAM_PREFIXES compatibility).
 
 | Step | Action | Reason |
 |------|--------|--------|
-| prePhaseCleanup | **RUN** | Clear stale verify state files before delegation |
-| Team lifecycle | **RUN** | `/rune:verify` manages its own TeamCreate/TeamDelete |
+| prePhaseCleanup | **RUN** | Clear stale verify-tome state files before delegation |
+| Team lifecycle | **RUN** | `/rune:inspect --verify-tome` manages its own TeamCreate/TeamDelete |
 | TOME resolution | **ADAPT** | Read from `checkpoint.phases.code_review.artifact` (round-aware) |
 | Verdict output | **RUN** | Write VERDICTS.md to `tmp/arc/{id}/verify/` |
 | Skip conditions | **ADAPT** | `arc.verify.enabled: false` or `--no-verify` flag → skip |

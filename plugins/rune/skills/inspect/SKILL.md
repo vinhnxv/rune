@@ -7,7 +7,7 @@ description: |
   requirement matrix, dimension scores, gap analysis, and actionable recommendations.
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[plan-file.md | inline description] [--mode plan|implementation] [--focus <dimension>] [--dry-run] [--fix]"
+argument-hint: "[plan-file.md | inline description] [--mode plan|implementation] [--focus <dimension>] [--dry-run] [--fix] | --verify-tome <tome-path>"
 allowed-tools:
   - Agent
   - TaskCreate
@@ -43,6 +43,9 @@ Orchestrate a multi-agent inspection that measures implementation completeness a
 | `--max-fixes <N>` | Cap on fixable gaps per run | 20 |
 | `--mode <mode>` | Inspection mode: `implementation` (default) or `plan` | implementation |
 | `--no-lore` | Disable Phase 1.3 Lore Layer (git history risk scoring) | Off |
+| `--verify-tome <tome-path>` | Verify-TOME mode: classify TOME findings (TRUE_POSITIVE / FALSE_POSITIVE / NEEDS_CONTEXT) with evidence chains. Branches BEFORE Phase 0 — does NOT use the 4 Inspector Ashes or 11-dimension framework. See [verify-tome.md](references/verify-tome.md) | Off |
+| `--output-dir <path>` | (`--verify-tome` only) Custom output directory for verdicts | `tmp/verify/{id}/` |
+| `--timeout <ms>` | (`--verify-tome` only) Outer time budget in milliseconds | `600_000` (10 min) |
 
 **Dry-run mode** executes Phase 0 + Phase 0.5 + Phase 1 only. Displays: extracted requirements with IDs and priorities, inspector assignments, relevant codebase files, estimated team size. No teams, tasks, state files, or agents are created.
 
@@ -56,6 +59,20 @@ Orchestrate a multi-agent inspection that measures implementation completeness a
 | `vigil-keeper` | Observability, Tests, Maintainability | 4th |
 
 For full prompt templates, focus mode, --max-agents redistribution, and --fix gap-fixer protocol — see [inspector-prompts.md](references/inspector-prompts.md).
+
+## Verify-TOME Mode (`--verify-tome`)
+
+Early return — runs the finding-verification flow (TRUE_POSITIVE / FALSE_POSITIVE / NEEDS_CONTEXT) instead of the 4 Inspector Ashes plan-vs-implementation audit. The verify-tome flow uses its own `rune-verify-tome-{id}` team prefix (standalone) and a separate `finding-verifier` agent type — keeping it isolated from inspect's plan-vs-impl run (Day 5 Q4).
+
+```javascript
+if (args.includes("--verify-tome")) {
+  // Read and execute the verify-tome.md algorithm.
+  // The branch is fully self-contained — manages its own TeamCreate, batch
+  // dispatch, aggregate, and TeamDelete. Inspect's normal Phase 0–7 do NOT run.
+  Read(references/verify-tome.md)
+  return  // Do not fall through to Phase 0 pre-flight or downstream phases
+}
+```
 
 ## Phase 0: Pre-flight
 

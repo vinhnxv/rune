@@ -164,7 +164,7 @@ Rune is a token-intensive multi-agent system. Each workflow summons multiple age
 | `/rune:arc` | End-to-end: plan → work → review → fix → test → ship → merge |
 | `/rune:brainstorm` | Explore ideas before planning |
 | `/rune:mend` | Auto-fix findings from a review |
-| `/rune:inspect` | Compare plan vs. implementation |
+| `/rune:inspect` | Compare plan vs. implementation (or `--verify-tome <path>` to classify TOME findings as TRUE_POSITIVE / FALSE_POSITIVE / NEEDS_CONTEXT) |
 | `/rune:goldmask` | Impact/blast-radius analysis |
 | `/rune:debug` | Parallel hypothesis-based debugging |
 | `/rune:tarnished` | Intelligent router — figures out which command to run |

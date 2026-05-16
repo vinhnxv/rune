@@ -45,7 +45,7 @@ const PHASE_PREFIX_MAP = {
   inspect:                ["arc-inspect-full-"],
   inspect_fix:            ["arc-inspect-fix-"],
   code_review:            ["rune-review-"],
-  verify:                 ["arc-fv-", "rune-verify-"],            // Phase 6.7 (finding verification — conditional on arc.verify.enabled) + standalone /rune:verify
+  verify:                 ["arc-fv-", "rune-verify-tome-"],       // Phase 6.7 (finding verification — conditional on arc.verify.enabled) + standalone /rune:inspect --verify-tome (v3.0.0-alpha.6: was rune-verify- before the verify skill was absorbed into inspect)
   mend:                   ["rune-mend-", "rune-mend-deep-", "arc-sage-"],  // mend sub-command + deep mend + ephemeral elicitation sage
   test:                   ["arc-test-"],
   deploy_verify:          ["arc-deploy-"],                        // Phase 7.9 (conditional — deployment-relevant files in diff)

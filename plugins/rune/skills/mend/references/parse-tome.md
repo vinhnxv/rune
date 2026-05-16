@@ -136,7 +136,8 @@ After filtering UNVERIFIED findings, check for VERDICTS.md from the verify phase
 
 ```javascript
 // Step: Verdict-based finding filtering
-// VERDICTS.md is produced by /rune:verify (arc Phase 6.7) or standalone /rune:verify
+// VERDICTS.md is produced by /rune:inspect --verify-tome (arc Phase 6.7 or standalone).
+// v3.0.0-alpha.6: the previous /rune:verify skill was absorbed into inspect --verify-tome.
 // Backward compatible: if no VERDICTS.md exists, skip filtering entirely
 
 const skippedByVerdict = []
@@ -173,7 +174,7 @@ if (verdictsPath && exists(verdictsPath)) {
   actionableFindings = actionableFindings.filter(f => f.skip_reason !== "verdict_false_positive")
 
   if (skippedByVerdict.length > 0) {
-    log(`Verdict filtering: ${skippedByVerdict.length} findings excluded (FALSE_POSITIVE by /rune:verify)`)
+    log(`Verdict filtering: ${skippedByVerdict.length} findings excluded (FALSE_POSITIVE by /rune:inspect --verify-tome)`)
   }
 }
 

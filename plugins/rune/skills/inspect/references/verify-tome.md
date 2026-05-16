@@ -1,64 +1,39 @@
----
-name: verify
-description: |
-  Verify TOME findings before mend resolution. Classifies each finding as
-  TRUE_POSITIVE, FALSE_POSITIVE, or NEEDS_CONTEXT with evidence chains.
-  Prevents wasted mend-fixer effort on false positives.
-user-invocable: true
-disable-model-invocation: false
-argument-hint: "[tome-path] [--output-dir <path>] [--timeout <ms>]"
-allowed-tools:
-  - Agent
-  - TaskCreate
-  - TaskList
-  - TaskUpdate
-  - TaskGet
-  - TeamCreate
-  - TeamDelete
-  - SendMessage
-  - Read
-  - Write
-  - Bash
-  - Glob
-  - Grep
-  - AskUserQuestion
----
+# Inspect Verify-TOME Mode (`/rune:inspect --verify-tome`)
 
-# /rune:verify -- Finding Verification Gate
+<!-- v3.0.0-alpha.6: ported verbatim from the deleted `verify` SKILL into a flag mode on inspect. See plans/2026-05-15-chore-rune-v3-day5-arc-surface-trim-plan.md Cluster 2. -->
 
-Parses a TOME file for structured findings, groups them by file, spawns finding-verifier teammates to classify each as TRUE_POSITIVE / FALSE_POSITIVE / NEEDS_CONTEXT, and produces a VERDICTS.md with evidence chains.
+Verify TOME findings before mend resolution. Classifies each finding as **TRUE_POSITIVE**, **FALSE_POSITIVE**, or **NEEDS_CONTEXT** with evidence chains. Prevents wasted mend-fixer effort on false positives.
 
-**Load skills**: `context-weaving`, `rune-orchestration`, `team-sdk`, `polling-guard`, `zsh-compat`
+Reached via `/rune:inspect --verify-tome <tome-path> [--output-dir <path>] [--timeout <ms>]`. This is a separate mode from inspect's default plan-vs-implementation flow — the entry point in `inspect/SKILL.md` branches BEFORE Phase 0 of the standard pipeline.
 
-## Usage
+**Team prefix** (separate from inspect's plan-vs-impl prefix per Day 5 Q4):
+- Standalone: `rune-verify-tome-{id}`
+- Inside arc: `arc-fv-{arcId}` (preserved for compatibility with `arc-phase-verify.md`'s state-file discovery)
 
-```
-/rune:verify tmp/reviews/abc123/TOME.md    # Verify findings from specific TOME
-/rune:verify                                # Auto-detect most recent TOME
-/rune:verify --output-dir tmp/verify/custom # Specify output directory
-```
+**Load skills**: `context-weaving`, `rune-orchestration`, `team-sdk`, `polling-guard`, `zsh-compat`.
 
-## Flags
+## Flags Recognised
 
 | Flag | Description | Default |
 |------|-------------|---------|
+| `--verify-tome <path>` | TOME file path to classify (required to enter this mode) | — |
 | `--output-dir <path>` | Custom output directory for verdicts | `tmp/verify/{id}/` |
 | `--timeout <ms>` | Outer time budget in milliseconds | `600_000` (10 min) |
 
 ## Pipeline Overview
 
 ```
-Phase 0: PARSE    -> Extract and validate TOME findings
-    |
-Phase 1: BATCH    -> Group findings by file (max 5 per batch)
-    |
-Phase 2: VERIFY   -> TeamCreate + spawn finding-verifier per batch
-    |
-Phase 3: AGGREGATE -> Collect verdicts, compute stats
-    |
-Phase 4: OUTPUT   -> Write VERDICTS.md + mend-ready filtered list
-    |
-Phase 6: CLEANUP  -> Shutdown teammates, TeamDelete
+Phase 0: PARSE     → Extract and validate TOME findings
+    ↓
+Phase 1: BATCH     → Group findings by file (max 5 per batch)
+    ↓
+Phase 2: VERIFY    → TeamCreate + spawn finding-verifier per batch
+    ↓
+Phase 3: AGGREGATE → Collect verdicts, compute stats
+    ↓
+Phase 4: OUTPUT    → Write VERDICTS.md + mend-ready filtered list
+    ↓
+Phase 6: CLEANUP   → Shutdown teammates, TeamDelete
 ```
 
 ## Phase 0: PARSE — Extract Findings from TOME
@@ -66,13 +41,13 @@ Phase 6: CLEANUP  -> Shutdown teammates, TeamDelete
 ```pseudocode
 // 0.1 Resolve TOME path
 const args = parseArguments($ARGUMENTS)
-let tomePath = args.positional[0]
+let tomePath = args.flags["--verify-tome"]
 
 if (!tomePath) {
   // Auto-detect: search recent TOME files
   const candidates = Glob("tmp/{reviews,arc}/*/TOME.md")
   if (candidates.length === 0) {
-    error("No TOME file found. Usage: /rune:verify <tome-path>")
+    error("No TOME file found. Usage: /rune:inspect --verify-tome <tome-path>")
     return
   }
   // Pick most recent by modification time
@@ -171,13 +146,13 @@ log(`Created ${batches.length} batches for ${maxConcurrent} concurrent verifiers
 const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
 const teamName = isArcContext
   ? `arc-fv-${arcId}`
-  : `rune-verify-${id}`
+  : `rune-verify-tome-${id}`
 const timeoutMs = parseInt(args.flags["--timeout"] || "600000")
 
 // 2.2 Write state file (session isolation: config_dir, owner_pid, session_id)
-const stateFile = `tmp/.rune-verify-${id}.json`
+const stateFile = `tmp/.rune-verify-tome-${id}.json`
 Write(stateFile, JSON.stringify({
-  workflow: "verify",
+  workflow: "inspect-verify-tome",
   id,
   tomePath,
   teamName,
@@ -194,7 +169,7 @@ Write(stateFile, JSON.stringify({
 Write(`${outputDir}/inscription.json`, JSON.stringify({
   session_nonce: id,
   team_name: teamName,
-  workflow: "verify",
+  workflow: "inspect-verify-tome",
   created_at: new Date().toISOString(),
   batches: batches.map((b, i) => ({
     id: i,
@@ -468,8 +443,10 @@ stateUpdate.completedAt = new Date().toISOString()
 stateUpdate.stats = stats
 Write(stateFile, JSON.stringify(stateUpdate, null, 2))
 
-// 6.3 Release workflow lock
-Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_release_lock "verify"`)
+// 6.3 Release workflow lock (only if standalone — arc context manages its own lock)
+if (!isArcContext) {
+  Bash(`cd "${CWD}" && source plugins/rune/scripts/lib/workflow-lock.sh && rune_release_lock "verify"`)
+}
 
 // 6.4 Present results
 log(`\n## Verification Complete\n`)
