@@ -28,11 +28,11 @@ per-phase reference files (timeout values), arc-resume.md (schema migration)
 // thin-shell phases into their natural parents. See
 // plans/2026-05-15-chore-rune-v3-day5-arc-surface-trim-plan.md.
 //   - plan_refine → plan_review (this commit, C4a)
-//   - drift_review → work_qa (C4b)
+//   - drift_review → work (C4b — as a post-step before work_qa runs)
 //   - inspect_fix + verify_inspect → inspect (C4c)
 //   - verify_mend → mend_qa (C4d)
 //   - deploy_verify + pre_ship_validation → ship (C4e)
-const PHASE_ORDER = ['forge', 'forge_qa', 'plan_review', 'verification', 'work', 'work_qa', 'drift_review', 'gap_analysis', 'gap_analysis_qa', 'gap_remediation', 'inspect', 'inspect_fix', 'verify_inspect', 'code_review', 'code_review_qa', 'verify', 'mend', 'mend_qa', 'verify_mend', 'test', 'test_qa', 'deploy_verify', 'pre_ship_validation', 'ship', 'merge']
+const PHASE_ORDER = ['forge', 'forge_qa', 'plan_review', 'verification', 'work', 'work_qa', 'gap_analysis', 'gap_analysis_qa', 'gap_remediation', 'inspect', 'inspect_fix', 'verify_inspect', 'code_review', 'code_review_qa', 'verify', 'mend', 'mend_qa', 'verify_mend', 'test', 'test_qa', 'deploy_verify', 'pre_ship_validation', 'ship', 'merge']
 
 // SYNC-CRITICAL: PHASE_GROUPS is duplicated in:
 //   1. This file (JavaScript reference for group definitions)
@@ -41,7 +41,7 @@ const PHASE_ORDER = ['forge', 'forge_qa', 'plan_review', 'verification', 'work',
 // also add it to the appropriate group in PHASE_GROUPS.
 const PHASE_GROUPS = [
   { id: 'planning',     phases: ['forge', 'forge_qa', 'plan_review', 'verification'] },
-  { id: 'work',         phases: ['work', 'work_qa', 'drift_review'] },
+  { id: 'work',         phases: ['work', 'work_qa'] },
   { id: 'verification', phases: ['gap_analysis', 'gap_analysis_qa', 'gap_remediation'] },
   { id: 'inspect',      phases: ['inspect', 'inspect_fix', 'verify_inspect'] },
   { id: 'review',       phases: ['code_review', 'code_review_qa', 'verify', 'mend', 'mend_qa', 'verify_mend'] },
@@ -103,7 +103,7 @@ const PHASE_TIMEOUTS = {
   // plan_refine: absorbed into plan_review in v3.0.0-alpha.6 (Day 5 C4a)
   verification:  30_000,     // 30 sec (orchestrator-only, no team)
   work:          2_100_000,  // 35 min (inner 30m + 5m setup)
-  drift_review:  120_000,    //  2 min (inline, no team)
+  // drift_review: absorbed into work in v3.0.0-alpha.6 (Day 5 C4b)
   gap_analysis:  720_000,    // 12 min (inner 8m + 2m setup + 2m aggregate)
   gap_remediation: 900_000,  // 15 min (inner 10m + 5m setup)
   inspect:       900_000,    // 15 min (4 Inspector Ashes + verdict-binder)
@@ -179,7 +179,7 @@ function calculateDynamicTimeout(tier) {
     PHASE_TIMEOUTS.plan_review +
     PHASE_TIMEOUTS.verification +  // v3.0.0-alpha.6: plan_refine absorbed into plan_review (Day 5 C4a)
     PHASE_TIMEOUTS.work + PHASE_TIMEOUTS.work_qa +
-    PHASE_TIMEOUTS.drift_review +  // DECR-001 fix: was missing from budget
+    // v3.0.0-alpha.6: drift_review absorbed into work (Day 5 C4b)
     PHASE_TIMEOUTS.gap_analysis + PHASE_TIMEOUTS.gap_analysis_qa +
     PHASE_TIMEOUTS.gap_remediation +
     PHASE_TIMEOUTS.inspect + PHASE_TIMEOUTS.inspect_fix + PHASE_TIMEOUTS.verify_inspect +
@@ -309,9 +309,9 @@ const SKIP_REASONS = {
 //   (* = conditionally pre-computable — only when parent feature is disabled)
 //
 // Runtime-dependent (NOT in skip_map):
-//   drift_review (depends on worker drift signal files — zero overhead when none exist),
 //   deploy_verify (depends on post-work diff analysis)
-// v3.0.0-alpha.6: plan_refine removed (absorbed into plan_review; no longer a phase).
+// v3.0.0-alpha.6 (Day 5): plan_refine and drift_review removed (absorbed into
+// plan_review and work respectively; no longer phases).
 //
 // v3.0.0-alpha.1 removed the design family (design_extraction, design_prototype,
 // design_verification*, design_iteration*) so they are no longer pre-computable.

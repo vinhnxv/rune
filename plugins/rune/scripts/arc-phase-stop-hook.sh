@@ -475,7 +475,7 @@ PHASE_ORDER=(
   forge forge_qa
   plan_review verification
   work work_qa
-  drift_review gap_analysis gap_analysis_qa
+  gap_analysis gap_analysis_qa
   gap_remediation
   inspect inspect_fix verify_inspect
   code_review code_review_qa
@@ -485,7 +485,8 @@ PHASE_ORDER=(
   deploy_verify pre_ship_validation
   ship merge
 )
-# v3.0.0-alpha.6 (Day 5 C4a): plan_refine absorbed into plan_review.
+# v3.0.0-alpha.6 (Day 5): plan_refine absorbed into plan_review (C4a),
+# drift_review absorbed into work (C4b).
 
 # Heavy phases that ALWAYS trigger compact interlude (tier 1)
 # SYNC-NOTE: This list intentionally differs from HEAVY_PHASES in arc-phase-constants.md.
@@ -510,7 +511,7 @@ _phase_ref() {
     # plan_refine absorbed into plan_review in v3.0.0-alpha.6 (Day 5 C4a)
     verification)             echo "${base}/verification-gate.md" ;;
     work)                     echo "${base}/arc-phase-work.md" ;;
-    drift_review)             echo "${base}/arc-phase-drift-review.md" ;;
+    # drift_review absorbed into work in v3.0.0-alpha.6 (Day 5 C4b)
     gap_analysis)             echo "${base}/gap-analysis.md" ;;
     gap_remediation)          echo "${base}/gap-remediation.md" ;;
     inspect)                  echo "${base}/arc-phase-inspect.md" ;;

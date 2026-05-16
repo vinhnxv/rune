@@ -23,8 +23,9 @@ _lookup_phase_group() {
     forge|forge_qa|plan_review|verification)
       echo "planning" ;;
     # v3.0.0-alpha.6 (Day 5 C4a): plan_refine absorbed into plan_review.
-    work|work_qa|drift_review)
+    work|work_qa)
       echo "work" ;;
+    # v3.0.0-alpha.6 (Day 5 C4b): drift_review absorbed into work.
     gap_analysis|gap_analysis_qa|gap_remediation)
       echo "verification" ;;
     inspect|inspect_fix|verify_inspect)

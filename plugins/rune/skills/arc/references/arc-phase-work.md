@@ -335,3 +335,72 @@ executionLog.skipped_count = executionLog.skipped_steps.length
 executionLog.completion_pct = Math.round((executionLog.completed_steps / executionLog.total_steps) * 100)
 Write(`tmp/arc/${id}/execution-logs/work-execution.json`, JSON.stringify(executionLog, null, 2))
 ```
+
+## Phase 5.1 (absorbed): Drift Signal Review
+
+<!-- v3.0.0-alpha.6: absorbed from the deleted arc-phase-drift-review.md. -->
+<!-- Run as the final step of work — workers wrote drift signals during their -->
+<!-- tasks; aggregate them here before work_qa runs. Non-blocking advisory. -->
+
+After all workers report `Seal: strive complete.` and BEFORE `work_qa` runs, aggregate any drift signals workers wrote during the phase. Orchestrator-only — no team. Non-blocking; skip silently when no signals exist (the common case).
+
+```javascript
+// ── Sub-step 5.1: Drift signal aggregation (orchestrator-only, no team) ──
+
+// Discover drift signals from this work phase
+const workDir = checkpoint.phases.work?.artifact?.replace(/\/[^\/]+$/, '')
+const driftFiles = workDir ? Glob(`${workDir}/drift-signals/*-drift.json`) : []
+
+// Filter by session ownership
+const configDir = Bash(`cd "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" 2>/dev/null && pwd -P`).trim()
+const ownerPid = Bash(`echo $PPID`).trim()
+const ownedSignals = []
+
+for (const file of driftFiles) {
+  try {
+    const signal = JSON.parse(Read(file))
+    // Session isolation: only process signals from this session
+    if (signal.config_dir !== configDir) continue
+    if (signal.owner_pid && signal.owner_pid !== ownerPid) {
+      // Check if owning PID is still alive
+      const alive = Bash(`kill -0 ${signal.owner_pid} 2>/dev/null && echo alive || echo dead`).trim()
+      if (alive === "alive") continue  // belongs to another live session
+    }
+    ownedSignals.push(signal)
+  } catch (e) {
+    warn(`Failed to parse drift signal: ${file}`)
+  }
+}
+
+// No signals — zero overhead, nothing to write
+if (ownedSignals.length === 0) {
+  // Fall through to work_qa
+} else {
+  // Categorize by severity
+  const blockers = ownedSignals.filter(s => s.severity === "blocks_task")
+  const workarounds = ownedSignals.filter(s => s.severity === "workaround_applied")
+  const cosmetic = ownedSignals.filter(s => s.severity === "cosmetic")
+
+  // Handle blockers — present to user
+  if (blockers.length > 0) {
+    const blockerList = blockers.map(b =>
+      `- Task ${b.task_id} (${b.type}): Plan says "${b.plan_says}" but ${b.reality}`
+    ).join("\n")
+
+    AskUserQuestion({
+      question: `${blockers.length} drift signal(s) indicate plan-reality mismatch that blocked tasks:\n${blockerList}\n\nOptions:\n1. Continue — workers applied workarounds where possible\n2. Halt — fix plan and resume with /rune:arc --resume`,
+      header: "Drift Signals"
+    })
+  }
+
+  // Write drift review report (read by work_qa for advisory context)
+  const report = `# Drift Review Report\n\n` +
+    `Signals: ${ownedSignals.length} (${blockers.length} blockers, ${workarounds.length} workarounds, ${cosmetic.length} cosmetic)\n\n` +
+    ownedSignals.map(s => `## ${s.task_id} — ${s.type} (${s.severity})\n- Plan: ${s.plan_says}\n- Reality: ${s.reality}`).join("\n\n")
+  Write(`tmp/arc/${id}/drift-review-report.md`, report)
+}
+```
+
+**Output**: `tmp/arc/{id}/drift-review-report.md` (absent when no drift signals were written).
+
+**Failure policy**: Non-blocking — proceed to `work_qa` on error (drift is advisory).
