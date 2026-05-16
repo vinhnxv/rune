@@ -10,13 +10,13 @@ The four-pillar essence (v3.0.0-alpha.4): `/rune:arc` + checkpoint framework, QA
 
 | Skill | Purpose |
 |-------|---------|
-| **arc** | End-to-end pipeline (forge → forge_qa → plan review → work → work_qa → gap analysis → gap remediation → inspect → code review → mend → verify_mend → test → ship → merge) with checkpoint framework. Use `--quick-mode` for the lightweight 4-phase path (plan → work+evaluate → review → mend) |
+| **arc** | End-to-end 16-phase pipeline (forge → forge_qa → plan_review → verification → work → work_qa → inspect → code_review → code_review_qa → verify → mend → mend_qa → test → test_qa → ship → merge) with checkpoint framework. Use `--quick-mode` for the lightweight 4-phase path (plan → work+evaluate → review → mend). v3.0.0-alpha.7: gap_analysis + gap_analysis_qa + gap_remediation absorbed into inspect. |
 | **devise** | Multi-agent planning (research, synthesize, shatter, forge, review, grounding gate). `--quick` skips brainstorm/forge |
 | **strive** | Swarm work execution with self-organizing task pool. Discipline Work Loop activates on plans with YAML criteria |
 | **appraise** | Multi-agent code review with up to 7 Ashes. `--deep` runs multi-wave |
 | **audit** | Full codebase audit (deep by default). `--incremental` for stateful 3-tier auditing |
 | **forge** | Deepen plan with Forge Gaze topic-aware agent enrichment |
-| **inspect** | Plan-vs-implementation audit with 4 Inspector Ashes (11 dimensions, 9 gap categories). Use `--verify-tome` to classify TOME findings (TRUE_POSITIVE / FALSE_POSITIVE / NEEDS_CONTEXT) — absorbed from the prior `verify` skill in v3.0.0-alpha.6 |
+| **inspect** | Unified plan-vs-implementation engine — deterministic pre-checks (STEP A) + 4 Inspector Ashes (11 dimensions, 9 gap categories) + halt-gate (Task Completion Gate + Quality Score Gate + plan writeback, STEP D) + gap-fixer dispatch + convergence loop. Use `--verify-tome` to classify TOME findings (TRUE_POSITIVE / FALSE_POSITIVE / NEEDS_CONTEXT) — absorbed from the prior `verify` skill in v3.0.0-alpha.6. v3.0.0-alpha.7: gap_analysis + gap_remediation absorbed (sub-references `inspect-step-a-deterministic.md` + `inspect-step-d-halt-gate.md`). |
 | **mend** | Parallel finding resolution from TOME |
 | **brainstorm** | Collaborative idea exploration — Solo, Roundtable Advisors, or Deep mode |
 | **goldmask** | Cross-layer impact analysis (Wisdom + Lore) |
@@ -112,7 +112,7 @@ Rune implements structural discipline enforcement across all pipelines. See `doc
 13. **Iron Law TEAM-002 — Task Contract**: Every `Agent()` call with `team_name` MUST have a corresponding `TaskCreate()` BEFORE it. Agents spawned as teammates MUST have `TaskUpdate` in their tools list. Without both, `waitForCompletion` cannot detect completion — the pipeline stalls silently.
 14. **TaskOutput deprecated** (Claude Code v2.1.83): Use `Read` on the background task's output file path instead.
 15. **Iron Law ARC-QA-001 — Verify Before Skip**: Before marking any phase as `skipped` with reasoning that invokes "agent failure" or "team torn down", run a 3-check protocol: (a) Sentinel check (`Glob("tmp/arc/{id}/.done/*.done")`), (b) Artifact check (`Glob("tmp/arc/{id}/qa/*-verdict.json")`), (c) Git check (`git log --since '10 minutes ago'`). If ANY returns evidence of completion, the phase is NOT failed — flip to `completed`.
-16. **Iron Law ARC-QA-002 — Stop Hook Self-Heal Precedence**: The stop hook MUST check for late-arriving artifacts before retrying any `in_progress` phase. Self-heal protocol in `scripts/lib/arc-phase-self-heal.sh`. Scope: QA phases only (`forge_qa`, `work_qa`, `gap_analysis_qa`, `code_review_qa`, `mend_qa`, `test_qa`).
+16. **Iron Law ARC-QA-002 — Stop Hook Self-Heal Precedence**: The stop hook MUST check for late-arriving artifacts before retrying any `in_progress` phase. Self-heal protocol in `scripts/lib/arc-phase-self-heal.sh`. Scope: QA phases only (`forge_qa`, `work_qa`, `code_review_qa`, `mend_qa`, `test_qa`). _(gap_analysis_qa retired in v3.0.0-alpha.7 Day 6 Q3.)_
 
 ## Teammate Lifecycle Safety
 

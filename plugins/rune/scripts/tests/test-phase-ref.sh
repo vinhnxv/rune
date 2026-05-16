@@ -50,9 +50,9 @@ assert_nonempty() {
 }
 
 # ══════════════════════════════════════════════════
-# Test 1: All 19 PHASE_ORDER phases return non-empty path AND file exists
-# SYNC-CRITICAL: must match arc-phase-constants.md PHASE_ORDER (19 entries
-# as of v3.0.0-alpha.6 after Day 5 absorptions).
+# Test 1: All 16 PHASE_ORDER phases return non-empty path AND file exists
+# SYNC-CRITICAL: must match arc-phase-constants.md PHASE_ORDER (16 entries
+# as of v3.0.0-alpha.7 after Day 6 gap_analysis family absorption).
 # ══════════════════════════════════════════════════
 echo "=== PHASE_ORDER phases: _phase_ref returns non-empty path that exists ==="
 
@@ -60,8 +60,6 @@ PHASE_ORDER=(
   forge forge_qa
   plan_review verification
   work work_qa
-  gap_analysis gap_analysis_qa
-  gap_remediation
   inspect
   code_review code_review_qa
   verify mend mend_qa
@@ -85,9 +83,9 @@ for phase in "${PHASE_ORDER[@]}"; do
   fi
 done
 
-# Verify we tested exactly 19 phases
+# Verify we tested exactly 16 phases (v3.0.0-alpha.7)
 COVERAGE_COUNT="${#PHASE_ORDER[@]}"
-assert_eq "phase count is 19" "19" "$COVERAGE_COUNT"
+assert_eq "phase count is 16" "16" "$COVERAGE_COUNT"
 
 # ══════════════════════════════════════════════════
 # Test 2: 5 removed/absorbed phases return empty string

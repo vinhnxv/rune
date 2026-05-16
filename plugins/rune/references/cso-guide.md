@@ -47,7 +47,7 @@ description: |
   Use when running end-to-end pipeline from plan to merged PR, when resuming
   a failed arc with --resume, or when any of the 17 arc phases fail (forge,
   plan-review, plan-refinement, verification, semantic-verification, work,
-  gap-analysis, gap-remediation, goldmask-verification,
+  goldmask-verification,
   code-review, goldmask-correlation, mend, verify-mend, test, ship, merge).
 ```
 

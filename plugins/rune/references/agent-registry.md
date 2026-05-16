@@ -72,7 +72,7 @@ Shared resources: [Review Checklist](../skills/roundtable-circle/references/agen
 | trial-forger | Test generation (swarm worker) |
 | design-sync-agent | Figma extraction and VSM creation (design swarm worker) |
 | design-iterator | Design fidelity iteration — screenshot→analyze→improve loop (registry/work) |
-| blind-verifier | Independent gap-analysis verifier with no diff/worker context (registry/work) |
+| blind-verifier | Independent inspect-deterministic verifier with no diff/worker context (registry/work) — was named "gap-analysis verifier" before v3.0.0-alpha.7 Day 6 absorption |
 | storybook-reviewer | Storybook component verification (read-only) — screenshot capture, Mode A (Design Fidelity) / Mode B (UI Quality Audit), structured findings for storybook-fixer |
 | storybook-fixer | Storybook finding fixer — applies one fix per round (SBK-001), re-verifies via screenshot, three-signal stop convergence detection |
 

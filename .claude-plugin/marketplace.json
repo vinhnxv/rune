@@ -13,8 +13,8 @@
   "plugins": [
     {
       "name": "rune",
-      "description": "Multi-agent engineering orchestration for Claude Code. Plan, work, review, mend, ship via /rune:arc with checkpoint framework, QA phases, Discipline Engineering, and Agent Teams. v3.0.0-alpha.6: Day 5 arc surface trim — arc-quick + verify skills merged into arc/inspect (44 → 42 skills); arc PHASE_ORDER 26 → 19 via 5 phase absorptions (plan_refine→plan_review, drift_review→work, inspect_fix+verify_inspect→inspect, verify_mend→mend_qa post-step, pre_ship_validation→ship; deploy_verify removed).",
-      "version": "3.0.0-alpha.6",
+      "description": "Multi-agent engineering orchestration for Claude Code. Plan, work, review, mend, ship via /rune:arc with checkpoint framework, QA phases, Discipline Engineering, and Agent Teams. v3.0.0-alpha.7: Day 6 gap_analysis family merge — gap_analysis + gap_analysis_qa + gap_remediation (3 phases) absorbed into the unified inspect engine; arc PHASE_ORDER 19 → 16. STEP A deterministic checks + STEP D halt-gate (Task Completion Gate + plan writeback) live in inspect-step-a-deterministic.md and inspect-step-d-halt-gate.md sub-references; verification PHASE_GROUP deleted; qa-manifests/gap-analysis.yaml retired (Q3 — replacement deferred to Day 7 parametric qa-verifier).",
+      "version": "3.0.0-alpha.7",
       "author": {
         "name": "vinhnxv",
         "email": "vinh.ngxv@gmail.com",
