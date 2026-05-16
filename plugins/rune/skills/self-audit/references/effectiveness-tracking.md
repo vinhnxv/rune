@@ -221,7 +221,8 @@ Arc checkpoints (`.rune/arc/*/checkpoint.json`) provide indirect quality signals
   "arc_id": "arc-1773916367",
   "phases": {
     "code_review": { "status": "completed", "tome_finding_count": 12 },
-    "gap_analysis": { "status": "completed", "gap_count": 3 },
+    // v3.0.0-alpha.7 (Day 6): gap_analysis absorbed into inspect — gap counts now live on phases.inspect.deterministic_gaps.{addressed,partial,missing,extra}
+    "inspect": { "status": "completed", "completion_pct": 92, "p1_count": 0, "deterministic_gaps": { "addressed": 8, "partial": 1, "missing": 0, "extra": 0 } },
     "test": { "status": "completed", "test_pass_rate": 0.95 }
   },
   "convergence_history": [
