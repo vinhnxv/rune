@@ -27,8 +27,9 @@ v3.0.0-alpha.1. No conditional phase contracts ship in v3.0.0-alpha.2.
 
 > v3.0.0-alpha.2: `goldmask_verification`, `goldmask_correlation`, `bot_review_wait`,
 > `pr_comment_resolution` removed from the default arc PHASE_ORDER. Goldmask is now a
-> standalone command (`/rune:goldmask`); PR-comment work moves to external pr-guardian
-> harness or `/rune:resolve-all-gh-pr-comments`.
+> standalone command (`/rune:goldmask`); PR-comment work moves to the external
+> pr-guardian harness (planned, see brainstorm Q5) or upstream `gh` CLI
+> (e.g., `gh pr view --comments`).
 >
 > v3.0.0-alpha.2 (codex-strip sync, self-audit 1778278942): `semantic_verification`,
 > `task_decomposition`, `test_coverage_critique`, `release_quality_check` also

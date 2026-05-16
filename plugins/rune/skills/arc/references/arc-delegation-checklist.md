@@ -209,8 +209,8 @@ sync with the live PHASE_ORDER.
 | DESIGN ITERATION (Phase 7.6) | v3.0.0-alpha.1 | External design iteration |
 | GOLDMASK VERIFICATION (Phase 5.7) | v3.0.0-alpha.2 | Standalone `/rune:goldmask` |
 | GOLDMASK CORRELATION (Phase 6.5) | v3.0.0-alpha.2 | Standalone `/rune:goldmask` |
-| BOT REVIEW WAIT (Phase 9.1) | v3.0.0-alpha.2 | External `/rune:pr-guardian` cron loop |
-| PR COMMENT RESOLUTION (Phase 9.2) | v3.0.0-alpha.2 | Standalone `/rune:resolve-all-gh-pr-comments` |
+| BOT REVIEW WAIT (Phase 9.1) | v3.0.0-alpha.2 | External pr-guardian harness (planned, see brainstorm Q5) |
+| PR COMMENT RESOLUTION (Phase 9.2) | v3.0.0-alpha.2 | External pr-guardian harness (planned) or upstream `gh` CLI (e.g., `gh pr view --comments`) |
 | SEMANTIC VERIFICATION (Phase 2.8) | v3.0.0-alpha.1 | Folded into Phase 2.7 VERIFICATION |
 | TASK DECOMPOSITION (Phase 4.5) | v3.0.0-alpha.1 | Plan-level shatter (devise Phase 2.5) |
 | TEST COVERAGE CRITIQUE (Phase 7.8) | v3.0.0-alpha.1 | Folded into Phase 7.7 TEST tier reporting |

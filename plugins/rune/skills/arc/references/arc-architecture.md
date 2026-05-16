@@ -11,7 +11,8 @@ Extracted from SKILL.md in v1.110.0 for phase-isolated context architecture.
 > plan_refinement, drift_review, inspect_fix, verify_inspect, verify_mend, deploy_verify,
 > and pre_ship_validation were absorbed or removed in alpha.6 (Day 5 arc surface trim).
 > Goldmask remains a standalone command (`/rune:goldmask`); PR-comment work moves
-> to external pr-guardian or `/rune:resolve-all-gh-pr-comments`.
+> to the external pr-guardian harness (planned, see brainstorm Q5) or upstream
+> `gh` CLI.
 
 ```
 Phase 1:   FORGE → Research-enrich plan sections

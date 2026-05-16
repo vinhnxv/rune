@@ -23,22 +23,22 @@ Complete reference for `/rune:tarnished` routing decisions.
 | `debug` | `/rune:debug` | — | Failure description | ACH parallel investigation |
 | `elicit` | `/rune:elicit` | — | Topic (optional) | Structured reasoning output |
 | `rest` | `/rune:rest` | — | None | Cleans tmp/ |
-| `file-todos` | `/rune:file-todos` | — | Subcommand | TODO files in `tmp/` |
-| `resolve-all-gh-pr-comments` | `/rune:resolve-all-gh-pr-comments` | — | PR number (auto) | Resolved PR threads |
-| `resolve-gh-pr-comment` | `/rune:resolve-gh-pr-comment` | — | PR comment URL/ID | Resolved thread |
 | `resolve-todos` | `/rune:resolve-todos` | — | TODO file path | Fixed code |
 | `skill-testing` | `/rune:skill-testing` | — | Skill name | Test results |
 | `status` / `team-status` | `/rune:status` | — | Optional: timestamp or team-name | Team + dispatch health report |
 | `supply-chain-audit` | `/rune:supply-chain-audit` | — | None | Dependency risk report |
 | `variant-hunt` | `/rune:variant-hunt` | — | Finding ID / pattern | Variant findings |
-| `pr-guardian` | `/rune:pr-guardian` | — | None (cron) | Auto-merge loop |
-| `post-findings` | `/rune:post-findings` | — | TOME file | PR comment |
 | `cc-inspect` | `/rune:cc-inspect` | — | None | Claude Code inspection |
 | `self-audit` | `/rune:self-audit` | — | `--dimension`, `--verbose` | `tmp/self-audit/*/SELF-AUDIT-REPORT.md` |
 
 > v3.0.0-alpha.2: removed routing rows for `arc-batch`, `arc-issues`, `arc-hierarchy`,
 > `echoes`, `design-sync`, `elevate`, `learn`, `test-browser`, `ux-design-process`,
 > `untitledui-mcp`, `figma-to-react` — those skills no longer ship with the plugin.
+>
+> v3.0.0-alpha.9 (Day 7 Tier-B): removed routing rows for `file-todos`,
+> `resolve-all-gh-pr-comments`, `resolve-gh-pr-comment`, `pr-guardian`,
+> `post-findings` — GitHub-glue / harness-shaped skills retired; external
+> pr-guardian harness (planned, see brainstorm Q5) or upstream `gh` CLI replaces them.
 
 ## Skill Flags Quick Reference
 
@@ -82,11 +82,7 @@ Complete reference for `/rune:tarnished` routing decisions.
 | `mend` | Per file | 3-10 min |
 | `goldmask` | 8 tracers | 5-10 min |
 | `elicit` | None | 2-5 min |
-| `file-todos` | None | < 1 min |
-| `resolve-all-gh-pr-comments` | Per comment | 5-20 min |
-| `resolve-gh-pr-comment` | None | 1-3 min |
 | `resolve-todos` | Per batch | 5-15 min |
 | `skill-testing` | None | 2-10 min |
 | `status` | Optional (timestamp or team-name) | < 1 min |
-| `pr-guardian` | None (cron) | 5 min/tick |
 | `rest` | None | < 1 min |

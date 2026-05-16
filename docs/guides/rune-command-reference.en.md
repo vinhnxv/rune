@@ -78,7 +78,6 @@ Related guides:
 |---------|---------|
 | `/rune:tarnished` | Unified natural-language router across workflows |
 | `/rune:elicit` | Structured reasoning method selection |
-| `/rune:file-todos` | Session-scoped file-based todo operations |
 | `/rune:rest` | Clean completed workflow artifacts under `tmp/` |
 
 ---

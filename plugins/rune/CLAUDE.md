@@ -21,14 +21,9 @@ The four-pillar essence (v3.0.0-alpha.4): `/rune:arc` + checkpoint framework, QA
 | **brainstorm** | Collaborative idea exploration — Solo, Roundtable Advisors, or Deep mode |
 | **goldmask** | Cross-layer impact analysis (Wisdom + Lore) |
 | **debug** | ACH-based parallel debugging via competing hypotheses |
-| **resolve-gh-pr-comment** | Resolve a single GitHub PR review comment |
-| **resolve-all-gh-pr-comments** | Batch resolve all open PR review comments |
 | **resolve-todos** | Standalone todo resolution with verify-before-fix pipeline |
-| **file-todos** | File-based TODO tracking |
-| **post-findings** | Post review/audit findings to GitHub PR |
 | **supply-chain-audit** | Analyze dependency supply chain risks |
 | **variant-hunt** | "Find more like this" — variant analysis from confirmed finding |
-| **pr-guardian** | Automated PR shepherd loop (cron-based) |
 | **self-audit** | Meta-QA on Rune's own workflow system |
 | **cc-inspect** | Claude Code runtime environment inspector |
 | **skill-testing** | TDD methodology for skills |

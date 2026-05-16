@@ -40,16 +40,11 @@ Do not auto-invoke heavyweight commands — suggest and let the user confirm.
 | "Help me think through" / "structured reasoning" | `/rune:elicit` | Interactive elicitation method selection |
 | "Clean up" / "remove temp files" | `/rune:rest` | Remove tmp/ artifacts from completed workflows |
 | "Cancel the review" / "stop the audit" | `/rune:cancel-review` or `/rune:cancel-audit` | Graceful shutdown of active workflows |
-| "Track todos" / "file todos" / "manage todos" | `/rune:file-todos` | Structured file-based TODO tracking |
-| "Resolve PR comments" / "fix all comments" / "batch resolve" | `/rune:resolve-all-gh-pr-comments` | Batch resolve all open PR review comments |
-| "Fix this PR comment" / "resolve comment" | `/rune:resolve-gh-pr-comment` | Resolve a single GitHub PR review comment |
 | "Resolve TODOs" / "fix TODOs" / "clean up TODOs" | `/rune:resolve-todos` | Resolve file-based TODOs with verify-before-fix pipeline |
 | "Test skill" / "eval skill" / "pressure test" | `/rune:skill-testing` | TDD methodology for skill testing and evaluation |
 | "Status" / "team status" / "check teammates" / "agent health" / "dispatch status" | `/rune:status` | Active-team dashboard + background-dispatch report |
-| "Post findings to PR" / "share review on PR" / "post to GitHub" / "comment on PR with findings" | `/rune:post-findings` | Post Rune review findings to GitHub PR as formatted comment |
 | "Self-audit" / "audit arc run" / "check arc quality" / "hallucination detection" / "agent effectiveness" / "check rune health" / "lint agents" / "meta-qa" | `/rune:self-audit` | Meta-QA self-audit — static analysis + runtime arc artifact analysis |
 | "Supply chain audit" / "dependency risk" / "check dependencies" / "package security" / "abandoned packages" | `/rune:supply-chain-audit` | Analyze project dependencies for maintainer risk, abandonment, and CVE history |
-| "Watch my PR" / "pr guardian" / "auto merge" / "shepherd PR" / "monitor PR" | `/rune:pr-guardian` | Automated cron loop: check comments, CI, rebase, browser test, auto-merge |
 
 ### Beginner Aliases
 
@@ -101,13 +96,9 @@ These are common requests that Claude should handle directly — no agent team r
 | `/rune:elicit` | No | 2-5 min | Topic |
 | `/rune:rest` | No | <1 min | None |
 | `/rune:brainstorm` | Yes (0-3 advisors) | 1-8 min | Feature idea |
-| `/rune:file-todos` | No | <1 min | Subcommand |
-| `/rune:resolve-all-gh-pr-comments` | Yes (per comment) | 5-20 min | PR number (auto-detected) |
-| `/rune:resolve-gh-pr-comment` | No | 1-3 min | PR comment URL or ID |
 | `/rune:resolve-todos` | Yes (per batch) | 5-15 min | TODO file path |
 | `/rune:skill-testing` | No | 2-10 min | Skill name |
 | `/rune:status` | No | <1 min | Optional: timestamp or team-name |
-| `/rune:post-findings` | No | 1-3 min | TOME file path + PR number |
 | `/rune:self-audit` | Yes (3 agents) | 2-5 min | None (auto-detects latest arc) |
 | `/rune:plan` | (alias for `/rune:devise`) |||
 | `/rune:work` | (alias for `/rune:strive`) |||

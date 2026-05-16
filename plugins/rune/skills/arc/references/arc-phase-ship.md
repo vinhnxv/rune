@@ -387,7 +387,8 @@ const labelsArray = Array.isArray(arcConfig.ship.labels) ? arcConfig.ship.labels
 // draft_until_ready: true → create as draft. v3.0.0-alpha.2: bot_review_wait was
 //   removed from arc — there is no in-pipeline phase to flip the PR to ready.
 //   Users who want auto-ready after CI/bot review should run the external
-//   pr-guardian harness or `/rune:resolve-all-gh-pr-comments`.
+//   pr-guardian harness (planned, see brainstorm Q5) or flip the PR manually via
+//   `gh pr ready <pr>` once CI/bot review settles.
 // draft: true → create as draft, stay draft (manual ready)
 // neither → create as non-draft (ready immediately)
 const draftUntilReady = arcConfig.ship.draft_until_ready ?? false

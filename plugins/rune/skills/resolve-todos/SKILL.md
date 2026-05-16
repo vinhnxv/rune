@@ -4,7 +4,7 @@ description: |
   Resolve file-based TODOs using Agent Teams with verify-before-fix pipeline.
   Each TODO is reviewed before any fix is applied, preventing hallucinated fixes.
   Uses parallel batch processing with file ownership enforcement.
-  Keywords: resolve, todos, fix, batch, parallel, verify, file-todos.
+  Keywords: resolve, todos, fix, batch, parallel, verify.
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[source] [--dry-run] [--batch-size N]"
@@ -30,7 +30,7 @@ allowed-tools:
 
 Resolves file-based TODOs using Agent Teams with a **verify-before-fix** pipeline. Combines parallel batch processing with hallucination prevention patterns.
 
-**Load skills**: `file-todos`, `inner-flame`, `rune-orchestration`, `team-sdk`
+**Load skills**: `inner-flame`, `rune-orchestration`, `team-sdk`
 
 ## Overview
 
@@ -399,7 +399,7 @@ See [phase7-cleanup.md](references/phase7-cleanup.md) for the full cleanup proto
 
 ## Dependencies
 
-- **Existing skills**: `file-todos` (TODO file format), `inner-flame` (self-review), `rune-orchestration` (team coordination)
+- **Existing skills**: `inner-flame` (self-review), `rune-orchestration` (team coordination). TODO file format is self-contained in this skill (was previously documented in `file-todos`, retired in v3.0.0-alpha.9 — see git history for the legacy spec).
 - **Existing agents**: `mend-fixer` (reused for fixes)
 - **New agent**: `todo-verifier` (custom verifier agent)
 - **New hook**: `validate-resolve-fixer-paths.sh` (SEC-RESOLVE-001)

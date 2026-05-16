@@ -7,16 +7,16 @@
 Plan, implement, review, test, and audit your codebase using coordinated Agent Teams — each teammate with its own dedicated context window.
 
 [![Claude Code](https://img.shields.io/badge/Claude%20Code-Supported-7F4DFF)](https://docs.anthropic.com/en/docs/claude-code)
-[![Version](https://img.shields.io/badge/version-3.0.0--alpha.5-blue)](.claude-plugin/marketplace.json)
+[![Version](https://img.shields.io/badge/version-3.0.0--alpha.9-blue)](.claude-plugin/marketplace.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Agents](https://img.shields.io/badge/agents-116-purple)](#agents)
-[![Skills](https://img.shields.io/badge/skills-44-orange)](#skills)
+[![Skills](https://img.shields.io/badge/skills-32-orange)](#skills)
 
 ---
 
 ## What Is This?
 
-Rune is a **Claude Code plugin** that turns a single-agent coding session into a coordinated multi-agent engineering team. It provides 116 specialized AI agents (74 core + 42 extended), 44 skills, and a 45-phase end-to-end pipeline that handles planning, implementation, code review, testing, and PR creation — all orchestrated through Claude Code's Agent Teams.
+Rune is a **Claude Code plugin** that turns a single-agent coding session into a coordinated multi-agent engineering team. It provides 116 specialized AI agents (74 core + 42 extended), 32 skills, and a 45-phase end-to-end pipeline that handles planning, implementation, code review, testing, and PR creation — all orchestrated through Claude Code's Agent Teams.
 
 **Compatibility:** Requires **Claude Code 2.1.81+** with Agent Teams support. macOS 12+ or Linux. See [full requirements](#requirements).
 
@@ -141,7 +141,7 @@ You ──► /rune:devise ──► Plan
 | `/rune:work` | Implement a plan with AI workers | `/rune:strive` |
 | `/rune:review` | Review your code changes | `/rune:appraise` |
 | `/rune:brainstorm` | Explore ideas through dialogue | `/rune:brainstorm` |
-| `/rune:quick` | Quick 3-phase pipeline (plan -> work -> review) | `/rune:arc-quick` |
+| `/rune:quick` | Quick 4-phase pipeline (plan -> work -> review -> mend) | `/rune:arc --quick-mode` |
 
 ### `/rune:tarnished` — The Unified Entry Point
 
@@ -192,13 +192,11 @@ When run with no arguments, `/rune:tarnished` scans your project state (plans, r
 | Command | What it does |
 |---------|-------------|
 | `/rune:rest` | Clean up `tmp/` artifacts from completed workflows |
-| `/rune:file-todos` | Structured file-based todo tracking with YAML frontmatter |
 | `/rune:cancel-arc` | Gracefully stop a running arc pipeline |
 | `/rune:cancel-review` | Stop an active code review |
 | `/rune:cancel-audit` | Stop an active audit |
 | `/rune:team-delegate` | Task delegation dashboard |
 | `/rune:plan-review` | Review plan code samples for correctness |
-| `/rune:pr-guardian` | Automated PR shepherd — lint, CI, rebase, migrations, browser test, auto-merge (cron every 5 min) |
 
 ---
 
@@ -477,7 +475,7 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 
 ## Skills
 
-44 skills providing background knowledge, workflow orchestration, and tool integration. Source of truth: [`plugins/rune/CLAUDE.md`](plugins/rune/CLAUDE.md#skills).
+32 skills providing background knowledge, workflow orchestration, and tool integration. Source of truth: [`plugins/rune/CLAUDE.md`](plugins/rune/CLAUDE.md#skills).
 
 | Skill | Type | Purpose |
 |-------|------|---------|
@@ -485,31 +483,22 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | `strive` | Workflow | Swarm work execution |
 | `appraise` | Workflow | Multi-agent code review |
 | `audit` | Workflow | Full codebase audit |
-| `arc` | Workflow | End-to-end pipeline orchestration |
-| `arc-quick` | Workflow | Quick 4-phase pipeline: plan → work → review → mend |
+| `arc` | Workflow | End-to-end pipeline orchestration (use `--quick-mode` for the 4-phase path) |
 | `forge` | Workflow | Plan enrichment with Forge Gaze |
 | `goldmask` | Workflow | Cross-layer impact analysis |
-| `inspect` | Workflow | Plan-vs-implementation gap audit |
+| `inspect` | Workflow | Plan-vs-implementation gap audit (use `--verify-tome` to classify TOME findings) |
 | `mend` | Workflow | Parallel finding resolution |
-| `verify` | Workflow | Verify TOME findings before mend (TRUE_POSITIVE/FALSE_POSITIVE classification) |
 | `brainstorm` | Workflow | Collaborative idea exploration (solo, roundtable, deep modes) |
 | `debug` | Debugging | ACH-based parallel hypothesis debugging |
-| `resolve-gh-pr-comment` | Workflow | Resolve a single GitHub PR review comment |
-| `resolve-all-gh-pr-comments` | Workflow | Batch resolve all open PR review comments |
 | `resolve-todos` | Workflow | File-based TODO resolution with verify-before-fix pipeline |
-| `file-todos` | Tracking | Structured file-based todos |
-| `post-findings` | Workflow | Post review findings to GitHub PR as formatted comment |
 | `supply-chain-audit` | Security | Dependency risk analysis (maintainer count, CVE history, abandonment) |
 | `variant-hunt` | Analysis | Systematic variant analysis — "find more like this" for confirmed findings |
-| `pr-guardian` | Automation | Cron-based PR shepherd loop — comments, lint, CI, rebase, migrations, browser test, auto-merge |
 | `self-audit` | Quality | Meta-QA self-audit of Rune's own plugin infrastructure |
 | `cc-inspect` | Workflow | Run Claude Code built-in inspection script |
 | `skill-testing` | Development | TDD for skill development |
 | `tarnished` | Routing | Unified entry point — natural language to workflow |
 | `using-rune` | Reference | Workflow discovery and routing |
-| `status` | Reporting | Background dispatch status reporting |
-| `team-status` | Reporting | Active agent team monitoring dashboard |
-| `runs` | Reporting | Inspect per-agent structured artifacts from workflow runs |
+| `status` | Reporting | Active-team dashboard + background-dispatch report |
 | `rune-orchestration` | Orchestration | Core coordination patterns (file-based handoff, conflict resolution) |
 | `roundtable-circle` | Orchestration | Review/audit 7-phase lifecycle |
 | `team-sdk` | Orchestration | Centralized team management SDK (ExecutionEngine, lifecycle) |
@@ -520,9 +509,6 @@ Used by `/rune:goldmask`, `/rune:inspect`, and `/rune:audit --deep`:
 | `systematic-debugging` | Debugging | 4-phase debugging methodology |
 | `testing` | Testing | Test orchestration pipeline knowledge for arc test phase |
 | `elicitation` | Reasoning | 24 structured reasoning methods |
-| `chome-pattern` | Compatibility | Multi-account config resolution |
-| `polling-guard` | Reliability | Monitoring loop fidelity |
-| `zsh-compat` | Compatibility | macOS zsh shell safety |
 | `ash-guide` | Reference | Agent invocation guide |
 | `git-worktree` | Isolation | Worktree-based parallel execution |
 
@@ -561,7 +547,7 @@ rune/
         │   ├── qa/               #    1 QA verifier (parametric, manifest-driven)
         │   └── shared/           #   13 shared resources (templates, protocols)
         ├── registry/             # 42 extended agents
-        ├── skills/               # 44 skills
+        ├── skills/               # 32 skills
         ├── commands/             # 11 slash commands
         ├── hooks/                # Event-driven hooks
         │   └── hooks.json
