@@ -499,7 +499,7 @@ done
 
 # ── Stale artifact crash detection (non-blocking, advisory) ──
 # Scan runs/ directories for artifacts stuck in "running" status with stale timestamps.
-# Updates their meta.json to "crashed" so /rune:runs can report them accurately.
+# Updates their meta.json to "crashed" so downstream consumers can detect them accurately.
 # QUAL-009 FIX: Named constant with cross-reference to loop stale threshold (150min on line 99)
 # These thresholds serve different purposes: artifact staleness (30min running with no update)
 # vs loop file staleness (150min to accommodate long arc phases). Keep independent but documented.

@@ -29,7 +29,6 @@ Complete reference for `/rune:tarnished` routing decisions.
 | `resolve-todos` | `/rune:resolve-todos` | — | TODO file path | Fixed code |
 | `skill-testing` | `/rune:skill-testing` | — | Skill name | Test results |
 | `team-status` | `/rune:team-status` | — | None | Team health report |
-| `runs` | `/rune:runs` | — | Subcommand (list/show/stats/failures) | Workflow run history |
 | `supply-chain-audit` | `/rune:supply-chain-audit` | — | None | Dependency risk report |
 | `variant-hunt` | `/rune:variant-hunt` | — | Finding ID / pattern | Variant findings |
 | `pr-guardian` | `/rune:pr-guardian` | — | None (cron) | Auto-merge loop |
