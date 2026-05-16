@@ -86,7 +86,7 @@ const HEAVY_PHASES = ['work', 'code_review', 'verify', 'mend', 'inspect']
 // are defined in arc-phase-mend.md.
 ```
 
-**WARNING — Non-monotonic execution order**: Phase 5.8 (GAP REMEDIATION) executes **before** Phase 5.7 (GOLDMASK VERIFICATION). The `PHASE_ORDER` array defines the canonical execution sequence using phase **names**, not numbers. Any tooling that sorts by numeric phase ID will get the wrong order. The non-sequential numbering preserves backward compatibility with older checkpoints — do NOT renumber. Always use `PHASE_ORDER` for iteration order.
+**WARNING — Non-monotonic phase numbering**: Phase numbers (the leading `# ` column in arc/SKILL.md's phase table) are NOT sequential — gaps exist where prior phases were retired (e.g., Phase 5.5/5.6/5.8 belonged to the now-absorbed gap_analysis family, Phase 5.7 belonged to the alpha.2-retired goldmask_verification family). Numbers are preserved as stable cross-command identifiers across the devise → arc → appraise chain; renumbering would break older checkpoints and PR references. **Always use `PHASE_ORDER` array position for iteration**, never numeric phase IDs.
 
 **DECREE-001 Guard — Phase dispatch assertion**: All phase dispatch code MUST use `PHASE_ORDER` for iteration. The following assertion validates correct ordering:
 
@@ -194,9 +194,10 @@ function calculateDynamicTimeout(tier) {
     PHASE_TIMEOUTS.verification +  // v3.0.0-alpha.6: plan_refine absorbed into plan_review (Day 5 C4a)
     PHASE_TIMEOUTS.work + PHASE_TIMEOUTS.work_qa +
     // v3.0.0-alpha.6: drift_review absorbed into work (Day 5 C4b)
-    PHASE_TIMEOUTS.gap_analysis + PHASE_TIMEOUTS.gap_analysis_qa +
-    PHASE_TIMEOUTS.gap_remediation +
-    PHASE_TIMEOUTS.inspect +  // v3.0.0-alpha.6: inspect_fix + verify_inspect absorbed into inspect (Day 5 C4c)
+    // v3.0.0-alpha.7 (Day 6): gap_analysis + gap_analysis_qa + gap_remediation
+    // absorbed into inspect; their 12+5+15 = 32 min budgets retired. inspect
+    // bumped 34 → 45 min (line ~120 above) to cover the absorbed work.
+    PHASE_TIMEOUTS.inspect +  // v3.0.0-alpha.6: inspect_fix + verify_inspect absorbed into inspect (Day 5 C4c); v3.0.0-alpha.7 Day 6: also absorbs gap_analysis STEP A + STEP D + gap_remediation
     PHASE_TIMEOUTS.code_review + PHASE_TIMEOUTS.code_review_qa +
     PHASE_TIMEOUTS.verify +
     PHASE_TIMEOUTS.mend + PHASE_TIMEOUTS.mend_qa +

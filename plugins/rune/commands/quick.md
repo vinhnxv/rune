@@ -52,7 +52,7 @@ pipeline: Plan -> Work -> Review -> Mend in one command.
 ## When to Use Full Arc Instead
 
 If your plan has 8+ tasks or cross-cutting concerns, `--quick-mode` will suggest switching
-to `/rune:arc` for the full 19-phase pipeline (forge, gap analysis, inspect, testing, ship).
+to `/rune:arc` for the full 16-phase pipeline (forge → plan_review → work → inspect → code_review → mend → test → ship → merge; v3.0.0-alpha.7 Day 6 absorbed gap_analysis + gap_remediation into inspect).
 
 ## After Quick Pipeline
 

@@ -217,10 +217,10 @@ if (allCriteria.length > 0) {
   // NOTE CDX-SV-002: Use WARN mode — RED creates remediation tasks, not BLOCK
   if (redCount > 0) {
     warn(`Spec Compliance Matrix: ${redCount} NOT_IMPLEMENTED criteria — creating remediation tasks`)
-    // Remediation tasks are picked up by gap_remediation phase (Phase 5.8)
+    // Remediation tasks are picked up by inspect STEP 5 (gap-fixer dispatch — absorbed gap_remediation in v3.0.0-alpha.7 Day 6)
   }
 
-  // DISCIPLINE INTEGRATION: Evidence collection for gap remediation (Phase 5.8)
+  // DISCIPLINE INTEGRATION: Evidence collection for inspect STEP 5 gap-fixer dispatch (absorbed gap_remediation v3.0.0-alpha.7 Day 6)
   // Gap-fixers must collect evidence after applying fixes, following the evidence convention:
   //   tmp/work/{timestamp}/evidence/{task-id}/{criterion-id}.json
   // The evidence is used by the TaskCompleted hook (validate-discipline-proofs.sh) and
@@ -415,7 +415,7 @@ if (needsRemediation && headlessMode) {
 }
 
 // STEP D.4: Write needs_remediation flag to checkpoint
-// When tasks are missing, ALWAYS flag for remediation — gap_remediation will
+// When tasks are missing, ALWAYS flag for remediation — inspect STEP 5 (gap-fixer dispatch) will
 // spawn workers to implement missing tasks, then re-verify.
 const needsTaskRemediation = totalTasks > 0 && missingTasks.length > 0
 updateCheckpoint({
@@ -583,9 +583,9 @@ if (planPath && totalTasks > 0) {
 **Output**: `tmp/arc/{id}/inspect/UNIFIED.md`, `tmp/arc/{id}/inspect/VERDICT.md`, individual inspector files. **Plan file updated** with implementation status section (v1.169.0+).
 
 **Failure policy** (v1.169.0 — hardened after PR #310 incident):
-- **Task completion gate** (STEP D.0): ALWAYS active. Default floor: 100%. Tasks below floor trigger halt + gap_remediation. Non-bypassable (only adjustable via `task_completion_floor`, range 50-100).
+- **Task completion gate** (STEP D.0): ALWAYS active. Default floor: 100%. Tasks below floor trigger halt + inspect STEP 5 (gap-fixer dispatch). Non-bypassable (only adjustable via `task_completion_floor`, range 50-100).
 - **Quality score gate** (STEP D.1-D.2): `halt_on_critical: true` by default (changed from `false`). `halt_threshold: 70` (raised from 50).
 - **Plan writeback** (STEP D.7): Deferred tasks written back to plan file with status. No silent deferrals.
-- **Gap remediation signal**: `needs_task_remediation: true` in checkpoint when tasks are missing — triggers gap_remediation phase to implement missing tasks, followed by re-verification (convergence loop).
+- **Gap remediation signal**: `needs_task_remediation: true` in checkpoint when tasks are missing — triggers inspect STEP 5 (gap-fixer dispatch) to implement missing tasks, followed by re-verification (convergence loop).
 - Headless/CI mode auto-proceeds but still writes plan status back.
 

@@ -82,21 +82,18 @@ The pipeline uses **named phases** (not numeric IDs) in `PHASE_ORDER`. The numer
 | 2.7 | 4 | `verification` | Inline | 30 sec | — |
 | 5 | 5 | `work` | Team | 35 min | `/rune:strive`; absorbs the former `drift_review` sub-step (v3.0.0-alpha.6 C4b) |
 | 5.01 | 6 | `work_qa` | Team | 5 min | QA gate (1 agent) |
-| 5.5 | 7 | `gap_analysis` | Team | 12 min | — |
-| 5.51 | 8 | `gap_analysis_qa` | Team | 5 min | QA gate (1 agent) |
-| 5.8 | 9 | `gap_remediation` | Team | 15 min | — |
-| 5.81 | 10 | `inspect` | Team | 34 min | `/rune:inspect` (4 Inspector Ashes); absorbs `inspect_fix` + `verify_inspect` convergence loop (v3.0.0-alpha.6 C4c) |
-| 6 | 11 | `code_review` | Team | 15 min | `/rune:appraise --deep` |
-| 6.1 | 12 | `code_review_qa` | Team | 5 min | QA gate (1 agent) |
-| 6.6 | 13 | `verify` | Team | 10 min | Finding verification gate |
-| 7 | 14 | `mend` | Team | 23 min | `/rune:mend` |
-| 7.01 | 15 | `mend_qa` | Team | 9 min | QA gate (1 agent) + runMendQAConvergence post-step (absorbed `verify_mend` v3.0.0-alpha.6 C4d) |
-| 7.7 | 16 | `test` | Team | 25-50 min | Testing agents |
-| 7.71 | 17 | `test_qa` | Team | 5 min | QA gate (1 agent) |
-| 9 | 18 | `ship` | Inline | 11 min | preShipValidator pre-step (absorbed `pre_ship_validation` v3.0.0-alpha.6 C4e) + PR creation; `deploy_verify` removed |
-| 9.5 | 19 | `merge` | Inline | 10 min | — |
+| 5.9 | 7 | `inspect` | Team | 45 min | `/rune:inspect` (4 Inspector Ashes) — unified plan-vs-implementation engine. Sub-steps: STEP A deterministic pre-checks (absorbed `gap_analysis` STEP A v3.0.0-alpha.7 Day 6), STEP 1-4 audit, STEP 4.5 halt-gate with Task Completion Gate + plan writeback (absorbed `gap_analysis` STEP D), STEP 5 gap-fixer dispatch (absorbed `inspect_fix` C4c + `gap_remediation` Day 6), STEP 6 convergence (absorbed `verify_inspect` C4c). |
+| 6 | 8 | `code_review` | Team | 15 min | `/rune:appraise --deep` |
+| 6.1 | 9 | `code_review_qa` | Team | 5 min | QA gate (1 agent) |
+| 6.6 | 10 | `verify` | Team | 10 min | Finding verification gate |
+| 7 | 11 | `mend` | Team | 23 min | `/rune:mend` |
+| 7.01 | 12 | `mend_qa` | Team | 9 min | QA gate (1 agent) + runMendQAConvergence post-step (absorbed `verify_mend` v3.0.0-alpha.6 C4d) |
+| 7.7 | 13 | `test` | Team | 25-50 min | Testing agents |
+| 7.71 | 14 | `test_qa` | Team | 5 min | QA gate (1 agent) |
+| 9 | 15 | `ship` | Inline | 11 min | preShipValidator pre-step (absorbed `pre_ship_validation` v3.0.0-alpha.6 C4e) + PR creation; `deploy_verify` removed |
+| 9.5 | 16 | `merge` | Inline | 10 min | — |
 
-> **Execution order**: The "Exec Order" column shows the actual sequence (1–19). Phase numbers (#) are for human reference only — always use `PHASE_ORDER` array position. Total: 19 default phases (v3.0.0-alpha.6 Day 5 absorbed plan_refine→plan_review, drift_review→work, inspect_fix+verify_inspect→inspect, verify_mend→mend_qa post-step, pre_ship_validation→ship; deploy_verify removed entirely. Prior history: v3.0.0-alpha.2 cut goldmask_verification, goldmask_correlation, bot_review_wait, pr_comment_resolution; alpha.1 cut design_*, semantic_verification, task_decomposition, test_coverage_critique, release_quality_check, browser_test*, storybook_verification, ux_verification).
+> **Execution order**: The "Exec Order" column shows the actual sequence (1–16). Phase numbers (#) are for human reference only — always use `PHASE_ORDER` array position. Total: 16 default phases (v3.0.0-alpha.7 Day 6 absorbed gap_analysis + gap_analysis_qa + gap_remediation into inspect; v3.0.0-alpha.6 Day 5 absorbed plan_refine→plan_review, drift_review→work, inspect_fix+verify_inspect→inspect, verify_mend→mend_qa post-step, pre_ship_validation→ship; deploy_verify removed entirely. Prior history: v3.0.0-alpha.2 cut goldmask_verification, goldmask_correlation, bot_review_wait, pr_comment_resolution; alpha.1 cut design_*, semantic_verification, task_decomposition, test_coverage_critique, release_quality_check, browser_test*, storybook_verification, ux_verification).
 
 ## Usage
 
@@ -418,7 +415,7 @@ The `plan_file` path written to the phase loop state file and checkpoint is prop
 | Phase | Checkpoint Key | Purpose |
 |-------|---------------|---------|
 | `plan_review` (Phase 2) | `plan_file_path` → review agents | Reviewers read plan to evaluate scope and detect drift |
-| `gap_analysis` (Phase 5.5) | `plan_file_path` → gap agents | Gap agents compare plan acceptance criteria vs. committed code |
+| `inspect` (Phase 5.9, STEP A + STEP D) | `plan_file_path` → STEP A deterministic checks + STEP D halt-gate | v3.0.0-alpha.7 Day 6: absorbed gap_analysis flow. STEP A extracts acceptance criteria + cross-references committed files; STEP D applies Task Completion Gate (PR #310 floor) and writes Implementation Status appendix back to the plan |
 | `test` (Phase 7.7) | `plan_file_path` → test agents | Test agents derive coverage targets from plan requirements |
 | `ship` (Phase 9, STEP -0.5) | `plan_file_path` → preShipValidator | Pre-ship gate (absorbed `pre_ship_validation` v3.0.0-alpha.6 C4e) reads plan to verify all stated criteria are met before PR |
 

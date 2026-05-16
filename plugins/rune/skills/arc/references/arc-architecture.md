@@ -26,14 +26,19 @@ Phase 5:   WORK → Swarm implementation + incremental commits + drift advisory 
     ↓ (work-summary.md + committed code)
 Phase 5.1: WORK QA → Independent work artifact verification
     ↓ (work-qa-verdict.json) — retry work on FAIL
-Phase 5.5: GAP ANALYSIS → Check plan criteria vs committed code (deterministic + LLM)
-    ↓ (gap-analysis.md) — WARN only, never halts
-Phase 5.6: GAP ANALYSIS QA → Independent gap-analysis verification
-    ↓ (gap_analysis-qa-verdict.json) — retry on FAIL
-Phase 5.8: GAP REMEDIATION → Auto-fix FIXABLE findings from VERDICT (v1.51.0)
-    ↓ (gap-remediation-report.md) — conditional; WARN only, never halts
-Phase 5.9: INSPECT → Audit + fix (absorbed inspect_fix) + convergence eval (absorbed verify_inspect)
-    ↓ (VERDICT.md + inspect-fix-report.md) — up to 2 converge rounds; WARN only, never halts
+Phase 5.9: INSPECT → Unified plan-vs-implementation engine (v3.0.0-alpha.7 Day 6):
+    STEP A: Deterministic pre-checks (absorbed gap_analysis STEP A)
+      → inspect/deterministic.md (acceptance criteria coverage, doc consistency,
+        plan-section coverage, spec compliance matrix, scope creep, stale refs)
+    STEP 1-4: 4 Inspector Ashes audit + verdict-binder synthesis
+      → inspect/VERDICT.md
+    STEP 4.5: Halt-decision gate (absorbed gap_analysis STEP D)
+      → inspect/UNIFIED.md + plan-file writeback (Implementation Status appendix)
+      Task Completion Gate (PR #310 fix) HARD-BLOCKS in non-headless mode if completion < 100%
+    STEP 5: Gap-fixer dispatch (absorbed inspect_fix C4c + gap_remediation Day 6)
+      → inspect/remediation-report.md (conditional on needs_remediation)
+    STEP 6: Convergence eval (absorbed verify_inspect C4c)
+      → up to 2 converge rounds (audit + fix per round); on retry phase resets to pending
 Phase 6:   CODE REVIEW (deep) → Multi-wave Roundtable Circle review (--deep)
     ↓ (TOME.md)
 Phase 6.5: CODE REVIEW QA → Independent code-review artifact verification
@@ -77,10 +82,8 @@ The arc orchestrator is a **lightweight dispatcher**, not a monolithic agent. Wi
 | FORGE | PLAN REVIEW | `enriched-plan.md` | Markdown plan with enriched sections |
 | PLAN REVIEW | VERIFICATION | `plan-review.md` + `concern-context.md` | 3 reviewer verdicts (PASS/CONCERN/BLOCK); CONCERN extraction sub-step 2.5 inline |
 | VERIFICATION | WORK | `verification-report.md` | Deterministic check results (PASS/WARN) |
-| WORK | GAP ANALYSIS | Working tree + `work-summary.md` + `drift-review.md` | Git diff of committed changes + task summary; drift advisory emitted inline |
-| GAP ANALYSIS | GAP REMEDIATION | `gap-analysis.md` | Plan criteria gap report |
-| GAP REMEDIATION | INSPECT | `gap-remediation-report.md` | Fixed findings list + deferred list |
-| INSPECT | CODE REVIEW | `VERDICT.md` + `inspect-fix-report.md` | Audit + fix + convergence eval inline; converge → proceed \| retry → loop \| halt → warn + proceed |
+| WORK | INSPECT | Working tree + `work-summary.md` + `drift-review.md` | Git diff of committed changes + task summary; drift advisory emitted inline |
+| INSPECT | CODE REVIEW | `inspect/VERDICT.md` + `inspect/deterministic.md` + `inspect/UNIFIED.md` + `inspect/remediation-report.md` + plan-file Implementation Status appendix | v3.0.0-alpha.7 Day 6: STEP A deterministic + STEP 1-4 audit + STEP 4.5 halt-gate (Task Completion Gate + plan writeback) + STEP 5 gap-fixer dispatch + STEP 6 convergence eval all inline; converge → proceed \| retry → loop \| halt-non-bypassable → error (non-headless) \| halt-bypassable → warn + proceed (headless/CI) |
 | CODE REVIEW | VERIFY (findings) | `TOME.md` | TOME with `<!-- RUNE:FINDING ... -->` markers |
 | VERIFY (findings) | MEND | `VERDICTS.md` | Per-finding TRUE_POSITIVE/FALSE_POSITIVE/NEEDS_CONTEXT classification |
 | MEND | MEND QA | `resolution-report.md` | Fixed/FP/Failed finding list |

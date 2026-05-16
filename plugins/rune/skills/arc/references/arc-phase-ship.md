@@ -207,7 +207,8 @@ if (exists(qaDashboardPath)) {
   qaSection = '\n```\n' + rawDashboard.replace(/```/g, "'''") + '\n```\n'
 } else {
   // Fallback: build inline summary from checkpoint phase data if dashboard unavailable
-  const qaPhases = ["forge", "work", "gap_analysis", "code_review", "mend", "test"]
+  // v3.0.0-alpha.7 (Day 6 Q3): gap_analysis dropped — phase absorbed into inspect (no separate QA gate).
+  const qaPhases = ["forge", "work", "code_review", "mend", "test"]
   const qaResults = []
   for (const phase of qaPhases) {
     const verdictPath = `tmp/arc/${id}/qa/${phase}-verdict.json`
