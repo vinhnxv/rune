@@ -405,11 +405,18 @@ Write(checkpointPath, {
     test:         { status: "pending", artifact: null, artifact_hash: null, team_name: null, tiers_run: [], pass_rate: null, coverage_pct: null, has_frontend: false, started_at: null, completed_at: null, demotion_revert_count: 0 },
     test_qa:      { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, retry_count: 0, demotion_revert_count: 0 },
     // v3.0.0-alpha.6 (Day 5 C4e): deploy_verify removed; pre_ship_validation
-    // absorbed into ship — schema entries removed.
+    // absorbed into ship as STEP -0.5. The preShipValidator() algorithm in
+    // arc-phase-pre-ship-validation.md still writes to checkpoint.phases.pre_ship_validation
+    // for backward-compatible state tracking; the entry is retained here intentionally
+    // alongside verify_mend (also a post-step transitional state container).
+    // Future cleanup may migrate the state into ship.
+    pre_ship_validation: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
     ship:         { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
     merge:        { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
     // Defense-in-depth: every key here MUST be in PHASE_ORDER (19 entries as of v3.0.0-alpha.6),
-    // except the verify_mend transitional state container (see C4d comment above).
+    // except the verify_mend (C4d) and pre_ship_validation (C4e) transitional state
+    // containers — both retained because their absorbed algorithms (mend_qa post-step
+    // and ship STEP -0.5) still write to those keys for backward-compatible state tracking.
     // Phantom keys (semantic_verification, design_*, storybook_verification, ux_verification,
     // task_decomposition, browser_test*, test_coverage_critique, release_quality_check,
     // bot_review_wait, pr_comment_resolution) were removed in alpha.1/alpha.2 — do not re-add.
