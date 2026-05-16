@@ -30,7 +30,7 @@ Do not auto-invoke heavyweight commands — suggest and let the user confirm.
 | "Brainstorm" / "explore idea" / "what should we build" / "thảo luận" | `/rune:brainstorm` | Collaborative idea exploration (3 modes: solo, roundtable, deep) |
 | "Plan a feature" / "design this" / "how should we build" | `/rune:devise` | Multi-agent planning pipeline (brainstorm + research + synthesize) |
 | "Quick plan" / "just outline it" | `/rune:devise --quick` | Lightweight planning (research + synthesize, skip brainstorm/forge) |
-| "Quick run" / "fast" / "plan and build" / "nhanh" / "chạy nhanh" | `/rune:arc-quick` | Lightweight 4-phase pipeline: plan -> work+evaluate loop -> review -> mend |
+| "Quick run" / "fast" / "plan and build" / "nhanh" / "chạy nhanh" | `/rune:arc --quick-mode` | Lightweight 4-phase pipeline: plan -> work+evaluate loop -> review -> mend |
 | "Implement this" / "build it" / "execute the plan" | `/rune:strive plans/...` | Swarm workers execute a plan file |
 | "Verify findings" / "check false positives" / "validate review" | `/rune:verify tmp/.../TOME.md` | Classify TOME findings as TRUE_POSITIVE/FALSE_POSITIVE before mend |
 | "Fix these findings" / "resolve the review" | `/rune:mend tmp/.../TOME.md` | Parallel resolution of review findings |
@@ -61,7 +61,7 @@ For users new to Rune, these simpler commands forward to the full versions:
 | "plan" / "plan this" | `/rune:plan` | `/rune:devise` |
 | "work" / "build" / "implement" | `/rune:work` | `/rune:strive` |
 | "review" / "check my code" | `/rune:review` | `/rune:appraise` |
-| "quick" / "nhanh" / "fast run" | `/rune:quick` | `/rune:arc-quick` |
+| "quick" / "nhanh" / "fast run" | `/rune:quick` | `/rune:arc --quick-mode` |
 
 ## Routing Rules
 
@@ -95,7 +95,7 @@ These are common requests that Claude should handle directly — no agent team r
 | `/rune:strive` | Yes (swarm) | 10-30 min | Plan file path |
 | `/rune:mend` | Yes (per file) | 3-10 min | TOME file path |
 | `/rune:arc` | Yes (per phase) | 30-90 min | Plan file path |
-| `/rune:arc-quick` | Yes (per phase) | 25-60 min | Prompt or plan file |
+| `/rune:arc --quick-mode` | Yes (per phase) | 25-60 min | Prompt or plan file |
 | `/rune:forge` | Yes (per section) | 5-15 min | Plan file path |
 | `/rune:goldmask` | Yes (8 tracers) | 5-10 min | Diff spec or file list |
 | `/rune:elicit` | No | 2-5 min | Topic |

@@ -41,13 +41,13 @@ Chains 26 phases into a single automated pipeline (v3.0.0-alpha.2 — was 30; go
 
 ## CRITICAL — No Pipeline Second-Guessing (ARC-NSG-001)
 
-When the user invokes `/rune:arc`, **execute the full arc pipeline immediately**. Do NOT:
-- Present options like "arc-quick might be better for this"
+When the user invokes `/rune:arc` without `--quick-mode`, **execute the full arc pipeline immediately**. Do NOT:
+- Present options like "the quick mode might be better for this"
 - Ask "are you sure?" or "before I commit N hours..."
 - Recommend a different pipeline based on plan size, effort estimates, or PR strategy
 - Second-guess the user's choice by analyzing plan complexity first
 
-The user chose `/rune:arc` deliberately. Respect that choice. If the plan is small, arc still works — it just finishes faster. If the user wanted `arc-quick`, they would have invoked `/rune:arc-quick`.
+The user chose `/rune:arc` deliberately. Respect that choice. If the plan is small, arc still works — it just finishes faster. If the user wanted the lightweight 4-phase path, they would have invoked `/rune:arc --quick-mode`.
 
 **Exception**: The `--confirm` flag explicitly opts into a pause on all-CONCERN escalation. That is the ONLY confirmation point in the pipeline.
 
@@ -119,6 +119,7 @@ The pipeline uses **named phases** (not numeric IDs) in `PHASE_ORDER`. The numer
 /rune:arc <plan_file.md> --draft           # Create PR as draft
 /rune:arc <plan_file.md> --no-accept-external  # Prompt when unrelated changes detected (default: accept)
 /rune:arc <plan_file.md> --step-groups   # Pause at each phase group boundary
+/rune:arc --quick-mode "<prompt|plan-path>" [--force]  # Lightweight 4-phase pipeline
 ```
 
 ## Flags
@@ -138,6 +139,8 @@ The pipeline uses **named phases** (not numeric IDs) in `PHASE_ORDER`. The numer
 | `--no-accept-external` | Prompt user when unrelated changes are detected on branch | Off |
 | `--step-groups` | Pause at each phase group boundary for context optimization | Off |
 | `--status` | Show current arc phase, progress, and elapsed time (delegates to rune-status.sh) | Off |
+| `--quick-mode` | Lightweight 4-phase pipeline (plan → work+evaluate → review → mend). Skips checkpoint init and PHASE_ORDER dispatch — runs as a single-turn delegation chain. See [arc-quick-mode.md](references/arc-quick-mode.md) | Off |
+| `--force` | (`--quick-mode` only) Skip the complexity gate warning on plans with 8+ tasks | Off |
 
 > **Note**: Worktree mode for `/rune:strive` (Phase 5) is activated via `work.worktree.enabled: true` in talisman.yml, not via a `--worktree` flag on arc.
 
@@ -221,6 +224,20 @@ if (args.includes("--status")) {
   const output = Bash(`"${RUNE_PLUGIN_ROOT}/scripts/rune-status.sh"`)
   // Display current phase, elapsed time, completed/total phases
   return output
+}
+```
+
+## Quick Mode (`--quick-mode`)
+
+Early return — runs the lightweight 4-phase pipeline (plan → work+evaluate → review → mend) as a single-turn delegation chain. Skips checkpoint init and PHASE_ORDER dispatch entirely. Mirrors the `--status` early-return pattern above so quick-mode never touches the full-pipeline state machine.
+
+```javascript
+if (args.includes("--quick-mode")) {
+  // Read and execute the arc-quick-mode.md algorithm.
+  // The branch is fully self-contained — devise/strive/appraise/mend each manage
+  // their own teams; arc neither creates a checkpoint nor invokes the stop hook.
+  Read(references/arc-quick-mode.md)
+  return  // Do not fall through to checkpoint init or PHASE_ORDER dispatch
 }
 ```
 
@@ -481,6 +498,7 @@ See [post-arc.md](references/post-arc.md). 30-second budget. After sweep, **fini
 
 - [Architecture & Pipeline Overview](references/arc-architecture.md) — Pipeline diagram, orchestrator design, transition contracts
 - [Phase Constants](references/arc-phase-constants.md) — PHASE_ORDER, PHASE_TIMEOUTS, CYCLE_BUDGET, shared utilities
+- [Quick Mode](references/arc-quick-mode.md) — `--quick-mode` 4-phase pipeline (plan → work+eval → review → mend)
 - [Failure Policy](references/arc-failure-policy.md) — Per-phase failure handling matrix
 - [Checkpoint Init](references/arc-checkpoint-init.md) — Schema v28, 3-layer config resolution
 - [Resume](references/arc-resume.md) — Checkpoint restoration, schema migration

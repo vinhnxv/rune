@@ -1,60 +1,38 @@
----
-name: arc-quick
-description: |
-  Lightweight 4-phase pipeline: Plan -> Work+Evaluate -> Review -> Mend.
-  Chains devise --quick -> strive (with evaluator loop) -> appraise -> mend in one command.
-  Work phase iterates up to max_iterations (default 3) with ward checks and
-  quality signal detection between passes. Stagnation detection prevents infinite loops.
-  Mend phase auto-fixes P1/P2 findings from the review TOME.
-  Accepts a prompt string or existing plan file path.
-  Recommends /rune:arc for complex plans (8+ tasks) unless --force is passed.
-  Use when: "quick run", "fast pipeline", "plan and build", "nhanh",
-  "chay nhanh", "quick arc", "simple pipeline", "4 steps",
-  "plan work review mend", "quick", "arc-quick".
-user-invocable: true
-argument-hint: "[prompt or plan-path] [--force]"
----
+# Arc Quick Mode (`/rune:arc --quick-mode`)
 
-<!-- v3.x: defaults baked from former talisman.arc (quick subsection); see references/v3-defaults.md -->
+<!-- v3.0.0-alpha.6: ported verbatim from the deleted `arc-quick` SKILL into a flag mode on arc. See plans/2026-05-15-chore-rune-v3-day5-arc-surface-trim-plan.md Cluster 1. -->
 
-# /rune:arc-quick --- Lightweight 4-Phase Pipeline
+Lightweight 4-phase pipeline reached via `/rune:arc --quick-mode`: **Plan → Work+Evaluate → Review → Mend** (`devise --quick` → `strive` with evaluator loop → `appraise` → `mend`).
 
-Runs **Plan -> Work -> Review -> Mend** (`devise --quick` -> `strive` -> `appraise` -> `mend`) in one command.
-A simplified alternative to `/rune:arc` (26 phases, v3.0.0-alpha.2) for small-to-medium features.
+A simplified alternative to the full 19-phase arc pipeline for small-to-medium features.
 
-**Load skills**: `polling-guard`, `zsh-compat`
+**Early return**: This branch runs BEFORE `arc-preflight.md`, `arc-checkpoint-init.md`, and PHASE_ORDER dispatch. Quick-mode is a stateless single-turn delegation chain — no checkpoint, no Stop hook loop, no `--resume`. If quick-mode fails, rerun the command.
 
-## Usage
+**Load skills**: `polling-guard`, `zsh-compat`.
 
-```bash
-/rune:arc-quick add a health check endpoint           # From prompt (runs devise first)
-/rune:arc-quick plans/my-plan.md                       # From existing plan (skips devise)
-/rune:arc-quick plans/complex-plan.md --force           # Skip complexity warning
-/rune:quick add dark mode toggle                       # Beginner alias
-```
-
-## Flags
+## Flags Recognised
 
 | Flag | Effect |
 |------|--------|
+| `--quick-mode` | Enter this branch (required to reach this file) |
 | `--force` | Skip complexity gate warning (run quick pipeline even on complex plans) |
 
 ## Pipeline
 
 ```
 Input Resolution
-  -> is it a .md file path?
-    YES -> planPath = input, skip to Complexity Gate
-    NO  -> treat as prompt, go to Phase 1
+  → is it a .md file path?
+    YES → planPath = input, skip to Complexity Gate
+    NO  → treat as prompt, go to Phase 1
 
-Phase 1: PLAN (conditional --- only when input is a prompt)
+Phase 1: PLAN (conditional — only when input is a prompt)
   Skill("rune:devise", "--quick {prompt}")
   Output: plans/YYYY-MM-DD-{type}-{name}-plan.md
 
 Complexity Gate (always, after plan is available)
   Score plan complexity
   If complex AND NOT --force: suggest /rune:arc
-  If user accepts arc: Skill("rune:arc", planPath) --- then STOP
+  If user accepts arc: Skill("rune:arc", planPath) → then STOP
 
 Phase 2: WORK + EVALUATE LOOP (max_iterations = 3 baked-in default)
   Loop:
@@ -67,7 +45,7 @@ Phase 3: REVIEW
   Skill("rune:appraise")
   Output: TOME with findings
 
-Phase 4: MEND (conditional --- only when TOME has P1/P2 findings)
+Phase 4: MEND (conditional — only when TOME has P1/P2 findings)
   Skill("rune:mend", tomePath)
   Output: findings resolved, code updated
 
@@ -81,7 +59,7 @@ Summary: present results + iteration history + next steps
 ```javascript
 const rawArgs = "$ARGUMENTS".trim()
 const force = rawArgs.includes("--force")
-const args = rawArgs.replace(/--force/g, "").trim()
+const args = rawArgs.replace(/--quick-mode/g, "").replace(/--force/g, "").trim()
 ```
 
 ### Step 2: Input Resolution
@@ -93,7 +71,6 @@ let mode = "prompt"  // "prompt" or "plan"
 if (args.endsWith(".md") && !args.includes(" ")) {
   // Input is a plan file path
   if (!/^[a-zA-Z0-9._\-\/]+$/.test(args) || args.includes("..")) {
-    // Path validation failed
     error("Invalid plan path. Use a relative path like plans/my-plan.md")
     return
   }
@@ -108,10 +85,9 @@ if (args.endsWith(".md") && !args.includes(" ")) {
     return
   }
 } else if (args === "") {
-  // No args --- auto-detect recent plan or ask for prompt
+  // No args — auto-detect recent plan or ask for prompt
   const plans = Glob("plans/*.md")
   if (plans.length > 0) {
-    // Offer latest plan or ask for new prompt
     AskUserQuestion({
       question: `Found ${plans.length} recent plan(s). Latest: ${plans[0]}`,
       options: [
@@ -119,10 +95,8 @@ if (args.endsWith(".md") && !args.includes(" ")) {
         { label: "Describe a new feature", description: "Create a new plan first" }
       ]
     })
-    // If user picks existing plan:
-    //   planPath = plans[0]; mode = "plan"
-    // If user wants new feature:
-    //   Ask for description, set mode = "prompt"
+    // If user picks existing plan: planPath = plans[0]; mode = "plan"
+    // If user wants new feature: mode = "prompt", use response as prompt
   } else {
     AskUserQuestion({
       question: "No plans found. Describe the feature you want to build:"
@@ -135,7 +109,7 @@ if (args.endsWith(".md") && !args.includes(" ")) {
 }
 ```
 
-### Step 3: Phase 1 --- PLAN (conditional)
+### Step 3: Phase 1 — PLAN (conditional)
 
 ```javascript
 if (mode === "prompt") {
@@ -147,7 +121,7 @@ if (mode === "prompt") {
   // After devise completes, find the generated plan
   const plans = Glob("plans/*.md")
   if (plans.length === 0) {
-    error("Planning failed --- no plan file generated. Try /rune:plan manually.")
+    error("Planning failed — no plan file generated. Try /rune:plan manually.")
     return
   }
   planPath = plans[0]  // most recent (Glob returns sorted by mtime)
@@ -170,12 +144,12 @@ const isComplex = taskCount >= 8 || (sectionCount >= 6 && effort !== "S")
 
 if (isComplex && !force) {
   AskUserQuestion({
-    question: `This plan has ${taskCount} tasks and ${sectionCount} sections --- it looks complex.\n\nThe quick pipeline (plan -> work -> review -> mend) skips forge enrichment, gap analysis, testing, and ship/merge. For complex plans, these steps catch issues early.\n\nWhat would you like to do?`,
+    question: `This plan has ${taskCount} tasks and ${sectionCount} sections — it looks complex.\n\nThe quick pipeline (plan → work → review → mend) skips forge enrichment, gap analysis, testing, and ship/merge. For complex plans, these steps catch issues early.\n\nWhat would you like to do?`,
     options: [
-      { label: "Switch to /rune:arc (full 26-phase pipeline)",
-        description: "Recommended for complex plans --- thorough but takes 1-3 hours" },
+      { label: "Switch to /rune:arc (full 19-phase pipeline)",
+        description: "Recommended for complex plans — thorough but takes 1-3 hours" },
       { label: "Continue with quick pipeline",
-        description: "Plan -> Work -> Review -> Mend --- faster but less thorough" }
+        description: "Plan → Work → Review → Mend — faster but less thorough" }
     ]
   })
   // If user picks arc:
@@ -184,7 +158,7 @@ if (isComplex && !force) {
 }
 ```
 
-### Step 5: Phase 2 --- WORK + EVALUATE LOOP
+### Step 5: Phase 2 — WORK + EVALUATE LOOP
 
 ```javascript
 // v3.x: defaults baked from former v2.x talisman config (arc.quick); see references/v3-defaults.md
@@ -254,13 +228,13 @@ while (iteration < maxIterations) {
 }
 ```
 
-### Step 6: Phase 3 --- REVIEW
+### Step 6: Phase 3 — REVIEW
 
 ```javascript
 Skill("rune:appraise")
 ```
 
-### Step 7: Phase 4 --- MEND (conditional)
+### Step 7: Phase 4 — MEND (conditional)
 
 ```javascript
 // Find the TOME from the review
@@ -333,9 +307,9 @@ ${iterationRows}
 
 ### Next Steps
 
-- \`/rune:arc ${planPath}\` --- run full 26-phase pipeline if needed
-- \`git push\` --- push your changes
-- \`/rune:rest\` --- clean up tmp/ artifacts
+- \`/rune:arc ${planPath}\` — run full 19-phase pipeline if needed
+- \`git push\` — push your changes
+- \`/rune:rest\` — clean up tmp/ artifacts
 `
 ```
 
@@ -345,8 +319,8 @@ ${iterationRows}
 |-------|-----------|----------|
 | Phase 1 (devise) | No plan generated | Stop, suggest manual `/rune:plan` |
 | Phase 2 (strive) | Workers fail | Stop, present partial results, suggest `--approve` |
-| Phase 3 (appraise) | Review fails | Non-blocking --- warn, suggest manual `/rune:review` |
-| Phase 4 (mend) | Mend fails | Non-blocking --- warn, suggest manual `/rune:mend` |
+| Phase 3 (appraise) | Review fails | Non-blocking — warn, suggest manual `/rune:review` |
+| Phase 4 (mend) | Mend fails | Non-blocking — warn, suggest manual `/rune:mend` |
 | Complexity gate | User picks arc | Delegate to `/rune:arc`, stop quick pipeline |
 
 ### Evaluator Function
@@ -429,8 +403,8 @@ function evaluateIteration(planPath, iterationNumber, baseRef) {
 
 ## Design Decisions
 
-1. **No Stop hook loop** --- 4 sequential Skill() calls. Simpler and more debuggable than a state machine.
-2. **No checkpoint/resume** --- Total runtime is 25-60 min. If it fails, rerun the command.
-3. **No parent team** --- Each Skill() creates and cleans up its own team independently.
-4. **No forge, test, ship** --- These make `/rune:arc` take 1-3 hours. Run them separately if needed.
-5. **Conditional mend** --- Only runs when TOME has P1/P2 findings. Skips gracefully otherwise.
+1. **No Stop hook loop** — 4 sequential Skill() calls. Simpler and more debuggable than a state machine.
+2. **No checkpoint/resume** — Total runtime is 25-60 min. If it fails, rerun the command.
+3. **No parent team** — Each Skill() creates and cleans up its own team independently.
+4. **No forge, test, ship** — These make the full arc pipeline take 1-3 hours. Run them separately if needed.
+5. **Conditional mend** — Only runs when TOME has P1/P2 findings. Skips gracefully otherwise.

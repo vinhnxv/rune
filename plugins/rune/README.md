@@ -173,7 +173,8 @@ Rune is a token-intensive multi-agent system. Each workflow summons multiple age
 
 | Command | What It Does |
 |---------|-------------|
-| `/rune:arc-quick` | Quick 4-phase pipeline: plan -> work -> review -> mend (25-60 min) |
+| `/rune:arc --quick-mode` | Quick 4-phase pipeline: plan -> work -> review -> mend (25-60 min) |
+| `/rune:quick` | Beginner alias — forwards to `/rune:arc --quick-mode` |
 
 ### Utilities
 

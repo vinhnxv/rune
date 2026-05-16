@@ -15,7 +15,7 @@ Complete reference for `/rune:tarnished` routing decisions.
 | `appraise` | `/rune:appraise` | — | Git diff (auto) | `tmp/reviews/*/TOME.md` |
 | `audit` | `/rune:audit` | — | None (full scan) | `tmp/audit/*/TOME.md` |
 | `arc` | `/rune:arc` | — | Plan file path | Full pipeline → merged PR |
-| `arc-quick` | `/rune:arc-quick` | — | Plan file path | Lightweight 4-phase pipeline |
+| `arc-quick` / `quick` / `fast` / `nhanh` | `/rune:arc --quick-mode` | — | Prompt or plan file | Lightweight 4-phase pipeline (plan → work+eval → review → mend) |
 | `forge` | `/rune:forge` | — | Plan file path | Enriched plan |
 | `mend` | `/rune:mend` | — | TOME file path | Fixed code |
 | `verify` | `/rune:verify` | — | TOME file path | Verified findings |
@@ -50,7 +50,7 @@ Complete reference for `/rune:tarnished` routing decisions.
 | `devise` | `--quick`, `--brainstorm-context PATH`, `--no-brainstorm`, `--no-forge`, `--exhaustive` |
 | `appraise` | `--deep` |
 | `audit` | `--deep`, `--standard`, `--incremental`, `--dirs`, `--focus` |
-| `arc` | `--resume`, `--no-forge`, `--skip-freshness` |
+| `arc` | `--resume`, `--no-forge`, `--skip-freshness`, `--quick-mode`, `--force` (with `--quick-mode`) |
 | `strive` | `--approve`, `--worktree` |
 | `self-audit` | `--dimension <D>`, `--verbose` |
 
@@ -79,7 +79,7 @@ Complete reference for `/rune:tarnished` routing decisions.
 | `appraise` | Up to 8 | 3-10 min |
 | `audit` | Up to 8 | 5-15 min |
 | `arc` | Per phase | 30-90 min |
-| `arc-quick` | Per phase | 10-30 min |
+| `arc --quick-mode` | Per phase | 10-30 min |
 | `forge` | Per section | 5-15 min |
 | `mend` | Per file | 3-10 min |
 | `goldmask` | 8 tracers | 5-10 min |
