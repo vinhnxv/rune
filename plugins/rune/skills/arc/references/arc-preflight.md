@@ -680,7 +680,8 @@ const ARC_TEAM_PREFIXES = [
   "arc-design-", "arc-prototype-", "arc-design-verify-", "arc-design-iter-",  // design sync teams (conditional — design_sync.enabled)
   "arc-ux-",  // UX verification team (conditional — ux.enabled + frontend files)
   "arc-browser-test-", "arc-browser-fix-",  // browser test convergence loop teams (conditional — frontend + agent-browser)
-  "arc-deploy-",  // deployment verification team (conditional — deployment-relevant files in diff)
+  // "arc-deploy-" removed in v3.0.0-alpha.6 (Day 5 C4e) — deploy_verify phase
+  // was deleted; deployment verification is disabled by default in v3.x.
   "rune-forge-", "rune-work-", "rune-review-", "rune-mend-", "rune-mend-deep-", "rune-verify-tome-",  // sub-command teams (rune-verify-tome- = standalone /rune:inspect --verify-tome; v3.0.0-alpha.6 absorbed the prior /rune:verify skill)
   "rune-audit-",  // CLEAN-005: retained as a safety net for standalone /rune:audit orphans — NOT spawned by arc directly. Cross-workflow orphan sweep only.
   "rune-brainstorm-",  // brainstorm skill teams (Solo/Roundtable/Deep modes)

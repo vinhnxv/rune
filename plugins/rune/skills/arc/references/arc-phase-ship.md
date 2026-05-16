@@ -33,6 +33,41 @@ Orchestrator-only phase (no team). Creates a GitHub PR after test completes.
 ```javascript
 updateCheckpoint({ phase: "ship", status: "in_progress", phase_sequence: 9, team_name: null })
 
+// ─────────────────────────────────────────────────────────────────────────
+// STEP -0.5: Pre-Ship Validation (absorbed pre_ship_validation, v3.0.0-alpha.6 C4e)
+// ─────────────────────────────────────────────────────────────────────────
+// Zero-LLM-cost dual-gate completion check before PR creation. Was its own
+// PHASE_ORDER phase (`pre_ship_validation`); folded into ship as the first
+// inline step so the orchestrator no longer pays the phase-boundary cost.
+//
+// Algorithm: see arc-phase-pre-ship-validation.md for the preShipValidator()
+// pseudocode (artifact integrity gate + criteria convergence gate). The
+// function is invoked once before any gh activity; its return value is
+// non-blocking (WARN diagnostics on FAIL, never aborts PR creation).
+try {
+  const preShipReport = preShipValidator(checkpoint, checkpoint.plan_file)
+  Write(`tmp/arc/${id}/pre-ship-report.md`, renderPreShipReport(preShipReport))
+  if (preShipReport.verdict === 'FAIL' && preShipReport.diagnostics.length > 0) {
+    warn(`Pre-ship validation: ${preShipReport.diagnostics.length} diagnostic(s) — non-blocking, continuing.`)
+    preShipReport.diagnostics.forEach(d => warn(`  · ${d}`))
+  }
+} catch (e) {
+  warn(`Pre-ship validation skipped (${e.message}) — proceeding to PR creation.`)
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// STEP -0.4: Deployment Artifact (absorbed deploy_verify, v3.0.0-alpha.6 C4e)
+// ─────────────────────────────────────────────────────────────────────────
+// Was its own conditional PHASE_ORDER phase (`deploy_verify`); disabled by
+// default in v3.x (`misc.deployment_verification.enabled = false`). The
+// arc-phase-deploy-verify.md reference file was removed in v3.0.0-alpha.6
+// (Day 5 C4e) because the always-skip path was the only path. If a future
+// release re-enables deployment verification, restore the file from git
+// history and invoke it here as a PR-body sub-step before the `gh pr create`
+// call below.
+//
+// No-op placeholder — kept as a marker for future re-enablement.
+
 // ENV: Disable gh interactive prompts in automation (SEC-DECREE-003 / concern C-7)
 // Set before ALL gh commands in this phase
 const GH_ENV = 'GH_PROMPT_DISABLED=1'

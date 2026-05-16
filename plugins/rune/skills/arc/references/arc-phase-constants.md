@@ -31,8 +31,9 @@ per-phase reference files (timeout values), arc-resume.md (schema migration)
 //   - drift_review → work (C4b — as a post-step before work_qa runs)
 //   - inspect_fix + verify_inspect → inspect (C4c — inspect timeout bumped to 34 min to cover audit + fix + convergence eval per round)
 //   - verify_mend → mend_qa (C4d — convergence eval runs as a post-step inside runQAGate() for mend_qa; see arc-phase-qa-gate.md)
-//   - deploy_verify + pre_ship_validation → ship (C4e)
-const PHASE_ORDER = ['forge', 'forge_qa', 'plan_review', 'verification', 'work', 'work_qa', 'gap_analysis', 'gap_analysis_qa', 'gap_remediation', 'inspect', 'code_review', 'code_review_qa', 'verify', 'mend', 'mend_qa', 'test', 'test_qa', 'deploy_verify', 'pre_ship_validation', 'ship', 'merge']
+//   - pre_ship_validation → ship (C4e — preShipValidator() runs inline as ship STEP -0.5; see arc-phase-ship.md + arc-phase-pre-ship-validation.md)
+//   - deploy_verify → removed entirely (C4e — always-skipped in v3.x since misc.deployment_verification.enabled defaults false; restore from git history to re-enable)
+const PHASE_ORDER = ['forge', 'forge_qa', 'plan_review', 'verification', 'work', 'work_qa', 'gap_analysis', 'gap_analysis_qa', 'gap_remediation', 'inspect', 'code_review', 'code_review_qa', 'verify', 'mend', 'mend_qa', 'test', 'test_qa', 'ship', 'merge']
 
 // SYNC-CRITICAL: PHASE_GROUPS is duplicated in:
 //   1. This file (JavaScript reference for group definitions)
@@ -46,7 +47,7 @@ const PHASE_GROUPS = [
   { id: 'inspect',      phases: ['inspect'] },
   { id: 'review',       phases: ['code_review', 'code_review_qa', 'verify', 'mend', 'mend_qa'] },
   { id: 'testing',      phases: ['test', 'test_qa'] },
-  { id: 'ship',         phases: ['deploy_verify', 'pre_ship_validation', 'ship', 'merge'] },
+  { id: 'ship',         phases: ['ship', 'merge'] },
 ]
 
 // Preflight assertion: validates all PHASE_ORDER entries appear in exactly one group
@@ -115,12 +116,13 @@ const PHASE_TIMEOUTS = {
   // mend_qa now bears the convergence-eval budget; bump from 5 min to 9 min
   // (5m QA agent + 4m orchestrator-only convergence eval).
   test:          1_500_000,  // 25 min without E2E. Dynamic: 50 min with E2E (3_000_000)
-  deploy_verify: 300_000,    //  5 min (conditional — gated by migration/API/config file changes)
-  pre_ship_validation: 360_000,  //  6 min (orchestrator-only)
+  // v3.0.0-alpha.6 (Day 5 C4e): deploy_verify removed (always-skipped in v3.x),
+  // pre_ship_validation absorbed into ship as STEP -0.5. Ship's budget bumped
+  // 5 min → 11 min to cover preShipValidator() + PR creation.
   // v3.0.0-alpha.2: bot_review_wait, pr_comment_resolution, goldmask_verification,
   // goldmask_correlation removed — see PHASE_ORDER comment.
   verify:        600_000,    // 10 min (finding verification — spawns verifier agents)
-  ship:          300_000,    //  5 min (orchestrator-only)
+  ship:          660_000,    // 11 min (preShipValidator 6m + PR creation 5m — v3.0.0-alpha.6 C4e)
   merge:         600_000,    // 10 min (orchestrator-only)
   forge_qa:        300_000,  //  5 min (QA gate — 1 agent)
   work_qa:         300_000,  //  5 min (QA gate — 1 agent)
@@ -191,8 +193,8 @@ function calculateDynamicTimeout(tier) {
     // v3.0.0-alpha.6: verify_mend absorbed into mend_qa post-step (Day 5 C4d).
     // The 4 min of convergence-eval budget moved into mend_qa's bumped 9 min total.
     PHASE_TIMEOUTS.test + PHASE_TIMEOUTS.test_qa +
-    PHASE_TIMEOUTS.deploy_verify +  // DECR-001 fix: was missing from budget
-    PHASE_TIMEOUTS.pre_ship_validation +
+    // v3.0.0-alpha.6 (Day 5 C4e): deploy_verify removed; pre_ship_validation
+    // absorbed into ship — ship's bumped 11-min budget covers both former phases.
     PHASE_TIMEOUTS.ship + PHASE_TIMEOUTS.merge
     // v3.0.0-alpha.2: removed goldmask_verification, goldmask_correlation,
     // bot_review_wait, pr_comment_resolution from default budget.

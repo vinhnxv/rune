@@ -1,6 +1,13 @@
-# Phase 8.5: Pre-Ship Completion Validator — Full Algorithm
+# Ship Pre-Step: Pre-Ship Completion Validator — Full Algorithm
+
+<!-- v3.0.0-alpha.6 (Day 5 C4e): no longer a standalone PHASE_ORDER phase. -->
+<!-- Invoked as STEP -0.5 inside arc-phase-ship.md (preShipValidator()),     -->
+<!-- before any gh activity. The dispatcher does NOT dispatch this file      -->
+<!-- directly — it is read for the algorithm only.                           -->
 
 Zero-LLM-cost dual-gate completion check before PR creation. Orchestrator-only — no team, no agents.
+
+Prior to v3.0.0-alpha.6 this ran as Phase 8.5 (`pre_ship_validation`) in PHASE_ORDER. The phase boundary was removed; the algorithm now executes as the first inline step inside arc-phase-ship.md (see Step -0.5 of its Algorithm section). Behavior is preserved.
 
 **Team**: None (orchestrator-only)
 **Tools**: Read, Write, Grep

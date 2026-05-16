@@ -47,8 +47,10 @@ _lookup_phase_group() {
     # ux_verification, browser_test, browser_test_fix, verify_browser_test
     # removed — these were never canonical post-alpha.1 but lingered as dead
     # case arms.
-    deploy_verify|pre_ship_validation|ship|merge)
+    ship|merge)
       echo "ship" ;;
+    # v3.0.0-alpha.6 (Day 5 C4e): deploy_verify removed (always-skipped in v3.x);
+    # pre_ship_validation absorbed into ship as STEP -0.5.
     *)
       echo "" ;;
   esac

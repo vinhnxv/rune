@@ -481,12 +481,12 @@ PHASE_ORDER=(
   code_review code_review_qa
   verify mend mend_qa
   test test_qa
-  deploy_verify pre_ship_validation
   ship merge
 )
 # v3.0.0-alpha.6 (Day 5): plan_refine absorbed into plan_review (C4a),
 # drift_review absorbed into work (C4b), inspect_fix + verify_inspect absorbed
-# into inspect (C4c), verify_mend absorbed into mend_qa as a post-step (C4d).
+# into inspect (C4c), verify_mend absorbed into mend_qa as a post-step (C4d),
+# deploy_verify removed + pre_ship_validation absorbed into ship as STEP -0.5 (C4e).
 
 # Heavy phases that ALWAYS trigger compact interlude (tier 1)
 # SYNC-NOTE: This list intentionally differs from HEAVY_PHASES in arc-phase-constants.md.
@@ -522,8 +522,8 @@ _phase_ref() {
     # verify_mend absorbed into mend_qa (post-QA convergence step) in
     # v3.0.0-alpha.6 (Day 5 C4d) — see arc-phase-qa-gate.md.
     test)                     echo "${base}/arc-phase-test.md" ;;
-    deploy_verify)            echo "${base}/arc-phase-deploy-verify.md" ;;
-    pre_ship_validation)      echo "${base}/arc-phase-pre-ship-validation.md" ;;
+    # deploy_verify removed + pre_ship_validation absorbed into ship in
+    # v3.0.0-alpha.6 (Day 5 C4e). See arc-phase-ship.md STEP -0.5/-0.4.
     ship)                     echo "${base}/arc-phase-ship.md" ;;
     merge)                    echo "${base}/arc-phase-merge.md" ;;
     forge_qa|work_qa|gap_analysis_qa|code_review_qa|mend_qa|test_qa)

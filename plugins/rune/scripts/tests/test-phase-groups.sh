@@ -83,7 +83,8 @@ assert_eq "test → testing" "testing" "$(_lookup_phase_group "test")"
 assert_eq "test_qa → testing" "testing" "$(_lookup_phase_group "test_qa")"
 
 # Ship group
-assert_eq "deploy_verify → ship" "ship" "$(_lookup_phase_group "deploy_verify")"
+# v3.0.0-alpha.6 (Day 5 C4e): deploy_verify removed; pre_ship_validation
+# absorbed into ship as STEP -0.5.
 assert_eq "ship → ship" "ship" "$(_lookup_phase_group "ship")"
 assert_eq "merge → ship" "ship" "$(_lookup_phase_group "merge")"
 
@@ -103,10 +104,11 @@ assert_eq "nonexistent → empty" "" "$(_lookup_phase_group "nonexistent")"
 # ══════════════════════════════════════════════════
 echo ""
 echo "=== Coverage: all PHASE_ORDER phases return non-empty group ==="
-# SYNC-CRITICAL: must match arc-phase-constants.md PHASE_ORDER (canonical, 21 entries
+# SYNC-CRITICAL: must match arc-phase-constants.md PHASE_ORDER (canonical, 19 entries
 # after v3.0.0-alpha.6 Day 5 absorptions: plan_refine→plan_review (C4a),
 # drift_review→work (C4b), inspect_fix+verify_inspect→inspect (C4c),
-# verify_mend→mend_qa post-step (C4d)).
+# verify_mend→mend_qa post-step (C4d), deploy_verify removed +
+# pre_ship_validation→ship (C4e)).
 # Any divergence indicates drift between bash/JS phase definitions.
 PHASE_ORDER=(
   forge forge_qa plan_review verification
@@ -115,7 +117,7 @@ PHASE_ORDER=(
   inspect
   code_review code_review_qa verify mend mend_qa
   test test_qa
-  deploy_verify pre_ship_validation ship merge
+  ship merge
 )
 
 COVERAGE_COUNT=0
@@ -125,8 +127,8 @@ for phase in "${PHASE_ORDER[@]}"; do
   COVERAGE_COUNT=$(( COVERAGE_COUNT + 1 ))
 done
 
-# Verify we tested exactly 21 phases (canonical PHASE_ORDER, no conditional extras)
-assert_eq "phase count is 21" "21" "$COVERAGE_COUNT"
+# Verify we tested exactly 19 phases (canonical PHASE_ORDER, no conditional extras)
+assert_eq "phase count is 19" "19" "$COVERAGE_COUNT"
 
 # ══════════════════════════════════════════════════
 # Results
