@@ -357,6 +357,40 @@ updateCheckpoint({
 
 **Failure policy (audit half)**: Non-blocking. Missing VERDICT skips STEP 5 fix and treats convergence as "halt" with null metrics. Individual inspector timeouts produce partial findings — verdict-binder aggregates whatever is available.
 
+## STEP 4.5: Halt Decision Gate (absorbed gap_analysis STEP D)
+
+<!-- v3.0.0-alpha.7 (Day 6): Absorbed from the retired gap_analysis phase's STEP D. -->
+<!-- HIGHEST semantic risk in this phase — STEP D.0 Task Completion Gate (PR #310 fix) -->
+<!-- and STEP D.7 plan writeback are both load-bearing. Full algorithm in -->
+<!-- inspect-step-d-halt-gate.md (sub-reference). DO NOT INLINE the error() call -->
+<!-- in a try/catch — it is the non-bypassable mechanism that prevents the -->
+<!-- "40% shipped" bug class. -->
+
+Read and follow [inspect-step-d-halt-gate.md](inspect-step-d-halt-gate.md). It runs:
+
+- STEP C aggregate (merges `tmp/arc/{id}/inspect/deterministic.md` from STEP A with
+  the verdict from STEP 4 into `tmp/arc/{id}/inspect/UNIFIED.md`)
+- STEP D-DISCIPLINE Spec Compliance Matrix (when plan has YAML `AC-*` blocks)
+- STEP D.0 Task Completion Gate — non-bypassable 100% floor (PR #310 fix)
+- STEP D.1-D.2 Quality Score Gate — halt_threshold=70
+- STEP D.5 Halt — raises `error()` in non-headless mode when needsRemediation
+- STEP D.6 Plan Drift Reassessment Gate — 40% MISSING triggers warning
+- STEP D.7 Plan writeback — appends "Implementation Status" + DEFERRED tasks back to plan
+
+On PASS, sets `checkpoint.phases.inspect.substate = 'halt_gate_done'` and the existing
+STEP 5 below reads `checkpoint.phases.inspect.needs_remediation` to gate gap-fixer
+dispatch. On halt in non-headless mode, the `error()` throws and terminates this run;
+the user resumes via `/rune:arc --resume` after manual fixes.
+
+```javascript
+// Advance substate to "halt_gate" before invoking STEP D
+updateCheckpoint({ phase: 'inspect', substate: 'halt_gate' })
+// ... follow inspect-step-d-halt-gate.md ...
+// On return: checkpoint.phases.inspect.needs_remediation is set,
+//            checkpoint.phases.inspect.substate === 'halt_gate_done',
+//            UNIFIED.md exists, plan file has Implementation Status appendix.
+```
+
 ## STEP 5: Inspect Fix (absorbed inspect_fix)
 
 <!-- v3.0.0-alpha.6: absorbed from the deleted arc-phase-inspect-fix.md (Day 5 C4c). -->

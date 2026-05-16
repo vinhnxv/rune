@@ -39,11 +39,11 @@ If you need to deviate from a baked default (for example, to enable Doubt Seer o
 | `ship.ci_check.conclusion_allowlist` | `["success","skipped","neutral"]` |
 | `ship.merge_verification.timeout_ms` | `60000` |
 | `timeouts.{forge,work,code_review,mend,test}` | `900000 / 2100000 / 900000 / 1380000 / 900000` |
-| `timeouts.{gap_analysis,gap_remediation,audit,merge,ship}` | `720000 / 900000 / 1200000 / 600000 / 660000` _(ship bumped 5m→11m in v3.0.0-alpha.6 C4e: absorbs pre_ship_validation pre-step)_ |
+| `timeouts.{audit,merge,ship}` | `1200000 / 600000 / 660000` _(ship bumped 5m→11m in v3.0.0-alpha.6 C4e: absorbs pre_ship_validation pre-step; v3.0.0-alpha.7 Day 6: gap_analysis and gap_remediation timeouts retired with the absorbed phases)_ |
 | `timeouts.{plan_review,verification}` | `900000 / 30000` _(v3.0.0-alpha.6 C4a: plan_refine absorbed into plan_review; C4d: verify_mend convergence eval absorbed into mend_qa's bumped 9m budget — see `mend_qa: 540000`)_ |
-| `timeouts.{inspect,mend_qa}` | `2040000 / 540000` _(v3.0.0-alpha.6: inspect bumped 15m→34m C4c, mend_qa bumped 5m→9m C4d)_ |
-| `gap_analysis.{halt_threshold,inspectors}` | `50 / 2` |
-| `gap_analysis.remediation.{enabled,max_fixes,timeout}` | `true / 20 / 600000` |
+| `timeouts.{inspect,mend_qa}` | `2700000 / 540000` _(v3.0.0-alpha.6: inspect bumped 15m→34m C4c, mend_qa bumped 5m→9m C4d; v3.0.0-alpha.7 Day 6: inspect bumped 34m→45m to cover absorbed STEP A deterministic + STEP D halt-gate + gap_remediation work in one phase)_ |
+| `inspect.{halt_threshold,task_completion_floor,spec_compliance_mode}` | `70 / 100 / "warn"` _(v3.0.0-alpha.7 Day 6 Q5: renamed from `gap_analysis.*`. Task completion floor is the PR #310 non-bypassable 100% gate; halt_threshold is the bypassable quality score gate.)_ |
+| `inspect.remediation.{enabled,max_fixes,timeout}` | `true / 20 / 600000` _(v3.0.0-alpha.7 Day 6 Q5: renamed from `gap_analysis.remediation.*`. Drives the existing STEP 5 gap-fixer dispatch — absorbed from the retired gap_remediation phase.)_ |
 | `inspect.enabled / verify.enabled` | `true` |
 | `state_file.{stale_multiplier,heartbeat_interval_sec}` | `3 / 60` |
 
