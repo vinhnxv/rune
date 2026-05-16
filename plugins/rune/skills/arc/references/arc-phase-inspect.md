@@ -69,8 +69,23 @@ if (!checkpoint.plan_file || !Read(checkpoint.plan_file)) {
 }
 
 updateCheckpoint({ phase: 'inspect', status: 'in_progress', phase_sequence: 5.9, team_name: null })
-// Set initial substate: entering audit steps (STEP 1-4)
-updateCheckpoint({ phase: 'inspect', substate: 'audit' })
+// Set initial substate: entering deterministic STEP A (pre-team)
+updateCheckpoint({ phase: 'inspect', substate: 'deterministic' })
+```
+
+## STEP A: Deterministic Pre-Team Checks (absorbed gap_analysis STEP A)
+
+<!-- v3.0.0-alpha.7 (Day 6): Absorbed from the retired gap_analysis phase. -->
+<!-- Orchestrator-only pre-team sub-step. Zero LLM cost. Produces -->
+<!-- tmp/arc/{id}/inspect/deterministic.md which STEP D halt-gate reads. -->
+<!-- Full algorithm in inspect-step-a-deterministic.md (sub-reference). -->
+
+Read and follow [inspect-step-a-deterministic.md](inspect-step-a-deterministic.md). It runs deterministic checks (acceptance criteria coverage, doc consistency, plan-section coverage, evaluator quality, semantic claims, stale references, scope creep, spec compliance matrix) and writes `tmp/arc/{id}/inspect/deterministic.md`. On completion, it sets `checkpoint.phases.inspect.substate = 'deterministic_done'` and writes `checkpoint.phases.inspect.deterministic_gaps` for STEP D consumption.
+
+After STEP A returns, advance substate before STEP 1 spawns the inspector team:
+
+```javascript
+updateCheckpoint({ phase: 'inspect', substate: 'audit' })  // entering STEP 1-4
 ```
 
 ## STEP 1: Prepare Inspect Context

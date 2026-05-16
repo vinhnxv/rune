@@ -4,7 +4,8 @@
 # Uses grep/awk/jq for mechanical extraction — zero LLM tokens.
 #
 # Usage: artifact-extract.sh <mode> <arc_id> [extra_args]
-# Modes: tome-digest, gap-analysis, verdict, plan, work-summary
+# Modes: tome-digest, inspect, verdict, plan, work-summary
+# (gap-analysis mode retired in v3.0.0-alpha.7 Day 6 — use inspect)
 #
 # Each mode reads a specific artifact and writes a JSON digest file.
 # Token cost: ZERO (pure shell extraction).
@@ -21,7 +22,7 @@ if ! command -v jq &>/dev/null; then
   exit 1
 fi
 
-MODE="${1:?Missing mode (tome-digest|gap-analysis|verdict|plan|work-summary)}"
+MODE="${1:?Missing mode (tome-digest|inspect|verdict|plan|work-summary)}"
 ARC_ID="${2:?Missing arc ID}"
 MEND_ROUND="${3:-0}"
 
@@ -114,12 +115,17 @@ EOJSON
     echo "Digest written: ${DIGEST_PATH}"
     ;;
 
-  gap-analysis)
-    INPUT="${ARC_DIR}/gap-analysis.md"
-    OUTPUT="${ARC_DIR}/gap-analysis-digest.json"
+  inspect)
+    # v3.0.0-alpha.7 (Day 6): Renamed from `gap-analysis` mode after the gap_analysis
+    # phase was absorbed into inspect. Reads the deterministic STEP A output written by
+    # inspect-step-a-deterministic.md and produces an inspect-digest.json consumed by
+    # inspect-step-d-halt-gate.md and downstream phases (mend, code_review).
+    INPUT="${ARC_DIR}/inspect/deterministic.md"
+    OUTPUT="${ARC_DIR}/inspect-digest.json"
+    mkdir -p "${ARC_DIR}/inspect"
 
     if [[ ! -f "$INPUT" ]]; then
-      echo "{\"error\": \"gap-analysis.md not found\", \"fallback\": true}" > "$OUTPUT"
+      echo "{\"error\": \"inspect deterministic report not found\", \"fallback\": true}" > "$OUTPUT"
       exit 0
     fi
 
@@ -139,11 +145,11 @@ EOJSON
     # Extract MISSING requirement names
     MISSING_REQS=$(grep -iE '\|[[:space:]]*MISSING[[:space:]]*\|' "$INPUT" 2>/dev/null | awk -F'|' '{gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2); print $2}' | jq -R . | jq -s . 2>/dev/null || echo '[]')
 
-    REVIEW_CTX="Gap Analysis Context: ${MISSING_COUNT} MISSING, ${PARTIAL_COUNT} PARTIAL criteria."
+    REVIEW_CTX="Inspect Deterministic Context: ${MISSING_COUNT} MISSING, ${PARTIAL_COUNT} PARTIAL criteria."
 
     cat > "$OUTPUT" <<EOJSON
 {
-  "mode": "gap-analysis",
+  "mode": "inspect",
   "missing_count": ${MISSING_COUNT},
   "partial_count": ${PARTIAL_COUNT},
   "addressed_count": ${ADDRESSED_COUNT},
@@ -159,7 +165,17 @@ EOJSON
     ;;
 
   verdict)
-    INPUT="${ARC_DIR}/gap-analysis-verdict.md"
+    # v3.0.0-alpha.7 (Day 6): VERDICT.md migrated to tmp/arc/{id}/inspect/VERDICT.md
+    # after the gap_analysis 2-Inspector pass retired and inspect's 4-Inspector pass
+    # became the canonical verdict source. Fallback to the legacy path is kept for one
+    # alpha to gracefully handle in-flight alpha.6 arc runs.
+    if [[ -f "${ARC_DIR}/inspect/VERDICT.md" ]]; then
+      INPUT="${ARC_DIR}/inspect/VERDICT.md"
+    elif [[ -f "${ARC_DIR}/inspect-verdict.md" ]]; then
+      INPUT="${ARC_DIR}/inspect-verdict.md"
+    else
+      INPUT="${ARC_DIR}/gap-analysis-verdict.md"  # alpha.6 fallback, retired alpha.8
+    fi
     OUTPUT="${ARC_DIR}/verdict-digest.json"
 
     if [[ ! -f "$INPUT" ]]; then
@@ -286,7 +302,7 @@ EOJSON
 
   *)
     echo "ERROR: Unknown mode: $MODE" >&2
-    echo "Valid modes: tome-digest, gap-analysis, verdict, plan, work-summary" >&2
+    echo "Valid modes: tome-digest, inspect, verdict, plan, work-summary" >&2
     exit 1
     ;;
 esac
