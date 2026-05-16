@@ -17,8 +17,6 @@ user-invocable: true
 
 Standalone skill for analyzing the supply chain threat landscape of a project's direct dependencies.
 
-**Load skills**: `zsh-compat`
-
 ## Usage
 
 ```bash

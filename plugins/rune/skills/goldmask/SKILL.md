@@ -28,7 +28,7 @@ allowed-tools:
 
 # Goldmask Skill — Cross-Layer Impact Analysis
 
-**Load skills**: `rune-orchestration`, `context-weaving`, `team-sdk`, `polling-guard`, `zsh-compat`
+**Load skills**: `rune-orchestration`, `context-weaving`, `team-sdk`, `polling-guard`
 
 Three-layer investigation that answers: **WHAT** must change (Impact), **WHY** it was built that way (Wisdom), and **HOW RISKY** the area is (Lore). Includes Collateral Damage Detection (CDD) to predict blast radius.
 

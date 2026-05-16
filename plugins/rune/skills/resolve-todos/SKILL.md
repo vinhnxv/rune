@@ -30,7 +30,7 @@ allowed-tools:
 
 Resolves file-based TODOs using Agent Teams with a **verify-before-fix** pipeline. Combines parallel batch processing with hallucination prevention patterns.
 
-**Load skills**: `file-todos`, `inner-flame`, `zsh-compat`, `rune-orchestration`, `team-sdk`, `polling-guard`
+**Load skills**: `file-todos`, `inner-flame`, `rune-orchestration`, `team-sdk`, `polling-guard`
 
 ## Overview
 
@@ -399,7 +399,7 @@ See [phase7-cleanup.md](references/phase7-cleanup.md) for the full cleanup proto
 
 ## Dependencies
 
-- **Existing skills**: `file-todos` (TODO file format), `inner-flame` (self-review), `zsh-compat` (shell safety), `rune-orchestration` (team coordination), `polling-guard` (TaskList polling)
+- **Existing skills**: `file-todos` (TODO file format), `inner-flame` (self-review), `rune-orchestration` (team coordination), `polling-guard` (TaskList polling)
 - **Existing agents**: `mend-fixer` (reused for fixes)
 - **New agent**: `todo-verifier` (custom verifier agent)
 - **New hook**: `validate-resolve-fixer-paths.sh` (SEC-RESOLVE-001)

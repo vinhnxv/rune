@@ -10,7 +10,7 @@ Reached via `/rune:inspect --verify-tome <tome-path> [--output-dir <path>] [--ti
 - Standalone: `rune-verify-tome-{id}`
 - Inside arc: `arc-fv-{arcId}` (preserved for compatibility with `arc-phase-verify.md`'s state-file discovery)
 
-**Load skills**: `context-weaving`, `rune-orchestration`, `team-sdk`, `polling-guard`, `zsh-compat`.
+**Load skills**: `context-weaving`, `rune-orchestration`, `team-sdk`, `polling-guard`.
 
 ## Flags Recognised
 

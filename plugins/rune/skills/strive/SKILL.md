@@ -35,7 +35,7 @@ allowed-tools:
 
 Parses a plan into tasks with dependencies, summons swarm workers, and coordinates parallel implementation.
 
-**Load skills**: `roundtable-circle`, `context-weaving`, `rune-orchestration`, `team-sdk`, `git-worktree` (when worktree mode active), `polling-guard`, `zsh-compat`
+**Load skills**: `roundtable-circle`, `context-weaving`, `rune-orchestration`, `team-sdk`, `git-worktree` (when worktree mode active), `polling-guard`
 
 ## Usage
 
