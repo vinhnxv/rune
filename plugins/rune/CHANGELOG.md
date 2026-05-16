@@ -1,5 +1,60 @@
 # Changelog
 
+## [3.0.0-alpha.9] — 2026-05-17
+
+**Day 7 Tier-B skill trim — GitHub-glue / harness-shaped skills retired.** Day 6.5 (alpha.8) cut the lowest-risk Tier-A slice (reference-only skills with hook coverage). Day 7 takes the next slice from the brainstorm hard-budget axis (line 161 — *"≤ 15 skills total"*): **5 user-invocable skills that wrap `gh` CLI / GitHub PR workflows and live at the seam between Rune (planning & execution) and "what runs after the PR opens"** (brainstorm scope-table line 219, Open Question Q5 line 233).
+
+The brainstorm-named Day 7 work (inspector mode-flag agents + parametric QA verifier) already shipped in alpha.2. Day 7's slot is therefore re-scoped to the next planned cut: Tier-B, named verbatim in the Day 6.5 plan's Successors section.
+
+Net delta: **−5 skills + 2 orphan lib scripts (pr-guardian, resolve-gh-pr-comment, resolve-all-gh-pr-comments, post-findings, file-todos; skill count 37 → 32; plus `scripts/lib/pr-comment-{formatter,poster}.sh`), ≈ −5,733 LoC** (largest single-day delta of the v3 series; `file-todos` alone is ~54% of the cut at 3,102 lines across 9 files). Hooks, agents, and arc phases unchanged.
+
+Brainstorm success-criteria progress: **#1** (skills ≤ 15) **37 → 32** — gap closes from −22 to −17. **Q5 (external harness MVP destination) remains open** — Day 7 explicitly defers; the cuts are "rm without replacement" per brainstorm Non-Goals (line 184 — *"no migration shim"*). **Cuts are reversible from git history** if/when Q5 lands a destination.
+
+**Upstream `gh` CLI / built-in alternatives** for users who depended on the cut skills:
+
+| Retired skill | Upstream alternative |
+|---|---|
+| `/rune:pr-guardian` | External pr-guardian harness (planned, see Q5); `gh run watch` for CI polling |
+| `/rune:resolve-all-gh-pr-comments` | `gh pr view <n> --comments` + manual triage; external harness when Q5 lands |
+| `/rune:resolve-gh-pr-comment` | `gh api repos/{owner}/{repo}/pulls/{n}/comments` |
+| `/rune:post-findings` | `gh pr comment <n> --body "..."` |
+| `/rune:file-todos` | `TodoWrite` (Claude Code built-in) or `/rune:resolve-todos` |
+
+**U1 — `file-todos` deleted (zero load-bearing refs):** Plugin skill body (446 LoC SKILL.md + 8 reference files = 3,102 LoC total) retired. 4 routing/discovery surfaces swept (tarnished/skill-catalog.md, tarnished/intent-patterns.md, tarnished/SKILL.md fast-path keywords, using-rune/SKILL.md). `resolve-todos/SKILL.md` line 33 "Load skills" entry repointed (TODO file format is self-contained in resolve-todos; legacy file-todos spec available in git history).
+
+**U2 — `post-findings` deleted (zero load-bearing refs):** Plugin skill body (264 LoC) retired. Same 4 routing/discovery surface sweep.
+
+**U3 — `resolve-gh-pr-comment` deleted (zero load-bearing refs):** Plugin skill body (643 LoC, 2 files) retired. Same 4 routing/discovery surface sweep.
+
+**U4 — `resolve-all-gh-pr-comments` deleted + 5 arc-reference docs rewritten:** Plugin skill body (437 LoC, 3 files) retired. 5 arc reference docs rewritten to remove `/rune:resolve-all-gh-pr-comments` mentions and qualify the external pr-guardian harness as "(planned, see brainstorm Q5)":
+- `arc-architecture.md:14` — historical alpha.2 removal note
+- `arc-checkpoint-init.md:226` — Bot review phases comment block
+- `phase-tool-matrix.md:30-31` — v3.0.0-alpha.2 phase retirement block
+- `arc-phase-ship.md:390` — `draft_until_ready` block comment
+- `arc-delegation-checklist.md:213` — PR COMMENT RESOLUTION delegation row
+
+**U5 — `pr-guardian` deleted + `arc-delegation-checklist.md` BOT REVIEW WAIT row rewritten:** Plugin skill body (811 LoC, 3 files) retired. `arc-delegation-checklist.md:212` rewritten to remove `/rune:pr-guardian` mention and qualify the external harness as "(planned, see brainstorm Q5)". `arc-phase-stop-hook.sh:475` conceptual comment ("pr-guardian harness territory") preserved deliberately — it describes the external harness *concept* (still planned), not the retired SKILL.
+
+**U6 — Docs sweep + version bump:** `plugin.json` + `marketplace.json` to `3.0.0-alpha.9`; descriptions rewritten; marketplace `skills` array drops 5 paths. CLAUDE.md Core Workflows skill table drops 5 rows. `plugins/rune/README.md` skill count bumped to 32 (was 37); version line refreshed to alpha.9; `/rune:pr-guardian` row dropped from the command table. Repo-root `README.md` refreshed in the same pass (post-review fix): version badge `alpha.5 → alpha.9`, skill badge `44 → 32`, prose counts updated, utility table drops `/rune:file-todos` + `/rune:pr-guardian` rows, `/rune:quick` alias retargeted to `/rune:arc --quick-mode`, skill table sweeps 12 stale rows (5 newly-deleted + 7 prior-alpha leftovers: `arc-quick`, `verify`, `team-status`, `runs`, `chome-pattern`, `polling-guard`, `zsh-compat`), directory tree comment updated. `docs/guides/rune-command-reference.{en,vi}.md` lose their stale `/rune:file-todos` rows. `plugins/rune/references/v3-defaults.md` lines 137-139 drop 3 dead `file_todos.*` config-key defaults. CHANGELOG entry (this section).
+
+**U7 — Orphan lib script cleanup (post-review):** `plugins/rune/scripts/lib/pr-comment-formatter.sh` (10.7 KB) + `plugins/rune/scripts/lib/pr-comment-poster.sh` (4.3 KB) deleted. All callers (pr-guardian, post-findings, resolve-*-gh-pr-comment) retired in U1-U5; zero live references in `hooks/hooks.json`, skills, or other scripts. Historical CHANGELOG mentions (alpha.1 era) preserved as audit trail.
+
+**Conceptual prose preserved** (per plan): 9 occurrences across 7 files reference "external pr-guardian harness" as a *concept* (not the deleted skill) and stay intact, because the external harness IS still planned (Q5):
+- `references/key-concepts.md:115`, `references/v3-defaults.md:35,62`
+- `arc/references/arc-naming-conventions.md:60`, `arc/references/arc-phase-constants.md:23`, `arc/references/arc-resume.md:371`
+- `arc/references/arc-checkpoint-init.md:126,499` (different occurrences from U4's L226 edit)
+- `scripts/arc-phase-stop-hook.sh:475`
+
+**Non-Goals (preserved from plan):**
+- No external pr-guardian harness built in this PR. That's a separate project (per brainstorm scope table); the harness lands in a different repo/PR when Q5 resolves.
+- No Tier-C skill cuts (goldmask, debug, cc-inspect, supply-chain-audit, variant-hunt, skill-testing) — each needs per-skill cross-reference audit; deferred to Day 8.
+- No agent retirement — agents are the next axis (Day 8/9). Script retirement is limited to the 2 orphan helpers (`scripts/lib/pr-comment-{formatter,poster}.sh`) whose only callers were retired in U1-U5; no other scripts depend on the 5 deleted skills.
+- No migration shim, deprecation warning, or transitional command. Users typing `/rune:pr-guardian` see "skill not found" once and adopt the upstream `gh` CLI or wait for the Q5 harness.
+
+**Q1-Q5 plan recommendations applied verbatim:** No archive directory for deleted SKILL bodies (rely on git history per Days 1-6.5 precedent); arc-doc rewrites use "(planned, see brainstorm Q5)" qualifier; `cc-inspect` not cut opportunistically (Tier-C, deferred to Day 8); upstream `gh` CLI migration table included in this entry (above); Q5 (external harness MVP) remains explicitly open.
+
+---
+
 ## [3.0.0-alpha.8] — 2026-05-16
 
 **Day 6.5 Tier-A skill trim — reference-only skills with hook coverage retired.** Days 1-5 (alpha.1 → alpha.6) closed the brainstorm's deletion-shaped and arc-shaped cuts; Day 6 (alpha.7) merged the gap_analysis family into inspect. Day 6.5 takes the lowest-risk, highest-confidence slice of the brainstorm hard-budget axis (line 161 — *"≤ 15 skills total"*): **5 background-knowledge skills whose enforcement is already a hook, an inline snippet, or unused.**

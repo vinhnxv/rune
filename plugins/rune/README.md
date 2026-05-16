@@ -2,11 +2,11 @@
 
 Multi-agent engineering orchestration for [Claude Code](https://claude.ai/claude-code). Plan features, implement with swarm workers, review code, and ship — all with parallel AI agents that each get their own dedicated context window.
 
-**Current version**: [3.0.0-alpha.8](CHANGELOG.md) — v3 lean rebuild. Day 6.5 Tier-A skill trim retires 5 reference-only skills (zsh-compat, polling-guard, chome-pattern, runs, team-status); ZSH-001/POLL-001 hooks preserve runtime enforcement; CHOME pattern inlined as Core Rule #17.
+**Current version**: [3.0.0-alpha.9](CHANGELOG.md) — v3 lean rebuild. Day 7 Tier-B skill trim retires 5 GitHub-glue / harness-shaped skills (pr-guardian, resolve-gh-pr-comment, resolve-all-gh-pr-comments, post-findings, file-todos) — ≈ −5,257 LoC. Brainstorm Q5 (external harness MVP destination) remains open; cuts are reversible from git history.
 
 ## What Is This?
 
-This is the **Rune plugin** — the detailed component reference for the Rune multi-agent orchestration system. It documents all 116 agents (74 core + 42 extended, plus 13 shared resources), 37 skills, 11 commands, and the hook infrastructure that powers Rune's workflows.
+This is the **Rune plugin** — the detailed component reference for the Rune multi-agent orchestration system. It documents all 116 agents (74 core + 42 extended, plus 13 shared resources), 32 skills, 11 commands, and the hook infrastructure that powers Rune's workflows.
 
 For the high-level overview, see the [root README](../../README.md).
 
@@ -183,7 +183,6 @@ Rune is a token-intensive multi-agent system. Each workflow summons multiple age
 | `/rune:rest` | Clean up tmp/ artifacts |
 | `/rune:elicit` | Structured reasoning (Tree of Thoughts, Pre-mortem, etc.) |
 | `/rune:self-audit` | Meta-QA audit of Rune's own system health |
-| `/rune:pr-guardian` | Automated PR shepherd loop — cron-based auto-merge |
 | `/rune:cancel-arc` | Cancel active pipeline |
 
 For the full command reference with all flags and options, see the [Command Reference Guide](../../docs/guides/rune-command-reference.en.md).

@@ -134,9 +134,6 @@ Catch-all; sub-sections enabled by default unless noted.
 | `self_audit.enabled / phase_injection` | `true` |
 | `self_audit.auto_suggest_threshold / promotion_threshold / max_injection_entries` | `3` |
 | `self_audit.auto_suggest_debounce_hours / max_injection_tokens` | `24 / 500` |
-| `file_todos.history.enabled / manifest.auto_build` | `true` |
-| `file_todos.manifest.dedup_on_build / triage.auto_approve_p1` | `false` |
-| `file_todos.manifest.dedup_threshold` | `0.7` |
 | `strive.frontend_component_context.enabled` | `true`; `max_profile_lines / token_cap_lines` `200 / 50` |
 | `deployment_verification.enabled / auto_run_on_migrations` | `false`; `output_dir` `"tmp/deploy/"` |
 | `design_sync / storybook / arc_hierarchy / integrations` | `{}` (subsystems off in v3.x) |

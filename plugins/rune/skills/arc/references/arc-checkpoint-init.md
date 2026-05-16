@@ -223,7 +223,8 @@ function computeSkipMap(arcConfig, designSync, storybook, ux, planMeta, planFile
 
   // ── Bot review phases removed in v3.0.0-alpha.2 ──
   // bot_review_wait + pr_comment_resolution moved out of default PHASE_ORDER.
-  // Use external pr-guardian harness or /rune:resolve-all-gh-pr-comments.
+  // Use the external pr-guardian harness (planned, see brainstorm Q5) or
+  // upstream `gh` CLI (e.g., `gh pr view --comments`).
 
   // ── Test phase ──
   if (arcConfig.no_test) {

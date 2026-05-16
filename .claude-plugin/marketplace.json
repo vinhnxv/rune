@@ -13,8 +13,8 @@
   "plugins": [
     {
       "name": "rune",
-      "description": "Multi-agent engineering orchestration for Claude Code. Plan, work, review, mend, ship via /rune:arc with checkpoint framework, QA phases, Discipline Engineering, and Agent Teams. v3.0.0-alpha.8: Day 6.5 Tier-A skill trim — 5 reference-only skills retired (zsh-compat + polling-guard cuts preserve ZSH-001/POLL-001 hook enforcement; chome-pattern inlined as Core Rule #17 in CLAUDE.md; runs deleted; team-status merged into status). Skill count 42 → 37; ≈ −1,000 LoC.",
-      "version": "3.0.0-alpha.8",
+      "description": "Multi-agent engineering orchestration for Claude Code. Plan, work, review, mend, ship via /rune:arc with checkpoint framework, QA phases, Discipline Engineering, and Agent Teams. v3.0.0-alpha.9: Day 7 Tier-B skill trim — 5 GitHub-glue / harness-shaped skills retired (pr-guardian, resolve-gh-pr-comment, resolve-all-gh-pr-comments, post-findings, file-todos). Skill count 37 → 32; ≈ −5,257 LoC. Brainstorm Q5 (external harness MVP) remains open; cuts reversible from git history.",
+      "version": "3.0.0-alpha.9",
       "author": {
         "name": "vinhnxv",
         "email": "vinh.ngxv@gmail.com",
@@ -58,17 +58,12 @@
         "./skills/devise",
         "./skills/discipline",
         "./skills/elicitation",
-        "./skills/file-todos",
         "./skills/forge",
         "./skills/git-worktree",
         "./skills/goldmask",
         "./skills/inner-flame",
         "./skills/inspect",
         "./skills/mend",
-        "./skills/post-findings",
-        "./skills/pr-guardian",
-        "./skills/resolve-all-gh-pr-comments",
-        "./skills/resolve-gh-pr-comment",
         "./skills/resolve-todos",
         "./skills/roundtable-circle",
         "./skills/rune-orchestration",

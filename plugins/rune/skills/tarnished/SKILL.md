@@ -60,9 +60,9 @@ Read `$ARGUMENTS`. Three paths:
 
 Fast-path keywords: `plan`, `work`, `review`, `brainstorm`, `explore`, `devise`,
 `strive`, `appraise`, `audit`, `arc`,
-`forge`, `mend`, `inspect`, `goldmask`, `elicit`, `rest`, `variant-hunt`, `supply-chain-audit`, `post-findings`,
+`forge`, `mend`, `inspect`, `goldmask`, `elicit`, `rest`, `variant-hunt`, `supply-chain-audit`,
 `ship`, `fix`, `debug`, `cancel`,
-`file-todos`, `resolve-comments`, `resolve-comment`, `resolve-todos`,
+`resolve-todos`,
 `skill-testing`, `status`, `team-delegate`,
 `self-audit`.
 
@@ -71,6 +71,11 @@ Fast-path keywords: `plan`, `work`, `review`, `brainstorm`, `explore`, `devise`,
 > and `/rune:arc` (`--quick-mode`) respectively. Natural-language phrasing for
 > these is still picked up via the catalog in
 > [skill-catalog.md](references/skill-catalog.md).
+>
+> Note: `file-todos`, `resolve-comments`, `resolve-comment`, `pr-guardian`, and
+> `post-findings` were retired in v3.0.0-alpha.9 (Day 7 Tier-B trim) — those
+> GitHub-glue / harness-shaped skills moved to the external pr-guardian harness
+> (planned, see brainstorm Q5) or upstream `gh` CLI.
 
 **Path C — Natural language** (no keyword match):
 ```

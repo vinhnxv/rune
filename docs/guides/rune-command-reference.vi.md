@@ -84,7 +84,6 @@ Hướng dẫn liên quan:
 |------|----------|
 | `/rune:tarnished` | Router thống nhất theo ngôn ngữ tự nhiên |
 | `/rune:elicit` | Chọn phương pháp suy luận có cấu trúc |
-| `/rune:file-todos` | Quản lý todo file-based theo session |
 | `/rune:rest` | Dọn artifact workflow đã hoàn thành trong `tmp/` |
 
 ---
