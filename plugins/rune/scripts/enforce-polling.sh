@@ -1,6 +1,12 @@
 #!/bin/bash
 # scripts/enforce-polling.sh
 # POLL-001: Enforce monitoring loop fidelity during active Rune workflows.
+# Reference: plugin CLAUDE.md Core Rule #9 (polling loop fidelity) documents the
+# user-facing rule; this script is the runtime enforcement. The canonical loop
+# pattern lives in skills/roundtable-circle/references/monitor-utility.md. The
+# `polling-guard` reference SKILL was retired in v3.0.0-alpha.8 (Day 6.5) —
+# this file's allowlist logic is now the canonical source for the rules.
+#
 # Uses an ALLOWLIST approach: during active workflows, only bare "sleep N"
 # commands are permitted. Any sleep combined with other commands (echo, printf,
 # pipes, chains) is blocked — preventing polling anti-patterns that skip TaskList.

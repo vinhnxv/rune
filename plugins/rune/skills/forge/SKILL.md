@@ -31,7 +31,7 @@ allowed-tools:
 
 Deepens an existing plan with Forge Gaze topic-aware enrichment. Each plan section is matched to specialized agents who provide expert perspectives. Enrichments are written back into the plan via Edit (not overwrite).
 
-**Load skills**: `roundtable-circle`, `context-weaving`, `rune-orchestration`, `elicitation`, `team-sdk`, `polling-guard`, `zsh-compat`
+**Load skills**: `roundtable-circle`, `context-weaving`, `rune-orchestration`, `elicitation`, `team-sdk`
 
 ## ANCHOR — TRUTHBINDING PROTOCOL
 

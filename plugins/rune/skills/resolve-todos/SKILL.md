@@ -30,7 +30,7 @@ allowed-tools:
 
 Resolves file-based TODOs using Agent Teams with a **verify-before-fix** pipeline. Combines parallel batch processing with hallucination prevention patterns.
 
-**Load skills**: `file-todos`, `inner-flame`, `zsh-compat`, `rune-orchestration`, `team-sdk`, `polling-guard`
+**Load skills**: `file-todos`, `inner-flame`, `rune-orchestration`, `team-sdk`
 
 ## Overview
 
@@ -187,7 +187,7 @@ for (const [file, fileTodos] of fileGroups) {
   fileIdx++
 }
 
-// waitForCompletion(): Defined in polling-guard skill / monitor-utility.md.
+// waitForCompletion(): See roundtable-circle/references/monitor-utility.md.
 // TaskList-based polling per Core Rule 9. Count arg is CUMULATIVE total.
 // maxIterations = ceil(timeoutMs / pollIntervalMs) = ceil(180000 / 30000) = 6
 // Per cycle: TaskList() → count completed → check stale → Bash("sleep 30", { run_in_background: true }) → repeat
@@ -262,7 +262,7 @@ for (const wave of verifierWaves) {
     verifierIdx++
   }
   totalVerifiersSpawned += waveSize
-  // waitForCompletion(): See polling-guard skill for definition.
+  // waitForCompletion(): See roundtable-circle/references/monitor-utility.md for definition.
   // Count arg is CUMULATIVE (total completed tasks to wait for across team).
   // Verification requires code analysis → longer 5 min timeout
   // Count is CUMULATIVE across all phases: context agents + verifiers spawned so far
@@ -353,7 +353,7 @@ for (const wave of fixerWaves) {
     fixerIdx++
   }
   totalFixersSpawned += waveSize
-  // waitForCompletion(): See polling-guard skill. Count is CUMULATIVE.
+  // waitForCompletion(): See roundtable-circle/references/monitor-utility.md. Count is CUMULATIVE.
   waitForCompletion(teamName, totalFixersSpawned, {
     timeoutMs: 300_000,
     pollIntervalMs: 30_000,
@@ -399,7 +399,7 @@ See [phase7-cleanup.md](references/phase7-cleanup.md) for the full cleanup proto
 
 ## Dependencies
 
-- **Existing skills**: `file-todos` (TODO file format), `inner-flame` (self-review), `zsh-compat` (shell safety), `rune-orchestration` (team coordination), `polling-guard` (TaskList polling)
+- **Existing skills**: `file-todos` (TODO file format), `inner-flame` (self-review), `rune-orchestration` (team coordination)
 - **Existing agents**: `mend-fixer` (reused for fixes)
 - **New agent**: `todo-verifier` (custom verifier agent)
 - **New hook**: `validate-resolve-fixer-paths.sh` (SEC-RESOLVE-001)

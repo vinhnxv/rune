@@ -45,7 +45,7 @@ Do not auto-invoke heavyweight commands — suggest and let the user confirm.
 | "Fix this PR comment" / "resolve comment" | `/rune:resolve-gh-pr-comment` | Resolve a single GitHub PR review comment |
 | "Resolve TODOs" / "fix TODOs" / "clean up TODOs" | `/rune:resolve-todos` | Resolve file-based TODOs with verify-before-fix pipeline |
 | "Test skill" / "eval skill" / "pressure test" | `/rune:skill-testing` | TDD methodology for skill testing and evaluation |
-| "Team status" / "check teammates" / "agent health" | `/rune:team-status` | Background team health dashboard |
+| "Status" / "team status" / "check teammates" / "agent health" / "dispatch status" | `/rune:status` | Active-team dashboard + background-dispatch report |
 | "Post findings to PR" / "share review on PR" / "post to GitHub" / "comment on PR with findings" | `/rune:post-findings` | Post Rune review findings to GitHub PR as formatted comment |
 | "Self-audit" / "audit arc run" / "check arc quality" / "hallucination detection" / "agent effectiveness" / "check rune health" / "lint agents" / "meta-qa" | `/rune:self-audit` | Meta-QA self-audit — static analysis + runtime arc artifact analysis |
 | "Supply chain audit" / "dependency risk" / "check dependencies" / "package security" / "abandoned packages" | `/rune:supply-chain-audit` | Analyze project dependencies for maintainer risk, abandonment, and CVE history |
@@ -106,7 +106,7 @@ These are common requests that Claude should handle directly — no agent team r
 | `/rune:resolve-gh-pr-comment` | No | 1-3 min | PR comment URL or ID |
 | `/rune:resolve-todos` | Yes (per batch) | 5-15 min | TODO file path |
 | `/rune:skill-testing` | No | 2-10 min | Skill name |
-| `/rune:team-status` | No | <1 min | None |
+| `/rune:status` | No | <1 min | Optional: timestamp or team-name |
 | `/rune:post-findings` | No | 1-3 min | TOME file path + PR number |
 | `/rune:self-audit` | Yes (3 agents) | 2-5 min | None (auto-detects latest arc) |
 | `/rune:plan` | (alias for `/rune:devise`) |||

@@ -34,8 +34,7 @@ The four-pillar essence (v3.0.0-alpha.4): `/rune:arc` + checkpoint framework, QA
 | **skill-testing** | TDD methodology for skills |
 | **tarnished** | Master router — natural-language entry to all workflows |
 | **using-rune** | Workflow discovery and intent routing |
-| **status** | Background dispatch status |
-| **team-status** | Team health dashboard |
+| **status** | Active-team dashboard + background-dispatch report (absorbed `team-status` in alpha.8) |
 
 ### Background Knowledge (auto-loaded, non-invocable)
 
@@ -50,12 +49,8 @@ The four-pillar essence (v3.0.0-alpha.4): `/rune:arc` + checkpoint framework, QA
 | **systematic-debugging** | 4-phase methodology for repeated failures |
 | **testing** | Test orchestration pipeline knowledge for arc test phase |
 | **elicitation** | Curated structured reasoning methods |
-| **chome-pattern** | CLAUDE_CONFIG_DIR resolution for multi-account support |
-| **polling-guard** | TaskList-based polling protocol |
-| **zsh-compat** | zsh shell compatibility patterns |
 | **ash-guide** | Agent invocation reference |
 | **team-sdk** | Centralized team management SDK |
-| **runs** | Workflow run history and diagnostics |
 | **git-worktree** | Worktree lifecycle for `/rune:strive --worktree` |
 
 ## Commands
@@ -113,6 +108,14 @@ Rune implements structural discipline enforcement across all pipelines. See `doc
 14. **TaskOutput deprecated** (Claude Code v2.1.83): Use `Read` on the background task's output file path instead.
 15. **Iron Law ARC-QA-001 — Verify Before Skip**: Before marking any phase as `skipped` with reasoning that invokes "agent failure" or "team torn down", run a 3-check protocol: (a) Sentinel check (`Glob("tmp/arc/{id}/.done/*.done")`), (b) Artifact check (`Glob("tmp/arc/{id}/qa/*-verdict.json")`), (c) Git check (`git log --since '10 minutes ago'`). If ANY returns evidence of completion, the phase is NOT failed — flip to `completed`.
 16. **Iron Law ARC-QA-002 — Stop Hook Self-Heal Precedence**: The stop hook MUST check for late-arriving artifacts before retrying any `in_progress` phase. Self-heal protocol in `scripts/lib/arc-phase-self-heal.sh`. Scope: QA phases only (`forge_qa`, `work_qa`, `code_review_qa`, `mend_qa`, `test_qa`). _(gap_analysis_qa retired in v3.0.0-alpha.7 Day 6 Q3.)_
+17. **CLAUDE_CONFIG_DIR multi-account support (CHOME pattern)**: Users may set `CLAUDE_CONFIG_DIR` to a custom path (e.g., `~/.claude-work`). All `Bash()` commands that touch the config directory MUST resolve via `CHOME` — hardcoding `~/.claude/` silently targets the wrong directory in multi-account setups. Specialized SDK calls (`TeamCreate`, `TeamDelete`, `TaskList`, `SendMessage`) auto-resolve internally and are safe; generic `Read`/`Write`/`Glob` and `Bash()` do not.
+    - **Canonical pattern** (`Bash()` operations on teams/tasks dirs):
+      ```bash
+      CHOME="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+      rm -rf "$CHOME/teams/..." "$CHOME/tasks/..." 2>/dev/null
+      find "$CHOME/teams/" -maxdepth 1 -type d \( -name "rune-*" -o -name "arc-*" \) -exec rm -rf {} + 2>/dev/null
+      ```
+    - **Audit (targeted)**: `rg 'Bash\([^)]*~/\.claude/' plugins/rune/` — finds Bash() call sites with hardcoded `~/.claude/`. Each hit is a violation. The broader `rg '~/\.claude/' plugins/rune/` also works but returns false positives in CHANGELOG, prose, and comments.
 
 ## Teammate Lifecycle Safety
 

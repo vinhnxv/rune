@@ -8,8 +8,6 @@ A simplified alternative to the full 19-phase arc pipeline for small-to-medium f
 
 **Early return**: This branch runs BEFORE `arc-preflight.md`, `arc-checkpoint-init.md`, and PHASE_ORDER dispatch. Quick-mode is a stateless single-turn delegation chain — no checkpoint, no Stop hook loop, no `--resume`. If quick-mode fails, rerun the command.
 
-**Load skills**: `polling-guard`, `zsh-compat`.
-
 ## Flags Recognised
 
 | Flag | Effect |

@@ -2,11 +2,11 @@
 
 Multi-agent engineering orchestration for [Claude Code](https://claude.ai/claude-code). Plan features, implement with swarm workers, review code, and ship — all with parallel AI agents that each get their own dedicated context window.
 
-**Current version**: [3.0.0-alpha.4](CHANGELOG.md) — v3 lean rebuild. Day-3 talisman complete removal lands: 157 call sites baked, talisman skill+scripts+4 docs deleted, ~10.5K LoC removed.
+**Current version**: [3.0.0-alpha.8](CHANGELOG.md) — v3 lean rebuild. Day 6.5 Tier-A skill trim retires 5 reference-only skills (zsh-compat, polling-guard, chome-pattern, runs, team-status); ZSH-001/POLL-001 hooks preserve runtime enforcement; CHOME pattern inlined as Core Rule #17.
 
 ## What Is This?
 
-This is the **Rune plugin** — the detailed component reference for the Rune multi-agent orchestration system. It documents all 116 agents (74 core + 42 extended, plus 13 shared resources), 45 skills, 11 commands, and the hook infrastructure that powers Rune's workflows.
+This is the **Rune plugin** — the detailed component reference for the Rune multi-agent orchestration system. It documents all 116 agents (74 core + 42 extended, plus 13 shared resources), 37 skills, 11 commands, and the hook infrastructure that powers Rune's workflows.
 
 For the high-level overview, see the [root README](../../README.md).
 

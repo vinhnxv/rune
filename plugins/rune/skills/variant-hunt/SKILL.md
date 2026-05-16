@@ -16,7 +16,7 @@ argument-hint: "<finding-id | pattern-description | TOME-path>"
 Systematic variant analysis: given a confirmed finding, search the codebase for
 similar patterns that may have the same defect.
 
-**Load skills**: `team-sdk`, `polling-guard`, `zsh-compat`
+**Load skills**: `team-sdk`
 
 ## Usage
 

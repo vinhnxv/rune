@@ -16,7 +16,7 @@ disable-model-invocation: false
 
 Centralizes Agent Team lifecycle operations that are currently duplicated across 11+ workflow skills (~900 lines of shared patterns). Provides a single ExecutionEngine interface with 10 methods covering the full team lifecycle: creation, idempotent bootstrap, agent spawning, monitoring, shutdown, and cleanup.
 
-**Load skills**: `chome-pattern`, `polling-guard`, `zsh-compat`
+**CHOME pattern**: All `Bash()` operations on teams/tasks dirs must resolve `CLAUDE_CONFIG_DIR` via the `CHOME` shell variable. See plugin `CLAUDE.md` Core Rule #17 for the canonical snippet and audit command.
 
 ## Why This Exists
 

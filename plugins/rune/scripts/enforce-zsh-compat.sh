@@ -1,6 +1,11 @@
 #!/bin/bash
 # scripts/enforce-zsh-compat.sh
 # ZSH-001: Block zsh-incompatible patterns in Bash commands.
+# Reference: plugin CLAUDE.md Core Rule #8 (zsh compatibility) documents the
+# user-facing rules; this script is the runtime enforcement. The `zsh-compat`
+# reference SKILL was retired in v3.0.0-alpha.8 (Day 6.5) — this file's
+# auto-fix logic is now the canonical source for the patterns.
+#
 # macOS uses zsh as the default shell. Two common zsh pitfalls:
 #
 # (A) Read-only variable assignment:

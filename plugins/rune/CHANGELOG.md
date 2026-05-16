@@ -1,5 +1,39 @@
 # Changelog
 
+## [3.0.0-alpha.8] — 2026-05-16
+
+**Day 6.5 Tier-A skill trim — reference-only skills with hook coverage retired.** Days 1-5 (alpha.1 → alpha.6) closed the brainstorm's deletion-shaped and arc-shaped cuts; Day 6 (alpha.7) merged the gap_analysis family into inspect. Day 6.5 takes the lowest-risk, highest-confidence slice of the brainstorm hard-budget axis (line 161 — *"≤ 15 skills total"*): **5 background-knowledge skills whose enforcement is already a hook, an inline snippet, or unused.**
+
+Net delta: **−5 skills (zsh-compat, polling-guard, chome-pattern, runs, team-status; skill count 42 → 37), ≈ −1,000 LoC.** Hooks ZSH-001 and POLL-001 untouched — they ARE the enforcement; only the reference SKILLs are cut. Agents, commands, and arc phases unchanged (Day 7 owns the agent axis).
+
+Brainstorm success-criteria progress: **#1** (skills ≤ 15) **42 → 37** — gap closes from −27 to −22. Further cuts deferred: Tier B (pr-guardian, resolve-gh-pr-comment, resolve-all-gh-pr-comments, post-findings, file-todos) waits on the brainstorm Q5 external-harness MVP decision; Tier C (goldmask, debug, cc-inspect, supply-chain-audit, variant-hunt, skill-testing) needs per-skill cross-reference audits.
+
+**U1 — `zsh-compat` deleted (hook preserved):** Plugin skill body (235 LoC SKILL.md + references/glob-nomatch-patterns.md) retired. `enforce-zsh-compat.sh` PreToolUse hook (ZSH-001) still fires — it auto-fixes patterns at runtime when zsh is detected, independent of the SKILL. 20 "Load skills:" cross-references swept across appraise/arc/audit/brainstorm/debug/devise/forge/goldmask/inspect/mend/resolve-todos/roundtable-circle/self-audit/strive/supply-chain-audit/team-sdk/variant-hunt + 2 reference files. _Commit: `e3859a27`_
+
+**U2 — `polling-guard` deleted (hook preserved):** Plugin skill body (131 LoC SKILL.md + references/condition-based-waiting.md) retired. `enforce-polling.sh` PreToolUse hook (POLL-001) still blocks `sleep+echo` anti-patterns at runtime. 17 "Load skills:" entries + 11 narrative cross-references swept; narrative refs now point at `roundtable-circle/references/monitor-utility.md` (canonical loop pattern) and the POLL-001 hook header. `roundtable-circle/references/monitor-utility.md` updated: 3-layer enforcement pyramid description collapses to 2-layer (hook + text warnings). _Commit: `2d79be95`_
+
+**U3 — `chome-pattern` inlined into CLAUDE.md Core Rule #17:** Plugin skill body (155 LoC SKILL.md + references/canonical-patterns.md) retired. Canonical 5-line CHOME snippet + rationale + audit command moved inline as Core Rule #17 in `plugins/rune/CLAUDE.md`. `team-sdk/SKILL.md` Load-skills entry replaced with a pointer at the new Core Rule. _Commit: `af906f77`_
+
+**U4 — `runs` deleted (zero cross-refs):** Per-agent artifact inspector skill body (288 LoC) retired. One tarnished `skill-catalog.md` row removed; one `/rune:runs` mention in `detect-workflow-complete.sh` comment rewritten to describe downstream consumers in the abstract (the meta.json crash-detection logic remains). No agent or hook depended on the SKILL. _Commit: `50f3f32d`_
+
+**U5 — `team-status` merged into `status`:** `/rune:status` now subsumes `/rune:team-status` — discovers all active team types (review/audit/work/plan/mend/debug/forge/dispatch) via state-file patterns, renders per-team dashboards, AND keeps the existing detailed background-dispatch report when a timestamp argument is passed. Argument is classified as timestamp (`\d{8}-\d{6}`) vs team-name (`[a-zA-Z0-9_-]+`). Routing surfaces repointed: tarnished SKILL.md fast-path keyword swapped `team-status` → `status`; `intent-patterns.md` and `skill-catalog.md` entries combined as `status / team-status / team health / dispatch status` → `/rune:status`; `using-rune/SKILL.md` rows updated; `team-sdk/references/engines.md` getStatus()'s docstring rewires `/rune:team-status` → `/rune:status`. Users typing `/rune:team-status` see "skill not found" once, then learn the new command (no migration shim per Non-Goals). _Commit: `a5ddcb24`_
+
+**U6 — Docs sweep + version bump:** `plugin.json` + `marketplace.json` to `3.0.0-alpha.8`; descriptions rewritten. CLAUDE.md Background Knowledge skill table drops 4 rows (`zsh-compat`, `polling-guard`, `chome-pattern`, `runs`); Core Workflows table absorbs the team-status row into an expanded `status` row. README.md skill count bumped to 37 (was stale at 45); version line refreshed to alpha.8. CHANGELOG entry (this section). _Commit: TBD_
+
+**Coordination with Day 6:** Day 6 (alpha.7) landed first as recommended. Day 6.5 lands as **alpha.8** on the existing tip.
+
+**Non-Goals (preserved from plan):**
+- Hooks ZSH-001 and POLL-001 are NOT removed. The hooks ARE the enforcement; only the reference SKILLs are cut. Discipline preserved per brainstorm constraint classification (line 196 — HARD essence).
+- CLAUDE.md broader trim to ≤300 lines deferred to Day 9+.
+- No migration shim for `/rune:team-status` (brainstorm Non-Goals line 181 — "no backward compat — v3.x not compatible with v2.x").
+- No `--dispatch-only` / `--teams-only` flags added to `/rune:status` — additive-free per ce-plan Phase 3.7.
+
+**Hook coverage verified:** `hooks.json` still wires `enforce-zsh-compat.sh` and `enforce-polling.sh` PreToolUse handlers; both scripts present and executable. Cuts assume hooks are immortal.
+
+**Q1-Q5 recommendations applied verbatim:** No archive directory for deleted SKILL bodies (rely on git history per Day 1-5 precedent); CHOME inlined as a tagged code fence (greppable from scripts); no `--teams-only` flag; no transitional shim for `/rune:team-status`; runs cut not deferred (zero pre-execution audit hits).
+
+---
+
 ## [3.0.0-alpha.7] — 2026-05-16
 
 **Day 6 gap_analysis family merge into the unified inspect engine.** Day 5 (alpha.6) collapsed five arc phases via the absorb-into-parent pattern, leaving PHASE_ORDER at 19. Day 6 takes the next slice from the brainstorm's **"Day 8-14 (refactor — preserves essence)"** track (cut-list line 148 — *"Merge `gap_analysis` arc phase into `inspect` engine (same job)"*): the verification phase group dissolves entirely, and inspect becomes the unified plan-vs-implementation engine spanning **deterministic checks + inspector verdict + halt-gate + remediation** under one phase boundary.
