@@ -30,9 +30,9 @@ per-phase reference files (timeout values), arc-resume.md (schema migration)
 //   - plan_refine → plan_review (this commit, C4a)
 //   - drift_review → work (C4b — as a post-step before work_qa runs)
 //   - inspect_fix + verify_inspect → inspect (C4c — inspect timeout bumped to 34 min to cover audit + fix + convergence eval per round)
-//   - verify_mend → mend_qa (C4d)
+//   - verify_mend → mend_qa (C4d — convergence eval runs as a post-step inside runQAGate() for mend_qa; see arc-phase-qa-gate.md)
 //   - deploy_verify + pre_ship_validation → ship (C4e)
-const PHASE_ORDER = ['forge', 'forge_qa', 'plan_review', 'verification', 'work', 'work_qa', 'gap_analysis', 'gap_analysis_qa', 'gap_remediation', 'inspect', 'code_review', 'code_review_qa', 'verify', 'mend', 'mend_qa', 'verify_mend', 'test', 'test_qa', 'deploy_verify', 'pre_ship_validation', 'ship', 'merge']
+const PHASE_ORDER = ['forge', 'forge_qa', 'plan_review', 'verification', 'work', 'work_qa', 'gap_analysis', 'gap_analysis_qa', 'gap_remediation', 'inspect', 'code_review', 'code_review_qa', 'verify', 'mend', 'mend_qa', 'test', 'test_qa', 'deploy_verify', 'pre_ship_validation', 'ship', 'merge']
 
 // SYNC-CRITICAL: PHASE_GROUPS is duplicated in:
 //   1. This file (JavaScript reference for group definitions)
@@ -44,7 +44,7 @@ const PHASE_GROUPS = [
   { id: 'work',         phases: ['work', 'work_qa'] },
   { id: 'verification', phases: ['gap_analysis', 'gap_analysis_qa', 'gap_remediation'] },
   { id: 'inspect',      phases: ['inspect'] },
-  { id: 'review',       phases: ['code_review', 'code_review_qa', 'verify', 'mend', 'mend_qa', 'verify_mend'] },
+  { id: 'review',       phases: ['code_review', 'code_review_qa', 'verify', 'mend', 'mend_qa'] },
   { id: 'testing',      phases: ['test', 'test_qa'] },
   { id: 'ship',         phases: ['deploy_verify', 'pre_ship_validation', 'ship', 'merge'] },
 ]
@@ -111,7 +111,9 @@ const PHASE_TIMEOUTS = {
   inspect:       2_040_000,  // 34 min (audit + fix + convergence per round)
   code_review:   900_000,    // 15 min (inner 10m + 5m setup)
   mend:          1_380_000,  // 23 min (inner 15m + 5m setup + 3m ward/cross-file)
-  verify_mend:   240_000,    //  4 min (orchestrator-only, no team)
+  // v3.0.0-alpha.6 (Day 5 C4d): verify_mend absorbed into mend_qa as a post-step.
+  // mend_qa now bears the convergence-eval budget; bump from 5 min to 9 min
+  // (5m QA agent + 4m orchestrator-only convergence eval).
   test:          1_500_000,  // 25 min without E2E. Dynamic: 50 min with E2E (3_000_000)
   deploy_verify: 300_000,    //  5 min (conditional — gated by migration/API/config file changes)
   pre_ship_validation: 360_000,  //  6 min (orchestrator-only)
@@ -124,7 +126,7 @@ const PHASE_TIMEOUTS = {
   work_qa:         300_000,  //  5 min (QA gate — 1 agent)
   gap_analysis_qa: 300_000,  //  5 min (QA gate — 1 agent)
   code_review_qa:  300_000,  //  5 min (QA gate — 1 agent)
-  mend_qa:         300_000,  //  5 min (QA gate — 1 agent)
+  mend_qa:         540_000,  //  9 min (QA gate 5m + post-step convergence eval 4m — v3.0.0-alpha.6 C4d)
   test_qa:         300_000,  //  5 min (QA gate — 1 agent)
 }
 ```
@@ -186,7 +188,8 @@ function calculateDynamicTimeout(tier) {
     PHASE_TIMEOUTS.code_review + PHASE_TIMEOUTS.code_review_qa +
     PHASE_TIMEOUTS.verify +
     PHASE_TIMEOUTS.mend + PHASE_TIMEOUTS.mend_qa +
-    PHASE_TIMEOUTS.verify_mend +
+    // v3.0.0-alpha.6: verify_mend absorbed into mend_qa post-step (Day 5 C4d).
+    // The 4 min of convergence-eval budget moved into mend_qa's bumped 9 min total.
     PHASE_TIMEOUTS.test + PHASE_TIMEOUTS.test_qa +
     PHASE_TIMEOUTS.deploy_verify +  // DECR-001 fix: was missing from budget
     PHASE_TIMEOUTS.pre_ship_validation +

@@ -31,8 +31,9 @@ _lookup_phase_group() {
     inspect)
       echo "inspect" ;;
     # v3.0.0-alpha.6 (Day 5 C4c): inspect_fix + verify_inspect absorbed into inspect.
-    code_review|code_review_qa|verify|mend|mend_qa|verify_mend)
+    code_review|code_review_qa|verify|mend|mend_qa)
       echo "review" ;;
+    # v3.0.0-alpha.6 (Day 5 C4d): verify_mend absorbed into mend_qa post-step.
     test|test_qa)
       echo "testing" ;;
     # v3.0.0-alpha.2: bot_review_wait, pr_comment_resolution removed from default order.

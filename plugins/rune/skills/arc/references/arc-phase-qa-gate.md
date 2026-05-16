@@ -755,6 +755,30 @@ async function runQAGate(id, parentPhase, checkpoint) {
       }
     }
 
+    // v3.0.0-alpha.6 (Day 5 C4d): Post-mend_qa convergence eval.
+    // verify_mend was previously its own PHASE_ORDER phase that ran after mend_qa.
+    // It is now absorbed into mend_qa as a post-step — invoked here only when
+    // mend_qa advanced (i.e., the QA verdict was PASS/EXCELLENT, not a retry).
+    // The convergence eval may reset code_review + mend to "pending", causing
+    // the dispatcher's first-pending scan to loop back to code_review.
+    //
+    // Algorithm: see arc/references/verify-mend.md (kept as the canonical
+    // convergence-eval reference, no longer a dispatched phase).
+    if (parentPhase === "mend" && (verdictStr === "PASS" || verdictStr === "EXCELLENT")) {
+      try {
+        // Inline the verify-mend.md algorithm here. It reads the round-aware
+        // resolution-report, current TOME, evaluates convergence via
+        // evaluateConvergence(), and either:
+        //   - converge → mark complete, advance to test
+        //   - retry   → reset code_review + mend to "pending", dispatcher loops back
+        //   - halted  → mark complete with warning, advance to test
+        // See verify-mend.md for the full STEP 1-3 pseudocode and helper functions.
+        runMendQAConvergence(id, checkpoint)
+      } catch (e) {
+        warn(`mend_qa convergence post-step failed: ${e.message} — non-blocking, advancing to test`)
+      }
+    }
+
   } finally {
     // Always clean up QA team (standard 5-component pattern from CLAUDE.md)
     const allQAMembers = [agentName]  // Single dedicated agent per gate

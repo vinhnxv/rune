@@ -74,9 +74,9 @@ assert_eq "inspect → inspect" "inspect" "$(_lookup_phase_group "inspect")"
 # design_verification*, design_iteration) removed.
 
 # Review group
+# v3.0.0-alpha.6 (Day 5 C4d): verify_mend absorbed into mend_qa post-step.
 assert_eq "code_review → review" "review" "$(_lookup_phase_group "code_review")"
 assert_eq "mend → review" "review" "$(_lookup_phase_group "mend")"
-assert_eq "verify_mend → review" "review" "$(_lookup_phase_group "verify_mend")"
 
 # Testing group
 assert_eq "test → testing" "testing" "$(_lookup_phase_group "test")"
@@ -103,16 +103,17 @@ assert_eq "nonexistent → empty" "" "$(_lookup_phase_group "nonexistent")"
 # ══════════════════════════════════════════════════
 echo ""
 echo "=== Coverage: all PHASE_ORDER phases return non-empty group ==="
-# SYNC-CRITICAL: must match arc-phase-constants.md PHASE_ORDER (canonical, 22 entries
+# SYNC-CRITICAL: must match arc-phase-constants.md PHASE_ORDER (canonical, 21 entries
 # after v3.0.0-alpha.6 Day 5 absorptions: plan_refine→plan_review (C4a),
-# drift_review→work (C4b), inspect_fix+verify_inspect→inspect (C4c)).
+# drift_review→work (C4b), inspect_fix+verify_inspect→inspect (C4c),
+# verify_mend→mend_qa post-step (C4d)).
 # Any divergence indicates drift between bash/JS phase definitions.
 PHASE_ORDER=(
   forge forge_qa plan_review verification
   work work_qa
   gap_analysis gap_analysis_qa gap_remediation
   inspect
-  code_review code_review_qa verify mend mend_qa verify_mend
+  code_review code_review_qa verify mend mend_qa
   test test_qa
   deploy_verify pre_ship_validation ship merge
 )
@@ -124,8 +125,8 @@ for phase in "${PHASE_ORDER[@]}"; do
   COVERAGE_COUNT=$(( COVERAGE_COUNT + 1 ))
 done
 
-# Verify we tested exactly 22 phases (canonical PHASE_ORDER, no conditional extras)
-assert_eq "phase count is 22" "22" "$COVERAGE_COUNT"
+# Verify we tested exactly 21 phases (canonical PHASE_ORDER, no conditional extras)
+assert_eq "phase count is 21" "21" "$COVERAGE_COUNT"
 
 # ══════════════════════════════════════════════════
 # Results
