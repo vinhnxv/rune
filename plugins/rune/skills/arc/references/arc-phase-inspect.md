@@ -1,6 +1,51 @@
 # Phase 5.9: Inspect (Plan-vs-Implementation Audit + Fix + Convergence) — Full Algorithm
 
-Spawns 4 Inspector Ashes to evaluate plan-vs-implementation alignment, then spawns gap-fixers for FIXABLE findings (absorbed `inspect_fix` in v3.0.0-alpha.6 Day 5 C4c), then evaluates convergence and either retries or halts (absorbed `verify_inspect`). Output is aggregated by verdict-binder into a unified VERDICT.md.
+<!--
+v3.0.0-alpha.7 (Day 6) absorption notes — gap_analysis family merge
+
+The verification phase group (gap_analysis + gap_analysis_qa + gap_remediation) was
+collapsed into this single inspect phase. PHASE_ORDER 19 → 16. The 5 locked decisions
+that drove this absorption (recorded here so future readers see what was decided and why):
+
+  1. Verdict file canonical name → `VERDICT.md` (at `tmp/arc/{id}/inspect/VERDICT.md`).
+     The 4-Inspector verdict is a strict superset of the retired 2-Inspector
+     gap-analysis-verdict.md; one canonical name eliminates dual-consumer code paths.
+
+  2. Inspector pool → 4 Ashes (grace-warden, ruin-prophet, sight-oracle, vigil-keeper)
+     plus 1 verdict-binder. The 2-Inspector gap-analysis pass retires entirely. Token
+     cost rises ~6-10K per arc gap-detection cycle; brainstorm Devil's Advocate
+     analysis identified CLAUDE.md as the dominant token cost, not per-arc inspectors.
+
+  3. gap_analysis_qa checklist → dropped (Q3). The 13 GAP-STEP-XX items in
+     qa-manifests/gap-analysis.yaml and arc-phase-qa-gate.md are retired. Day 7's
+     parametric qa-verifier (brainstorm cut-list line 139) will replace the bar.
+     CHANGELOG documents the temporary quality-bar lowering.
+
+  4. Team prefix reconciliation:
+     - RETIRED: `arc-inspect-{id}` (gap_analysis STEP B), `arc-gap-fix-{id}` (gap_remediation)
+     - KEPT: `arc-inspect-full-{id}` (4-Inspector audit), `arc-inspect-fix-{id}` (gap-fixer dispatch)
+     - `arc-gap-fix-` stays in ARC_TEAM_PREFIXES for one alpha (Q4) as cleanup-only
+       insurance against orphan teams during the alpha-to-alpha transition.
+
+  5. artifact-extract mode → `inspect` (replaces `gap-analysis` mode in scripts/artifact-extract.sh).
+     Output path: tmp/arc/{id}/inspect-digest.json. v3-defaults.md keys renamed
+     immediately: arc.gap_analysis.* → arc.inspect.* (no dual-naming alpha — keys are
+     baked, no user-facing config benefit to deprecation cycle).
+
+The three LOAD-BEARING semantics preserved across the absorption (audit these on every
+future edit to this file):
+
+  - STEP D.0 Task Completion Gate (PR #310 fix, 2026-03-16): hardcoded 100% floor,
+    non-bypassable in non-headless mode. The `error()` call after needsRemediation
+    evaluation is the gate mechanism — preserve verbatim.
+  - STEP D.7 Plan writeback: appends "Implementation Status" section + DEFERRED tasks
+    back to checkpoint.plan_file. Enforces "no silent deferrals" invariant.
+  - SEC-GAP-001: validate-gap-fixer-paths.sh PreToolUse hook matches on agent name
+    "gap-fixer" verbatim. Path restrictions (.claude/, .github/, .env, node_modules/,
+    CI YAML) lapse silently if the agent name changes.
+-->
+
+Spawns 4 Inspector Ashes to evaluate plan-vs-implementation alignment, then spawns gap-fixers for FIXABLE findings (absorbed `inspect_fix` in v3.0.0-alpha.6 Day 5 C4c; absorbed `gap_remediation` in v3.0.0-alpha.7 Day 6), then evaluates convergence and either retries or halts (absorbed `verify_inspect`). Also runs deterministic pre-team checks (absorbed STEP A from `gap_analysis`) and a halt-decision gate with Task Completion Gate (absorbed STEP D from `gap_analysis`). Output is aggregated by verdict-binder into a unified VERDICT.md.
 
 **Teams**: `arc-inspect-full-{id}` (4 Inspector Ashes + 1 verdict-binder), then `arc-inspect-fix-{id}` (gap-fixer agents, conditional on verdict != READY)
 **Tools**: Read, Glob, Grep, Write, Edit, Bash (git diff), Agent, TeamCreate, TaskCreate, SendMessage
