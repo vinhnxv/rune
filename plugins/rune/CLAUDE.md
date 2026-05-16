@@ -34,8 +34,7 @@ The four-pillar essence (v3.0.0-alpha.4): `/rune:arc` + checkpoint framework, QA
 | **skill-testing** | TDD methodology for skills |
 | **tarnished** | Master router — natural-language entry to all workflows |
 | **using-rune** | Workflow discovery and intent routing |
-| **status** | Background dispatch status |
-| **team-status** | Team health dashboard |
+| **status** | Active-team dashboard + background-dispatch report (absorbed `team-status` in alpha.8) |
 
 ### Background Knowledge (auto-loaded, non-invocable)
 
@@ -50,12 +49,8 @@ The four-pillar essence (v3.0.0-alpha.4): `/rune:arc` + checkpoint framework, QA
 | **systematic-debugging** | 4-phase methodology for repeated failures |
 | **testing** | Test orchestration pipeline knowledge for arc test phase |
 | **elicitation** | Curated structured reasoning methods |
-| **chome-pattern** | CLAUDE_CONFIG_DIR resolution for multi-account support |
-| **polling-guard** | TaskList-based polling protocol |
-| **zsh-compat** | zsh shell compatibility patterns |
 | **ash-guide** | Agent invocation reference |
 | **team-sdk** | Centralized team management SDK |
-| **runs** | Workflow run history and diagnostics |
 | **git-worktree** | Worktree lifecycle for `/rune:strive --worktree` |
 
 ## Commands

@@ -13,8 +13,8 @@
   "plugins": [
     {
       "name": "rune",
-      "description": "Multi-agent engineering orchestration for Claude Code. Plan, work, review, mend, ship via /rune:arc with checkpoint framework, QA phases, Discipline Engineering, and Agent Teams. v3.0.0-alpha.7: Day 6 gap_analysis family merge — gap_analysis + gap_analysis_qa + gap_remediation (3 phases) absorbed into the unified inspect engine; arc PHASE_ORDER 19 → 16. STEP A deterministic checks + STEP D halt-gate (Task Completion Gate + plan writeback) live in inspect-step-a-deterministic.md and inspect-step-d-halt-gate.md sub-references; verification PHASE_GROUP deleted; qa-manifests/gap-analysis.yaml retired (Q3 — replacement deferred to Day 7 parametric qa-verifier).",
-      "version": "3.0.0-alpha.7",
+      "description": "Multi-agent engineering orchestration for Claude Code. Plan, work, review, mend, ship via /rune:arc with checkpoint framework, QA phases, Discipline Engineering, and Agent Teams. v3.0.0-alpha.8: Day 6.5 Tier-A skill trim — 5 reference-only skills retired (zsh-compat + polling-guard cuts preserve ZSH-001/POLL-001 hook enforcement; chome-pattern inlined as Core Rule #17 in CLAUDE.md; runs deleted; team-status merged into status). Skill count 42 → 37; ≈ −1,000 LoC.",
+      "version": "3.0.0-alpha.8",
       "author": {
         "name": "vinhnxv",
         "email": "vinh.ngxv@gmail.com",
