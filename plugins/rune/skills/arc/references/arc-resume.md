@@ -543,7 +543,53 @@ On resume, validate checkpoint integrity before proceeding:
    Write(checkpointPath, checkpoint)  // Save cleaned checkpoint
    ```
 
+6b. ### Absorbed-Phase Migration (alpha.5 → alpha.6, no schema_version bump)
+    Runs AFTER orphan cleanup (step 6), BEFORE resume dispatch (step 7). Prunes absorbed-phase
+    keys that may still exist in checkpoints created before v3.0.0-alpha.6. User policy: prune
+    silently with a warn log; no schema_version bump (semantic-only migration).
+
+    ```javascript
+    // alpha.5 → alpha.6 absorbed-phase pruning (no schema_version bump — semantic-only migration)
+    // These phases were absorbed or removed in v3.0.0-alpha.6 Day 5 (C4a-C4e).
+    // Pre-alpha.6 checkpoints may still carry these keys; they are no longer in PHASE_ORDER
+    // so the dispatcher would skip them, but pruning prevents confusion and stale status reads.
+    const ABSORBED_KEYS = ['plan_refine', 'drift_review', 'inspect_fix', 'verify_inspect', 'deploy_verify']
+    for (const key of ABSORBED_KEYS) {
+      if (checkpoint.phases?.[key]) {
+        const phaseStatus = checkpoint.phases[key].status
+        warn(`alpha.5 → alpha.6 migration: pruning absorbed phase '${key}' (status: ${phaseStatus}). Work products at tmp/arc/${checkpoint.id}/${key}/ remain on disk for manual inspection.`)
+        delete checkpoint.phases[key]
+      }
+    }
+    // Save cleaned checkpoint before resume dispatch
+    Write(checkpointPath, checkpoint)
+    ```
+
 7. Resume from first incomplete/failed/pending phase in PHASE_ORDER
+
+7_inspect. ### Inspect Substate Resume (v3.0.0-alpha.6 — #14)
+    When the inspect phase is `in_progress` and `checkpoint.phases.inspect.substate` is set,
+    restart from the corresponding step rather than STEP 1 (audit start). This avoids re-running
+    the full 4-inspector audit when a crash happened mid-fix or mid-convergence.
+
+    ```javascript
+    // Inject substate context into the inspect phase prompt on resume
+    if (checkpoint.phases?.inspect?.status === 'in_progress') {
+      const inspectSubstate = checkpoint.phases.inspect.substate
+      if (inspectSubstate === 'fix') {
+        warn('Resuming inspect phase from STEP 5 (fix) — skipping re-audit (substate: fix)')
+        // The inspect phase algorithm reads checkpoint.phases.inspect.substate and
+        // skips STEPs 1-4 (audit), jumping directly to STEP 5 (gap-fixer dispatch).
+        // substate: "fix" means VERDICT.md was written; fixable gaps not yet resolved.
+      } else if (inspectSubstate === 'convergence') {
+        warn('Resuming inspect phase from STEP 6 (convergence) — skipping re-audit and re-fix (substate: convergence)')
+        // substate: "convergence" means fix is done; convergence eval did not complete.
+        // STEP 6 re-evaluates using existing checkpoint metrics (no new team spawning).
+      }
+      // substate: "audit" or null → restart from STEP 1 (standard resume path)
+    }
+    ```
+
 7a. ### Suspended Task Resume (v1.106.0+)
     When the work phase is pending/failed and `checkpoint.phases.work.suspended_tasks` is non-empty,
     inject prior context into worker spawn prompts before launching the work wave.

@@ -387,7 +387,15 @@ Write(checkpointPath, {
     gap_analysis: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
     gap_analysis_qa: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, retry_count: 0, demotion_revert_count: 0 },
     gap_remediation: { status: "pending", artifact: null, artifact_hash: null, team_name: null, fixed_count: null, deferred_count: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
-    inspect: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, completion_pct: null, p1_count: null, verdict: null, inspect_fixed_count: null, inspect_deferred_count: null, inspect_reclassified_count: null, demotion_revert_count: 0 },
+    inspect: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, completion_pct: null, p1_count: null, verdict: null, inspect_fixed_count: null, inspect_deferred_count: null, inspect_reclassified_count: null, demotion_revert_count: 0, substate: null },
+    // inspect.substate tracks mid-phase resume position (v3.0.0-alpha.6 — #14):
+    //   "audit"       → STEP 1-4 (inspector ashes running)
+    //   "fix"         → STEP 5 (gap-fixer team running)
+    //   "convergence" → STEP 6 (convergence evaluation)
+    //   null          → not in progress / completed
+    // SCHEMA NOTE: substate is a nested field within phases.inspect — it does NOT add a new
+    // top-level key to phases[]. The 21-key invariant (19 PHASE_ORDER + verify_mend +
+    // pre_ship_validation) is unchanged. Test 4 in test-phase-groups.sh remains correct.
     // v3.0.0-alpha.6 (Day 5 C4c): inspect_fix + verify_inspect absorbed into inspect —
     // schema entries removed; intra-phase state (fixed/deferred/reclassified counts) lives on inspect itself.
     // v3.0.0-alpha.2: goldmask_verification + goldmask_correlation removed from default order.

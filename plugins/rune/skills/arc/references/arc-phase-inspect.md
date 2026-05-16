@@ -24,6 +24,8 @@ if (!checkpoint.plan_file || !Read(checkpoint.plan_file)) {
 }
 
 updateCheckpoint({ phase: 'inspect', status: 'in_progress', phase_sequence: 5.9, team_name: null })
+// Set initial substate: entering audit steps (STEP 1-4)
+updateCheckpoint({ phase: 'inspect', substate: 'audit' })
 ```
 
 ## STEP 1: Prepare Inspect Context
@@ -302,6 +304,9 @@ updateCheckpoint({
 <!-- findings, spawns a separate gap-fixer team to apply targeted fixes. -->
 
 ```javascript
+// Advance substate to "fix" — entering STEP 5 gap-fixer execution
+updateCheckpoint({ phase: 'inspect', substate: 'fix' })
+
 // Entry guard — skip if no verdict, verdict is READY, or VERDICT.md missing.
 const fixSkipReason = (
   !verdictContent                      ? 'no_verdict' :
@@ -365,6 +370,7 @@ if (fixSkipReason) {
     const fixTeamName = `arc-inspect-fix-${id}`
     TeamCreate({ team_name: fixTeamName })
 
+    try {
     const fixerNames = []
     let fixerIdx = 0
     for (const [file, gaps] of Object.entries(gapsByFile)) {
@@ -384,10 +390,15 @@ if (fixSkipReason) {
 
     waitForCompletion(fixTeamName, fixerNames.length, { timeoutMs: 600_000, pollIntervalMs: 30_000 })
 
+    } catch (e) {
+      warn(`inspect-fix team timed out / failed: ${e.message}`)
+      throw e
+    } finally {
     // ── STEP 5.3: Cleanup fix team (CLEAN-002 finally block) ──
-    // Same 5-component standard cleanup pattern as STEP 3.5 above. Dynamic
-    // member discovery with fallback to spawned fixer names. Force-reply +
-    // adaptive grace + TeamDelete retry-with-backoff + filesystem fallback.
+    // Always runs — even on timeout/exception. Same 5-component standard cleanup
+    // pattern as STEP 3.5 above. Dynamic member discovery with fallback to spawned
+    // fixer names. Force-reply + adaptive grace + TeamDelete retry-with-backoff +
+    // filesystem fallback.
     let fixAllMembers = []
     try {
       const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
@@ -426,6 +437,7 @@ if (fixSkipReason) {
       Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${fixTeamName}/" "$CHOME/tasks/${fixTeamName}/" 2>/dev/null`)
       try { TeamDelete() } catch (e) { /* best effort */ }
     }
+    } // end finally
 
     // ── STEP 5.4: Count fix results ──
     const fixCommits = Bash(`git log --oneline --since="30 minutes ago" --grep="fix(inspect):" | wc -l`).trim()
@@ -464,6 +476,8 @@ if (fixSkipReason) {
 }
 
 // ── STEP 6: Convergence Evaluation (absorbed verify_inspect) ──
+// Advance substate to "convergence" — entering STEP 6 convergence eval
+updateCheckpoint({ phase: 'inspect', substate: 'convergence' })
 // Decides whether to converge (move on to code_review), retry (loop back),
 // or halt (give up gracefully).
 
@@ -546,6 +560,7 @@ if (convergenceVerdict === 'retry') {
     phase: 'inspect', status: 'completed', phase_sequence: 5.9,
     artifact: `tmp/arc/${id}/inspect-verdict.md`,
     artifact_hash: sha256(verdictContent),
+    substate: null,  // clear substate on completion
   })
 } else {
   // 'converge'
@@ -553,6 +568,7 @@ if (convergenceVerdict === 'retry') {
     phase: 'inspect', status: 'completed', phase_sequence: 5.9,
     artifact: `tmp/arc/${id}/inspect-verdict.md`,
     artifact_hash: sha256(verdictContent),
+    substate: null,  // clear substate on completion
   })
 }
 ```

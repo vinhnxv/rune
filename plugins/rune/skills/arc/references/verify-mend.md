@@ -336,13 +336,6 @@ if (verdict === 'converged') {
   // NOTE: prePhaseCleanup(checkpoint) runs automatically before the re-review round
   // (called by the dispatcher for every delegated phase) to clean stale teams from
   // the prior round. This is what prevents team name collisions between rounds.
-  // ASSERTION (decree-arbiter P2): Verify code_review precedes verify_mend in PHASE_ORDER
-  const crIdx = PHASE_ORDER.indexOf('code_review')
-  const vmIdx = PHASE_ORDER.indexOf('verify_mend')
-  if (crIdx < 0 || vmIdx < 0 || crIdx >= vmIdx) {
-    throw new Error(`PHASE_ORDER invariant violated: code_review (${crIdx}) must precede verify_mend (${vmIdx})`)
-  }
-
   // v3.0.0-alpha.2: goldmask_verification + goldmask_correlation removed from default
   // PHASE_ORDER, so no reset logic needed here. Goldmask is now /rune:goldmask only.
 

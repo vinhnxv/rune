@@ -15,7 +15,8 @@ per-phase reference files (timeout values), arc-resume.md (schema migration)
 //   1. This file (JavaScript reference for timeout/budget calculations)
 //   2. arc-phase-stop-hook.sh (Bash array for phase dispatch)
 // These MUST stay in sync. Divergence causes silent phase ordering bugs.
-// TODO: Add preflight assertion comparing both arrays.
+// Preflight assertion: see arc-preflight.md "Phase Groups Coverage Check" section —
+// assertPhaseGroupsCoverage() is called at preflight (fail-WARN) to catch coverage gaps.
 // v3.0.0-alpha.2: Removed 4 phases from default order — goldmask_verification,
 // goldmask_correlation, bot_review_wait, pr_comment_resolution. Goldmask remains
 // a standalone command (`/rune:goldmask`); PR-comment + bot-review handling moves

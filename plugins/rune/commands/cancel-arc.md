@@ -227,15 +227,12 @@ Delegate cancellation based on the currently-active phase:
 |-------|--------|
 | **FORGE** (Phase 1) | Shutdown research team — broadcast cancellation, send shutdown requests |
 | **PLAN REVIEW** (Phase 2) | Shutdown decree-arbiter review team |
-| **PLAN REFINEMENT** (Phase 2.5) | No-op — orchestrator-only, no team to cancel. Skip to Step 4 |
 | **VERIFICATION** (Phase 2.7) | No-op — orchestrator-only, no team to cancel. Skip to Step 4 |
 | **WORK** (Phase 5) | Shutdown work team — broadcast cancellation, send shutdown requests to all rune-smith workers |
 | **GAP ANALYSIS** (Phase 5.5) | No-op — orchestrator-only, no team to cancel. Skip to Step 4 |
 | **CODE REVIEW** (Phase 6) | Delegate to `/rune:cancel-review` logic — broadcast, shutdown Ash, cleanup |
 | **MEND** (Phase 7) | Shutdown mend team — broadcast cancellation, send shutdown requests to all mend-fixer workers |
-| **VERIFY MEND** (Phase 7.5) | No-op — orchestrator-only, no team to cancel. Skip to Step 4 |
 | **TEST** (Phase 7.7) | Shutdown test team (`arc-test-{id}`) — broadcast cancellation, send shutdown requests. Cleanup test state files (`tmp/.rune-test-*.json`) |
-| **PRE-SHIP VALIDATION** (Phase 8.5) | No-op — orchestrator-only, no team to cancel. Skip to Step 4 |
 | **SHIP** (Phase 9) | No-op — orchestrator-only, no team to cancel. Skip to Step 4 |
 | **MERGE** (Phase 9.5) | No-op — orchestrator-only, no team to cancel. Skip to Step 4 |
 <!-- Phase 8 (AUDIT) removed in v1.67.0 — audit phases no longer exist in the arc pipeline -->

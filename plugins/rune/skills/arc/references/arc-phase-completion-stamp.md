@@ -182,7 +182,7 @@ function buildCompletionRecord(checkpoint, newStatus, content) {
   // Count existing completion records for run ordinal
   const existingRecords = (content.match(/## Arc Completion Record/g) || []).length
 
-  // Phase results table — exactly mirrors PHASE_ORDER (26 phases as of v3.0.0-alpha.2).
+  // Phase results table — exactly mirrors PHASE_ORDER (19 phases as of v3.0.0-alpha.6).
   // WARNING: Order follows PHASE_ORDER (execution order), NOT numeric phase IDs.
   // Removed in v3.0.0-alpha.1+: design_extraction, design_prototype, design_verification,
   // design_verification_qa, design_iteration, storybook_verification, ux_verification,

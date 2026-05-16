@@ -256,6 +256,23 @@ fi
 # See scripts/lib/workflow-lock.sh for the full API.
 ```
 
+## Phase Groups Coverage Check
+
+Runs immediately after concurrent arc prevention, before plan path resolution and any TeamCreate.
+Validates that `PHASE_GROUPS` covers every entry in `PHASE_ORDER` with no orphans, duplicates, or
+unknown phases. Wired as fail-WARN (non-blocking) so a coverage gap never aborts a user's arc run.
+
+```javascript
+// Preflight: PHASE_GROUPS coverage assertion (wired per arc-phase-constants.md:53-62)
+// fail-WARN: a coverage gap is a dev-time bug, not a user error — never abort the pipeline.
+try {
+  assertPhaseGroupsCoverage()
+  // PASS: all 19 PHASE_ORDER phases appear in exactly one group
+} catch (e) {
+  warn(`PHASE_GROUPS coverage check failed: ${e.message} — continuing`)
+}
+```
+
 ## Resolve Plan Path (FIX-001: arc-batch fallback)
 
 ```javascript
@@ -680,8 +697,7 @@ const ARC_TEAM_PREFIXES = [
   "arc-design-", "arc-prototype-", "arc-design-verify-", "arc-design-iter-",  // design sync teams (conditional — design_sync.enabled)
   "arc-ux-",  // UX verification team (conditional — ux.enabled + frontend files)
   "arc-browser-test-", "arc-browser-fix-",  // browser test convergence loop teams (conditional — frontend + agent-browser)
-  // "arc-deploy-" removed in v3.0.0-alpha.6 (Day 5 C4e) — deploy_verify phase
-  // was deleted; deployment verification is disabled by default in v3.x.
+  "arc-deploy-",  // LEGACY prefix — deploy_verify phase removed in v3.0.0-alpha.6 (Day 5 C4e). No active arc phase creates arc-deploy-* teams in v3.x. Retained here as a cross-version orphan safety net: pre-alpha.6 sessions that crashed mid-deploy_verify leave arc-deploy-* orphans that must be cleaned on next preflight.
   "rune-forge-", "rune-work-", "rune-review-", "rune-mend-", "rune-mend-deep-", "rune-verify-tome-",  // sub-command teams (rune-verify-tome- = standalone /rune:inspect --verify-tome; v3.0.0-alpha.6 absorbed the prior /rune:verify skill)
   "rune-audit-",  // CLEAN-005: retained as a safety net for standalone /rune:audit orphans — NOT spawned by arc directly. Cross-workflow orphan sweep only.
   "rune-brainstorm-",  // brainstorm skill teams (Solo/Roundtable/Deep modes)

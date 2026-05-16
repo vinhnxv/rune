@@ -10,7 +10,7 @@ description: |
   ship, merge.
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[plan-file-path | --resume]"
+argument-hint: "[plan-file-path | --resume | --quick-mode \"<prompt|plan-path>\" [--force]]"
 allowed-tools:
   - Read
   - Write
@@ -33,9 +33,9 @@ allowed-tools:
 
 # /rune:arc — End-to-End Orchestration Pipeline
 
-Chains 26 phases into a single automated pipeline (v3.0.0-alpha.2 — was 30; goldmask + bot-review + PR-comment resolution moved out of the default order). Each phase runs as its own Claude Code turn with fresh context — the `arc-phase-stop-hook.sh` drives phase iteration via the Stop hook pattern. Artifact-based handoff connects phases. Checkpoint state enables resume after failure.
+Chains 19 phases into a single automated pipeline (v3.0.0-alpha.6 — was 30 pre-alpha.2; goldmask + bot-review + PR-comment resolution moved out of the default order; Day 5 alpha.6 absorbed plan_refine, drift_review, inspect_fix, verify_inspect, verify_mend, pre_ship_validation into their parents and removed deploy_verify). Each phase runs as its own Claude Code turn with fresh context — the `arc-phase-stop-hook.sh` drives phase iteration via the Stop hook pattern. Artifact-based handoff connects phases. Checkpoint state enables resume after failure.
 
-**Context budget advisory**: Full arc run: 26 phases x ~3.5min avg = ~91 minutes (lower bound). Context compaction is almost guaranteed in a single session. For constrained sessions, use `--no-forge` to skip Phase 1 enrichment, or split into multiple `/rune:arc --resume` sessions. For context optimization, use `--step-groups` to pause at group boundaries — each group gets a fresh context window on resume. The `PreCompact` hook saves checkpoint state automatically.
+**Context budget advisory**: Full arc run: 19 phases x ~3.7min avg = ~70 minutes (lower bound). Context compaction is almost guaranteed in a single session. For constrained sessions, use `--no-forge` to skip Phase 1 enrichment, or split into multiple `/rune:arc --resume` sessions. For context optimization, use `--step-groups` to pause at group boundaries — each group gets a fresh context window on resume. The `PreCompact` hook saves checkpoint state automatically.
 
 **Load skills**: `roundtable-circle`, `context-weaving`, `rune-orchestration`, `elicitation`, `team-sdk`, `testing`, `polling-guard`, `zsh-compat`
 

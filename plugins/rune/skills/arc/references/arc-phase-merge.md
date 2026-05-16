@@ -309,7 +309,7 @@ if (highIssues.length > 0) {
     }]
   })
   // FIX-3: Standardize answer check — use includes() pattern consistent with
-  // freshness-gate.md (startsWith) and arc-phase-plan-refine.md (includes)
+  // freshness-gate.md (startsWith)
   const userAnswer = typeof userResponse === 'string' ? userResponse : JSON.stringify(userResponse)
   if (!userResponse || userAnswer.includes("Abort")) {
     warn("User chose to abort merge due to HIGH severity pre-merge issues.")

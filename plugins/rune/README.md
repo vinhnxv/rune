@@ -38,7 +38,7 @@ New to Rune? Three commands to go from idea to reviewed code:
 
 These are beginner-friendly aliases for `/rune:devise`, `/rune:strive`, and `/rune:appraise`.
 
-**Want the full pipeline?** Run `/rune:arc plans/my-plan.md` for an automated 26-phase pipeline (default; v3.0.0-alpha.2): plan enrichment → code review → auto-fix → testing → PR → merge.
+**Want the full pipeline?** Run `/rune:arc plans/my-plan.md` for an automated 19-phase pipeline (default; v3.0.0-alpha.6): plan enrichment → code review → auto-fix → testing → PR → merge.
 
 **Not sure which command?** Use `/rune:tarnished` — the intelligent entry point that routes natural language to the right workflow (English and Vietnamese supported).
 
@@ -197,7 +197,7 @@ For the full command reference with all flags and options, see the [Command Refe
 | Tarnished | Orchestrator | The lead agent that coordinates workflows |
 | Forge | Plan enrichment | Research phase that deepens a plan |
 | Mend | Auto-fix findings | Parallel resolution of review findings |
-| Arc | End-to-end pipeline | 26-phase automated workflow (default; v3.0.0-alpha.2) |
+| Arc | End-to-end pipeline | 19-phase automated workflow (default; v3.0.0-alpha.6) |
 | Roundtable Circle | Parallel review | Pattern for orchestrating multiple Ash (review agent) teammates |
 
 > Persistent memory was removed in v3.0.0-alpha.1; agent output is now ephemeral (`tmp/`).

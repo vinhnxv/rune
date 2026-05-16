@@ -41,16 +41,43 @@ updateCheckpoint({ phase: "ship", status: "in_progress", phase_sequence: 9, team
 // inline step so the orchestrator no longer pays the phase-boundary cost.
 //
 // Algorithm: see arc-phase-pre-ship-validation.md for the preShipValidator()
-// pseudocode (artifact integrity gate + criteria convergence gate). The
-// function is invoked once before any gh activity; its return value is
-// non-blocking (WARN diagnostics on FAIL, never aborts PR creation).
+// pseudocode (artifact integrity gate + criteria convergence gate).
+//
+// Verdicts (restored per v1.169.0 / PR #310 — DEEP-001 FIX):
+//   BLOCK → halt pipeline (error() — ship does NOT proceed)
+//   WARN  → emit diagnostics but continue (non-blocking)
+//   PASS  → proceed silently
 try {
-  const preShipReport = preShipValidator(checkpoint, checkpoint.plan_file)
-  Write(`tmp/arc/${id}/pre-ship-report.md`, renderPreShipReport(preShipReport))
-  if (preShipReport.verdict === 'FAIL' && preShipReport.diagnostics.length > 0) {
-    warn(`Pre-ship validation: ${preShipReport.diagnostics.length} diagnostic(s) — non-blocking, continuing.`)
-    preShipReport.diagnostics.forEach(d => warn(`  · ${d}`))
+  const preShipResult = preShipValidator(checkpoint, checkpoint.plan_file)
+
+  updateCheckpoint({
+    phase: 'pre_ship_validation',
+    status: preShipResult.verdict === 'BLOCK' ? 'failed' : 'completed',
+    artifact: `tmp/arc/${checkpoint.id}/pre-ship-report.md`,
+    phase_sequence: 8.5,
+  })
+
+  if (preShipResult.verdict === 'BLOCK') {
+    const blockGates = preShipResult.gates.filter(g => g.status === 'BLOCK')
+    const blockReasons = blockGates.map(g => `${g.gate}: ${g.detail || g.reason}`).join('; ')
+    error(
+      `Pre-Ship Validator: BLOCK — pipeline halted.\n` +
+      `Blocked by: ${blockReasons}\n` +
+      `Report: tmp/arc/${checkpoint.id}/pre-ship-report.md\n\n` +
+      preShipResult.diagnostics.map(d => `  - ${d}`).join('\n') + '\n\n' +
+      `Fix the blocking issues and run /rune:arc --resume to continue.`
+    )
+    // error() halts execution — ship phase does NOT proceed
   }
+
+  if (preShipResult.verdict === 'WARN') {
+    warn('Pre-Ship Validator: WARN — quality signals degraded')
+    preShipResult.diagnostics.forEach(d => warn(`  · ${d}`))
+    // Ship phase reads checkpoint.phases.pre_ship_validation and appends
+    // preShipResult.diagnostics as "Pre-Ship Warnings" in PR body
+  }
+
+  // PASS: proceed silently
 } catch (e) {
   warn(`Pre-ship validation skipped (${e.message}) — proceeding to PR creation.`)
 }

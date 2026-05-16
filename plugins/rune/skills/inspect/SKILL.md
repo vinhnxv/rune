@@ -5,6 +5,7 @@ description: |
   extracts requirements, and summons 4 Inspector Ashes to measure implementation completeness,
   quality across 11 dimensions, and gaps across 9 categories. Produces a VERDICT.md with
   requirement matrix, dimension scores, gap analysis, and actionable recommendations.
+  Also use `--verify-tome <tome-path>` to classify TOME findings as TRUE_POSITIVE / FALSE_POSITIVE / NEEDS_CONTEXT before mend dispatch.
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[plan-file.md | inline description] [--mode plan|implementation] [--focus <dimension>] [--dry-run] [--fix] | --verify-tome <tome-path>"

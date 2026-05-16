@@ -76,7 +76,13 @@ assert_eq "inspect → inspect" "inspect" "$(_lookup_phase_group "inspect")"
 # Review group
 # v3.0.0-alpha.6 (Day 5 C4d): verify_mend absorbed into mend_qa post-step.
 assert_eq "code_review → review" "review" "$(_lookup_phase_group "code_review")"
+assert_eq "code_review_qa → review" "review" "$(_lookup_phase_group "code_review_qa")"
+assert_eq "verify → review" "review" "$(_lookup_phase_group "verify")"
 assert_eq "mend → review" "review" "$(_lookup_phase_group "mend")"
+assert_eq "mend_qa → review" "review" "$(_lookup_phase_group "mend_qa")"
+
+# Verification group (QA phases)
+assert_eq "gap_analysis_qa → verification" "verification" "$(_lookup_phase_group "gap_analysis_qa")"
 
 # Testing group
 assert_eq "test → testing" "testing" "$(_lookup_phase_group "test")"
@@ -96,6 +102,17 @@ echo "=== Unknown phase returns empty ==="
 assert_eq "unknown_phase → empty" "" "$(_lookup_phase_group "unknown_phase")"
 assert_eq "empty string → empty" "" "$(_lookup_phase_group "")"
 assert_eq "nonexistent → empty" "" "$(_lookup_phase_group "nonexistent")"
+
+# ── Negative cases: absorbed/removed phases must NOT be in any group ──
+# v3.0.0-alpha.6 (Day 5 C4a–C4e): 7 phases removed from PHASE_ORDER.
+# Re-introducing any of them would produce zero test failures without these guards.
+assert_eq "plan_refine → empty (absorbed into plan_review, C4a)" "" "$(_lookup_phase_group "plan_refine")"
+assert_eq "drift_review → empty (absorbed into work, C4b)" "" "$(_lookup_phase_group "drift_review")"
+assert_eq "inspect_fix → empty (absorbed into inspect, C4c)" "" "$(_lookup_phase_group "inspect_fix")"
+assert_eq "verify_inspect → empty (absorbed into inspect, C4c)" "" "$(_lookup_phase_group "verify_inspect")"
+assert_eq "verify_mend → empty (absorbed into mend_qa post-step, C4d)" "" "$(_lookup_phase_group "verify_mend")"
+assert_eq "deploy_verify → empty (removed, C4e)" "" "$(_lookup_phase_group "deploy_verify")"
+assert_eq "pre_ship_validation → empty (absorbed into ship STEP -0.5, C4e)" "" "$(_lookup_phase_group "pre_ship_validation")"
 
 # ══════════════════════════════════════════════════
 # Test 3: All PHASE_ORDER phases return non-empty group
@@ -129,6 +146,30 @@ done
 
 # Verify we tested exactly 19 phases (canonical PHASE_ORDER, no conditional extras)
 assert_eq "phase count is 19" "19" "$COVERAGE_COUNT"
+
+# ══════════════════════════════════════════════════
+# Test 4: Schema exception bound check
+# INVARIANT: arc-checkpoint-init.md phases[] has exactly 21 status:"pending" keys
+#   = 19 PHASE_ORDER entries + 2 transitional containers (verify_mend + pre_ship_validation).
+# If this count drifts, a phantom key was added or a transitional container was removed
+# without updating this test. See arc-checkpoint-init.md:416-419 for the documented invariant.
+# ══════════════════════════════════════════════════
+echo ""
+echo "=== Schema exception bound check (phases[] key count) ==="
+
+INIT_FILE="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/skills/arc/references/arc-checkpoint-init.md"
+if [[ -f "$INIT_FILE" ]]; then
+  SCHEMA_KEY_COUNT=$(grep -c 'status: "pending"' "$INIT_FILE" 2>/dev/null || echo "0")
+  assert_eq "checkpoint phases[] has exactly 21 keys (19 PHASE_ORDER + verify_mend + pre_ship_validation)" "21" "$SCHEMA_KEY_COUNT"
+
+  # Confirm the two transitional containers are present (exception set, not in PHASE_ORDER)
+  VERIFY_MEND_PRESENT=$(grep -c 'verify_mend:' "$INIT_FILE" 2>/dev/null || echo "0")
+  PRE_SHIP_PRESENT=$(grep -c 'pre_ship_validation:' "$INIT_FILE" 2>/dev/null || echo "0")
+  assert_eq "verify_mend transitional container present" "1" "$VERIFY_MEND_PRESENT"
+  assert_eq "pre_ship_validation transitional container present" "1" "$PRE_SHIP_PRESENT"
+else
+  echo "  SKIP: arc-checkpoint-init.md not found at $INIT_FILE — skipping schema bound check"
+fi
 
 # ══════════════════════════════════════════════════
 # Results
