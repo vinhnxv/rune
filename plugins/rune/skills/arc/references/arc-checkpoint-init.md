@@ -214,12 +214,11 @@ function computeSkipMap(arcConfig, designSync, storybook, ux, planMeta, planFile
     map.verify = "verify_disabled"
   }
 
-  // ── Inspect phases (3 phases) ──
-  // RUIN-004 FIX: Use resolved arcConfig instead of inline lookups
+  // ── Inspect phase (single phase since v3.0.0-alpha.6 Day 5 C4c) ──
+  // RUIN-004 FIX: Use resolved arcConfig instead of inline lookups.
+  // inspect_fix + verify_inspect were absorbed into the unified inspect phase.
   if (arcConfig.inspect_enabled === false) {
     map.inspect = "inspect_disabled"
-    map.inspect_fix = "inspect_disabled"
-    map.verify_inspect = "inspect_disabled"
   }
 
   // ── Bot review phases removed in v3.0.0-alpha.2 ──
@@ -376,7 +375,7 @@ Write(checkpointPath, {
     forge:        { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
     forge_qa:     { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, retry_count: 0, demotion_revert_count: 0 },
     plan_review:  { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
-    plan_refine:  { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
+    // v3.0.0-alpha.6 (Day 5 C4a): plan_refine absorbed into plan_review — schema entry removed.
     verification: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
     work:         { status: "pending", artifact: null, artifact_hash: null, team_name: null,
                     // Schema v16 (v1.106.0): suspended tasks from context preservation protocol.
@@ -384,27 +383,33 @@ Write(checkpointPath, {
                     // context_path scoped to arc checkpoint id (FAIL-008): context/{id}/{task_id}.md
                     suspended_tasks: [], started_at: null, completed_at: null, demotion_revert_count: 0 },
     work_qa:      { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, retry_count: 0, demotion_revert_count: 0 },
-    drift_review: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
+    // v3.0.0-alpha.6 (Day 5 C4b): drift_review absorbed into work — schema entry removed.
     gap_analysis: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
     gap_analysis_qa: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, retry_count: 0, demotion_revert_count: 0 },
     gap_remediation: { status: "pending", artifact: null, artifact_hash: null, team_name: null, fixed_count: null, deferred_count: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
-    inspect: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, completion_pct: null, p1_count: null, verdict: null, demotion_revert_count: 0 },
-    inspect_fix: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, fixed_count: null, deferred_count: null, demotion_revert_count: 0 },
-    verify_inspect: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
+    inspect: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, completion_pct: null, p1_count: null, verdict: null, inspect_fixed_count: null, inspect_deferred_count: null, inspect_reclassified_count: null, demotion_revert_count: 0 },
+    // v3.0.0-alpha.6 (Day 5 C4c): inspect_fix + verify_inspect absorbed into inspect —
+    // schema entries removed; intra-phase state (fixed/deferred/reclassified counts) lives on inspect itself.
     // v3.0.0-alpha.2: goldmask_verification + goldmask_correlation removed from default order.
     code_review:  { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
     code_review_qa: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, retry_count: 0, demotion_revert_count: 0 },
     verify:       { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
     mend:         { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
     mend_qa:      { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, retry_count: 0, demotion_revert_count: 0 },
+    // v3.0.0-alpha.6 (Day 5 C4d): verify_mend absorbed into mend_qa post-step.
+    // The runMendQAConvergence() algorithm (verify-mend.md) still writes to
+    // checkpoint.phases.verify_mend for backward-compatible state tracking;
+    // the entry is retained here intentionally and is the only schema key NOT
+    // in PHASE_ORDER. Future cleanup may migrate the state into mend_qa.
     verify_mend:  { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
     test:         { status: "pending", artifact: null, artifact_hash: null, team_name: null, tiers_run: [], pass_rate: null, coverage_pct: null, has_frontend: false, started_at: null, completed_at: null, demotion_revert_count: 0 },
     test_qa:      { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, retry_count: 0, demotion_revert_count: 0 },
-    deploy_verify: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
-    pre_ship_validation: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
+    // v3.0.0-alpha.6 (Day 5 C4e): deploy_verify removed; pre_ship_validation
+    // absorbed into ship — schema entries removed.
     ship:         { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
     merge:        { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
-    // Defense-in-depth: every key here MUST be in PHASE_ORDER (26 entries as of v3.0.0-alpha.2).
+    // Defense-in-depth: every key here MUST be in PHASE_ORDER (19 entries as of v3.0.0-alpha.6),
+    // except the verify_mend transitional state container (see C4d comment above).
     // Phantom keys (semantic_verification, design_*, storybook_verification, ux_verification,
     // task_decomposition, browser_test*, test_coverage_critique, release_quality_check,
     // bot_review_wait, pr_comment_resolution) were removed in alpha.1/alpha.2 — do not re-add.
@@ -421,7 +426,8 @@ Write(checkpointPath, {
   completed_at: null,
   convergence: { round: 0, max_rounds: tier.maxCycles, tier: tier, history: [], original_changed_files: changedFiles },
   // Schema v25 addition: inspect convergence — separate from review-mend convergence.
-  // Controls the inspect → inspect_fix → verify_inspect loop (Phases 5.9, 5.95, 5.99).
+  // Controls the inspect retry loop (v3.0.0-alpha.6: inspect_fix + verify_inspect
+  // absorbed into a single inspect phase that may reset itself to pending for retry).
   inspect_convergence: { round: 0, max_rounds: 2, threshold: 95, history: [] },
   // Browser test convergence — controls the browser_test → browser_test_fix → verify_browser_test loop (Phases 7.7.5-7.7.7).
   browser_test_convergence: {

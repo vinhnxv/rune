@@ -126,11 +126,11 @@ On resume, validate checkpoint integrity before proceeding:
    ```
 3. Schema migration (default missing schema_version: `const version = checkpoint.schema_version ?? 1`):
    if version < 2, migrate v1 → v2:
-   a. Add plan_refine: { status: "skipped", ... }
+   a. Add plan_refine: { status: "skipped", ... } _(historical — phase absorbed into plan_review in v3.0.0-alpha.6 C4a; the key is added for older checkpoints but the dispatcher never reaches it)_
    b. Add verification: { status: "skipped", ... }
    c. Set schema_version: 2
 3b. If schema_version < 3, migrate v2 → v3:
-   a. Add verify_mend: { status: "skipped", ... }
+   a. Add verify_mend: { status: "skipped", ... } _(v3.0.0-alpha.6 C4d: now a post-step state container; the key remains in schema even though the phase is not in PHASE_ORDER)_
    b. Add convergence: { round: 0, max_rounds: 2, history: [] }
    c. Set schema_version: 3
 3c. If schema_version < 4, migrate v3 → v4:

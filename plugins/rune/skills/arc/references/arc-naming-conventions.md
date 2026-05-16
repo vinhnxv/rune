@@ -27,8 +27,7 @@ The phases below are full-fledged arc phases (registered in `PHASE_ORDER`) but t
 
 | File | PHASE_ORDER key | Why unprefixed |
 |------|-----------------|----------------|
-| `verify-inspect.md` | `verify_inspect` | "Verify" family is a standalone correctness algorithm; predates the `arc-phase-` standard |
-| `verify-mend.md` | `verify_mend` | Same as above — sibling to `verify-inspect.md` |
+| `verify-mend.md` | _(post-step, not in PHASE_ORDER)_ | Convergence-eval algorithm reference. v3.0.0-alpha.6 (Day 5 C4d): no longer a standalone phase; invoked as `runMendQAConvergence()` post-step inside mend_qa runQAGate(). File retained as the canonical algorithm reference. (Sibling `verify-inspect.md` was deleted in C4c since its content was inlined into `arc-phase-inspect.md`.) |
 | `verification-gate.md` | `verification` | Phase **2.7** Verification Gate — gating algorithm reused by other phases, not a phase-specific handler |
 | `gap-analysis.md` | `gap_analysis` | "Gap" family is a standalone delta-detection algorithm; reused by `gap-remediation.md` |
 | `gap-remediation.md` | `gap_remediation` | Same as above — sibling to `gap-analysis.md` |
@@ -40,13 +39,21 @@ The phases below are full-fledged arc phases (registered in `PHASE_ORDER`) but t
 Phase keys in `checkpoint.phases` use snake_case and match PHASE_ORDER entries:
 
 ```
-forge, plan_review, plan_refine, verification,
-work, gap_analysis, gap_remediation,
-code_review, mend, verify_mend,
-test, pre_ship_validation,
+forge, forge_qa, plan_review, verification,
+work, work_qa,
+gap_analysis, gap_analysis_qa, gap_remediation,
+inspect,
+code_review, code_review_qa, verify, mend, mend_qa,
+test, test_qa,
 ship, merge
 ```
 
+> **v3.0.0-alpha.6 (Day 5)**: `plan_refine` absorbed into `plan_review` (C4a);
+> `drift_review` absorbed into `work` (C4b); `inspect_fix` + `verify_inspect`
+> absorbed into `inspect` (C4c); `verify_mend` absorbed into `mend_qa` as a
+> post-step (C4d); `deploy_verify` removed entirely + `pre_ship_validation`
+> absorbed into `ship` (C4e). 26 → 19 PHASE_ORDER entries.
+>
 > **v3.0.0-alpha.2**: `goldmask_verification`, `goldmask_correlation`,
 > `bot_review_wait`, `pr_comment_resolution` removed from the default order.
 > Goldmask remains as `/rune:goldmask`; bot-review/PR-comment work moves to

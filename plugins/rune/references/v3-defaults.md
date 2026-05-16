@@ -39,8 +39,9 @@ If you need to deviate from a baked default (for example, to enable Doubt Seer o
 | `ship.ci_check.conclusion_allowlist` | `["success","skipped","neutral"]` |
 | `ship.merge_verification.timeout_ms` | `60000` |
 | `timeouts.{forge,work,code_review,mend,test}` | `900000 / 2100000 / 900000 / 1380000 / 900000` |
-| `timeouts.{gap_analysis,gap_remediation,audit,merge,ship}` | `720000 / 900000 / 1200000 / 600000 / 300000` |
-| `timeouts.{plan_review,plan_refine,verify_mend,verification}` | `900000 / 180000 / 240000 / 30000` |
+| `timeouts.{gap_analysis,gap_remediation,audit,merge,ship}` | `720000 / 900000 / 1200000 / 600000 / 660000` _(ship bumped 5m→11m in v3.0.0-alpha.6 C4e: absorbs pre_ship_validation pre-step)_ |
+| `timeouts.{plan_review,verification}` | `900000 / 30000` _(v3.0.0-alpha.6 C4a: plan_refine absorbed into plan_review; C4d: verify_mend convergence eval absorbed into mend_qa's bumped 9m budget — see `mend_qa: 540000`)_ |
+| `timeouts.{inspect,mend_qa}` | `2040000 / 540000` _(v3.0.0-alpha.6: inspect bumped 15m→34m C4c, mend_qa bumped 5m→9m C4d)_ |
 | `gap_analysis.{halt_threshold,inspectors}` | `50 / 2` |
 | `gap_analysis.remediation.{enabled,max_fixes,timeout}` | `true / 20 / 600000` |
 | `inspect.enabled / verify.enabled` | `true` |

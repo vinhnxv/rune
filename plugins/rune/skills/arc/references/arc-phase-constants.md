@@ -314,9 +314,10 @@ const SKIP_REASONS = {
 //   (* = conditionally pre-computable — only when parent feature is disabled)
 //
 // Runtime-dependent (NOT in skip_map):
-//   deploy_verify (depends on post-work diff analysis)
+//   (none in v3.0.0-alpha.6+)
 // v3.0.0-alpha.6 (Day 5): plan_refine and drift_review removed (absorbed into
-// plan_review and work respectively; no longer phases).
+// plan_review and work respectively; no longer phases). deploy_verify also
+// removed entirely (was always-skipped in v3.x); no runtime-dependent skips remain.
 //
 // v3.0.0-alpha.1 removed the design family (design_extraction, design_prototype,
 // design_verification*, design_iteration*) so they are no longer pre-computable.

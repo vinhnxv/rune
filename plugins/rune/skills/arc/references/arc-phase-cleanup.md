@@ -42,8 +42,7 @@ const PHASE_PREFIX_MAP = {
   work:                   ["rune-work-"],
   gap_analysis:           ["rune-inspect-", "arc-inspect-"],    // both prefix variants
   gap_remediation:        ["arc-gap-fix-"],
-  inspect:                ["arc-inspect-full-"],
-  inspect_fix:            ["arc-inspect-fix-"],
+  inspect:                ["arc-inspect-full-", "arc-inspect-fix-"],  // v3.0.0-alpha.6 (Day 5 C4c): inspect now spawns BOTH the audit team (arc-inspect-full-) and a conditional fix team (arc-inspect-fix-) within the same phase; prefixes consolidated under the unified `inspect` key.
   code_review:            ["rune-review-"],
   verify:                 ["arc-fv-", "rune-verify-tome-"],       // Phase 6.7 (finding verification — conditional on arc.verify.enabled) + standalone /rune:inspect --verify-tome (v3.0.0-alpha.6: was rune-verify- before the verify skill was absorbed into inspect)
   mend:                   ["rune-mend-", "rune-mend-deep-", "arc-sage-"],  // mend sub-command + deep mend + ephemeral elicitation sage
@@ -56,13 +55,16 @@ const PHASE_PREFIX_MAP = {
   mend_qa:                ["arc-qa-"],                             // QA gate for mend phase
   test_qa:                ["arc-qa-"],                             // QA gate for test phase
 }
-// NOTE: PHASE_PREFIX_MAP keys mirror the live PHASE_ORDER (26 phases as of v3.0.0-alpha.2).
+// NOTE: PHASE_PREFIX_MAP keys mirror the live PHASE_ORDER (19 phases as of v3.0.0-alpha.6).
+// Absorbed in alpha.6 (Day 5): plan_refine→plan_review (C4a), drift_review→work (C4b),
+// inspect_fix+verify_inspect→inspect (C4c — arc-inspect-fix- now under `inspect` key),
+// verify_mend→mend_qa post-step (C4d), pre_ship_validation→ship (C4e), deploy_verify
+// removed entirely (C4e).
 // Removed in alpha.1+: design_extraction, design_prototype, design_verification, design_verification_qa,
 // design_iteration, storybook_verification, ux_verification, browser_test/browser_test_fix/verify_browser_test,
 // goldmask_verification.
-// Multi-prefix entries: plan_review has Layer 2 inspect team (arc-plan-inspect-), mend has ephemeral sage team (arc-sage-).
-// Orchestrator-only phases (plan_refine, verification, verify_mend, verify_inspect, drift_review,
-// pre_ship_validation, ship, merge) do not create teams — no entries needed.
+// Multi-prefix entries: plan_review has Layer 2 inspect team (arc-plan-inspect-), mend has ephemeral sage team (arc-sage-), inspect has its absorbed fix team (arc-inspect-fix-).
+// Orchestrator-only phases (verification, ship, merge) do not create teams — no entries needed.
 ```
 
 ## postPhaseCleanup(checkpoint, phaseName)

@@ -174,11 +174,11 @@ if (!phase_team) {
   const legacyMap = {
     forge: null,              // Pre-v1.28.2: inline forge had no team. v1.28.2+: checkpoint.team_name preferred; state file fallback at line 74
     plan_review: `arc-plan-review-${id}`,
-    plan_refine: null,        // Orchestrator-only phase, no team
+    // v3.0.0-alpha.6 (Day 5 C4a): plan_refine absorbed into plan_review.
     verification: null,       // Orchestrator-only phase, no team
     work: null,               // Delegated (v1.28.0) -- team name from checkpoint
     gap_analysis: null,       // Orchestrator-only phase, no team
-    verify_mend: null,        // Orchestrator-only phase, no team (convergence gate)
+    // v3.0.0-alpha.6 (Day 5 C4d): verify_mend absorbed into mend_qa post-step.
     code_review: null,        // Delegated (v1.28.0) -- team name from checkpoint
     mend: `arc-mend-${id}`,
   }
@@ -209,7 +209,8 @@ if (phase_team === null && current_phase) {
   }
 }
 
-// Orchestrator-only phases (plan_refine, verification, gap_analysis, verify_mend) have no team.
+// Orchestrator-only phases (verification, gap_analysis) have no team — plan_refine,
+// verify_mend, deploy_verify, pre_ship_validation were absorbed in v3.0.0-alpha.6 (Day 5).
 // Skip team cancellation (Steps 3a-3d), go directly to Step 4.
 if (phase_team === null || phase_team === undefined) {
   // No team to cancel — update checkpoint directly (Step 4)
@@ -409,21 +410,23 @@ Do NOT delete any files from completed phases:
 ### 6. Report
 
 ```javascript
-// PHASE_LABELS mirrors the live PHASE_ORDER (26 phases as of v3.0.0-alpha.2).
+// PHASE_LABELS mirrors the live PHASE_ORDER (19 phases as of v3.0.0-alpha.6).
 // Removed in alpha.1+: design_*, semantic_verification, task_decomposition, storybook_verification,
 // ux_verification, browser_test*, test_coverage_critique, release_quality_check,
 // goldmask_verification, goldmask_correlation, bot_review_wait, pr_comment_resolution.
+// Absorbed in alpha.6 (Day 5): plan_refine→plan_review, drift_review→work,
+// inspect_fix+verify_inspect→inspect, verify_mend→mend_qa post-step,
+// deploy_verify removed + pre_ship_validation→ship.
 const PHASE_LABELS = {
   forge: '1 (FORGE)', forge_qa: '1.5 (FORGE QA)',
-  plan_review: '2 (PLAN REVIEW)', plan_refine: '2.5 (PLAN REFINEMENT)', verification: '2.7 (VERIFICATION)',
-  work: '5 (WORK)', work_qa: '5.1 (WORK QA)', drift_review: '5.2 (DRIFT REVIEW)',
+  plan_review: '2 (PLAN REVIEW)', verification: '2.7 (VERIFICATION)',
+  work: '5 (WORK)', work_qa: '5.1 (WORK QA)',
   gap_analysis: '5.5 (GAP ANALYSIS)', gap_analysis_qa: '5.6 (GAP ANALYSIS QA)', gap_remediation: '5.8 (GAP REMEDIATION)',
-  inspect: '5.9 (INSPECT)', inspect_fix: '5.95 (INSPECT FIX)', verify_inspect: '5.97 (VERIFY INSPECT)',
+  inspect: '5.9 (INSPECT)',
   code_review: '6 (CODE REVIEW)', code_review_qa: '6.5 (CODE REVIEW QA)',
   verify: '6.7 (VERIFY)',
-  mend: '7 (MEND)', mend_qa: '7.3 (MEND QA)', verify_mend: '7.5 (VERIFY MEND)',
+  mend: '7 (MEND)', mend_qa: '7.3 (MEND QA)',
   test: '7.7 (TEST)', test_qa: '7.8 (TEST QA)',
-  deploy_verify: '8 (DEPLOY VERIFY)', pre_ship_validation: '8.5 (PRE-SHIP VALIDATION)',
   ship: '9 (SHIP)', merge: '9.5 (MERGE)'
 }
 

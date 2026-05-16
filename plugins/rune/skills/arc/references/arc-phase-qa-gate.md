@@ -744,7 +744,7 @@ async function runQAGate(id, parentPhase, checkpoint) {
 
     // AC-7: Deterministic dashboard trigger after the last QA-gated phase
     // The last gated phase is "test" (test_qa). After it passes, generate the
-    // consolidated QA dashboard before any downstream phase (pre_ship_validation) runs.
+    // consolidated QA dashboard before any downstream phase (ship) runs.
     const LAST_GATED_PHASE = "test"
     if (parentPhase === LAST_GATED_PHASE && (verdictStr === "PASS" || verdictStr === "EXCELLENT")) {
       try {
@@ -886,35 +886,33 @@ Each `*_qa` phase is inserted into PHASE_ORDER immediately after its parent phas
 > will assert symmetry.
 
 ```javascript
-// arc-phase-constants.md — JavaScript PHASE_ORDER (26 phases, v3.0.0-alpha.2)
+// arc-phase-constants.md — JavaScript PHASE_ORDER (19 phases, v3.0.0-alpha.6)
 const PHASE_ORDER = [
   "forge", "forge_qa",
-  "plan_review", "plan_refine", "verification",
-  "work", "work_qa", "drift_review",
+  "plan_review", "verification",
+  "work", "work_qa",
   "gap_analysis", "gap_analysis_qa", "gap_remediation",
-  "inspect", "inspect_fix", "verify_inspect",
+  "inspect",
   "code_review", "code_review_qa",
   "verify",
-  "mend", "mend_qa", "verify_mend",
+  "mend", "mend_qa",
   "test", "test_qa",
-  "deploy_verify", "pre_ship_validation",
   "ship", "merge",
 ]
 ```
 
 ```bash
-# arc-phase-stop-hook.sh — bash PHASE_ORDER array (26 phases, v3.0.0-alpha.2)
+# arc-phase-stop-hook.sh — bash PHASE_ORDER array (19 phases, v3.0.0-alpha.6)
 PHASE_ORDER=(
   forge forge_qa
-  plan_review plan_refine verification
-  work work_qa drift_review
+  plan_review verification
+  work work_qa
   gap_analysis gap_analysis_qa gap_remediation
-  inspect inspect_fix verify_inspect
+  inspect
   code_review code_review_qa
   verify
-  mend mend_qa verify_mend
+  mend mend_qa
   test test_qa
-  deploy_verify pre_ship_validation
   ship merge
 )
 ```
