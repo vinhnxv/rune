@@ -20,8 +20,9 @@
 _lookup_phase_group() {
   local phase="$1"
   case "$phase" in
-    forge|forge_qa|plan_review|plan_refine|verification)
+    forge|forge_qa|plan_review|verification)
       echo "planning" ;;
+    # v3.0.0-alpha.6 (Day 5 C4a): plan_refine absorbed into plan_review.
     work|work_qa|drift_review)
       echo "work" ;;
     gap_analysis|gap_analysis_qa|gap_remediation)

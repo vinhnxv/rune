@@ -473,7 +473,7 @@ fi
 # the bash side was not synced until self-audit run 1778278942.
 PHASE_ORDER=(
   forge forge_qa
-  plan_review plan_refine verification
+  plan_review verification
   work work_qa
   drift_review gap_analysis gap_analysis_qa
   gap_remediation
@@ -485,6 +485,7 @@ PHASE_ORDER=(
   deploy_verify pre_ship_validation
   ship merge
 )
+# v3.0.0-alpha.6 (Day 5 C4a): plan_refine absorbed into plan_review.
 
 # Heavy phases that ALWAYS trigger compact interlude (tier 1)
 # SYNC-NOTE: This list intentionally differs from HEAVY_PHASES in arc-phase-constants.md.
@@ -506,7 +507,7 @@ _phase_ref() {
   case "$phase" in
     forge)                    echo "${base}/arc-phase-forge.md" ;;
     plan_review)              echo "${base}/arc-phase-plan-review.md" ;;
-    plan_refine)              echo "${base}/arc-phase-plan-refine.md" ;;
+    # plan_refine absorbed into plan_review in v3.0.0-alpha.6 (Day 5 C4a)
     verification)             echo "${base}/verification-gate.md" ;;
     work)                     echo "${base}/arc-phase-work.md" ;;
     drift_review)             echo "${base}/arc-phase-drift-review.md" ;;
@@ -724,7 +725,7 @@ _phase_weight() {
     work)                                    echo 5 ;;
     code_review)                             echo 4 ;;
     forge|mend|test)                         echo 3 ;;
-    plan_review|plan_refine)                 echo 3 ;;
+    plan_review)                             echo 3 ;;
     gap_analysis|gap_remediation|verify)     echo 2 ;;
     verify_mend) echo 2 ;;
     *)                                       echo 1 ;;

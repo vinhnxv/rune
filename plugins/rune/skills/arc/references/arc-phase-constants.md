@@ -24,7 +24,15 @@ per-phase reference files (timeout values), arc-resume.md (schema migration)
 // semantic_verification, task_decomposition, test_coverage_critique,
 // release_quality_check were already absent from this JS array but lingered in
 // PHASE_GROUPS and calculateDynamicTimeout(); now also removed from those.
-const PHASE_ORDER = ['forge', 'forge_qa', 'plan_review', 'plan_refine', 'verification', 'work', 'work_qa', 'drift_review', 'gap_analysis', 'gap_analysis_qa', 'gap_remediation', 'inspect', 'inspect_fix', 'verify_inspect', 'code_review', 'code_review_qa', 'verify', 'mend', 'mend_qa', 'verify_mend', 'test', 'test_qa', 'deploy_verify', 'pre_ship_validation', 'ship', 'merge']
+// v3.0.0-alpha.6 (Day 5 arc-surface trim): Day 5 absorbs orchestrator-only and
+// thin-shell phases into their natural parents. See
+// plans/2026-05-15-chore-rune-v3-day5-arc-surface-trim-plan.md.
+//   - plan_refine → plan_review (this commit, C4a)
+//   - drift_review → work_qa (C4b)
+//   - inspect_fix + verify_inspect → inspect (C4c)
+//   - verify_mend → mend_qa (C4d)
+//   - deploy_verify + pre_ship_validation → ship (C4e)
+const PHASE_ORDER = ['forge', 'forge_qa', 'plan_review', 'verification', 'work', 'work_qa', 'drift_review', 'gap_analysis', 'gap_analysis_qa', 'gap_remediation', 'inspect', 'inspect_fix', 'verify_inspect', 'code_review', 'code_review_qa', 'verify', 'mend', 'mend_qa', 'verify_mend', 'test', 'test_qa', 'deploy_verify', 'pre_ship_validation', 'ship', 'merge']
 
 // SYNC-CRITICAL: PHASE_GROUPS is duplicated in:
 //   1. This file (JavaScript reference for group definitions)
@@ -32,7 +40,7 @@ const PHASE_ORDER = ['forge', 'forge_qa', 'plan_review', 'plan_refine', 'verific
 // These MUST stay in sync. When adding a new phase to PHASE_ORDER,
 // also add it to the appropriate group in PHASE_GROUPS.
 const PHASE_GROUPS = [
-  { id: 'planning',     phases: ['forge', 'forge_qa', 'plan_review', 'plan_refine', 'verification'] },
+  { id: 'planning',     phases: ['forge', 'forge_qa', 'plan_review', 'verification'] },
   { id: 'work',         phases: ['work', 'work_qa', 'drift_review'] },
   { id: 'verification', phases: ['gap_analysis', 'gap_analysis_qa', 'gap_remediation'] },
   { id: 'inspect',      phases: ['inspect', 'inspect_fix', 'verify_inspect'] },
@@ -92,7 +100,7 @@ function assertPhaseOrderCorrect(nextPhase, currentPhase) {
 const PHASE_TIMEOUTS = {
   forge:         900_000,    // 15 min (inner 10m + 5m setup)
   plan_review:   900_000,    // 15 min (inner 10m + 5m setup)
-  plan_refine:   180_000,    //  3 min (orchestrator-only, no team)
+  // plan_refine: absorbed into plan_review in v3.0.0-alpha.6 (Day 5 C4a)
   verification:  30_000,     // 30 sec (orchestrator-only, no team)
   work:          2_100_000,  // 35 min (inner 30m + 5m setup)
   drift_review:  120_000,    //  2 min (inline, no team)
@@ -169,7 +177,7 @@ const BATCH_CONFIG = {
 function calculateDynamicTimeout(tier) {
   const basePhaseBudget = PHASE_TIMEOUTS.forge + PHASE_TIMEOUTS.forge_qa +
     PHASE_TIMEOUTS.plan_review +
-    PHASE_TIMEOUTS.plan_refine + PHASE_TIMEOUTS.verification +
+    PHASE_TIMEOUTS.verification +  // v3.0.0-alpha.6: plan_refine absorbed into plan_review (Day 5 C4a)
     PHASE_TIMEOUTS.work + PHASE_TIMEOUTS.work_qa +
     PHASE_TIMEOUTS.drift_review +  // DECR-001 fix: was missing from budget
     PHASE_TIMEOUTS.gap_analysis + PHASE_TIMEOUTS.gap_analysis_qa +
@@ -300,9 +308,10 @@ const SKIP_REASONS = {
 //   browser_test*, browser_test_fix*, verify_browser_test*
 //   (* = conditionally pre-computable — only when parent feature is disabled)
 //
-// Runtime-dependent (NOT in skip_map): plan_refine (depends on Phase 2 verdicts),
+// Runtime-dependent (NOT in skip_map):
 //   drift_review (depends on worker drift signal files — zero overhead when none exist),
 //   deploy_verify (depends on post-work diff analysis)
+// v3.0.0-alpha.6: plan_refine removed (absorbed into plan_review; no longer a phase).
 //
 // v3.0.0-alpha.1 removed the design family (design_extraction, design_prototype,
 // design_verification*, design_iteration*) so they are no longer pre-computable.
