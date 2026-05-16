@@ -2,7 +2,7 @@
 
 Verify TOME findings before mend dispatch. Classifies each finding as TRUE_POSITIVE, FALSE_POSITIVE, or NEEDS_CONTEXT with evidence chains. Prevents wasted mend-fixer effort on false positives.
 
-**Team**: `arc-fv-{id}` (delegated to `/rune:verify` — manages its own TeamCreate/TeamDelete)
+**Team**: `arc-fv-{id}` (delegated to `/rune:inspect --verify-tome` — manages its own TeamCreate/TeamDelete. See [inspect/references/verify-tome.md](../../inspect/references/verify-tome.md). Prefix preserved for compatibility with `arc-fv-*` team-name discovery and ARC_TEAM_PREFIXES.)
 **Tools**: Verify agents receive Read, Glob, Grep (read-only source access)
 **Timeout**: 10 min (PHASE_TIMEOUTS.verify = 600_000)
 **Inputs**: TOME from `checkpoint.phases.code_review.artifact` (or round-aware TOME path)
@@ -49,19 +49,22 @@ updateCheckpoint({
 })
 
 // ═══════════════════════════════════════════════════════
-// STEP 1: DELEGATE TO /rune:verify
+// STEP 1: DELEGATE TO /rune:inspect --verify-tome
 // ═══════════════════════════════════════════════════════
 
 // Create output directory
 Bash(`mkdir -p "tmp/arc/${id}/verify"`)
 
-// Delegate to /rune:verify skill
-// The skill manages its own team lifecycle (TeamCreate, agent spawning, TeamDelete).
-// Arc records the team_name for cancel-arc discovery.
-Skill("rune:verify", `${tomePath} --output-dir tmp/arc/${id}/verify --timeout ${PHASE_TIMEOUTS.verify}`)
+// Delegate to /rune:inspect --verify-tome
+// The inspect verify-tome branch manages its own team lifecycle (TeamCreate,
+// agent spawning, TeamDelete). Arc records the team_name for cancel-arc discovery.
+// v3.0.0-alpha.6: the standalone /rune:verify skill was absorbed into inspect --verify-tome.
+Skill("rune:inspect", `--verify-tome ${tomePath} --output-dir tmp/arc/${id}/verify --timeout ${PHASE_TIMEOUTS.verify}`)
 
-// Discover team name from verify state file for checkpoint recording
-const verifyStateFiles = Glob("tmp/.rune-verify-*.json")
+// Discover team name from verify-tome state file for checkpoint recording
+// (state file pattern: tmp/.rune-verify-tome-{id}.json; arc context preserves
+// the arc-fv-{arcId} team prefix for ARC_TEAM_PREFIXES compatibility)
+const verifyStateFiles = Glob("tmp/.rune-verify-tome-*.json")
 let verifyTeamName = `arc-fv-${id}`
 if (verifyStateFiles.length > 0) {
   try {
@@ -81,7 +84,7 @@ if (verifyStateFiles.length > 0) {
 const verdictsPath = `tmp/arc/${id}/verify/VERDICTS.md`
 
 if (!exists(verdictsPath)) {
-  warn("Phase 6.7: /rune:verify produced no VERDICTS.md. Mend will process all findings.")
+  warn("Phase 6.7: /rune:inspect --verify-tome produced no VERDICTS.md. Mend will process all findings.")
   updateCheckpoint({
     phase: "verify", status: "completed",
     artifact: null,
@@ -119,7 +122,7 @@ updateCheckpoint({
 
 ## Team Lifecycle
 
-Delegated to `/rune:verify` — manages its own TeamCreate/TeamDelete. Arc records the actual `team_name` in checkpoint for cancel-arc discovery.
+Delegated to `/rune:inspect --verify-tome` — manages its own TeamCreate/TeamDelete. Arc records the actual `team_name` in checkpoint for cancel-arc discovery.
 
 Arc runs `prePhaseCleanup(checkpoint)` before delegation (ARC-6) and `postPhaseCleanup(checkpoint, "verify")` after checkpoint update. See SKILL.md Inter-Phase Cleanup Guard section and [arc-phase-cleanup.md](arc-phase-cleanup.md).
 

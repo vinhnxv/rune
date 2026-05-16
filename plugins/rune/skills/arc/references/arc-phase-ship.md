@@ -33,6 +33,68 @@ Orchestrator-only phase (no team). Creates a GitHub PR after test completes.
 ```javascript
 updateCheckpoint({ phase: "ship", status: "in_progress", phase_sequence: 9, team_name: null })
 
+// ─────────────────────────────────────────────────────────────────────────
+// STEP -0.5: Pre-Ship Validation (absorbed pre_ship_validation, v3.0.0-alpha.6 C4e)
+// ─────────────────────────────────────────────────────────────────────────
+// Zero-LLM-cost dual-gate completion check before PR creation. Was its own
+// PHASE_ORDER phase (`pre_ship_validation`); folded into ship as the first
+// inline step so the orchestrator no longer pays the phase-boundary cost.
+//
+// Algorithm: see arc-phase-pre-ship-validation.md for the preShipValidator()
+// pseudocode (artifact integrity gate + criteria convergence gate).
+//
+// Verdicts (restored per v1.169.0 / PR #310 — DEEP-001 FIX):
+//   BLOCK → halt pipeline (error() — ship does NOT proceed)
+//   WARN  → emit diagnostics but continue (non-blocking)
+//   PASS  → proceed silently
+try {
+  const preShipResult = preShipValidator(checkpoint, checkpoint.plan_file)
+
+  updateCheckpoint({
+    phase: 'pre_ship_validation',
+    status: preShipResult.verdict === 'BLOCK' ? 'failed' : 'completed',
+    artifact: `tmp/arc/${checkpoint.id}/pre-ship-report.md`,
+    phase_sequence: 8.5,
+  })
+
+  if (preShipResult.verdict === 'BLOCK') {
+    const blockGates = preShipResult.gates.filter(g => g.status === 'BLOCK')
+    const blockReasons = blockGates.map(g => `${g.gate}: ${g.detail || g.reason}`).join('; ')
+    error(
+      `Pre-Ship Validator: BLOCK — pipeline halted.\n` +
+      `Blocked by: ${blockReasons}\n` +
+      `Report: tmp/arc/${checkpoint.id}/pre-ship-report.md\n\n` +
+      preShipResult.diagnostics.map(d => `  - ${d}`).join('\n') + '\n\n' +
+      `Fix the blocking issues and run /rune:arc --resume to continue.`
+    )
+    // error() halts execution — ship phase does NOT proceed
+  }
+
+  if (preShipResult.verdict === 'WARN') {
+    warn('Pre-Ship Validator: WARN — quality signals degraded')
+    preShipResult.diagnostics.forEach(d => warn(`  · ${d}`))
+    // Ship phase reads checkpoint.phases.pre_ship_validation and appends
+    // preShipResult.diagnostics as "Pre-Ship Warnings" in PR body
+  }
+
+  // PASS: proceed silently
+} catch (e) {
+  warn(`Pre-ship validation skipped (${e.message}) — proceeding to PR creation.`)
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// STEP -0.4: Deployment Artifact (absorbed deploy_verify, v3.0.0-alpha.6 C4e)
+// ─────────────────────────────────────────────────────────────────────────
+// Was its own conditional PHASE_ORDER phase (`deploy_verify`); disabled by
+// default in v3.x (`misc.deployment_verification.enabled = false`). The
+// arc-phase-deploy-verify.md reference file was removed in v3.0.0-alpha.6
+// (Day 5 C4e) because the always-skip path was the only path. If a future
+// release re-enables deployment verification, restore the file from git
+// history and invoke it here as a PR-body sub-step before the `gh pr create`
+// call below.
+//
+// No-op placeholder — kept as a marker for future re-enablement.
+
 // ENV: Disable gh interactive prompts in automation (SEC-DECREE-003 / concern C-7)
 // Set before ALL gh commands in this phase
 const GH_ENV = 'GH_PROMPT_DISABLED=1'

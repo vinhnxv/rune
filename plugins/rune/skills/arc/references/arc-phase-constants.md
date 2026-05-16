@@ -15,7 +15,8 @@ per-phase reference files (timeout values), arc-resume.md (schema migration)
 //   1. This file (JavaScript reference for timeout/budget calculations)
 //   2. arc-phase-stop-hook.sh (Bash array for phase dispatch)
 // These MUST stay in sync. Divergence causes silent phase ordering bugs.
-// TODO: Add preflight assertion comparing both arrays.
+// Preflight assertion: see arc-preflight.md "Phase Groups Coverage Check" section —
+// assertPhaseGroupsCoverage() is called at preflight (fail-WARN) to catch coverage gaps.
 // v3.0.0-alpha.2: Removed 4 phases from default order — goldmask_verification,
 // goldmask_correlation, bot_review_wait, pr_comment_resolution. Goldmask remains
 // a standalone command (`/rune:goldmask`); PR-comment + bot-review handling moves
@@ -24,7 +25,16 @@ per-phase reference files (timeout values), arc-resume.md (schema migration)
 // semantic_verification, task_decomposition, test_coverage_critique,
 // release_quality_check were already absent from this JS array but lingered in
 // PHASE_GROUPS and calculateDynamicTimeout(); now also removed from those.
-const PHASE_ORDER = ['forge', 'forge_qa', 'plan_review', 'plan_refine', 'verification', 'work', 'work_qa', 'drift_review', 'gap_analysis', 'gap_analysis_qa', 'gap_remediation', 'inspect', 'inspect_fix', 'verify_inspect', 'code_review', 'code_review_qa', 'verify', 'mend', 'mend_qa', 'verify_mend', 'test', 'test_qa', 'deploy_verify', 'pre_ship_validation', 'ship', 'merge']
+// v3.0.0-alpha.6 (Day 5 arc-surface trim): Day 5 absorbs orchestrator-only and
+// thin-shell phases into their natural parents. See
+// plans/2026-05-15-chore-rune-v3-day5-arc-surface-trim-plan.md.
+//   - plan_refine → plan_review (this commit, C4a)
+//   - drift_review → work (C4b — as a post-step before work_qa runs)
+//   - inspect_fix + verify_inspect → inspect (C4c — inspect timeout bumped to 34 min to cover audit + fix + convergence eval per round)
+//   - verify_mend → mend_qa (C4d — convergence eval runs as a post-step inside runQAGate() for mend_qa; see arc-phase-qa-gate.md)
+//   - pre_ship_validation → ship (C4e — preShipValidator() runs inline as ship STEP -0.5; see arc-phase-ship.md + arc-phase-pre-ship-validation.md)
+//   - deploy_verify → removed entirely (C4e — always-skipped in v3.x since misc.deployment_verification.enabled defaults false; restore from git history to re-enable)
+const PHASE_ORDER = ['forge', 'forge_qa', 'plan_review', 'verification', 'work', 'work_qa', 'gap_analysis', 'gap_analysis_qa', 'gap_remediation', 'inspect', 'code_review', 'code_review_qa', 'verify', 'mend', 'mend_qa', 'test', 'test_qa', 'ship', 'merge']
 
 // SYNC-CRITICAL: PHASE_GROUPS is duplicated in:
 //   1. This file (JavaScript reference for group definitions)
@@ -32,13 +42,13 @@ const PHASE_ORDER = ['forge', 'forge_qa', 'plan_review', 'plan_refine', 'verific
 // These MUST stay in sync. When adding a new phase to PHASE_ORDER,
 // also add it to the appropriate group in PHASE_GROUPS.
 const PHASE_GROUPS = [
-  { id: 'planning',     phases: ['forge', 'forge_qa', 'plan_review', 'plan_refine', 'verification'] },
-  { id: 'work',         phases: ['work', 'work_qa', 'drift_review'] },
+  { id: 'planning',     phases: ['forge', 'forge_qa', 'plan_review', 'verification'] },
+  { id: 'work',         phases: ['work', 'work_qa'] },
   { id: 'verification', phases: ['gap_analysis', 'gap_analysis_qa', 'gap_remediation'] },
-  { id: 'inspect',      phases: ['inspect', 'inspect_fix', 'verify_inspect'] },
-  { id: 'review',       phases: ['code_review', 'code_review_qa', 'verify', 'mend', 'mend_qa', 'verify_mend'] },
+  { id: 'inspect',      phases: ['inspect'] },
+  { id: 'review',       phases: ['code_review', 'code_review_qa', 'verify', 'mend', 'mend_qa'] },
   { id: 'testing',      phases: ['test', 'test_qa'] },
-  { id: 'ship',         phases: ['deploy_verify', 'pre_ship_validation', 'ship', 'merge'] },
+  { id: 'ship',         phases: ['ship', 'merge'] },
 ]
 
 // Preflight assertion: validates all PHASE_ORDER entries appear in exactly one group
@@ -92,31 +102,34 @@ function assertPhaseOrderCorrect(nextPhase, currentPhase) {
 const PHASE_TIMEOUTS = {
   forge:         900_000,    // 15 min (inner 10m + 5m setup)
   plan_review:   900_000,    // 15 min (inner 10m + 5m setup)
-  plan_refine:   180_000,    //  3 min (orchestrator-only, no team)
+  // plan_refine: absorbed into plan_review in v3.0.0-alpha.6 (Day 5 C4a)
   verification:  30_000,     // 30 sec (orchestrator-only, no team)
   work:          2_100_000,  // 35 min (inner 30m + 5m setup)
-  drift_review:  120_000,    //  2 min (inline, no team)
+  // drift_review: absorbed into work in v3.0.0-alpha.6 (Day 5 C4b)
   gap_analysis:  720_000,    // 12 min (inner 8m + 2m setup + 2m aggregate)
   gap_remediation: 900_000,  // 15 min (inner 10m + 5m setup)
-  inspect:       900_000,    // 15 min (4 Inspector Ashes + verdict-binder)
-  inspect_fix:   900_000,    // 15 min (gap-fixer agents for FIXABLE findings)
-  verify_inspect: 240_000,   //  4 min (convergence evaluation, no team)
+  // v3.0.0-alpha.6 (Day 5 C4c): inspect now includes audit + fix + convergence
+  // (was three separate phases). 34 min ≈ 15m inspect + 15m fix + 4m convergence.
+  inspect:       2_040_000,  // 34 min (audit + fix + convergence per round)
   code_review:   900_000,    // 15 min (inner 10m + 5m setup)
   mend:          1_380_000,  // 23 min (inner 15m + 5m setup + 3m ward/cross-file)
-  verify_mend:   240_000,    //  4 min (orchestrator-only, no team)
+  // v3.0.0-alpha.6 (Day 5 C4d): verify_mend absorbed into mend_qa as a post-step.
+  // mend_qa now bears the convergence-eval budget; bump from 5 min to 9 min
+  // (5m QA agent + 4m orchestrator-only convergence eval).
   test:          1_500_000,  // 25 min without E2E. Dynamic: 50 min with E2E (3_000_000)
-  deploy_verify: 300_000,    //  5 min (conditional — gated by migration/API/config file changes)
-  pre_ship_validation: 360_000,  //  6 min (orchestrator-only)
+  // v3.0.0-alpha.6 (Day 5 C4e): deploy_verify removed (always-skipped in v3.x),
+  // pre_ship_validation absorbed into ship as STEP -0.5. Ship's budget bumped
+  // 5 min → 11 min to cover preShipValidator() + PR creation.
   // v3.0.0-alpha.2: bot_review_wait, pr_comment_resolution, goldmask_verification,
   // goldmask_correlation removed — see PHASE_ORDER comment.
   verify:        600_000,    // 10 min (finding verification — spawns verifier agents)
-  ship:          300_000,    //  5 min (orchestrator-only)
+  ship:          660_000,    // 11 min (preShipValidator 6m + PR creation 5m — v3.0.0-alpha.6 C4e)
   merge:         600_000,    // 10 min (orchestrator-only)
   forge_qa:        300_000,  //  5 min (QA gate — 1 agent)
   work_qa:         300_000,  //  5 min (QA gate — 1 agent)
   gap_analysis_qa: 300_000,  //  5 min (QA gate — 1 agent)
   code_review_qa:  300_000,  //  5 min (QA gate — 1 agent)
-  mend_qa:         300_000,  //  5 min (QA gate — 1 agent)
+  mend_qa:         540_000,  //  9 min (QA gate 5m + post-step convergence eval 4m — v3.0.0-alpha.6 C4d)
   test_qa:         300_000,  //  5 min (QA gate — 1 agent)
 }
 ```
@@ -169,19 +182,20 @@ const BATCH_CONFIG = {
 function calculateDynamicTimeout(tier) {
   const basePhaseBudget = PHASE_TIMEOUTS.forge + PHASE_TIMEOUTS.forge_qa +
     PHASE_TIMEOUTS.plan_review +
-    PHASE_TIMEOUTS.plan_refine + PHASE_TIMEOUTS.verification +
+    PHASE_TIMEOUTS.verification +  // v3.0.0-alpha.6: plan_refine absorbed into plan_review (Day 5 C4a)
     PHASE_TIMEOUTS.work + PHASE_TIMEOUTS.work_qa +
-    PHASE_TIMEOUTS.drift_review +  // DECR-001 fix: was missing from budget
+    // v3.0.0-alpha.6: drift_review absorbed into work (Day 5 C4b)
     PHASE_TIMEOUTS.gap_analysis + PHASE_TIMEOUTS.gap_analysis_qa +
     PHASE_TIMEOUTS.gap_remediation +
-    PHASE_TIMEOUTS.inspect + PHASE_TIMEOUTS.inspect_fix + PHASE_TIMEOUTS.verify_inspect +
+    PHASE_TIMEOUTS.inspect +  // v3.0.0-alpha.6: inspect_fix + verify_inspect absorbed into inspect (Day 5 C4c)
     PHASE_TIMEOUTS.code_review + PHASE_TIMEOUTS.code_review_qa +
     PHASE_TIMEOUTS.verify +
     PHASE_TIMEOUTS.mend + PHASE_TIMEOUTS.mend_qa +
-    PHASE_TIMEOUTS.verify_mend +
+    // v3.0.0-alpha.6: verify_mend absorbed into mend_qa post-step (Day 5 C4d).
+    // The 4 min of convergence-eval budget moved into mend_qa's bumped 9 min total.
     PHASE_TIMEOUTS.test + PHASE_TIMEOUTS.test_qa +
-    PHASE_TIMEOUTS.deploy_verify +  // DECR-001 fix: was missing from budget
-    PHASE_TIMEOUTS.pre_ship_validation +
+    // v3.0.0-alpha.6 (Day 5 C4e): deploy_verify removed; pre_ship_validation
+    // absorbed into ship — ship's bumped 11-min budget covers both former phases.
     PHASE_TIMEOUTS.ship + PHASE_TIMEOUTS.merge
     // v3.0.0-alpha.2: removed goldmask_verification, goldmask_correlation,
     // bot_review_wait, pr_comment_resolution from default budget.
@@ -300,9 +314,11 @@ const SKIP_REASONS = {
 //   browser_test*, browser_test_fix*, verify_browser_test*
 //   (* = conditionally pre-computable — only when parent feature is disabled)
 //
-// Runtime-dependent (NOT in skip_map): plan_refine (depends on Phase 2 verdicts),
-//   drift_review (depends on worker drift signal files — zero overhead when none exist),
-//   deploy_verify (depends on post-work diff analysis)
+// Runtime-dependent (NOT in skip_map):
+//   (none in v3.0.0-alpha.6+)
+// v3.0.0-alpha.6 (Day 5): plan_refine and drift_review removed (absorbed into
+// plan_review and work respectively; no longer phases). deploy_verify also
+// removed entirely (was always-skipped in v3.x); no runtime-dependent skips remain.
 //
 // v3.0.0-alpha.1 removed the design family (design_extraction, design_prototype,
 // design_verification*, design_iteration*) so they are no longer pre-computable.
@@ -330,8 +346,9 @@ const DEPTH_PRESETS = {
   quick: [
     "forge", "forge_qa",
     "ux_verification", "storybook_verification",
-    "inspect", "inspect_fix",
-    "verify_inspect", "browser_test", "browser_test_fix",
+    "inspect",
+    // v3.0.0-alpha.6 (Day 5 C4c): inspect_fix and verify_inspect absorbed into inspect.
+    "browser_test", "browser_test_fix",
     "verify_browser_test"
   ],
   // standard: Default — skip optional/conditional phases only

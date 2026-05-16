@@ -4,7 +4,7 @@
     {
       "id": 1,
       "prompt": "I have a plan file at plugins/rune/skills/arc/evals/files/sample-plan.md — I want to run the full arc pipeline on it. Walk me through what the arc skill would do in the first 3 phases (pre-flight, checkpoint init, and Phase 1 FORGE). Don't actually execute it — just explain the decision tree and what artifacts would be created. Pay special attention to: branch strategy (we're on a feature branch already), freshness gate signals, checkpoint schema version, and the Phase 1 FORGE team creation pattern.",
-      "expected_output": "A detailed walkthrough with exact implementation values: (1) Pre-flight — freshness gate with 5 named signals and weights (commit_distance=0.25, file_drift=0.35, identifier_loss=0.25, branch_divergence=0.10, time_decay=0.05), score formula freshnessScore=clamp(1-weightedSum,0,1), ARC_TEAM_PREFIXES stale scan with specific prefixes, rune_acquire_lock('arc','writer'). (2) Checkpoint init — session_nonce via crypto.randomBytes(6).toString('hex') validated with /^[0-9a-f]{12}$/, PHASE_ORDER starting forge→forge_qa→plan_review→plan_refine→verification (semantic_verification was removed in v3.0.0-alpha.2). (3) Phase 1 FORGE — ATE-1 sequence: TeamCreate→TaskCreate→Agent with team_name.",
+      "expected_output": "A detailed walkthrough with exact implementation values: (1) Pre-flight — freshness gate with 5 named signals and weights (commit_distance=0.25, file_drift=0.35, identifier_loss=0.25, branch_divergence=0.10, time_decay=0.05), score formula freshnessScore=clamp(1-weightedSum,0,1), ARC_TEAM_PREFIXES stale scan with specific prefixes, rune_acquire_lock('arc','writer'). (2) Checkpoint init — session_nonce via crypto.randomBytes(6).toString('hex') validated with /^[0-9a-f]{12}$/, PHASE_ORDER starting forge→forge_qa→plan_review→verification→work (plan_refine was absorbed into plan_review in v3.0.0-alpha.6 C4a; semantic_verification was removed in v3.0.0-alpha.2). (3) Phase 1 FORGE — ATE-1 sequence: TeamCreate→TaskCreate→Agent with team_name.",
       "files": ["evals/files/sample-plan.md"],
       "expectations": [
         "Describes freshness gate 5 signals by their actual names: commit_distance (0.25), file_drift (0.35), identifier_loss (0.25), branch_divergence (0.10), time_decay (0.05) — not generic names like 'structural/dependency/api/config/test'",
@@ -13,7 +13,7 @@
         "Describes the ATE-1 pattern: TeamCreate first, then TaskCreate, then Agent with team_name — the exact 3-step sequence (not just 'delegates')",
         "References ARC_TEAM_PREFIXES array in arc-preflight.md for stale team scan — lists at least 3 specific prefixes (e.g., arc-forge-, rune-review-, rune-work-)",
         "Mentions workflow lock acquired via rune_acquire_lock('arc', 'writer') — specifying both the workflow name and lock type",
-        "Lists the first 5 phases of PHASE_ORDER in correct order: forge, forge_qa, plan_review, plan_refine, verification (semantic_verification was removed in v3.0.0-alpha.2)"
+        "Lists the first 5 phases of PHASE_ORDER in correct order: forge, forge_qa, plan_review, verification, work (plan_refine was absorbed into plan_review in v3.0.0-alpha.6 C4a; semantic_verification was removed in v3.0.0-alpha.2)"
       ]
     },
     {
@@ -34,7 +34,7 @@
     {
       "id": 3,
       "prompt": "I want to run an arc pipeline with these flags: --no-forge --draft --no-test on plans/feat-notifications-plan.md. Explain exactly how each flag affects the phase execution. Which phases get skipped? Which phases get modified behavior? What's the effective PHASE_ORDER after applying these flags?",
-      "expected_output": "Detailed flag analysis: --no-forge skips Phase 1 (forge) entirely, using the plan as-is. --draft makes Phase 9 (ship) create a draft PR instead of a regular PR. --no-test skips Phase 7.7 (test). The effective pipeline runs the 26 default phases minus forge and test (≈ 24 phases).",
+      "expected_output": "Detailed flag analysis: --no-forge skips Phase 1 (forge) entirely, using the plan as-is. --draft makes Phase 9 (ship) create a draft PR instead of a regular PR. --no-test skips Phase 7.7 (test). The effective pipeline runs the 19 default phases minus forge and test (≈ 17 phases).",
       "files": [],
       "expectations": [
         "Correctly identifies --no-forge skips the forge phase (Phase 1)",

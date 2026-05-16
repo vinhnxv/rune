@@ -1,12 +1,11 @@
-# Phase 5.9: Inspect (Plan-vs-Implementation Audit) — Full Algorithm
+# Phase 5.9: Inspect (Plan-vs-Implementation Audit + Fix + Convergence) — Full Algorithm
 
-Spawns 4 Inspector Ashes to evaluate plan-vs-implementation alignment. Each inspector
-receives the enriched plan + committed files diff and produces dimension-specific findings.
-Output is aggregated by verdict-binder into a unified VERDICT.md.
+Spawns 4 Inspector Ashes to evaluate plan-vs-implementation alignment, then spawns gap-fixers for FIXABLE findings (absorbed `inspect_fix` in v3.0.0-alpha.6 Day 5 C4c), then evaluates convergence and either retries or halts (absorbed `verify_inspect`). Output is aggregated by verdict-binder into a unified VERDICT.md.
 
-**Team**: `arc-inspect-full-{id}` (4 Inspector Ashes + 1 verdict-binder)
-**Tools**: Read, Glob, Grep, Write, Bash (git diff), Agent, TeamCreate, TaskCreate, SendMessage
-**Duration**: Max 15 minutes (inner 10m inspect + 5m setup/aggregation)
+**Teams**: `arc-inspect-full-{id}` (4 Inspector Ashes + 1 verdict-binder), then `arc-inspect-fix-{id}` (gap-fixer agents, conditional on verdict != READY)
+**Tools**: Read, Glob, Grep, Write, Edit, Bash (git diff), Agent, TeamCreate, TaskCreate, SendMessage
+**Duration**: Max 34 minutes per convergence round (15m audit + 15m fix + 4m convergence eval)
+**Convergence**: Up to `inspect_convergence.max_rounds` (default 2) cycles. On retry, the phase resets itself to `pending` so the dispatcher loops back.
 
 ## Entry Guard
 
@@ -25,6 +24,8 @@ if (!checkpoint.plan_file || !Read(checkpoint.plan_file)) {
 }
 
 updateCheckpoint({ phase: 'inspect', status: 'in_progress', phase_sequence: 5.9, team_name: null })
+// Set initial substate: entering audit steps (STEP 1-4)
+updateCheckpoint({ phase: 'inspect', substate: 'audit' })
 ```
 
 ## STEP 1: Prepare Inspect Context
@@ -276,8 +277,13 @@ if (p1Markers > 0) {
   }
 }
 
+// v3.0.0-alpha.6: do NOT mark inspect as 'completed' here yet — STEP 5 (Fix)
+// and STEP 6 (Convergence) still run in this same phase invocation. Record
+// the intermediate verdict so subsequent steps can read it; status stays
+// 'in_progress' until STEP 6 finalizes (converge/halt) or resets to 'pending'
+// (retry).
 updateCheckpoint({
-  phase: 'inspect', status: 'completed', phase_sequence: 5.9,
+  phase: 'inspect', status: 'in_progress', phase_sequence: 5.9,
   artifact: `tmp/arc/${id}/inspect-verdict.md`,
   artifact_hash: sha256(verdictContent),
   completion_pct: completionPct,
@@ -285,18 +291,291 @@ updateCheckpoint({
   p1_raw_count: p1Markers,
   verdict: inspectVerdict,
 })
+```
 
-// Phase ordering assertion: inspect must precede inspect_fix in PHASE_ORDER
-const inspIdx = PHASE_ORDER.indexOf('inspect')
-const fixIdx = PHASE_ORDER.indexOf('inspect_fix')
-if (inspIdx < 0 || fixIdx < 0 || inspIdx >= fixIdx) {
-  throw new Error(`PHASE_ORDER invariant violated: inspect (${inspIdx}) must precede inspect_fix (${fixIdx})`)
+**Intermediate output**: `tmp/arc/{id}/inspect-verdict.md` — unified VERDICT.md with completion %, dimension scores, gap classification. STEP 5 (Fix) reads this; STEP 6 (Convergence) evaluates it.
+
+**Failure policy (audit half)**: Non-blocking. Missing VERDICT skips STEP 5 fix and treats convergence as "halt" with null metrics. Individual inspector timeouts produce partial findings — verdict-binder aggregates whatever is available.
+
+## STEP 5: Inspect Fix (absorbed inspect_fix)
+
+<!-- v3.0.0-alpha.6: absorbed from the deleted arc-phase-inspect-fix.md (Day 5 C4c). -->
+<!-- Conditional sub-step: reads the VERDICT.md just written, extracts FIXABLE -->
+<!-- findings, spawns a separate gap-fixer team to apply targeted fixes. -->
+
+```javascript
+// Advance substate to "fix" — entering STEP 5 gap-fixer execution
+updateCheckpoint({ phase: 'inspect', substate: 'fix' })
+
+// Entry guard — skip if no verdict, verdict is READY, or VERDICT.md missing.
+const fixSkipReason = (
+  !verdictContent                      ? 'no_verdict' :
+  inspectVerdict === 'READY'           ? 'verdict_ready' :
+  null
+)
+
+if (fixSkipReason) {
+  log(`Phase 5.9 STEP 5 (inspect_fix): skipping — ${fixSkipReason}`)
+} else {
+  // ── STEP 5.1: Extract FIXABLE Findings ──
+  // Parse VERDICT.md for FIXABLE gaps. Gap categories: correctness, coverage,
+  // test, observability, security, operational, performance, maintainability,
+  // wiring (WIRE- prefix; NOT auto-fixable — excluded by fixable="true" filter).
+  const gapMarkers = verdictContent.match(/<!-- GAP:[^>]*fixable="true"[^>]*-->/g) || []
+  const allParsedGaps = gapMarkers.map(marker => {
+    const idMatch = marker.match(/id="([^"]+)"/)
+    const fileMatch = marker.match(/file="([^"]+)"/)
+    const categoryMatch = marker.match(/category="([^"]+)"/)
+    const descMatch = marker.match(/desc="([^"]+)"/)
+    const classificationMatch = marker.match(/classification="([^"]+)"/)
+    return {
+      gap_id: idMatch?.[1] ?? 'unknown',
+      file: fileMatch?.[1] ?? null,
+      category: categoryMatch?.[1] ?? 'unknown',
+      description: descMatch?.[1] ?? '',
+      classification: classificationMatch?.[1] ?? null,
+    }
+  }).filter(g => g.file)
+
+  // AC-6.1.1: Skip findings classified as false positives or intentional deviations
+  const FP_CLASSIFICATIONS = [
+    'FP_INSPECTOR_ERROR', 'FP_AMBIGUOUS_AC',
+    'DEVIATED_INTENTIONAL', 'DEVIATED_SUPERSEDED', 'MISSING_EXCLUDED',
+  ]
+  const reclassifiedGaps = allParsedGaps.filter(g =>
+    g.classification && (g.classification.startsWith('FP_') || FP_CLASSIFICATIONS.includes(g.classification)))
+  const fixableGaps = allParsedGaps.filter(g =>
+    !g.classification || (!g.classification.startsWith('FP_') && !FP_CLASSIFICATIONS.includes(g.classification)))
+  const reclassifiedCount = reclassifiedGaps.length
+  const maxFixes = 20  // v3.x: inspect.max_fixes baked from former talisman.inspect
+
+  let fixedCount = 0
+  let deferredCount = 0
+
+  if (fixableGaps.length === 0) {
+    const earlyDeferredCount = Math.max(0, gapMarkers.length - reclassifiedCount)
+    warn(`Phase 5.9 STEP 5: No FIXABLE gaps — ${reclassifiedCount} reclassified, ${earlyDeferredCount} deferred`)
+    deferredCount = earlyDeferredCount
+  } else {
+    // ── STEP 5.2: Group by File and Spawn Fixers ──
+    const capsFixable = fixableGaps.slice(0, maxFixes)
+    deferredCount = fixableGaps.length - capsFixable.length + (gapMarkers.length - fixableGaps.length - reclassifiedCount)
+
+    const gapsByFile = {}
+    for (const gap of capsFixable) {
+      if (!gapsByFile[gap.file]) gapsByFile[gap.file] = []
+      gapsByFile[gap.file].push(gap)
+    }
+
+    const fixTeamName = `arc-inspect-fix-${id}`
+    TeamCreate({ team_name: fixTeamName })
+
+    try {
+    const fixerNames = []
+    let fixerIdx = 0
+    for (const [file, gaps] of Object.entries(gapsByFile)) {
+      const fixerName = `gap-fixer-${fixerIdx++}`
+      fixerNames.push(fixerName)
+      TaskCreate({
+        subject: `${fixerName}: fix ${gaps.length} gaps in ${file}`,
+        description: `Fix FIXABLE gaps in ${file}. Gap IDs: ${gaps.map(g => g.gap_id).join(', ')}. Each fix gets its own atomic commit: fix(inspect): [{GAP-ID}]. Read tmp/arc/${id}/inspect-verdict.md for full gap context.`,
+      })
+      Agent({
+        team_name: fixTeamName,
+        name: fixerName,
+        subagent_type: 'rune:work:gap-fixer',
+        prompt: `You are gap-fixer for inspect remediation. Fix these FIXABLE gaps in ${file}:\n${gaps.map(g => `- [${g.gap_id}] (${g.category}): ${g.description}`).join('\n')}\n\nRead tmp/arc/${id}/inspect-verdict.md for full context. Apply minimal, targeted fixes. Each fix gets its own atomic commit: fix(inspect): [${gaps[0].gap_id}]. Claim your task via TaskList + TaskUpdate (status: completed) when done.`,
+      })
+    }
+
+    waitForCompletion(fixTeamName, fixerNames.length, { timeoutMs: 600_000, pollIntervalMs: 30_000 })
+
+    } catch (e) {
+      warn(`inspect-fix team timed out / failed: ${e.message}`)
+      throw e
+    } finally {
+    // ── STEP 5.3: Cleanup fix team (CLEAN-002 finally block) ──
+    // Always runs — even on timeout/exception. Same 5-component standard cleanup
+    // pattern as STEP 3.5 above. Dynamic member discovery with fallback to spawned
+    // fixer names. Force-reply + adaptive grace + TeamDelete retry-with-backoff +
+    // filesystem fallback.
+    let fixAllMembers = []
+    try {
+      const CHOME = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
+      const fixTeamConfig = JSON.parse(Read(`${CHOME}/teams/${fixTeamName}/config.json`))
+      const fixMembers = Array.isArray(fixTeamConfig.members) ? fixTeamConfig.members : []
+      fixAllMembers = fixMembers.map(m => m.name).filter(n => n && /^[a-zA-Z0-9_-]+$/.test(n))
+    } catch (e) {
+      fixAllMembers = (fixerNames.length > 0)
+        ? fixerNames
+        : Array.from({ length: Math.max(1, maxFixes) }, (_, i) => `gap-fixer-${i}`)
+    }
+    const fixAliveMembers = []
+    for (const member of fixAllMembers) {
+      try { SendMessage({ type: "message", recipient: member, content: "Acknowledge: workflow completing" }); fixAliveMembers.push(member) } catch (e) {}
+    }
+    if (fixAliveMembers.length > 0) { Bash("sleep 2", { run_in_background: true }) }
+    let fixConfirmedAlive = 0
+    for (const member of fixAliveMembers) {
+      try { SendMessage({ type: "shutdown_request", recipient: member, content: "Inspect-fix complete" }); fixConfirmedAlive++ } catch (e) {}
+    }
+    if (fixConfirmedAlive > 0) {
+      Bash(`sleep ${Math.min(20, Math.max(5, fixConfirmedAlive * 5))}`, { run_in_background: true })
+    } else {
+      Bash("sleep 2", { run_in_background: true })
+    }
+    let fixCleanupTeamDeleteSucceeded = false
+    const FIX_CLEANUP_DELAYS = [0, 3000, 6000, 10000]
+    for (let attempt = 0; attempt < FIX_CLEANUP_DELAYS.length; attempt++) {
+      if (attempt > 0) Bash(`sleep ${FIX_CLEANUP_DELAYS[attempt] / 1000}`, { run_in_background: true })
+      try { TeamDelete(); fixCleanupTeamDeleteSucceeded = true; break } catch (e) {
+        if (attempt === FIX_CLEANUP_DELAYS.length - 1) warn(`inspect-fix cleanup: TeamDelete failed after ${FIX_CLEANUP_DELAYS.length} attempts`)
+      }
+    }
+    if (!fixCleanupTeamDeleteSucceeded) {
+      Bash(`source "${RUNE_PLUGIN_ROOT}/scripts/lib/process-tree.sh" && _rune_kill_tree "$PPID" "2stage" "5" "teammates" "${fixTeamName}"`)
+      Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${fixTeamName}/" "$CHOME/tasks/${fixTeamName}/" 2>/dev/null`)
+      try { TeamDelete() } catch (e) { /* best effort */ }
+    }
+    } // end finally
+
+    // ── STEP 5.4: Count fix results ──
+    const fixCommits = Bash(`git log --oneline --since="30 minutes ago" --grep="fix(inspect):" | wc -l`).trim()
+    fixedCount = parseInt(fixCommits, 10) || 0
+
+    // Write inspect-fix-report.md (consumer: humans + post-arc review)
+    const reportContent = [
+      `# Inspect Fix Report — Round ${checkpoint.inspect_convergence?.round ?? 0}`,
+      '',
+      `**Total FIXABLE gaps**: ${capsFixable.length}`,
+      `**Fixed**: ${fixedCount}`,
+      `**Deferred**: ${deferredCount}`,
+      `**Reclassified (False Positive)**: ${reclassifiedCount}`,
+      '',
+      '## Gaps Addressed',
+      ...capsFixable.map(g => `- [${g.gap_id}] ${g.category}: ${g.description} → ${g.file}`),
+      '',
+      ...(reclassifiedCount > 0 ? [
+        '## Reclassified (False Positive)',
+        '',
+        'The following findings were skipped — classified as false positives or intentional deviations:',
+        '',
+        ...reclassifiedGaps.map(g => `- [${g.gap_id}] ${g.category}: ${g.description} → \`${g.classification}\``),
+      ] : []),
+    ].join('\n')
+    Write(`tmp/arc/${id}/inspect-fix-report.md`, reportContent)
+  }
+
+  // Stash fix counts in checkpoint for STEP 6 convergence evaluator
+  updateCheckpoint({
+    phase: 'inspect', status: 'in_progress', phase_sequence: 5.9,
+    inspect_fixed_count: fixedCount,
+    inspect_deferred_count: deferredCount,
+    inspect_reclassified_count: reclassifiedCount,
+  })
+}
+
+// ── STEP 6: Convergence Evaluation (absorbed verify_inspect) ──
+// Advance substate to "convergence" — entering STEP 6 convergence eval
+updateCheckpoint({ phase: 'inspect', substate: 'convergence' })
+// Decides whether to converge (move on to code_review), retry (loop back),
+// or halt (give up gracefully).
+
+const inspectRoundForEval = checkpoint.inspect_convergence?.round ?? 0
+const maxRounds = checkpoint.inspect_convergence?.max_rounds ?? 2
+const threshold = checkpoint.inspect_convergence?.threshold ?? 95
+const evalFixedCount = checkpoint.phases.inspect?.inspect_fixed_count ?? 0
+const evalDeferredCount = checkpoint.phases.inspect?.inspect_deferred_count ?? 0
+
+function evaluateInspectConvergence(completionPct, p1Count, fixedCount, inspectRound, maxRounds, threshold) {
+  // Gate 1: Completion threshold met AND no P1 findings → converge
+  if (completionPct >= threshold && p1Count === 0) return 'converge'
+  // Gate 2: Max rounds exceeded → halt
+  if (inspectRound + 1 >= maxRounds) return 'halt'
+  // Gate 3: No progress in this round (0 fixes after the first round) → halt
+  if (fixedCount === 0 && inspectRound > 0) return 'halt'
+  // Default: retry
+  return 'retry'
+}
+
+const convergenceVerdict = evaluateInspectConvergence(
+  completionPct ?? 0, adjustedP1Count, evalFixedCount, inspectRoundForEval, maxRounds, threshold
+)
+
+checkpoint.inspect_convergence = checkpoint.inspect_convergence ?? { round: 0, history: [], max_rounds: maxRounds, threshold }
+checkpoint.inspect_convergence.history.push({
+  round: inspectRoundForEval,
+  completion_pct: completionPct,
+  p1_count: adjustedP1Count,
+  fixed_count: evalFixedCount,
+  deferred_count: evalDeferredCount,
+  verdict: convergenceVerdict,
+  timestamp: new Date().toISOString(),
+})
+
+if (convergenceVerdict === 'retry') {
+  // ── STEP 6.1: Build progressive focus scope for next round ──
+  const remainingGaps = verdictContent.match(/<!-- GAP:[^>]*-->/g) || []
+  const focusResult = {
+    round: inspectRoundForEval + 1,
+    remaining_gap_count: remainingGaps.length,
+    focused_diff: Bash(`git diff ${defaultBranch}...HEAD`),
+  }
+  const nextRound = inspectRoundForEval + 1
+  Write(`tmp/arc/${id}/inspect-focus-round-${nextRound}.json`, JSON.stringify(focusResult))
+  checkpoint.inspect_convergence.round = nextRound
+
+  // Budget exhaustion guard — convergence rounds * per-round timeout.
+  // PHASE_TIMEOUTS.inspect already covers audit + fix + eval (15+15+4 = 34 min).
+  const cycleBudget = PHASE_TIMEOUTS.inspect
+  const elapsedBudget = checkpoint.inspect_convergence.history.length * cycleBudget
+  if (elapsedBudget > cycleBudget * maxRounds) {
+    warn(`Inspect convergence budget exhausted after ${inspectRoundForEval + 1} rounds — halting`)
+    checkpoint.inspect_convergence.history[checkpoint.inspect_convergence.history.length - 1].verdict = 'halt'
+    checkpoint.inspect_convergence.history[checkpoint.inspect_convergence.history.length - 1].reason = 'budget_exhausted'
+    updateCheckpoint({ phase: 'inspect', status: 'completed', phase_sequence: 5.9 })
+    return
+  }
+
+  // ── STEP 6.2: Reset inspect to 'pending' so the dispatcher loops back ──
+  // With inspect_fix and verify_inspect absorbed in v3.0.0-alpha.6, we only
+  // reset the single 'inspect' phase. The dispatcher's "first pending in
+  // PHASE_ORDER" scan re-enters this file from STEP 1 with a higher round.
+  checkpoint.phases.inspect.status = 'pending'
+  checkpoint.phases.inspect.artifact = null
+  checkpoint.phases.inspect.artifact_hash = null
+  checkpoint.phases.inspect.team_name = null
+  checkpoint.phases.inspect.completion_pct = null
+  checkpoint.phases.inspect.p1_count = null
+  checkpoint.phases.inspect.verdict = null
+  checkpoint.phases.inspect.inspect_fixed_count = null
+  checkpoint.phases.inspect.inspect_deferred_count = null
+  checkpoint.phases.inspect.inspect_reclassified_count = null
+
+  updateCheckpoint(checkpoint)
+  return  // Dispatcher will re-enter the inspect phase next turn.
+} else if (convergenceVerdict === 'halt') {
+  warn(`Inspect convergence halted after ${inspectRoundForEval + 1} cycle(s): ${completionPct}% complete, ${adjustedP1Count} P1 findings remain. Proceeding to code_review.`)
+  updateCheckpoint({
+    phase: 'inspect', status: 'completed', phase_sequence: 5.9,
+    artifact: `tmp/arc/${id}/inspect-verdict.md`,
+    artifact_hash: sha256(verdictContent),
+    substate: null,  // clear substate on completion
+  })
+} else {
+  // 'converge'
+  updateCheckpoint({
+    phase: 'inspect', status: 'completed', phase_sequence: 5.9,
+    artifact: `tmp/arc/${id}/inspect-verdict.md`,
+    artifact_hash: sha256(verdictContent),
+    substate: null,  // clear substate on completion
+  })
 }
 ```
 
-**Output**: `tmp/arc/{id}/inspect-verdict.md` — unified VERDICT.md with completion %, dimension scores, gap classification.
+**Final output**: `tmp/arc/{id}/inspect-verdict.md` (always present once STEP 4 succeeds); `tmp/arc/{id}/inspect-fix-report.md` (when STEP 5 ran with fixable gaps); per-round focus JSONs `tmp/arc/{id}/inspect-focus-round-N.json` (on retry).
 
-**Failure policy**: Non-blocking. Missing VERDICT proceeds to inspect_fix with null metrics. Individual inspector timeouts produce partial findings — verdict-binder aggregates whatever is available.
+**Failure policy (whole phase)**: Non-blocking. Halting after the convergence-budget guard or max-rounds gate proceeds to code_review with a warning. The convergence gate never blocks the pipeline permanently; it either retries or gives up gracefully.
 
 ---
 

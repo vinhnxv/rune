@@ -60,11 +60,17 @@ Read `$ARGUMENTS`. Three paths:
 
 Fast-path keywords: `plan`, `work`, `review`, `brainstorm`, `explore`, `devise`,
 `strive`, `appraise`, `audit`, `arc`,
-`forge`, `verify`, `mend`, `inspect`, `goldmask`, `elicit`, `rest`, `variant-hunt`, `supply-chain-audit`, `post-findings`,
+`forge`, `mend`, `inspect`, `goldmask`, `elicit`, `rest`, `variant-hunt`, `supply-chain-audit`, `post-findings`,
 `ship`, `fix`, `debug`, `cancel`,
 `file-todos`, `resolve-comments`, `resolve-comment`, `resolve-todos`,
 `skill-testing`, `team-status`, `team-delegate`,
 `self-audit`.
+
+> Note: `verify` and `arc-quick` are no longer fast-path keywords — both were
+> absorbed in v3.0.0-alpha.6 into flags on `/rune:inspect` (`--verify-tome`)
+> and `/rune:arc` (`--quick-mode`) respectively. Natural-language phrasing for
+> these is still picked up via the catalog in
+> [skill-catalog.md](references/skill-catalog.md).
 
 **Path C — Natural language** (no keyword match):
 ```

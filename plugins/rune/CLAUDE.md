@@ -10,16 +10,14 @@ The four-pillar essence (v3.0.0-alpha.4): `/rune:arc` + checkpoint framework, QA
 
 | Skill | Purpose |
 |-------|---------|
-| **arc** | End-to-end pipeline (forge → forge_qa → plan review → work → work_qa → gap analysis → gap remediation → inspect → code review → mend → verify_mend → test → ship → merge) with checkpoint framework |
-| **arc-quick** | Lightweight 4-phase: plan -> work+evaluate -> review -> mend |
+| **arc** | End-to-end pipeline (forge → forge_qa → plan review → work → work_qa → gap analysis → gap remediation → inspect → code review → mend → verify_mend → test → ship → merge) with checkpoint framework. Use `--quick-mode` for the lightweight 4-phase path (plan → work+evaluate → review → mend) |
 | **devise** | Multi-agent planning (research, synthesize, shatter, forge, review, grounding gate). `--quick` skips brainstorm/forge |
 | **strive** | Swarm work execution with self-organizing task pool. Discipline Work Loop activates on plans with YAML criteria |
 | **appraise** | Multi-agent code review with up to 7 Ashes. `--deep` runs multi-wave |
 | **audit** | Full codebase audit (deep by default). `--incremental` for stateful 3-tier auditing |
 | **forge** | Deepen plan with Forge Gaze topic-aware agent enrichment |
-| **inspect** | Plan-vs-implementation audit with 4 Inspector Ashes (11 dimensions, 9 gap categories) |
+| **inspect** | Plan-vs-implementation audit with 4 Inspector Ashes (11 dimensions, 9 gap categories). Use `--verify-tome` to classify TOME findings (TRUE_POSITIVE / FALSE_POSITIVE / NEEDS_CONTEXT) — absorbed from the prior `verify` skill in v3.0.0-alpha.6 |
 | **mend** | Parallel finding resolution from TOME |
-| **verify** | Classify TOME findings TRUE_POSITIVE / FALSE_POSITIVE / NEEDS_CONTEXT before mend |
 | **brainstorm** | Collaborative idea exploration — Solo, Roundtable Advisors, or Deep mode |
 | **goldmask** | Cross-layer impact analysis (Wisdom + Lore) |
 | **debug** | ACH-based parallel debugging via competing hypotheses |

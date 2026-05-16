@@ -13,8 +13,8 @@
   "plugins": [
     {
       "name": "rune",
-      "description": "Multi-agent engineering orchestration for Claude Code. Plan, work, review, mend, ship via /rune:arc with checkpoint framework, QA phases, Discipline Engineering, and Agent Teams. v3.0.0-alpha.5: Day 4 Talisman residue sweep complete — reference-layer pseudocode baked, mcp-integration-spec + ui-builder-protocol guides deleted, lib/talisman-shard-path.sh + dead probes removed, RC-TALISMAN-01 repurposed as regression guard.",
-      "version": "3.0.0-alpha.5",
+      "description": "Multi-agent engineering orchestration for Claude Code. Plan, work, review, mend, ship via /rune:arc with checkpoint framework, QA phases, Discipline Engineering, and Agent Teams. v3.0.0-alpha.6: Day 5 arc surface trim — arc-quick + verify skills merged into arc/inspect (44 → 42 skills); arc PHASE_ORDER 26 → 19 via 5 phase absorptions (plan_refine→plan_review, drift_review→work, inspect_fix+verify_inspect→inspect, verify_mend→mend_qa post-step, pre_ship_validation→ship; deploy_verify removed).",
+      "version": "3.0.0-alpha.6",
       "author": {
         "name": "vinhnxv",
         "email": "vinh.ngxv@gmail.com",
@@ -49,7 +49,6 @@
       "skills": [
         "./skills/appraise",
         "./skills/arc",
-        "./skills/arc-quick",
         "./skills/ash-guide",
         "./skills/audit",
         "./skills/brainstorm",
@@ -89,7 +88,6 @@
         "./skills/testing",
         "./skills/using-rune",
         "./skills/variant-hunt",
-        "./skills/verify",
         "./skills/zsh-compat"
       ],
       "source": "./plugins/rune"

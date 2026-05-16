@@ -744,7 +744,7 @@ async function runQAGate(id, parentPhase, checkpoint) {
 
     // AC-7: Deterministic dashboard trigger after the last QA-gated phase
     // The last gated phase is "test" (test_qa). After it passes, generate the
-    // consolidated QA dashboard before any downstream phase (pre_ship_validation) runs.
+    // consolidated QA dashboard before any downstream phase (ship) runs.
     const LAST_GATED_PHASE = "test"
     if (parentPhase === LAST_GATED_PHASE && (verdictStr === "PASS" || verdictStr === "EXCELLENT")) {
       try {
@@ -752,6 +752,30 @@ async function runQAGate(id, parentPhase, checkpoint) {
         log(`QA dashboard generated at tmp/arc/${id}/qa/dashboard.json`)
       } catch (e) {
         warn(`QA dashboard generation failed: ${e.message} — non-blocking, continuing`)
+      }
+    }
+
+    // v3.0.0-alpha.6 (Day 5 C4d): Post-mend_qa convergence eval.
+    // verify_mend was previously its own PHASE_ORDER phase that ran after mend_qa.
+    // It is now absorbed into mend_qa as a post-step — invoked here only when
+    // mend_qa advanced (i.e., the QA verdict was PASS/EXCELLENT, not a retry).
+    // The convergence eval may reset code_review + mend to "pending", causing
+    // the dispatcher's first-pending scan to loop back to code_review.
+    //
+    // Algorithm: see arc/references/verify-mend.md (kept as the canonical
+    // convergence-eval reference, no longer a dispatched phase).
+    if (parentPhase === "mend" && (verdictStr === "PASS" || verdictStr === "EXCELLENT")) {
+      try {
+        // Inline the verify-mend.md algorithm here. It reads the round-aware
+        // resolution-report, current TOME, evaluates convergence via
+        // evaluateConvergence(), and either:
+        //   - converge → mark complete, advance to test
+        //   - retry   → reset code_review + mend to "pending", dispatcher loops back
+        //   - halted  → mark complete with warning, advance to test
+        // See verify-mend.md for the full STEP 1-3 pseudocode and helper functions.
+        runMendQAConvergence(id, checkpoint)
+      } catch (e) {
+        warn(`mend_qa convergence post-step failed: ${e.message} — non-blocking, advancing to test`)
       }
     }
 
@@ -862,35 +886,33 @@ Each `*_qa` phase is inserted into PHASE_ORDER immediately after its parent phas
 > will assert symmetry.
 
 ```javascript
-// arc-phase-constants.md — JavaScript PHASE_ORDER (26 phases, v3.0.0-alpha.2)
+// arc-phase-constants.md — JavaScript PHASE_ORDER (19 phases, v3.0.0-alpha.6)
 const PHASE_ORDER = [
   "forge", "forge_qa",
-  "plan_review", "plan_refine", "verification",
-  "work", "work_qa", "drift_review",
+  "plan_review", "verification",
+  "work", "work_qa",
   "gap_analysis", "gap_analysis_qa", "gap_remediation",
-  "inspect", "inspect_fix", "verify_inspect",
+  "inspect",
   "code_review", "code_review_qa",
   "verify",
-  "mend", "mend_qa", "verify_mend",
+  "mend", "mend_qa",
   "test", "test_qa",
-  "deploy_verify", "pre_ship_validation",
   "ship", "merge",
 ]
 ```
 
 ```bash
-# arc-phase-stop-hook.sh — bash PHASE_ORDER array (26 phases, v3.0.0-alpha.2)
+# arc-phase-stop-hook.sh — bash PHASE_ORDER array (19 phases, v3.0.0-alpha.6)
 PHASE_ORDER=(
   forge forge_qa
-  plan_review plan_refine verification
-  work work_qa drift_review
+  plan_review verification
+  work work_qa
   gap_analysis gap_analysis_qa gap_remediation
-  inspect inspect_fix verify_inspect
+  inspect
   code_review code_review_qa
   verify
-  mend mend_qa verify_mend
+  mend mend_qa
   test test_qa
-  deploy_verify pre_ship_validation
   ship merge
 )
 ```

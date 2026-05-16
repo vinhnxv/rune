@@ -182,7 +182,7 @@ function buildCompletionRecord(checkpoint, newStatus, content) {
   // Count existing completion records for run ordinal
   const existingRecords = (content.match(/## Arc Completion Record/g) || []).length
 
-  // Phase results table — exactly mirrors PHASE_ORDER (26 phases as of v3.0.0-alpha.2).
+  // Phase results table — exactly mirrors PHASE_ORDER (19 phases as of v3.0.0-alpha.6).
   // WARNING: Order follows PHASE_ORDER (execution order), NOT numeric phase IDs.
   // Removed in v3.0.0-alpha.1+: design_extraction, design_prototype, design_verification,
   // design_verification_qa, design_iteration, storybook_verification, ux_verification,
@@ -193,27 +193,25 @@ function buildCompletionRecord(checkpoint, newStatus, content) {
     ['1',    'FORGE',                   'forge'],
     ['1.5',  'FORGE QA',                'forge_qa'],
     ['2',    'PLAN REVIEW',             'plan_review'],
-    ['2.5',  'PLAN REFINEMENT',         'plan_refine'],
+    // v3.0.0-alpha.6 (Day 5 C4a): plan_refine absorbed into plan_review.
     ['2.7',  'VERIFICATION',            'verification'],
     ['5',    'WORK',                    'work'],
     ['5.1',  'WORK QA',                 'work_qa'],
-    ['5.2',  'DRIFT REVIEW',            'drift_review'],
+    // v3.0.0-alpha.6 (Day 5 C4b): drift_review absorbed into work.
     ['5.5',  'GAP ANALYSIS',            'gap_analysis'],
     ['5.6',  'GAP ANALYSIS QA',         'gap_analysis_qa'],
     ['5.8',  'GAP REMEDIATION',         'gap_remediation'],
     ['5.9',  'INSPECT',                 'inspect'],
-    ['5.95', 'INSPECT FIX',             'inspect_fix'],
-    ['5.97', 'VERIFY INSPECT',          'verify_inspect'],
+    // v3.0.0-alpha.6 (Day 5 C4c): inspect_fix + verify_inspect absorbed into inspect.
     ['6',    'CODE REVIEW (deep)',      'code_review'],
     ['6.5',  'CODE REVIEW QA',          'code_review_qa'],
     ['6.7',  'VERIFY (findings)',       'verify'],
     ['7',    'MEND',                    'mend'],
     ['7.3',  'MEND QA',                 'mend_qa'],
-    ['7.5',  'VERIFY MEND',             'verify_mend'],
+    // v3.0.0-alpha.6 (Day 5 C4d): verify_mend absorbed into mend_qa post-step.
     ['7.7',  'TEST',                    'test'],
     ['7.8',  'TEST QA',                 'test_qa'],
-    ['8',    'DEPLOY VERIFY',           'deploy_verify'],
-    ['8.5',  'PRE-SHIP VALIDATION',     'pre_ship_validation'],
+    // v3.0.0-alpha.6 (Day 5 C4e): deploy_verify removed; pre_ship_validation absorbed into ship.
     ['9',    'SHIP',                    'ship'],
     ['9.5',  'MERGE',                   'merge'],
   ]

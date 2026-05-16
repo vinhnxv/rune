@@ -10,7 +10,7 @@ description: |
   ship, merge.
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[plan-file-path | --resume]"
+argument-hint: "[plan-file-path | --resume | --quick-mode \"<prompt|plan-path>\" [--force]]"
 allowed-tools:
   - Read
   - Write
@@ -33,21 +33,21 @@ allowed-tools:
 
 # /rune:arc — End-to-End Orchestration Pipeline
 
-Chains 26 phases into a single automated pipeline (v3.0.0-alpha.2 — was 30; goldmask + bot-review + PR-comment resolution moved out of the default order). Each phase runs as its own Claude Code turn with fresh context — the `arc-phase-stop-hook.sh` drives phase iteration via the Stop hook pattern. Artifact-based handoff connects phases. Checkpoint state enables resume after failure.
+Chains 19 phases into a single automated pipeline (v3.0.0-alpha.6 — was 30 pre-alpha.2; goldmask + bot-review + PR-comment resolution moved out of the default order; Day 5 alpha.6 absorbed plan_refine, drift_review, inspect_fix, verify_inspect, verify_mend, pre_ship_validation into their parents and removed deploy_verify). Each phase runs as its own Claude Code turn with fresh context — the `arc-phase-stop-hook.sh` drives phase iteration via the Stop hook pattern. Artifact-based handoff connects phases. Checkpoint state enables resume after failure.
 
-**Context budget advisory**: Full arc run: 26 phases x ~3.5min avg = ~91 minutes (lower bound). Context compaction is almost guaranteed in a single session. For constrained sessions, use `--no-forge` to skip Phase 1 enrichment, or split into multiple `/rune:arc --resume` sessions. For context optimization, use `--step-groups` to pause at group boundaries — each group gets a fresh context window on resume. The `PreCompact` hook saves checkpoint state automatically.
+**Context budget advisory**: Full arc run: 19 phases x ~3.7min avg = ~70 minutes (lower bound). Context compaction is almost guaranteed in a single session. For constrained sessions, use `--no-forge` to skip Phase 1 enrichment, or split into multiple `/rune:arc --resume` sessions. For context optimization, use `--step-groups` to pause at group boundaries — each group gets a fresh context window on resume. The `PreCompact` hook saves checkpoint state automatically.
 
 **Load skills**: `roundtable-circle`, `context-weaving`, `rune-orchestration`, `elicitation`, `team-sdk`, `testing`, `polling-guard`, `zsh-compat`
 
 ## CRITICAL — No Pipeline Second-Guessing (ARC-NSG-001)
 
-When the user invokes `/rune:arc`, **execute the full arc pipeline immediately**. Do NOT:
-- Present options like "arc-quick might be better for this"
+When the user invokes `/rune:arc` without `--quick-mode`, **execute the full arc pipeline immediately**. Do NOT:
+- Present options like "the quick mode might be better for this"
 - Ask "are you sure?" or "before I commit N hours..."
 - Recommend a different pipeline based on plan size, effort estimates, or PR strategy
 - Second-guess the user's choice by analyzing plan complexity first
 
-The user chose `/rune:arc` deliberately. Respect that choice. If the plan is small, arc still works — it just finishes faster. If the user wanted `arc-quick`, they would have invoked `/rune:arc-quick`.
+The user chose `/rune:arc` deliberately. Respect that choice. If the plan is small, arc still works — it just finishes faster. If the user wanted the lightweight 4-phase path, they would have invoked `/rune:arc --quick-mode`.
 
 **Exception**: The `--confirm` flag explicitly opts into a pause on all-CONCERN escalation. That is the ONLY confirmation point in the pipeline.
 
@@ -78,32 +78,25 @@ The pipeline uses **named phases** (not numeric IDs) in `PHASE_ORDER`. The numer
 |---|-----------|-----------|------|---------|-------------|
 | 1 | 1 | `forge` | Team | 15 min | `/rune:forge` |
 | 1.1 | 2 | `forge_qa` | Team | 5 min | QA gate (1 agent) |
-| 2 | 3 | `plan_review` | Team | 15 min | `/rune:appraise` (inspect mode) |
-| 2.5 | 4 | `plan_refine` | Inline | 3 min | — |
-| 2.7 | 5 | `verification` | Inline | 30 sec | — |
-| 5 | 6 | `work` | Team | 35 min | `/rune:strive` |
-| 5.01 | 7 | `work_qa` | Team | 5 min | QA gate (1 agent) |
-| 5.1 | 8 | `drift_review` | Inline | 2 min | — |
-| 5.5 | 9 | `gap_analysis` | Team | 12 min | — |
-| 5.51 | 10 | `gap_analysis_qa` | Team | 5 min | QA gate (1 agent) |
-| 5.8 | 11 | `gap_remediation` | Team | 15 min | — |
-| 5.81 | 12 | `inspect` | Team | 15 min | `/rune:inspect` (4 Inspector Ashes) |
-| 5.82 | 13 | `inspect_fix` | Team | 15 min | Gap-fixer agents (FIXABLE findings) |
-| 5.83 | 14 | `verify_inspect` | Inline | 4 min | Convergence evaluation |
-| 6 | 15 | `code_review` | Team | 15 min | `/rune:appraise --deep` |
-| 6.1 | 16 | `code_review_qa` | Team | 5 min | QA gate (1 agent) |
-| 6.6 | 17 | `verify` | Team | 10 min | Finding verification gate |
-| 7 | 18 | `mend` | Team | 23 min | `/rune:mend` |
-| 7.01 | 19 | `mend_qa` | Team | 5 min | QA gate (1 agent) |
-| 7.3 | 20 | `verify_mend` | Inline | 4 min | — |
-| 7.7 | 21 | `test` | Team | 25-50 min | Testing agents |
-| 7.71 | 22 | `test_qa` | Team | 5 min | QA gate (1 agent) |
-| 7.9 | 23 | `deploy_verify` | Team | 5 min | Conditional: deployment verification |
-| 8.5 | 24 | `pre_ship_validation` | Inline | 6 min | — |
-| 9 | 25 | `ship` | Inline | 5 min | — |
-| 9.5 | 26 | `merge` | Inline | 10 min | — |
+| 2 | 3 | `plan_review` | Team | 15 min | `/rune:appraise` (inspect mode); absorbs the former `plan_refine` sub-step (v3.0.0-alpha.6 C4a) |
+| 2.7 | 4 | `verification` | Inline | 30 sec | — |
+| 5 | 5 | `work` | Team | 35 min | `/rune:strive`; absorbs the former `drift_review` sub-step (v3.0.0-alpha.6 C4b) |
+| 5.01 | 6 | `work_qa` | Team | 5 min | QA gate (1 agent) |
+| 5.5 | 7 | `gap_analysis` | Team | 12 min | — |
+| 5.51 | 8 | `gap_analysis_qa` | Team | 5 min | QA gate (1 agent) |
+| 5.8 | 9 | `gap_remediation` | Team | 15 min | — |
+| 5.81 | 10 | `inspect` | Team | 34 min | `/rune:inspect` (4 Inspector Ashes); absorbs `inspect_fix` + `verify_inspect` convergence loop (v3.0.0-alpha.6 C4c) |
+| 6 | 11 | `code_review` | Team | 15 min | `/rune:appraise --deep` |
+| 6.1 | 12 | `code_review_qa` | Team | 5 min | QA gate (1 agent) |
+| 6.6 | 13 | `verify` | Team | 10 min | Finding verification gate |
+| 7 | 14 | `mend` | Team | 23 min | `/rune:mend` |
+| 7.01 | 15 | `mend_qa` | Team | 9 min | QA gate (1 agent) + runMendQAConvergence post-step (absorbed `verify_mend` v3.0.0-alpha.6 C4d) |
+| 7.7 | 16 | `test` | Team | 25-50 min | Testing agents |
+| 7.71 | 17 | `test_qa` | Team | 5 min | QA gate (1 agent) |
+| 9 | 18 | `ship` | Inline | 11 min | preShipValidator pre-step (absorbed `pre_ship_validation` v3.0.0-alpha.6 C4e) + PR creation; `deploy_verify` removed |
+| 9.5 | 19 | `merge` | Inline | 10 min | — |
 
-> **Execution order**: The "Exec Order" column shows the actual sequence (1–26). Phase numbers (#) are for human reference only — always use `PHASE_ORDER` array position. Total: 26 default phases (v3.0.0-alpha.2 cut goldmask_verification, goldmask_correlation, bot_review_wait, pr_comment_resolution; alpha.1 cut design_*, semantic_verification, task_decomposition, test_coverage_critique, release_quality_check, browser_test*, storybook_verification, ux_verification).
+> **Execution order**: The "Exec Order" column shows the actual sequence (1–19). Phase numbers (#) are for human reference only — always use `PHASE_ORDER` array position. Total: 19 default phases (v3.0.0-alpha.6 Day 5 absorbed plan_refine→plan_review, drift_review→work, inspect_fix+verify_inspect→inspect, verify_mend→mend_qa post-step, pre_ship_validation→ship; deploy_verify removed entirely. Prior history: v3.0.0-alpha.2 cut goldmask_verification, goldmask_correlation, bot_review_wait, pr_comment_resolution; alpha.1 cut design_*, semantic_verification, task_decomposition, test_coverage_critique, release_quality_check, browser_test*, storybook_verification, ux_verification).
 
 ## Usage
 
@@ -119,6 +112,7 @@ The pipeline uses **named phases** (not numeric IDs) in `PHASE_ORDER`. The numer
 /rune:arc <plan_file.md> --draft           # Create PR as draft
 /rune:arc <plan_file.md> --no-accept-external  # Prompt when unrelated changes detected (default: accept)
 /rune:arc <plan_file.md> --step-groups   # Pause at each phase group boundary
+/rune:arc --quick-mode "<prompt|plan-path>" [--force]  # Lightweight 4-phase pipeline
 ```
 
 ## Flags
@@ -138,6 +132,8 @@ The pipeline uses **named phases** (not numeric IDs) in `PHASE_ORDER`. The numer
 | `--no-accept-external` | Prompt user when unrelated changes are detected on branch | Off |
 | `--step-groups` | Pause at each phase group boundary for context optimization | Off |
 | `--status` | Show current arc phase, progress, and elapsed time (delegates to rune-status.sh) | Off |
+| `--quick-mode` | Lightweight 4-phase pipeline (plan → work+evaluate → review → mend). Skips checkpoint init and PHASE_ORDER dispatch — runs as a single-turn delegation chain. See [arc-quick-mode.md](references/arc-quick-mode.md) | Off |
+| `--force` | (`--quick-mode` only) Skip the complexity gate warning on plans with 8+ tasks | Off |
 
 > **Note**: Worktree mode for `/rune:strive` (Phase 5) is activated via `work.worktree.enabled: true` in talisman.yml, not via a `--worktree` flag on arc.
 
@@ -221,6 +217,20 @@ if (args.includes("--status")) {
   const output = Bash(`"${RUNE_PLUGIN_ROOT}/scripts/rune-status.sh"`)
   // Display current phase, elapsed time, completed/total phases
   return output
+}
+```
+
+## Quick Mode (`--quick-mode`)
+
+Early return — runs the lightweight 4-phase pipeline (plan → work+evaluate → review → mend) as a single-turn delegation chain. Skips checkpoint init and PHASE_ORDER dispatch entirely. Mirrors the `--status` early-return pattern above so quick-mode never touches the full-pipeline state machine.
+
+```javascript
+if (args.includes("--quick-mode")) {
+  // Read and execute the arc-quick-mode.md algorithm.
+  // The branch is fully self-contained — devise/strive/appraise/mend each manage
+  // their own teams; arc neither creates a checkpoint nor invokes the stop hook.
+  Read(references/arc-quick-mode.md)
+  return  // Do not fall through to checkpoint init or PHASE_ORDER dispatch
 }
 ```
 
@@ -410,7 +420,7 @@ The `plan_file` path written to the phase loop state file and checkpoint is prop
 | `plan_review` (Phase 2) | `plan_file_path` → review agents | Reviewers read plan to evaluate scope and detect drift |
 | `gap_analysis` (Phase 5.5) | `plan_file_path` → gap agents | Gap agents compare plan acceptance criteria vs. committed code |
 | `test` (Phase 7.7) | `plan_file_path` → test agents | Test agents derive coverage targets from plan requirements |
-| `pre_ship_validation` (Phase 8.5) | `plan_file_path` → validation gate | Pre-ship gate reads plan to verify all stated criteria are met before PR |
+| `ship` (Phase 9, STEP -0.5) | `plan_file_path` → preShipValidator | Pre-ship gate (absorbed `pre_ship_validation` v3.0.0-alpha.6 C4e) reads plan to verify all stated criteria are met before PR |
 
 **Rule**: Phases that consume `plan_file_path` MUST read it from `checkpoint.plan_file` (not from the state file or flags). Workers receive it as `planFilePath` in their context prompt so they can cross-reference the original spec, even when the pipeline spans multiple sessions via `--resume`.
 
@@ -481,6 +491,7 @@ See [post-arc.md](references/post-arc.md). 30-second budget. After sweep, **fini
 
 - [Architecture & Pipeline Overview](references/arc-architecture.md) — Pipeline diagram, orchestrator design, transition contracts
 - [Phase Constants](references/arc-phase-constants.md) — PHASE_ORDER, PHASE_TIMEOUTS, CYCLE_BUDGET, shared utilities
+- [Quick Mode](references/arc-quick-mode.md) — `--quick-mode` 4-phase pipeline (plan → work+eval → review → mend)
 - [Failure Policy](references/arc-failure-policy.md) — Per-phase failure handling matrix
 - [Checkpoint Init](references/arc-checkpoint-init.md) — Schema v28, 3-layer config resolution
 - [Resume](references/arc-resume.md) — Checkpoint restoration, schema migration

@@ -191,6 +191,13 @@ if [[ ! -f "$STATE_FILE" ]]; then
   # in the self-heal path would otherwise brick stop-hook progress.
   if command -v jq >/dev/null 2>&1; then
     _TCP_COMPLETED=$(jq -r '.completed_at // empty' "$_OWNED_CP" 2>/dev/null | tr -d '\r')
+    # NOTE: This count covers ALL phases[] keys, including verify_mend and pre_ship_validation —
+    # the 2 transitional state containers retained in the schema (arc-checkpoint-init.md:399-419)
+    # that are NOT in PHASE_ORDER (19 entries as of v3.0.0-alpha.6). Those keys can hold
+    # "in_progress" during their absorbing phases (mend_qa post-step and ship STEP -0.5).
+    # The guard is saved by completed_at precedence: once the arc marks completed_at, the
+    # count of non-terminal keys is irrelevant — the terminal guard fires on the first condition.
+    # Schema invariant: phases[] has exactly 21 keys = 19 PHASE_ORDER + {verify_mend, pre_ship_validation}.
     _TCP_NON_TERMINAL=$(jq -r '[.phases[]? | select(.status == "pending" or .status == "in_progress")] | length' "$_OWNED_CP" 2>/dev/null | tr -d '\r')
     case "$_TCP_NON_TERMINAL" in ''|*[!0-9]*) _TCP_NON_TERMINAL=0 ;; esac
     if [[ -n "$_TCP_COMPLETED" ]] && [[ "$_TCP_NON_TERMINAL" == "0" ]]; then
@@ -473,18 +480,20 @@ fi
 # the bash side was not synced until self-audit run 1778278942.
 PHASE_ORDER=(
   forge forge_qa
-  plan_review plan_refine verification
+  plan_review verification
   work work_qa
-  drift_review gap_analysis gap_analysis_qa
+  gap_analysis gap_analysis_qa
   gap_remediation
-  inspect inspect_fix verify_inspect
+  inspect
   code_review code_review_qa
   verify mend mend_qa
-  verify_mend
   test test_qa
-  deploy_verify pre_ship_validation
   ship merge
 )
+# v3.0.0-alpha.6 (Day 5): plan_refine absorbed into plan_review (C4a),
+# drift_review absorbed into work (C4b), inspect_fix + verify_inspect absorbed
+# into inspect (C4c), verify_mend absorbed into mend_qa as a post-step (C4d),
+# deploy_verify removed + pre_ship_validation absorbed into ship as STEP -0.5 (C4e).
 
 # Heavy phases that ALWAYS trigger compact interlude (tier 1)
 # SYNC-NOTE: This list intentionally differs from HEAVY_PHASES in arc-phase-constants.md.
@@ -497,38 +506,8 @@ HEAVY_PHASES="work work_qa code_review code_review_qa verify mend mend_qa inspec
 COMPACT_INTERVAL=6
 
 source "${SCRIPT_DIR}/lib/phase-groups.sh"
-
-# ── Phase-to-reference-file mapping ──
-# Maps each phase name to its reference file path (relative to plugin root).
-_phase_ref() {
-  local phase="$1"
-  local base="plugins/rune/skills/arc/references"
-  case "$phase" in
-    forge)                    echo "${base}/arc-phase-forge.md" ;;
-    plan_review)              echo "${base}/arc-phase-plan-review.md" ;;
-    plan_refine)              echo "${base}/arc-phase-plan-refine.md" ;;
-    verification)             echo "${base}/verification-gate.md" ;;
-    work)                     echo "${base}/arc-phase-work.md" ;;
-    drift_review)             echo "${base}/arc-phase-drift-review.md" ;;
-    gap_analysis)             echo "${base}/gap-analysis.md" ;;
-    gap_remediation)          echo "${base}/gap-remediation.md" ;;
-    inspect)                  echo "${base}/arc-phase-inspect.md" ;;
-    inspect_fix)              echo "${base}/arc-phase-inspect-fix.md" ;;
-    verify_inspect)           echo "${base}/verify-inspect.md" ;;
-    code_review)              echo "${base}/arc-phase-code-review.md" ;;
-    verify)                   echo "${base}/arc-phase-verify.md" ;;
-    mend)                     echo "${base}/arc-phase-mend.md" ;;
-    verify_mend)              echo "${base}/verify-mend.md" ;;
-    test)                     echo "${base}/arc-phase-test.md" ;;
-    deploy_verify)            echo "${base}/arc-phase-deploy-verify.md" ;;
-    pre_ship_validation)      echo "${base}/arc-phase-pre-ship-validation.md" ;;
-    ship)                     echo "${base}/arc-phase-ship.md" ;;
-    merge)                    echo "${base}/arc-phase-merge.md" ;;
-    forge_qa|work_qa|gap_analysis_qa|code_review_qa|mend_qa|test_qa)
-                              echo "${base}/arc-phase-qa-gate.md" ;;
-    *)                        echo "" ;;
-  esac
-}
+# shellcheck source=lib/phase-ref.sh
+source "${SCRIPT_DIR}/lib/phase-ref.sh"
 
 # ── Section hint for shared reference files ──
 # Required when multiple phases share the same reference file. Without hints,
@@ -724,9 +703,9 @@ _phase_weight() {
     work)                                    echo 5 ;;
     code_review)                             echo 4 ;;
     forge|mend|test)                         echo 3 ;;
-    plan_review|plan_refine)                 echo 3 ;;
+    plan_review)                             echo 3 ;;
     gap_analysis|gap_remediation|verify)     echo 2 ;;
-    verify_mend) echo 2 ;;
+    # verify_mend absorbed into mend_qa post-step in v3.0.0-alpha.6 (Day 5 C4d).
     *)                                       echo 1 ;;
   esac
 }

@@ -20,16 +20,20 @@
 _lookup_phase_group() {
   local phase="$1"
   case "$phase" in
-    forge|forge_qa|plan_review|plan_refine|verification)
+    forge|forge_qa|plan_review|verification)
       echo "planning" ;;
-    work|work_qa|drift_review)
+    # v3.0.0-alpha.6 (Day 5 C4a): plan_refine absorbed into plan_review.
+    work|work_qa)
       echo "work" ;;
+    # v3.0.0-alpha.6 (Day 5 C4b): drift_review absorbed into work.
     gap_analysis|gap_analysis_qa|gap_remediation)
       echo "verification" ;;
-    inspect|inspect_fix|verify_inspect)
+    inspect)
       echo "inspect" ;;
-    code_review|code_review_qa|verify|mend|mend_qa|verify_mend)
+    # v3.0.0-alpha.6 (Day 5 C4c): inspect_fix + verify_inspect absorbed into inspect.
+    code_review|code_review_qa|verify|mend|mend_qa)
       echo "review" ;;
+    # v3.0.0-alpha.6 (Day 5 C4d): verify_mend absorbed into mend_qa post-step.
     test|test_qa)
       echo "testing" ;;
     # v3.0.0-alpha.2: bot_review_wait, pr_comment_resolution removed from default order.
@@ -43,8 +47,10 @@ _lookup_phase_group() {
     # ux_verification, browser_test, browser_test_fix, verify_browser_test
     # removed — these were never canonical post-alpha.1 but lingered as dead
     # case arms.
-    deploy_verify|pre_ship_validation|ship|merge)
+    ship|merge)
       echo "ship" ;;
+    # v3.0.0-alpha.6 (Day 5 C4e): deploy_verify removed (always-skipped in v3.x);
+    # pre_ship_validation absorbed into ship as STEP -0.5.
     *)
       echo "" ;;
   esac

@@ -8,7 +8,7 @@
 #
 # Reads: ${RUNE_STATE}/arc/*/checkpoint.json (session-owned only)
 # Shows: phase summary, per-phase timing (v19+), team roster, context metrics,
-#        convergence status (mend/verify_mend)
+#        convergence status (mend; verify_mend post-step state)
 #
 # Falls back to grep/sed output when jq is unavailable (basic info only).
 
@@ -118,16 +118,19 @@ _status_sym() {
 # families were cut in alpha.1 but lingered here as "conditional" entries.
 PHASE_ORDER=(
   forge forge_qa
-  plan_review plan_refine verification
-  work work_qa drift_review
+  plan_review verification
+  work work_qa
   gap_analysis gap_analysis_qa gap_remediation
-  inspect inspect_fix verify_inspect
+  inspect
   code_review code_review_qa
-  verify mend mend_qa verify_mend
+  verify mend mend_qa
   test test_qa
-  deploy_verify pre_ship_validation
   ship merge
 )
+# v3.0.0-alpha.6 (Day 5): 26 → 19 phases. Absorbed: plan_refine→plan_review (C4a),
+# drift_review→work (C4b), inspect_fix+verify_inspect→inspect (C4c),
+# verify_mend→mend_qa post-step (C4d), deploy_verify removed +
+# pre_ship_validation→ship (C4e).
 
 # ── Find session-owned checkpoint files ──
 CHECKPOINT_FILES=()
@@ -439,11 +442,14 @@ for ckpt in "${CHECKPOINT_FILES[@]}"; do
     echo "│"
   fi
 
-  # Convergence status (mend/verify_mend phases)
+  # Convergence status (mend convergence loop)
+  # v3.0.0-alpha.6 (Day 5 C4d): verify_mend absorbed into mend_qa post-step;
+  # the state container at .phases.verify_mend is still populated by the
+  # runMendQAConvergence() post-step for backward-compatible status display.
   if [[ "$CONV_MAX" -gt 0 && "$CONV_ROUND" != "0" ]]; then
     echo "│  Convergence: round ${CONV_ROUND}/${CONV_MAX}"
     vm_status=$(jq -r '.phases.verify_mend.status // "pending"' "$ckpt" 2>/dev/null || echo "pending")
-    echo "│  Verify-Mend: ${vm_status}"
+    echo "│  Mend-Convergence: ${vm_status}"
     echo "│"
   fi
 

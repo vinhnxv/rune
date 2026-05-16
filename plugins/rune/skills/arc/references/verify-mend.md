@@ -1,12 +1,18 @@
-# Phase 7.5: Verify Mend (Review-Mend Convergence Controller) — Full Algorithm
+# Mend_QA Post-Step: Review-Mend Convergence Controller — Full Algorithm
 
 <!-- v3.x: defaults baked from former talisman.{settings,review,discipline}; see references/v3-defaults.md -->
+<!-- v3.0.0-alpha.6 (Day 5 C4d): no longer a standalone PHASE_ORDER phase. -->
+<!-- Invoked as the `runMendQAConvergence()` post-step inside runQAGate() in   -->
+<!-- arc-phase-qa-gate.md, after mend_qa's verdict advances. The dispatcher    -->
+<!-- does NOT dispatch this file directly — it is read for the algorithm only. -->
 
 Full convergence controller that evaluates mend results, determines whether to loop back for another review-mend cycle, or proceed to test. Replaces the previous single-pass spot-check with an adaptive multi-cycle review-mend loop.
 
+Prior to v3.0.0-alpha.6 this ran as Phase 7.5 (`verify_mend`) in PHASE_ORDER. The phase boundary was removed; the algorithm now executes as a post-step inside mend_qa's runQAGate() (see [arc-phase-qa-gate.md](arc-phase-qa-gate.md)). Behavior is preserved — `checkpoint.phases.verify_mend.*` mutations still occur for backward-compatible state tracking until C9 sweeps the schema.
+
 **Team**: None for convergence decision. Delegates full re-review to `/rune:appraise` (Phase 6) via dispatcher loop-back.
 **Tools**: Read, Glob, Grep, Write, Bash (git diff)
-**Duration**: Max 4 minutes per convergence evaluation (re-review cycles run as separate Phase 6+7 invocations)
+**Duration**: Max 4 minutes per convergence evaluation — folded into mend_qa's 9-min budget (5m QA agent + 4m convergence) per v3.0.0-alpha.6.
 
 See [review-mend-convergence.md](../../roundtable-circle/references/review-mend-convergence.md) for shared tier selection and convergence evaluation logic.
 
@@ -330,13 +336,6 @@ if (verdict === 'converged') {
   // NOTE: prePhaseCleanup(checkpoint) runs automatically before the re-review round
   // (called by the dispatcher for every delegated phase) to clean stale teams from
   // the prior round. This is what prevents team name collisions between rounds.
-  // ASSERTION (decree-arbiter P2): Verify code_review precedes verify_mend in PHASE_ORDER
-  const crIdx = PHASE_ORDER.indexOf('code_review')
-  const vmIdx = PHASE_ORDER.indexOf('verify_mend')
-  if (crIdx < 0 || vmIdx < 0 || crIdx >= vmIdx) {
-    throw new Error(`PHASE_ORDER invariant violated: code_review (${crIdx}) must precede verify_mend (${vmIdx})`)
-  }
-
   // v3.0.0-alpha.2: goldmask_verification + goldmask_correlation removed from default
   // PHASE_ORDER, so no reset logic needed here. Goldmask is now /rune:goldmask only.
 
