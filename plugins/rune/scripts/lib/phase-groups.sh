@@ -26,11 +26,12 @@ _lookup_phase_group() {
     work|work_qa)
       echo "work" ;;
     # v3.0.0-alpha.6 (Day 5 C4b): drift_review absorbed into work.
-    gap_analysis|gap_analysis_qa|gap_remediation)
-      echo "verification" ;;
+    # v3.0.0-alpha.7 (Day 6): gap_analysis|gap_analysis_qa|gap_remediation case retired;
+    # the `verification` group was deleted (Q2) and all three phases absorbed into inspect.
     inspect)
       echo "inspect" ;;
     # v3.0.0-alpha.6 (Day 5 C4c): inspect_fix + verify_inspect absorbed into inspect.
+    # v3.0.0-alpha.7 (Day 6): inspect also absorbs gap_analysis STEP A + STEP D + gap_remediation.
     code_review|code_review_qa|verify|mend|mend_qa)
       echo "review" ;;
     # v3.0.0-alpha.6 (Day 5 C4d): verify_mend absorbed into mend_qa post-step.

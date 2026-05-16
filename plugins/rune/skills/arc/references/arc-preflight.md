@@ -686,10 +686,15 @@ CDX-7 Layer 3: Scan for orphaned arc-specific teams from prior sessions. Runs af
 // These values are interpolated into shell `find -name` commands (see find loop below).
 // If externalized to config (e.g., talisman.yml), shell metacharacter injection becomes possible.
 //
-// arc-* prefixes: teams created directly by arc (plan review, plan inspect, sage, design, gap, test, verify)
+// arc-* prefixes: teams created directly by arc (plan review, plan inspect, sage, design, inspect, test, verify)
 // rune-* prefixes: teams created by delegated sub-commands (forge, work, review, mend, audit)
+// v3.0.0-alpha.7 (Day 6): gap_analysis + gap_remediation absorbed into inspect.
+// - "arc-inspect-" (bare): RETIRED — was gap_analysis STEP B; the 2-Inspector pass retired.
+// - "arc-gap-fix-": RETIRED in flow — gap-fixer dispatch now uses "arc-inspect-fix-".
+//   Kept in this list for one alpha (Q4) as cleanup-only insurance against orphan teams from
+//   in-flight alpha.6 arc runs. Drop in alpha.8.
 const ARC_TEAM_PREFIXES = [
-  "arc-forge-", "arc-plan-review-", "arc-plan-inspect-", "arc-gap-fix-", "arc-inspect-", "arc-inspect-full-", "arc-inspect-fix-", "arc-test-",  // arc-owned teams
+  "arc-forge-", "arc-plan-review-", "arc-plan-inspect-", "arc-gap-fix-", "arc-inspect-full-", "arc-inspect-fix-", "arc-test-",  // arc-owned teams
   "rune-inspect-",  // inspect skill teams (delegated sub-command)
   "arc-fv-",  // finding verification team (Phase 6.7 — conditional on arc.verify.enabled)
   "arc-sage-",  // ephemeral elicitation sage team (mend Phase 7 — conditional on P1 findings)

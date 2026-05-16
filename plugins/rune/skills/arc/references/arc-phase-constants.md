@@ -34,17 +34,25 @@ per-phase reference files (timeout values), arc-resume.md (schema migration)
 //   - verify_mend → mend_qa (C4d — convergence eval runs as a post-step inside runQAGate() for mend_qa; see arc-phase-qa-gate.md)
 //   - pre_ship_validation → ship (C4e — preShipValidator() runs inline as ship STEP -0.5; see arc-phase-ship.md + arc-phase-pre-ship-validation.md)
 //   - deploy_verify → removed entirely (C4e — always-skipped in v3.x since misc.deployment_verification.enabled defaults false; restore from git history to re-enable)
-const PHASE_ORDER = ['forge', 'forge_qa', 'plan_review', 'verification', 'work', 'work_qa', 'gap_analysis', 'gap_analysis_qa', 'gap_remediation', 'inspect', 'code_review', 'code_review_qa', 'verify', 'mend', 'mend_qa', 'test', 'test_qa', 'ship', 'merge']
+//
+// v3.0.0-alpha.7 (Day 6) — gap_analysis family merge into inspect engine:
+//   - gap_analysis → inspect (STEP A absorbed via inspect-step-a-deterministic.md sub-reference)
+//   - gap_analysis_qa → removed (Q3 — qa-manifests/gap-analysis.yaml retired; Day 7 parametric qa-verifier replaces)
+//   - gap_remediation → inspect (already absorbed in Day 5 C4c as STEP 5 inspect_fix; phase entry removed in Day 6)
+//   - PHASE_ORDER count: 19 → 16. verification PHASE_GROUP deleted (Q2 — empty after retirement).
+const PHASE_ORDER = ['forge', 'forge_qa', 'plan_review', 'verification', 'work', 'work_qa', 'inspect', 'code_review', 'code_review_qa', 'verify', 'mend', 'mend_qa', 'test', 'test_qa', 'ship', 'merge']
 
 // SYNC-CRITICAL: PHASE_GROUPS is duplicated in:
 //   1. This file (JavaScript reference for group definitions)
 //   2. arc-phase-stop-hook.sh (Bash lookup for boundary detection)
 // These MUST stay in sync. When adding a new phase to PHASE_ORDER,
 // also add it to the appropriate group in PHASE_GROUPS.
+// v3.0.0-alpha.7 (Day 6 Q2): `verification` group deleted — was {gap_analysis, gap_analysis_qa, gap_remediation},
+// all three phases retired and absorbed into inspect. The `inspect` group now spans
+// the full verification + audit + remediation workflow.
 const PHASE_GROUPS = [
   { id: 'planning',     phases: ['forge', 'forge_qa', 'plan_review', 'verification'] },
   { id: 'work',         phases: ['work', 'work_qa'] },
-  { id: 'verification', phases: ['gap_analysis', 'gap_analysis_qa', 'gap_remediation'] },
   { id: 'inspect',      phases: ['inspect'] },
   { id: 'review',       phases: ['code_review', 'code_review_qa', 'verify', 'mend', 'mend_qa'] },
   { id: 'testing',      phases: ['test', 'test_qa'] },
@@ -106,11 +114,11 @@ const PHASE_TIMEOUTS = {
   verification:  30_000,     // 30 sec (orchestrator-only, no team)
   work:          2_100_000,  // 35 min (inner 30m + 5m setup)
   // drift_review: absorbed into work in v3.0.0-alpha.6 (Day 5 C4b)
-  gap_analysis:  720_000,    // 12 min (inner 8m + 2m setup + 2m aggregate)
-  gap_remediation: 900_000,  // 15 min (inner 10m + 5m setup)
-  // v3.0.0-alpha.6 (Day 5 C4c): inspect now includes audit + fix + convergence
-  // (was three separate phases). 34 min ≈ 15m inspect + 15m fix + 4m convergence.
-  inspect:       2_040_000,  // 34 min (audit + fix + convergence per round)
+  // gap_analysis, gap_remediation: absorbed into inspect in v3.0.0-alpha.7 (Day 6)
+  // v3.0.0-alpha.6 (Day 5 C4c): inspect includes audit + fix + convergence (was three separate phases).
+  // v3.0.0-alpha.7 (Day 6): inspect ALSO includes STEP A deterministic + STEP D halt-gate
+  // (absorbed from gap_analysis). Timeout bumped 34m → 45m to cover the additional work.
+  inspect:       2_700_000,  // 45 min (deterministic + audit + halt-gate + fix + convergence per round)
   code_review:   900_000,    // 15 min (inner 10m + 5m setup)
   mend:          1_380_000,  // 23 min (inner 15m + 5m setup + 3m ward/cross-file)
   // v3.0.0-alpha.6 (Day 5 C4d): verify_mend absorbed into mend_qa as a post-step.
@@ -127,7 +135,8 @@ const PHASE_TIMEOUTS = {
   merge:         600_000,    // 10 min (orchestrator-only)
   forge_qa:        300_000,  //  5 min (QA gate — 1 agent)
   work_qa:         300_000,  //  5 min (QA gate — 1 agent)
-  gap_analysis_qa: 300_000,  //  5 min (QA gate — 1 agent)
+  // gap_analysis_qa: retired in v3.0.0-alpha.7 (Day 6 Q3) — qa-manifests/gap-analysis.yaml
+  // dropped; Day 7's parametric qa-verifier will replace the 13 GAP-STEP-XX checklist items.
   code_review_qa:  300_000,  //  5 min (QA gate — 1 agent)
   mend_qa:         540_000,  //  9 min (QA gate 5m + post-step convergence eval 4m — v3.0.0-alpha.6 C4d)
   test_qa:         300_000,  //  5 min (QA gate — 1 agent)

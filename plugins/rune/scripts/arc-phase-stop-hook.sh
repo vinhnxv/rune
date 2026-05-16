@@ -468,22 +468,20 @@ if [[ -n "$_ARC_ID_FOR_LOG" && "$_ARC_ID_FOR_LOG" =~ ^[a-zA-Z0-9_-]+$ ]]; then
 fi
 
 # ── Phase order (must match SKILL.md PHASE_ORDER exactly) ──
-# WARNING: Non-monotonic execution order — gap_remediation executes BEFORE inspect.
 # Must match arc-phase-constants.md PHASE_ORDER exactly (shell-side copy).
 # v3.0.0-alpha.2: Removed goldmask_verification, goldmask_correlation,
 # bot_review_wait, pr_comment_resolution from default order. Goldmask remains as
 # /rune:goldmask standalone; PR-comment + bot-review handling moves to external
 # pr-guardian harness territory.
 # v3.0.0-alpha.2 + codex-strip sync: Removed semantic_verification,
-# task_decomposition, test_coverage_critique, release_quality_check —
-# these were dropped from the JS canonical earlier (commit ed157fa4) but
-# the bash side was not synced until self-audit run 1778278942.
+# task_decomposition, test_coverage_critique, release_quality_check.
+# v3.0.0-alpha.7 (Day 6): Removed gap_analysis, gap_analysis_qa, gap_remediation.
+# All three absorbed into `inspect` (deterministic + audit + halt-gate + fix + convergence).
+# PHASE_ORDER count: 19 → 16.
 PHASE_ORDER=(
   forge forge_qa
   plan_review verification
   work work_qa
-  gap_analysis gap_analysis_qa
-  gap_remediation
   inspect
   code_review code_review_qa
   verify mend mend_qa
@@ -704,7 +702,9 @@ _phase_weight() {
     code_review)                             echo 4 ;;
     forge|mend|test)                         echo 3 ;;
     plan_review)                             echo 3 ;;
-    gap_analysis|gap_remediation|verify)     echo 2 ;;
+    verify)                                  echo 2 ;;
+    inspect)                                 echo 4 ;;
+    # v3.0.0-alpha.7 (Day 6): inspect bumped 1 → 4 to reflect absorbed gap_analysis (was 2) + gap_remediation (was 2) work — deterministic + audit + halt-gate + fix + convergence in one phase.
     # verify_mend absorbed into mend_qa post-step in v3.0.0-alpha.6 (Day 5 C4d).
     *)                                       echo 1 ;;
   esac
