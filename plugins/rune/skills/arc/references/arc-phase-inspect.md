@@ -71,6 +71,14 @@ if (!checkpoint.plan_file || !Read(checkpoint.plan_file)) {
 updateCheckpoint({ phase: 'inspect', status: 'in_progress', phase_sequence: 5.9, team_name: null })
 // Set initial substate: entering deterministic STEP A (pre-team)
 updateCheckpoint({ phase: 'inspect', substate: 'deterministic' })
+
+// v3.0.0-alpha.7 (Day 6) FIX (CORR-003): declare `id` and `defaultBranch` BEFORE STEP A
+// is invoked — STEP A's sub-reference reads both. Previously declared in STEP 1 below;
+// the Day 6 split into a pre-team sub-step required pulling them earlier.
+const id = checkpoint.id
+const defaultBranch = Bash("git rev-parse --abbrev-ref HEAD@{upstream} 2>/dev/null || echo main").trim().split('/').pop()
+// CORR-005 FIX: Ensure inspect/ subdirectory exists before any STEP A / STEP D writes.
+Bash(`mkdir -p "tmp/arc/${id}/inspect"`)
 ```
 
 ## STEP A: Deterministic Pre-Team Checks (absorbed gap_analysis STEP A)
@@ -91,9 +99,9 @@ updateCheckpoint({ phase: 'inspect', substate: 'audit' })  // entering STEP 1-4
 ## STEP 1: Prepare Inspect Context
 
 ```javascript
-const id = checkpoint.id
+// v3.0.0-alpha.7 (Day 6): `id` and `defaultBranch` are declared in the Entry Guard above
+// (CORR-003 fix) — STEP A's sub-reference uses both. Do NOT re-declare them here.
 const planContent = Read(checkpoint.plan_file)
-const defaultBranch = Bash("git rev-parse --abbrev-ref HEAD@{upstream} 2>/dev/null || echo main").trim().split('/').pop()
 const diffOutput = Bash(`git diff ${defaultBranch}...HEAD --stat`)
 const detailedDiff = Bash(`git diff ${defaultBranch}...HEAD`)
 
@@ -192,13 +200,13 @@ waitForCompletion(teamName, inspectors.length, { timeoutMs: 600_000, pollInterva
 // Spawn verdict-binder to merge all inspector findings into VERDICT.md
 TaskCreate({
   subject: 'verdict-binder: aggregate inspector findings into VERDICT.md',
-  description: `Read all inspector findings from tmp/arc/${id}/*-findings.md. Merge into tmp/arc/${id}/inspect-verdict.md using verdict-binder protocol. Include completion percentage, dimension scores, and gap classification.`,
+  description: `Read all inspector findings from tmp/arc/${id}/*-findings.md. Merge into tmp/arc/${id}/inspect/VERDICT.md using verdict-binder protocol. Include completion percentage, dimension scores, and gap classification.`,
 })
 Agent({
   team_name: teamName,
   name: 'verdict-binder',
   subagent_type: 'rune:utility:verdict-binder',
-  prompt: `You are verdict-binder. Aggregate all inspector findings from tmp/arc/${id}/*-findings.md into a unified VERDICT.md at tmp/arc/${id}/inspect-verdict.md. Compute overall completion percentage, merge dimension scores, deduplicate findings, classify gaps, and determine final verdict (READY/GAPS_FOUND/INCOMPLETE/CRITICAL_ISSUES). Claim your task via TaskList + TaskUpdate (status: completed) when done.`,
+  prompt: `You are verdict-binder. Aggregate all inspector findings from tmp/arc/${id}/*-findings.md into a unified VERDICT.md at tmp/arc/${id}/inspect/VERDICT.md. Compute overall completion percentage, merge dimension scores, deduplicate findings, classify gaps, and determine final verdict (READY/GAPS_FOUND/INCOMPLETE/CRITICAL_ISSUES). Claim your task via TaskList + TaskUpdate (status: completed) when done.`,
 })
 
 waitForCompletion(teamName, 1, { timeoutMs: 180_000, pollIntervalMs: 15_000 })
@@ -279,7 +287,7 @@ if (!cleanupTeamDeleteSucceeded) {
 // VERDICT.md missing guard
 let verdictContent
 try {
-  verdictContent = Read(`tmp/arc/${id}/inspect-verdict.md`)
+  verdictContent = Read(`tmp/arc/${id}/inspect/VERDICT.md`)
 } catch (e) {
   warn('Phase 5.9: VERDICT.md not produced — inspectors may have timed out')
   updateCheckpoint({
@@ -344,7 +352,7 @@ if (p1Markers > 0) {
 // (retry).
 updateCheckpoint({
   phase: 'inspect', status: 'in_progress', phase_sequence: 5.9,
-  artifact: `tmp/arc/${id}/inspect-verdict.md`,
+  artifact: `tmp/arc/${id}/inspect/VERDICT.md`,
   artifact_hash: sha256(verdictContent),
   completion_pct: completionPct,
   p1_count: adjustedP1Count,
@@ -353,7 +361,7 @@ updateCheckpoint({
 })
 ```
 
-**Intermediate output**: `tmp/arc/{id}/inspect-verdict.md` — unified VERDICT.md with completion %, dimension scores, gap classification. STEP 5 (Fix) reads this; STEP 6 (Convergence) evaluates it.
+**Intermediate output**: `tmp/arc/{id}/inspect/VERDICT.md` — unified VERDICT.md with completion %, dimension scores, gap classification. STEP 5 (Fix) reads this; STEP 6 (Convergence) evaluates it.
 
 **Failure policy (audit half)**: Non-blocking. Missing VERDICT skips STEP 5 fix and treats convergence as "halt" with null metrics. Individual inspector timeouts produce partial findings — verdict-binder aggregates whatever is available.
 
@@ -402,9 +410,17 @@ updateCheckpoint({ phase: 'inspect', substate: 'halt_gate' })
 updateCheckpoint({ phase: 'inspect', substate: 'fix' })
 
 // Entry guard — skip if no verdict, verdict is READY, or VERDICT.md missing.
+// v3.0.0-alpha.7 (Day 6) CORR-004 FIX: also consider Task Completion Gate signals
+// from STEP 4.5 (inspect-step-d-halt-gate.md). When the 4-Inspector pass votes READY
+// (high quality) but the absorbed STEP D detected missing plan tasks
+// (needs_task_remediation: true), STEP 5 must still spawn gap-fixers to close the
+// gap — otherwise the "no silent deferrals" invariant breaks in headless/CI mode
+// (where the error() halt is suppressed but the deferred-tasks plan writeback already happened).
+const needsRemediation = checkpoint.phases?.inspect?.needs_remediation === true
+const needsTaskRemediation = checkpoint.phases?.inspect?.needs_task_remediation === true
 const fixSkipReason = (
-  !verdictContent                      ? 'no_verdict' :
-  inspectVerdict === 'READY'           ? 'verdict_ready' :
+  !verdictContent                                          ? 'no_verdict' :
+  (inspectVerdict === 'READY' && !needsRemediation && !needsTaskRemediation) ? 'verdict_ready_no_remediation_needed' :
   null
 )
 
@@ -462,6 +478,26 @@ if (fixSkipReason) {
     }
 
     const fixTeamName = `arc-inspect-fix-${id}`
+
+    // v3.0.0-alpha.7 (Day 6) CORR-009 FIX: Write SEC-GAP-001 state file BEFORE TeamCreate.
+    // The validate-gap-fixer-paths.sh PreToolUse hook detects active gap-fix workflows by
+    // globbing tmp/.rune-gap-fix-*.json with status="active". Without this file, the hook
+    // fails open and gap-fixer agents spawned by arc bypass the .claude/, .env, .github/,
+    // node_modules/, CI YAML path restrictions. The standalone /rune:inspect skill writes
+    // this file already; previously the arc path silently skipped it.
+    // Includes Rune Session Isolation Rule fields (config_dir + owner_pid + session_id).
+    const _chome = Bash(`echo "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`).trim()
+    const _ppid = Bash("echo $PPID").trim()
+    Write(`tmp/.rune-gap-fix-${id}.json`, JSON.stringify({
+      status: "active",
+      arc_id: id,
+      team_name: fixTeamName,
+      config_dir: _chome,
+      owner_pid: parseInt(_ppid, 10),
+      session_id: process?.env?.CLAUDE_SESSION_ID ?? null,
+      started_at: new Date().toISOString(),
+    }, null, 2))
+
     TeamCreate({ team_name: fixTeamName })
 
     try {
@@ -472,13 +508,13 @@ if (fixSkipReason) {
       fixerNames.push(fixerName)
       TaskCreate({
         subject: `${fixerName}: fix ${gaps.length} gaps in ${file}`,
-        description: `Fix FIXABLE gaps in ${file}. Gap IDs: ${gaps.map(g => g.gap_id).join(', ')}. Each fix gets its own atomic commit: fix(inspect): [{GAP-ID}]. Read tmp/arc/${id}/inspect-verdict.md for full gap context.`,
+        description: `Fix FIXABLE gaps in ${file}. Gap IDs: ${gaps.map(g => g.gap_id).join(', ')}. Each fix gets its own atomic commit: fix(inspect): [{GAP-ID}]. Read tmp/arc/${id}/inspect/VERDICT.md for full gap context.`,
       })
       Agent({
         team_name: fixTeamName,
         name: fixerName,
         subagent_type: 'rune:work:gap-fixer',
-        prompt: `You are gap-fixer for inspect remediation. Fix these FIXABLE gaps in ${file}:\n${gaps.map(g => `- [${g.gap_id}] (${g.category}): ${g.description}`).join('\n')}\n\nRead tmp/arc/${id}/inspect-verdict.md for full context. Apply minimal, targeted fixes. Each fix gets its own atomic commit: fix(inspect): [${gaps[0].gap_id}]. Claim your task via TaskList + TaskUpdate (status: completed) when done.`,
+        prompt: `You are gap-fixer for inspect remediation. Fix these FIXABLE gaps in ${file}:\n${gaps.map(g => `- [${g.gap_id}] (${g.category}): ${g.description}`).join('\n')}\n\nRead tmp/arc/${id}/inspect/VERDICT.md for full context. Apply minimal, targeted fixes. Each fix gets its own atomic commit: fix(inspect): [${gaps[0].gap_id}]. Claim your task via TaskList + TaskUpdate (status: completed) when done.`,
       })
     }
 
@@ -531,6 +567,11 @@ if (fixSkipReason) {
       Bash(`CHOME="\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" && rm -rf "$CHOME/teams/${fixTeamName}/" "$CHOME/tasks/${fixTeamName}/" 2>/dev/null`)
       try { TeamDelete() } catch (e) { /* best effort */ }
     }
+
+    // v3.0.0-alpha.7 (Day 6) CORR-009 FIX: Remove SEC-GAP-001 state file in the
+    // finally block — must run on success AND on cleanup-after-failure paths so the
+    // PreToolUse hook stops gating writes after the fix team has dispersed.
+    Bash(`rm -f "tmp/.rune-gap-fix-${id}.json" 2>/dev/null`)
     } // end finally
 
     // ── STEP 5.4: Count fix results ──
@@ -652,7 +693,7 @@ if (convergenceVerdict === 'retry') {
   warn(`Inspect convergence halted after ${inspectRoundForEval + 1} cycle(s): ${completionPct}% complete, ${adjustedP1Count} P1 findings remain. Proceeding to code_review.`)
   updateCheckpoint({
     phase: 'inspect', status: 'completed', phase_sequence: 5.9,
-    artifact: `tmp/arc/${id}/inspect-verdict.md`,
+    artifact: `tmp/arc/${id}/inspect/VERDICT.md`,
     artifact_hash: sha256(verdictContent),
     substate: null,  // clear substate on completion
   })
@@ -660,14 +701,14 @@ if (convergenceVerdict === 'retry') {
   // 'converge'
   updateCheckpoint({
     phase: 'inspect', status: 'completed', phase_sequence: 5.9,
-    artifact: `tmp/arc/${id}/inspect-verdict.md`,
+    artifact: `tmp/arc/${id}/inspect/VERDICT.md`,
     artifact_hash: sha256(verdictContent),
     substate: null,  // clear substate on completion
   })
 }
 ```
 
-**Final output**: `tmp/arc/{id}/inspect-verdict.md` (always present once STEP 4 succeeds); `tmp/arc/{id}/inspect-fix-report.md` (when STEP 5 ran with fixable gaps); per-round focus JSONs `tmp/arc/{id}/inspect-focus-round-N.json` (on retry).
+**Final output**: `tmp/arc/{id}/inspect/VERDICT.md` (always present once STEP 4 succeeds); `tmp/arc/{id}/inspect-fix-report.md` (when STEP 5 ran with fixable gaps); per-round focus JSONs `tmp/arc/{id}/inspect-focus-round-N.json` (on retry).
 
 **Failure policy (whole phase)**: Non-blocking. Halting after the convergence-budget guard or max-rounds gate proceeds to code_review with a warning. The convergence gate never blocks the pipeline permanently; it either retries or gives up gracefully.
 

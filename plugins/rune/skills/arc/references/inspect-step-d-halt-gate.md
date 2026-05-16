@@ -134,7 +134,7 @@ const manualCount = verdictP1Count + deterministicMissing
 const advisoryCount = deterministicExtra
 
 // STEP C.4: Write unified report
-const unifiedReport = `# Gap Analysis — Unified Report (Phase 5.5)\n\n` +
+const unifiedReport = `# Inspect — Unified Report (Phase 5.9)\n\n` +
   `**Plan**: ${checkpoint.plan_file}\n` +
   `**Date**: ${new Date().toISOString()}\n` +
   `**Unified Score**: ${normalizedScore !== null ? normalizedScore + '/100' : 'N/A (VERDICT unavailable)'}\n\n` +
@@ -429,7 +429,10 @@ updateCheckpoint({
   artifact: `tmp/arc/${id}/inspect/UNIFIED.md`,
   artifact_hash: sha256(unifiedReport),
   phase_sequence: 5.9,
-  team_name: inspectTeamName ?? null,
+  // CORR-007 FIX (v3.0.0-alpha.7 Day 6 review): `inspectTeamName` was an undefined local.
+  // Read the existing checkpoint value so we don't clobber the team name that arc-phase-inspect.md
+  // line 159 set for the inspector team.
+  team_name: checkpoint.phases?.inspect?.team_name ?? null,
   substate: 'halt_gate_done',
   // Extra fields read by the existing STEP 5 gap-fixer dispatch and STEP 6 convergence
   needs_remediation: (needsRemediation && !headlessMode) || needsTaskRemediation,
@@ -520,7 +523,7 @@ const driftThreshold = 0.40
       warn(`STEP D.6: Plan drift detected — ${driftPct}% of acceptance criteria are MISSING ` +
         `(${missingCount}/${totalCriteria}, threshold: ${(driftThreshold * 100).toFixed(0)}%).\n` +
         `Consider revising the plan before proceeding with gap remediation.\n` +
-        `To disable in v3.x: remove the STEP D.6 block from gap-analysis.md.`)
+        `To disable in v3.x: remove the STEP D.6 block from inspect-step-d-halt-gate.md.`)
     }
   }
 }

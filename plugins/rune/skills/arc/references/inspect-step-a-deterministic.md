@@ -74,12 +74,26 @@ if (criteria.length === 0) {
   // v3.0.0-alpha.7 (Day 6): STEP A is a pre-team sub-step of inspect (Phase 5.9).
   // The caller arc-phase-inspect.md owns final phase completion after STEP D.
   // Record the deterministic-skipped substate so the halt-gate sees an empty result set.
+  //
+  // CORR-006 FIX: Initialize empty arrays for the variables that downstream STEP D
+  // (inspect-step-d-halt-gate.md) reads from this file's scope. Without these,
+  // STEP D crashes with ReferenceError on `gaps.filter(…)` and `diffFiles[…]`,
+  // and the Task Completion Gate (PR #310 fix) never executes.
+  const gaps = []
+  const diffFiles = []
+  const safeDiffFiles = []
+  const taskStats = { total: 0, completed: 0, failed: 0 }
+  const specMatrix = []
+  const specCounts = { implemented_tested: 0, implemented_untested: 0, not_implemented: 0, drifted: 0 }
+  const redCriteriaCount = 0
+  const claims = []
   updateCheckpoint({
     phase: "inspect",
     substate: "deterministic_skipped",
     deterministic_artifact: `tmp/arc/${id}/inspect/deterministic.md`,
+    deterministic_gaps: { addressed: 0, partial: 0, missing: 0, extra: 0 },
   })
-  return  // exit STEP A; arc-phase-inspect.md continues with STEP 1+
+  return  // exit STEP A; arc-phase-inspect.md continues with STEP 1+ and STEP 4.5 (halt-gate is a no-op)
 }
 ```
 
