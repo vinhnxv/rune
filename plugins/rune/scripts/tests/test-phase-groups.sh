@@ -51,25 +51,24 @@ assert_nonempty() {
 echo "=== _lookup_phase_group correctness ==="
 
 # Planning group
+# v3.0.0-alpha.6 (Day 5 C4a): plan_refine absorbed into plan_review.
 assert_eq "forge → planning" "planning" "$(_lookup_phase_group "forge")"
 assert_eq "forge_qa → planning" "planning" "$(_lookup_phase_group "forge_qa")"
 assert_eq "plan_review → planning" "planning" "$(_lookup_phase_group "plan_review")"
-assert_eq "plan_refine → planning" "planning" "$(_lookup_phase_group "plan_refine")"
 assert_eq "verification → planning" "planning" "$(_lookup_phase_group "verification")"
 
 # Work group
+# v3.0.0-alpha.6 (Day 5 C4b): drift_review absorbed into work.
 assert_eq "work → work" "work" "$(_lookup_phase_group "work")"
 assert_eq "work_qa → work" "work" "$(_lookup_phase_group "work_qa")"
-assert_eq "drift_review → work" "work" "$(_lookup_phase_group "drift_review")"
 
 # Verification group
 assert_eq "gap_analysis → verification" "verification" "$(_lookup_phase_group "gap_analysis")"
 assert_eq "gap_remediation → verification" "verification" "$(_lookup_phase_group "gap_remediation")"
 
 # Inspect group
+# v3.0.0-alpha.6 (Day 5 C4c): inspect_fix + verify_inspect absorbed into inspect.
 assert_eq "inspect → inspect" "inspect" "$(_lookup_phase_group "inspect")"
-assert_eq "inspect_fix → inspect" "inspect" "$(_lookup_phase_group "inspect_fix")"
-assert_eq "verify_inspect → inspect" "inspect" "$(_lookup_phase_group "verify_inspect")"
 # v3.0.0-alpha.2: goldmask_verification removed from default order.
 # v3.0.0-alpha.1: design family (design_extraction, design_prototype,
 # design_verification*, design_iteration) removed.
@@ -104,13 +103,15 @@ assert_eq "nonexistent → empty" "" "$(_lookup_phase_group "nonexistent")"
 # ══════════════════════════════════════════════════
 echo ""
 echo "=== Coverage: all PHASE_ORDER phases return non-empty group ==="
-# SYNC-CRITICAL: must match arc-phase-constants.md PHASE_ORDER (canonical, 26 entries).
+# SYNC-CRITICAL: must match arc-phase-constants.md PHASE_ORDER (canonical, 22 entries
+# after v3.0.0-alpha.6 Day 5 absorptions: plan_refine→plan_review (C4a),
+# drift_review→work (C4b), inspect_fix+verify_inspect→inspect (C4c)).
 # Any divergence indicates drift between bash/JS phase definitions.
 PHASE_ORDER=(
-  forge forge_qa plan_review plan_refine verification
-  work work_qa drift_review
+  forge forge_qa plan_review verification
+  work work_qa
   gap_analysis gap_analysis_qa gap_remediation
-  inspect inspect_fix verify_inspect
+  inspect
   code_review code_review_qa verify mend mend_qa verify_mend
   test test_qa
   deploy_verify pre_ship_validation ship merge
@@ -123,8 +124,8 @@ for phase in "${PHASE_ORDER[@]}"; do
   COVERAGE_COUNT=$(( COVERAGE_COUNT + 1 ))
 done
 
-# Verify we tested exactly 26 phases (canonical PHASE_ORDER, no conditional extras)
-assert_eq "phase count is 26" "26" "$COVERAGE_COUNT"
+# Verify we tested exactly 22 phases (canonical PHASE_ORDER, no conditional extras)
+assert_eq "phase count is 22" "22" "$COVERAGE_COUNT"
 
 # ══════════════════════════════════════════════════
 # Results

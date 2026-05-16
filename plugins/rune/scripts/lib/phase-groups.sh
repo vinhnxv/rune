@@ -28,8 +28,9 @@ _lookup_phase_group() {
     # v3.0.0-alpha.6 (Day 5 C4b): drift_review absorbed into work.
     gap_analysis|gap_analysis_qa|gap_remediation)
       echo "verification" ;;
-    inspect|inspect_fix|verify_inspect)
+    inspect)
       echo "inspect" ;;
+    # v3.0.0-alpha.6 (Day 5 C4c): inspect_fix + verify_inspect absorbed into inspect.
     code_review|code_review_qa|verify|mend|mend_qa|verify_mend)
       echo "review" ;;
     test|test_qa)

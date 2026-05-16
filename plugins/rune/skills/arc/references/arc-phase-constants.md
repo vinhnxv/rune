@@ -29,10 +29,10 @@ per-phase reference files (timeout values), arc-resume.md (schema migration)
 // plans/2026-05-15-chore-rune-v3-day5-arc-surface-trim-plan.md.
 //   - plan_refine → plan_review (this commit, C4a)
 //   - drift_review → work (C4b — as a post-step before work_qa runs)
-//   - inspect_fix + verify_inspect → inspect (C4c)
+//   - inspect_fix + verify_inspect → inspect (C4c — inspect timeout bumped to 34 min to cover audit + fix + convergence eval per round)
 //   - verify_mend → mend_qa (C4d)
 //   - deploy_verify + pre_ship_validation → ship (C4e)
-const PHASE_ORDER = ['forge', 'forge_qa', 'plan_review', 'verification', 'work', 'work_qa', 'gap_analysis', 'gap_analysis_qa', 'gap_remediation', 'inspect', 'inspect_fix', 'verify_inspect', 'code_review', 'code_review_qa', 'verify', 'mend', 'mend_qa', 'verify_mend', 'test', 'test_qa', 'deploy_verify', 'pre_ship_validation', 'ship', 'merge']
+const PHASE_ORDER = ['forge', 'forge_qa', 'plan_review', 'verification', 'work', 'work_qa', 'gap_analysis', 'gap_analysis_qa', 'gap_remediation', 'inspect', 'code_review', 'code_review_qa', 'verify', 'mend', 'mend_qa', 'verify_mend', 'test', 'test_qa', 'deploy_verify', 'pre_ship_validation', 'ship', 'merge']
 
 // SYNC-CRITICAL: PHASE_GROUPS is duplicated in:
 //   1. This file (JavaScript reference for group definitions)
@@ -43,7 +43,7 @@ const PHASE_GROUPS = [
   { id: 'planning',     phases: ['forge', 'forge_qa', 'plan_review', 'verification'] },
   { id: 'work',         phases: ['work', 'work_qa'] },
   { id: 'verification', phases: ['gap_analysis', 'gap_analysis_qa', 'gap_remediation'] },
-  { id: 'inspect',      phases: ['inspect', 'inspect_fix', 'verify_inspect'] },
+  { id: 'inspect',      phases: ['inspect'] },
   { id: 'review',       phases: ['code_review', 'code_review_qa', 'verify', 'mend', 'mend_qa', 'verify_mend'] },
   { id: 'testing',      phases: ['test', 'test_qa'] },
   { id: 'ship',         phases: ['deploy_verify', 'pre_ship_validation', 'ship', 'merge'] },
@@ -106,9 +106,9 @@ const PHASE_TIMEOUTS = {
   // drift_review: absorbed into work in v3.0.0-alpha.6 (Day 5 C4b)
   gap_analysis:  720_000,    // 12 min (inner 8m + 2m setup + 2m aggregate)
   gap_remediation: 900_000,  // 15 min (inner 10m + 5m setup)
-  inspect:       900_000,    // 15 min (4 Inspector Ashes + verdict-binder)
-  inspect_fix:   900_000,    // 15 min (gap-fixer agents for FIXABLE findings)
-  verify_inspect: 240_000,   //  4 min (convergence evaluation, no team)
+  // v3.0.0-alpha.6 (Day 5 C4c): inspect now includes audit + fix + convergence
+  // (was three separate phases). 34 min ≈ 15m inspect + 15m fix + 4m convergence.
+  inspect:       2_040_000,  // 34 min (audit + fix + convergence per round)
   code_review:   900_000,    // 15 min (inner 10m + 5m setup)
   mend:          1_380_000,  // 23 min (inner 15m + 5m setup + 3m ward/cross-file)
   verify_mend:   240_000,    //  4 min (orchestrator-only, no team)
@@ -182,7 +182,7 @@ function calculateDynamicTimeout(tier) {
     // v3.0.0-alpha.6: drift_review absorbed into work (Day 5 C4b)
     PHASE_TIMEOUTS.gap_analysis + PHASE_TIMEOUTS.gap_analysis_qa +
     PHASE_TIMEOUTS.gap_remediation +
-    PHASE_TIMEOUTS.inspect + PHASE_TIMEOUTS.inspect_fix + PHASE_TIMEOUTS.verify_inspect +
+    PHASE_TIMEOUTS.inspect +  // v3.0.0-alpha.6: inspect_fix + verify_inspect absorbed into inspect (Day 5 C4c)
     PHASE_TIMEOUTS.code_review + PHASE_TIMEOUTS.code_review_qa +
     PHASE_TIMEOUTS.verify +
     PHASE_TIMEOUTS.mend + PHASE_TIMEOUTS.mend_qa +
@@ -339,8 +339,9 @@ const DEPTH_PRESETS = {
   quick: [
     "forge", "forge_qa",
     "ux_verification", "storybook_verification",
-    "inspect", "inspect_fix",
-    "verify_inspect", "browser_test", "browser_test_fix",
+    "inspect",
+    // v3.0.0-alpha.6 (Day 5 C4c): inspect_fix and verify_inspect absorbed into inspect.
+    "browser_test", "browser_test_fix",
     "verify_browser_test"
   ],
   // standard: Default — skip optional/conditional phases only
