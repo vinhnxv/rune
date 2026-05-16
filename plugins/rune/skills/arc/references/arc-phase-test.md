@@ -5,7 +5,7 @@
 **Team**: `arc-test-{id}` (self-managed)
 **Tools**: Read, Glob, Grep, Bash (+ agent-browser via Bash for E2E)
 **Timeout**: Dynamic — 15 min without E2E (inner 10m + 5m setup), 40 min with E2E (inner 35m + 5m setup)
-**Inputs**: id, converged code on feature branch, enriched-plan.md, gap-analysis.md, resolution-report.md
+**Inputs**: id, converged code on feature branch, enriched-plan.md, `inspect/VERDICT.md` (v3.0.0-alpha.7 Day 6: renamed from gap-analysis.md after the gap_analysis phase was absorbed into inspect), resolution-report.md
 **Outputs**: `tmp/arc/{id}/test-report.md` + screenshots in `tmp/arc/{id}/screenshots/`
 **Error handling**: Non-blocking (WARN). Test results feed into audit but never halt pipeline.
 **Consumers**: SKILL.md (Phase 7.7 stub)

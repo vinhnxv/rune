@@ -168,7 +168,7 @@ Feature code exists but the thing that would trigger/schedule/run it doesn't.
 Planned detection approach (not yet implemented, apply -15% confidence reduction):
 - Plan tasks marked "completed" but file unchanged (git diff check)
 - Multiple plan iterations with same item still TODO
-- Arc gap-analysis repeatedly flags same items
+- Arc inspect deterministic repeatedly flags same items
 
 ### Mode 7: No Enforcement Mechanism (Rule-vs-Enforcement)
 
@@ -295,7 +295,7 @@ Do NOT flag:
 3. [ ] **Mode 3**: Match spec/ADR files against implementation status
 4. [ ] **Mode 4**: Verify design artifacts have corresponding implementations
 5. [ ] **Mode 5**: Check all handlers/jobs have registered execution engines
-6. [ ] **Mode 6**: (RESERVED) Limited heuristic check for repeated gap-analysis items
+6. [ ] **Mode 6**: (RESERVED) Limited heuristic check for repeated inspect-deterministic findings
 7. [ ] **Mode 7**: Cross-reference documented rules against enforcement mechanisms
 8. [ ] **Mode 8**: Analyze feature flags and conditionals for fallback dominance
 9. [ ] **Run Cross-Reference Verification Protocol** for every finding before finalizing

@@ -145,16 +145,21 @@ function preShipValidator(checkpoint, planPath) {
   }
 
   // ── 2a.5: Task Completion Gate (v1.169.0 — BLOCKING) ──
-  // Reads task completion data from gap_analysis checkpoint.
+  // Reads task completion data from the inspect checkpoint.
   // This is a HARD BLOCK — unlike acceptance criteria (advisory), task completion
   // below floor prevents ship. Added after PR #310 shipped with 40% completion.
-  const gapPhase = checkpoint.phases?.gap_analysis
-  if (gapPhase && gapPhase.task_completion_pct !== undefined) {
-    const taskPct = gapPhase.task_completion_pct
-    const taskFloor = gapPhase.task_completion_floor ?? 100
-    const taskTotal = gapPhase.total_tasks ?? 0
-    const taskDone = gapPhase.completed_tasks ?? 0
-    const missingTasks = gapPhase.missing_tasks ?? []
+  // v3.0.0-alpha.7 (Day 6): Source phase renamed gap_analysis → inspect.
+  // The 11 task-completion fields (task_completion_pct, task_completion_floor,
+  // total_tasks, completed_tasks, missing_tasks, …) now live on phases.inspect
+  // (written by inspect-step-d-halt-gate.md). Reading the old key would silently
+  // disable this gate — exactly the PR #310 regression we are guarding against.
+  const inspectPhase = checkpoint.phases?.inspect
+  if (inspectPhase && inspectPhase.task_completion_pct !== undefined) {
+    const taskPct = inspectPhase.task_completion_pct
+    const taskFloor = inspectPhase.task_completion_floor ?? 100
+    const taskTotal = inspectPhase.total_tasks ?? 0
+    const taskDone = inspectPhase.completed_tasks ?? 0
+    const missingTasks = inspectPhase.missing_tasks ?? []
 
     if (taskTotal > 0 && taskPct < taskFloor) {
       report.gates.push({

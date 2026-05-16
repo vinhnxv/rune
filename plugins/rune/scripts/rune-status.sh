@@ -120,13 +120,13 @@ PHASE_ORDER=(
   forge forge_qa
   plan_review verification
   work work_qa
-  gap_analysis gap_analysis_qa gap_remediation
   inspect
   code_review code_review_qa
   verify mend mend_qa
   test test_qa
   ship merge
 )
+# v3.0.0-alpha.7 (Day 6): gap_analysis, gap_analysis_qa, gap_remediation removed — absorbed into inspect.
 # v3.0.0-alpha.6 (Day 5): 26 → 19 phases. Absorbed: plan_refine→plan_review (C4a),
 # drift_review→work (C4b), inspect_fix+verify_inspect→inspect (C4c),
 # verify_mend→mend_qa post-step (C4d), deploy_verify removed +

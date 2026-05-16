@@ -82,16 +82,19 @@ _ash_phase_artifact_path() {
   local _phase="$1" _arc_dir="$2"
   case "$_phase" in
     # QA phases — JSON verdict at tmp/arc/{id}/qa/{parent}-verdict.json
-    forge_qa|work_qa|gap_analysis_qa|code_review_qa|mend_qa|test_qa|design_verification_qa)
+    # v3.0.0-alpha.7 (Day 6 Q3): gap_analysis_qa retired (manifest dropped).
+    forge_qa|work_qa|code_review_qa|mend_qa|test_qa|design_verification_qa)
       local _parent="${_phase%_qa}"
       printf '%s/qa/%s-verdict.json' "$_arc_dir" "$_parent"
       ;;
     # Non-QA phases (v2.62.0) — existence-based artifacts
+    # v3.0.0-alpha.7 (Day 6): gap_analysis case retired; inspect already maps to
+    # tmp/arc/{id}/inspect/VERDICT.md via the 4-Inspector pass (Day 5).
     work)                printf '%s/work/done/work-complete.done' "$_arc_dir" ;;
     code_review)         printf '%s/review/TOME.md' "$_arc_dir" ;;
     mend)                printf '%s/mend/resolution-report.md' "$_arc_dir" ;;
     test)                printf '%s/test/test-report.md' "$_arc_dir" ;;
-    gap_analysis)        printf '%s/inspect/VERDICT.md' "$_arc_dir" ;;
+    inspect)             printf '%s/inspect/VERDICT.md' "$_arc_dir" ;;
     forge)               printf '%s/forge/forge-complete.done' "$_arc_dir" ;;
     design_verification) printf '%s/design-review/design-verdict.md' "$_arc_dir" ;;
     *)                   printf '' ;;
@@ -105,10 +108,12 @@ _ash_phase_artifact_path() {
 _ash_phase_artifact_kind() {
   local _phase="$1"
   case "$_phase" in
-    forge_qa|work_qa|gap_analysis_qa|code_review_qa|mend_qa|test_qa|design_verification_qa)
+    # v3.0.0-alpha.7 (Day 6 Q3): gap_analysis_qa retired.
+    forge_qa|work_qa|code_review_qa|mend_qa|test_qa|design_verification_qa)
       printf 'json'
       ;;
-    work|code_review|mend|test|gap_analysis|forge|design_verification)
+    # v3.0.0-alpha.7 (Day 6): gap_analysis case retired; inspect added (already covers the absorbed VERDICT.md path).
+    work|code_review|mend|test|inspect|forge|design_verification)
       printf 'exists'
       ;;
     *)

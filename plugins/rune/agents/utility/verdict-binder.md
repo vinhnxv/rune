@@ -248,11 +248,13 @@ in the verdict. Read `skip_map` from the checkpoint (passed via task context).
 
 ```
 // Phase-to-dimension mapping for UNTESTED labeling
+// v3.0.0-alpha.7 (Day 6): gap_analysis phase retired (absorbed into inspect).
+// The "Gap Analysis" dimension is now subsumed by inspect's "Correctness +
+// Completeness" coverage from grace-warden in the 4-Inspector pass.
 PHASE_DIMENSION_MAP = {
   code_review: "Code Quality",
-  inspect: "Correctness",
+  inspect: "Correctness + Gap Analysis",
   test: "Test Coverage",
-  gap_analysis: "Gap Analysis",
   mend: "Finding Resolution",
   design_verification: "Design Fidelity",
   browser_test: "Browser Testing",

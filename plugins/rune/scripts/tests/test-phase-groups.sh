@@ -62,12 +62,11 @@ assert_eq "verification → planning" "planning" "$(_lookup_phase_group "verific
 assert_eq "work → work" "work" "$(_lookup_phase_group "work")"
 assert_eq "work_qa → work" "work" "$(_lookup_phase_group "work_qa")"
 
-# Verification group
-assert_eq "gap_analysis → verification" "verification" "$(_lookup_phase_group "gap_analysis")"
-assert_eq "gap_remediation → verification" "verification" "$(_lookup_phase_group "gap_remediation")"
-
+# Verification group RETIRED in v3.0.0-alpha.7 Day 6 (Q2) — gap_analysis,
+# gap_analysis_qa, gap_remediation all absorbed into inspect.
 # Inspect group
 # v3.0.0-alpha.6 (Day 5 C4c): inspect_fix + verify_inspect absorbed into inspect.
+# v3.0.0-alpha.7 (Day 6): inspect also absorbs gap_analysis + gap_remediation.
 assert_eq "inspect → inspect" "inspect" "$(_lookup_phase_group "inspect")"
 # v3.0.0-alpha.2: goldmask_verification removed from default order.
 # v3.0.0-alpha.1: design family (design_extraction, design_prototype,
@@ -81,8 +80,7 @@ assert_eq "verify → review" "review" "$(_lookup_phase_group "verify")"
 assert_eq "mend → review" "review" "$(_lookup_phase_group "mend")"
 assert_eq "mend_qa → review" "review" "$(_lookup_phase_group "mend_qa")"
 
-# Verification group (QA phases)
-assert_eq "gap_analysis_qa → verification" "verification" "$(_lookup_phase_group "gap_analysis_qa")"
+# gap_analysis_qa retired (Day 6 Q3) — manifest dropped.
 
 # Testing group
 assert_eq "test → testing" "testing" "$(_lookup_phase_group "test")"
@@ -113,6 +111,10 @@ assert_eq "verify_inspect → empty (absorbed into inspect, C4c)" "" "$(_lookup_
 assert_eq "verify_mend → empty (absorbed into mend_qa post-step, C4d)" "" "$(_lookup_phase_group "verify_mend")"
 assert_eq "deploy_verify → empty (removed, C4e)" "" "$(_lookup_phase_group "deploy_verify")"
 assert_eq "pre_ship_validation → empty (absorbed into ship STEP -0.5, C4e)" "" "$(_lookup_phase_group "pre_ship_validation")"
+# v3.0.0-alpha.7 (Day 6) negative cases — retired phases must NOT appear in any group:
+assert_eq "gap_analysis → empty (absorbed into inspect, Day 6)" "" "$(_lookup_phase_group "gap_analysis")"
+assert_eq "gap_analysis_qa → empty (retired, Day 6 Q3)" "" "$(_lookup_phase_group "gap_analysis_qa")"
+assert_eq "gap_remediation → empty (absorbed into inspect, Day 6)" "" "$(_lookup_phase_group "gap_remediation")"
 
 # ══════════════════════════════════════════════════
 # Test 3: All PHASE_ORDER phases return non-empty group
@@ -127,10 +129,11 @@ echo "=== Coverage: all PHASE_ORDER phases return non-empty group ==="
 # verify_mend→mend_qa post-step (C4d), deploy_verify removed +
 # pre_ship_validation→ship (C4e)).
 # Any divergence indicates drift between bash/JS phase definitions.
+# v3.0.0-alpha.7 (Day 6): PHASE_ORDER trimmed 19 → 16 (gap_analysis,
+# gap_analysis_qa, gap_remediation retired).
 PHASE_ORDER=(
   forge forge_qa plan_review verification
   work work_qa
-  gap_analysis gap_analysis_qa gap_remediation
   inspect
   code_review code_review_qa verify mend mend_qa
   test test_qa
@@ -144,8 +147,8 @@ for phase in "${PHASE_ORDER[@]}"; do
   COVERAGE_COUNT=$(( COVERAGE_COUNT + 1 ))
 done
 
-# Verify we tested exactly 19 phases (canonical PHASE_ORDER, no conditional extras)
-assert_eq "phase count is 19" "19" "$COVERAGE_COUNT"
+# Verify we tested exactly 16 phases (canonical PHASE_ORDER as of v3.0.0-alpha.7)
+assert_eq "phase count is 16" "16" "$COVERAGE_COUNT"
 
 # ══════════════════════════════════════════════════
 # Test 4: Schema exception bound check
@@ -160,7 +163,8 @@ echo "=== Schema exception bound check (phases[] key count) ==="
 INIT_FILE="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/skills/arc/references/arc-checkpoint-init.md"
 if [[ -f "$INIT_FILE" ]]; then
   SCHEMA_KEY_COUNT=$(grep -c 'status: "pending"' "$INIT_FILE" 2>/dev/null || echo "0")
-  assert_eq "checkpoint phases[] has exactly 21 keys (19 PHASE_ORDER + verify_mend + pre_ship_validation)" "21" "$SCHEMA_KEY_COUNT"
+  # v3.0.0-alpha.7 (Day 6): 16 PHASE_ORDER + 2 transitional containers (verify_mend, pre_ship_validation) = 18.
+  assert_eq "checkpoint phases[] has exactly 18 keys (16 PHASE_ORDER + verify_mend + pre_ship_validation)" "18" "$SCHEMA_KEY_COUNT"
 
   # Confirm the two transitional containers are present (exception set, not in PHASE_ORDER)
   VERIFY_MEND_PRESENT=$(grep -c 'verify_mend:' "$INIT_FILE" 2>/dev/null || echo "0")

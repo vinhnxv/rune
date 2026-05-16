@@ -94,36 +94,40 @@ The orchestrator's role in Phase 6 is limited to:
 // v3.x: artifact extraction enabled by default (see references/v3-defaults.md)
 let reviewContext = ""
 
-if (exists(`tmp/arc/${id}/gap-analysis.md`)) {
+// v3.0.0-alpha.7 (Day 6): Path migrated from tmp/arc/{id}/gap-analysis.md to
+// tmp/arc/{id}/inspect/deterministic.md after the gap_analysis phase was absorbed
+// into inspect. The artifact-extract.sh mode is renamed gap-analysis → inspect.
+if (exists(`tmp/arc/${id}/inspect/deterministic.md`)) {
   let gapDigest = null
 
   try {
-    Bash(`cd "${CWD}" && bash plugins/rune/scripts/artifact-extract.sh gap-analysis "${id}"`)
-    const parsed = JSON.parse(Read(`tmp/arc/${id}/gap-analysis-digest.json`))
+    Bash(`cd "${CWD}" && bash plugins/rune/scripts/artifact-extract.sh inspect "${id}"`)
+    const parsed = JSON.parse(Read(`tmp/arc/${id}/inspect-digest.json`))
     if (typeof parsed.missing_count === 'number') gapDigest = parsed
   } catch (e) {
-    warn(`artifact-extract gap-analysis digest failed: ${e.message} — falling back to direct read`)
+    warn(`artifact-extract inspect digest failed: ${e.message} — falling back to direct read`)
   }
 
   if (gapDigest) {
     if (gapDigest.missing_count > 0 || gapDigest.partial_count > 0) {
-      reviewContext = `\n\n${gapDigest.review_context}\nSee tmp/arc/${id}/gap-analysis.md.`
+      reviewContext = `\n\n${gapDigest.review_context}\nSee tmp/arc/${id}/inspect/deterministic.md.`
     }
   } else {
-    // FALLBACK: Current behavior — lead reads full gap-analysis
-    const gapReport = Read(`tmp/arc/${id}/gap-analysis.md`)
+    // FALLBACK: lead reads full inspect deterministic report
+    const gapReport = Read(`tmp/arc/${id}/inspect/deterministic.md`)
     const missingMatch = gapReport.match(/\| MISSING \| (\d+) \|/)
     const missingCount = missingMatch ? parseInt(missingMatch[1], 10) : 0
     const partialMatch = gapReport.match(/\| PARTIAL \| (\d+) \|/)
     const partialCount = partialMatch ? parseInt(partialMatch[1], 10) : 0
     if (missingCount > 0 || partialCount > 0) {
-      reviewContext = `\n\nGap Analysis Context: ${missingCount} MISSING, ${partialCount} PARTIAL criteria.\nSee tmp/arc/${id}/gap-analysis.md.`
+      reviewContext = `\n\nInspect Deterministic Context: ${missingCount} MISSING, ${partialCount} PARTIAL criteria.\nSee tmp/arc/${id}/inspect/deterministic.md.`
     }
   }
 }
 
 // STEP 1.5: Inject low-scoring dimensions from VERDICT as reviewer focus areas
-const verdictPath = `tmp/arc/${id}/gap-analysis-verdict.md`
+// v3.0.0-alpha.7 (Day 6): VERDICT path migrated gap-analysis-verdict.md → inspect/VERDICT.md.
+const verdictPath = `tmp/arc/${id}/inspect/VERDICT.md`
 if (exists(verdictPath)) {
   let verdictDigest = null
 
@@ -273,9 +277,14 @@ updateCheckpoint({
 
 **Failure policy**: Review always produces findings or a clean report. Does not halt.
 
-## Gap Analysis Context Propagation
+## Inspect Context Propagation
 
-If Phase 5.5 produced a gap analysis with MISSING or PARTIAL criteria, the counts are injected as context for reviewers. This helps reviewers focus on areas where the implementation may be incomplete relative to the plan. The full gap-analysis.md path is provided so reviewers can read details on demand.
+v3.0.0-alpha.7 (Day 6): Renamed from "Gap Analysis Context Propagation" after
+the gap_analysis phase was absorbed into inspect. If Phase 5.9 (inspect) STEP A
+produced deterministic checks with MISSING or PARTIAL criteria, the counts are
+injected as context for reviewers. The full `tmp/arc/{id}/inspect/deterministic.md`
+and `tmp/arc/{id}/inspect/VERDICT.md` paths are provided so reviewers can read
+details on demand.
 
 ## Delegation Steps (Phase 6 → appraise.md Phase 0 with --deep)
 

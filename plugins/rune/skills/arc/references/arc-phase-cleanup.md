@@ -40,9 +40,10 @@ const PHASE_PREFIX_MAP = {
   forge:                  ["rune-forge-", "arc-forge-"],        // /rune:forge + arc variant
   plan_review:            ["arc-plan-review-", "arc-plan-inspect-"],  // Layer 1 + Layer 2 inspect (conditional)
   work:                   ["rune-work-"],
-  gap_analysis:           ["rune-inspect-", "arc-inspect-"],    // both prefix variants
-  gap_remediation:        ["arc-gap-fix-"],
-  inspect:                ["arc-inspect-full-", "arc-inspect-fix-"],  // v3.0.0-alpha.6 (Day 5 C4c): inspect now spawns BOTH the audit team (arc-inspect-full-) and a conditional fix team (arc-inspect-fix-) within the same phase; prefixes consolidated under the unified `inspect` key.
+  // v3.0.0-alpha.7 (Day 6): gap_analysis, gap_analysis_qa, gap_remediation absorbed into `inspect`.
+  // arc-gap-fix- retired (replaced by arc-inspect-fix-) but kept in ARC_TEAM_PREFIXES for one
+  // alpha (Q4) as cleanup-only insurance against orphan teams from in-flight alpha.6 arc runs.
+  inspect:                ["arc-inspect-full-", "arc-inspect-fix-", "arc-gap-fix-"],  // v3.0.0-alpha.6 (Day 5 C4c): inspect spawns audit team (arc-inspect-full-) + conditional fix team (arc-inspect-fix-) within the same phase. v3.0.0-alpha.7 Day 6: arc-gap-fix- added (cleanup-only for alpha.6 in-flight runs; drop in alpha.8).
   code_review:            ["rune-review-"],
   verify:                 ["arc-fv-", "rune-verify-tome-"],       // Phase 6.7 (finding verification — conditional on arc.verify.enabled) + standalone /rune:inspect --verify-tome (v3.0.0-alpha.6: was rune-verify- before the verify skill was absorbed into inspect)
   mend:                   ["rune-mend-", "rune-mend-deep-", "arc-sage-"],  // mend sub-command + deep mend + ephemeral elicitation sage
@@ -50,12 +51,13 @@ const PHASE_PREFIX_MAP = {
   // deploy_verify removed in v3.0.0-alpha.6 (Day 5 C4e) — phase deleted; no team created.
   forge_qa:               ["arc-qa-"],                             // QA gate for forge phase (conditional — qa_gates.enabled)
   work_qa:                ["arc-qa-"],                             // QA gate for work phase
-  gap_analysis_qa:        ["arc-qa-"],                             // QA gate for gap_analysis phase
+  // gap_analysis_qa retired in v3.0.0-alpha.7 Day 6 (Q3) — qa-manifests/gap-analysis.yaml dropped, no replacement until Day 7's parametric qa-verifier.
   code_review_qa:         ["arc-qa-"],                             // QA gate for code_review phase
   mend_qa:                ["arc-qa-"],                             // QA gate for mend phase
   test_qa:                ["arc-qa-"],                             // QA gate for test phase
 }
-// NOTE: PHASE_PREFIX_MAP keys mirror the live PHASE_ORDER (19 phases as of v3.0.0-alpha.6).
+// NOTE: PHASE_PREFIX_MAP keys mirror the live PHASE_ORDER (16 phases as of v3.0.0-alpha.7).
+// Absorbed in alpha.7 (Day 6): gap_analysis + gap_analysis_qa + gap_remediation → inspect.
 // Absorbed in alpha.6 (Day 5): plan_refine→plan_review (C4a), drift_review→work (C4b),
 // inspect_fix+verify_inspect→inspect (C4c — arc-inspect-fix- now under `inspect` key),
 // verify_mend→mend_qa post-step (C4d), pre_ship_validation→ship (C4e), deploy_verify
@@ -63,7 +65,7 @@ const PHASE_PREFIX_MAP = {
 // Removed in alpha.1+: design_extraction, design_prototype, design_verification, design_verification_qa,
 // design_iteration, storybook_verification, ux_verification, browser_test/browser_test_fix/verify_browser_test,
 // goldmask_verification.
-// Multi-prefix entries: plan_review has Layer 2 inspect team (arc-plan-inspect-), mend has ephemeral sage team (arc-sage-), inspect has its absorbed fix team (arc-inspect-fix-).
+// Multi-prefix entries: plan_review has Layer 2 inspect team (arc-plan-inspect-), mend has ephemeral sage team (arc-sage-), inspect has its absorbed fix team (arc-inspect-fix-) AND legacy gap-fix prefix (arc-gap-fix-, cleanup-only alpha.7).
 // Orchestrator-only phases (verification, ship, merge) do not create teams — no entries needed.
 ```
 

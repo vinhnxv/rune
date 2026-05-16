@@ -177,7 +177,7 @@ if (!phase_team) {
     // v3.0.0-alpha.6 (Day 5 C4a): plan_refine absorbed into plan_review.
     verification: null,       // Orchestrator-only phase, no team
     work: null,               // Delegated (v1.28.0) -- team name from checkpoint
-    gap_analysis: null,       // Orchestrator-only phase, no team
+    // v3.0.0-alpha.7 (Day 6): gap_analysis row retired — phase absorbed into inspect (which uses arc-inspect-full-/arc-inspect-fix- teams).
     // v3.0.0-alpha.6 (Day 5 C4d): verify_mend absorbed into mend_qa post-step.
     code_review: null,        // Delegated (v1.28.0) -- team name from checkpoint
     mend: `arc-mend-${id}`,
@@ -209,8 +209,9 @@ if (phase_team === null && current_phase) {
   }
 }
 
-// Orchestrator-only phases (verification, gap_analysis) have no team — plan_refine,
+// Orchestrator-only phases (verification) have no team — plan_refine,
 // verify_mend, deploy_verify, pre_ship_validation were absorbed in v3.0.0-alpha.6 (Day 5).
+// gap_analysis, gap_analysis_qa, gap_remediation were absorbed into inspect in v3.0.0-alpha.7 (Day 6).
 // Skip team cancellation (Steps 3a-3d), go directly to Step 4.
 if (phase_team === null || phase_team === undefined) {
   // No team to cancel — update checkpoint directly (Step 4)
@@ -418,8 +419,8 @@ const PHASE_LABELS = {
   forge: '1 (FORGE)', forge_qa: '1.5 (FORGE QA)',
   plan_review: '2 (PLAN REVIEW)', verification: '2.7 (VERIFICATION)',
   work: '5 (WORK)', work_qa: '5.1 (WORK QA)',
-  gap_analysis: '5.5 (GAP ANALYSIS)', gap_analysis_qa: '5.6 (GAP ANALYSIS QA)', gap_remediation: '5.8 (GAP REMEDIATION)',
-  inspect: '5.9 (INSPECT)',
+  // v3.0.0-alpha.7 (Day 6): gap_analysis, gap_analysis_qa, gap_remediation labels retired — absorbed into inspect.
+  inspect: '5.9 (INSPECT — deterministic + audit + halt-gate + fix + convergence)',
   code_review: '6 (CODE REVIEW)', code_review_qa: '6.5 (CODE REVIEW QA)',
   verify: '6.7 (VERIFY)',
   mend: '7 (MEND)', mend_qa: '7.3 (MEND QA)',

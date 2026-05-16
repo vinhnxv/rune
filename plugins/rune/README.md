@@ -38,7 +38,7 @@ New to Rune? Three commands to go from idea to reviewed code:
 
 These are beginner-friendly aliases for `/rune:devise`, `/rune:strive`, and `/rune:appraise`.
 
-**Want the full pipeline?** Run `/rune:arc plans/my-plan.md` for an automated 19-phase pipeline (default; v3.0.0-alpha.6): plan enrichment → code review → auto-fix → testing → PR → merge.
+**Want the full pipeline?** Run `/rune:arc plans/my-plan.md` for an automated 16-phase pipeline (default; v3.0.0-alpha.7): plan enrichment → code review → auto-fix → testing → PR → merge.
 
 **Not sure which command?** Use `/rune:tarnished` — the intelligent entry point that routes natural language to the right workflow (English and Vietnamese supported).
 
@@ -197,7 +197,7 @@ For the full command reference with all flags and options, see the [Command Refe
 | Tarnished | Orchestrator | The lead agent that coordinates workflows |
 | Forge | Plan enrichment | Research phase that deepens a plan |
 | Mend | Auto-fix findings | Parallel resolution of review findings |
-| Arc | End-to-end pipeline | 19-phase automated workflow (default; v3.0.0-alpha.6) |
+| Arc | End-to-end pipeline | 16-phase automated workflow (default; v3.0.0-alpha.7) |
 | Roundtable Circle | Parallel review | Pattern for orchestrating multiple Ash (review agent) teammates |
 
 > Persistent memory was removed in v3.0.0-alpha.1; agent output is now ephemeral (`tmp/`).
@@ -221,7 +221,7 @@ See the [Glossary](../../docs/guides/rune-glossary.en.md) for the complete termi
 
 ### Arc (End-to-End Pipeline)
 
-Chains 19 phases (default; v3.0.0-alpha.6): Forge (plan enrichment) → Plan Review → Work → Gap Analysis → Inspect (plan-vs-impl audit + fix + convergence in one phase) → Code Review → Verify (finding verification) → Mend (auto-fix findings) → Test → Ship → Merge. Each phase has its own QA gate (forge_qa, work_qa, etc.). Checkpoint-based resume (`--resume`) available if interrupted.
+Chains 16 phases (default; v3.0.0-alpha.7): Forge (plan enrichment) → Plan Review → Work → Inspect (deterministic checks + plan-vs-impl audit + halt-gate + gap-fixer dispatch + convergence — all in one phase as of v3.0.0-alpha.7) → Code Review → Verify (finding verification) → Mend (auto-fix findings) → Test → Ship → Merge. Each phase has its own QA gate (forge_qa, work_qa, code_review_qa, mend_qa, test_qa). Checkpoint-based resume (`--resume`) available if interrupted.
 
 For detailed Arc (end-to-end pipeline) phase documentation, see the [Arc & Batch Guide](../../docs/guides/rune-arc-and-batch-guide.en.md).
 

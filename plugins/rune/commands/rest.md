@@ -185,9 +185,14 @@ if true; then  # artifact_indexing.enabled defaults to true in v3.x
     mkdir -p "$ARC_HISTORY/$arc_id"
 
     # Core artifacts — also check uppercase VERDICT.md variant
-    for artifact in tome.md TOME.md resolution-report.md work-summary.md gap-analysis.md inspect-verdict.md VERDICT.md; do
+    # v3.0.0-alpha.7 (Day 6): gap-analysis.md retired; deterministic.md and UNIFIED.md
+    # live under tmp/arc/{id}/inspect/ now (handled by the nested-dir cp below).
+    for artifact in tome.md TOME.md resolution-report.md work-summary.md inspect-verdict.md VERDICT.md; do
       [ -f "$arc_dir/$artifact" ] && cp -- "$arc_dir/$artifact" "$ARC_HISTORY/$arc_id/" 2>/dev/null || true
     done
+
+    # Inspect sub-directory artifacts (Day 6 absorption: deterministic + VERDICT + UNIFIED + fix report)
+    [ -d "$arc_dir/inspect" ] && cp -r -- "$arc_dir/inspect" "$ARC_HISTORY/$arc_id/inspect" 2>/dev/null || true
 
     # Also persist the QA dashboard if present
     [ -f "$arc_dir/qa/dashboard.md" ] && cp -- "$arc_dir/qa/dashboard.md" "$ARC_HISTORY/$arc_id/" 2>/dev/null || true

@@ -7,7 +7,7 @@ stop hook advances to the next phase. QA agents are completely separate from the
 they read artifacts only, cannot modify code, and their verdict cannot be overridden
 programmatically. This eliminates the conflict-of-interest of the Tarnished evaluating its own work.
 
-**Scope**: All 7 gated phases — work, forge, code_review, mend, test, gap_analysis, design_verification.
+**Scope**: All 6 gated phases — work, forge, code_review, mend, test, design_verification. (v3.0.0-alpha.7 Day 6 Q3: gap_analysis dropped — phase retired, absorbed into inspect.)
 
 **Reference**: Plan AC-15, AC-16, AC-17.
 
@@ -82,8 +82,10 @@ Dimension score = average of all check items in that dimension.
 | code_review | 30% | 30% | 40% | Completeness highest — all changed files must be reviewed |
 | mend | 30% | 30% | 40% | Completeness highest — all findings must be addressed |
 | test | 40% | 30% | 30% | Artifacts highest — test report + SEAL marker existence is critical |
-| gap_analysis | 30% | 30% | 40% | Completeness highest — all acceptance criteria must appear in matrix |
 | design_verification | 30% | 40% | 30% | Quality highest — evidence depth per finding is primary value |
+
+<!-- v3.0.0-alpha.7 (Day 6 Q3): gap_analysis row retired — phase absorbed into inspect (no QA gate). -->
+
 
 `overall_score = (artifact_score × W_art) + (quality_score × W_qual) + (completeness_score × W_cmp)`
 
@@ -362,51 +364,12 @@ completion markers and that strategy preceded execution.
 
 ---
 
-## Phase: gap_analysis — QA Checklist
-
-The gap analysis QA gate verifies that deterministic checks produced a compliance matrix
-mapping every acceptance criterion to its implementation status.
-
-<!-- Weight rationale: Completeness at 40% because the PRIMARY purpose of gap analysis
-     is ensuring ALL acceptance criteria are accounted for — missing criteria in the
-     matrix means the pipeline lost track of requirements. -->
-
-### Artifact Checks (weight: 30%)
-
-| ID | Check | Evidence Required |
-|----|-------|------------------|
-| GAP-ART-01 | `tmp/arc/{id}/gap-analysis.md` exists with summary counts for ADDRESSED, PARTIAL, and MISSING | `Glob` + `Read` + search for count summary table |
-| GAP-ART-02 | Spec compliance matrix section exists with per-criterion status entries | `Read` + search for `## Spec Compliance Matrix` or `## Compliance Matrix` |
-
-### Quality Checks (weight: 30%)
-
-| ID | Check | Evidence Required |
-|----|-------|------------------|
-| GAP-QUA-01 | Each acceptance criterion has explicit status: ADDRESSED, PARTIAL, or MISSING | `Read` + regex for status keywords per criterion row |
-| GAP-QUA-02 | Evidence includes file:line references or code snippets (not just assertions) | `Read` + regex `/\w+\.\w+:\d+/` or backtick code blocks near evidence |
-| GAP-QUA-03 | Deterministic checks (STEP A) ran before LLM inspectors (STEP B) — ordering preserved | `Read` gap-analysis.md structure: deterministic sections appear before inspector sections |
-
-### Completeness Checks (weight: 40%)
-
-| ID | Check | Evidence Required |
-|----|-------|------------------|
-| GAP-CMP-01 | All acceptance criteria from the plan appear in the compliance matrix | Cross-reference plan AC list with matrix entries + check for gaps |
-| GAP-CMP-02 | Plan section coverage computed — all H2 headings have ADDRESSED, MISSING, CLAIMED, or SKIPPED status | `Read` + search for plan section coverage table + verify row count matches plan H2 count |
-| GAP-CMP-03 | DEFERRED findings classified correctly (no shirking) | For each DEFERRED finding: check canDefer() rules — wiring tasks must not be deferred, AC-required must not be deferred. SHIRKING score=0, LEGITIMATE score=75, none=100 |
-
-### Process Compliance Checks (AC-21)
-
-| ID | Check | Evidence Required |
-|----|-------|------------------|
-| GAP-PRC-01 | Process manifest `qa-manifests/gap-analysis.yaml` exists for this phase | `Glob("qa-manifests/gap-analysis.yaml")` — missing manifest = skip compliance checks (INFO) |
-| GAP-PRC-02 | Every `required: true` step in manifest has a matching entry in execution log | Parse manifest steps → cross-reference execution log entries by `step_id`. Missing = FAIL. |
-| GAP-PRC-03 | Step execution order matches manifest sequence | Compare execution log timestamps against manifest step ordering. Out-of-order = WARN. |
-| GAP-PRC-04 | Every `artifact` listed in manifest has a corresponding file on disk | Extract `artifact` paths → verify existence. Missing = FAIL with specific path. |
-| GAP-PRC-05 | Completion percentage = (executed required steps / total required steps) × 100 | Count and report as percentage. |
-
-**Scoring**: Process compliance checks contribute to the **Quality dimension**. When no manifest exists, all PRC checks score 100.
-
----
+<!-- v3.0.0-alpha.7 (Day 6 Q3): "Phase: gap_analysis — QA Checklist" retired.
+     The gap_analysis phase was absorbed into inspect. The 13 GAP-STEP-XX checklist
+     items in the retired qa-manifests/gap-analysis.yaml manifest are not replaced
+     in alpha.7. Day 7's parametric qa-verifier (brainstorm cut-list line 139) is
+     scheduled to provide the replacement bar. CHANGELOG documents this temporary
+     quality-bar lowering. -->
 
 ## Phase: design_verification — QA Checklist
 
@@ -605,7 +568,7 @@ function buildQAAgentPrompt(id, parentPhase, timestamp, qaDir) {
     code_review: [`tmp/arc/${id}/tome.md`],
     mend: [`tmp/arc/${id}/resolution-report.md`],
     test: [`tmp/arc/${id}/test-report.md`, `tmp/arc/${id}/test-strategy.md`],
-    gap_analysis: [`tmp/arc/${id}/gap-analysis.md`],
+    // v3.0.0-alpha.7 (Day 6 Q3): gap_analysis row retired — phase absorbed into inspect.
     design_verification: [`tmp/arc/${id}/design-verification-report.md`, `tmp/arc/${id}/design-findings.json`],
   }
   const artifacts = PHASE_ARTIFACTS[parentPhase] ?? []
@@ -878,7 +841,7 @@ Adding QA sub-phases requires updating TWO synchronized copies of PHASE_ORDER.
 > `PHASE_PREFIX_MAP`, and `ARC_TEAM_PREFIXES` (6 locations total).
 > Adding DECREE-003 validation to arc preflight will detect drift automatically.
 
-**Gated phases**: `forge_qa`, `work_qa`, `gap_analysis_qa`, `code_review_qa`, `mend_qa`, `test_qa`.
+**Gated phases**: `forge_qa`, `work_qa`, `code_review_qa`, `mend_qa`, `test_qa`. (v3.0.0-alpha.7 Day 6 Q3: `gap_analysis_qa` retired.)
 Each `*_qa` phase is inserted into PHASE_ORDER immediately after its parent phase.
 
 > **NOTE**: This file's PHASE_ORDER example MUST mirror `arc-phase-constants.md`.
@@ -886,12 +849,11 @@ Each `*_qa` phase is inserted into PHASE_ORDER immediately after its parent phas
 > will assert symmetry.
 
 ```javascript
-// arc-phase-constants.md — JavaScript PHASE_ORDER (19 phases, v3.0.0-alpha.6)
+// arc-phase-constants.md — JavaScript PHASE_ORDER (16 phases, v3.0.0-alpha.7)
 const PHASE_ORDER = [
   "forge", "forge_qa",
   "plan_review", "verification",
   "work", "work_qa",
-  "gap_analysis", "gap_analysis_qa", "gap_remediation",
   "inspect",
   "code_review", "code_review_qa",
   "verify",
@@ -902,12 +864,11 @@ const PHASE_ORDER = [
 ```
 
 ```bash
-# arc-phase-stop-hook.sh — bash PHASE_ORDER array (19 phases, v3.0.0-alpha.6)
+# arc-phase-stop-hook.sh — bash PHASE_ORDER array (16 phases, v3.0.0-alpha.7)
 PHASE_ORDER=(
   forge forge_qa
   plan_review verification
   work work_qa
-  gap_analysis gap_analysis_qa gap_remediation
   inspect
   code_review code_review_qa
   verify
@@ -934,10 +895,10 @@ must include all QA phases for postPhaseCleanup (Layer 2):
 
 ```javascript
 // PHASE_PREFIX_MAP entries for all QA phases
+// v3.0.0-alpha.7 (Day 6 Q3): gap_analysis_qa retired — phase absorbed into inspect.
 "forge_qa":             "arc-qa-",
 "work_qa":              "arc-qa-",
 "design_verification_qa": "arc-qa-",
-"gap_analysis_qa":      "arc-qa-",
 "code_review_qa":       "arc-qa-",
 "mend_qa":              "arc-qa-",
 "test_qa":              "arc-qa-",
@@ -960,7 +921,8 @@ and persisted as a JSON artifact for programmatic consumption.
 // Reads all verdict files and produces a unified quality dashboard.
 function generateQADashboard(arcId) {
   const qaDir = `tmp/arc/${arcId}/qa`
-  const GATED_PHASES = ["forge", "work", "gap_analysis", "code_review", "mend", "test", "design_verification"]
+  // v3.0.0-alpha.7 (Day 6 Q3): gap_analysis dropped from GATED_PHASES — absorbed into inspect (no separate QA gate).
+  const GATED_PHASES = ["forge", "work", "code_review", "mend", "test", "design_verification"]
 
   // Collect verdict data from all gated phases
   const phaseResults = []

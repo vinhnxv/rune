@@ -1,5 +1,44 @@
 # Changelog
 
+## [3.0.0-alpha.7] — 2026-05-16
+
+**Day 6 gap_analysis family merge into the unified inspect engine.** Day 5 (alpha.6) collapsed five arc phases via the absorb-into-parent pattern, leaving PHASE_ORDER at 19. Day 6 takes the next slice from the brainstorm's **"Day 8-14 (refactor — preserves essence)"** track (cut-list line 148 — *"Merge `gap_analysis` arc phase into `inspect` engine (same job)"*): the verification phase group dissolves entirely, and inspect becomes the unified plan-vs-implementation engine spanning **deterministic checks + inspector verdict + halt-gate + remediation** under one phase boundary.
+
+Net delta: **−3 arc phases (gap_analysis + gap_analysis_qa + gap_remediation; PHASE_ORDER 19 → 16), −2 reference files deleted (gap-analysis.md −1801 LoC, gap-remediation.md −612 LoC), +2 sub-references created (inspect-step-a-deterministic.md ~1022 LoC, inspect-step-d-halt-gate.md ~579 LoC), 1 artifact-extract.sh mode renamed (`gap-analysis` → `inspect`), 1 verification PHASE_GROUP deleted.** Skills, agents, and commands unchanged (Day 7 owns those axes).
+
+Brainstorm success-criteria progress: **#1** (skills ≤ 15) **42 → 42** (unchanged); **#4** (arc phases ≤ 15) **19 → 16** — closer but not at target; **#8** (arc still ships a working PR end-to-end) retained via stop-hook + phase-groups regression.
+
+**Three load-bearing semantics preserved** across the absorption (the canonical risk surface for any future edit to inspect):
+1. **STEP D.0 Task Completion Gate** (PR #310 fix, 2026-03-16) — hardcoded 100% completion floor, non-bypassable in non-headless mode. The `error()` call after `needsRemediation` evaluation is the gate mechanism. Moved verbatim with a DO-NOT-WRAP-IN-TRY/CATCH warning comment.
+2. **STEP D.7 Plan writeback** — appends "Implementation Status" + DEFERRED tasks back to `checkpoint.plan_file`. Enforces "no silent deferrals" invariant.
+3. **SEC-GAP-001 hook matcher** — `validate-gap-fixer-paths.sh` matches on agent name `gap-fixer` verbatim, preserved across the team-prefix rename.
+
+**U1 — Decision record header in arc-phase-inspect.md:** 5 locked decisions documented at top of file as a comment block (verdict canonical name = VERDICT.md, inspector pool = 4, gap_analysis_qa = drop, team prefix reconciliation, artifact-extract mode = inspect). _Commit: TBD_
+
+**U2 — gap_analysis STEP A absorbed via sub-reference:** `gap-analysis.md` renamed to `inspect-step-a-deterministic.md` (git rename preserves history) and trimmed to STEP A only (drop retired STEP B 2-Inspector pass, STEP C aggregate, STEP D halt-gate — the latter moves to U4). Output paths migrated `tmp/arc/{id}/gap-analysis.md` → `tmp/arc/{id}/inspect/deterministic.md`. `artifact-extract.sh` mode `gap-analysis` renamed to `inspect`. `arc-phase-inspect.md` gains a STEP A reference invocation before STEP 1. _Commit: TBD_
+
+**U3 — STEP B verdict reconciliation:** The existing 4-Inspector pass produces a strict superset of the retired 2-Inspector gap-analysis verdict. `verdict-binder` PHASE_DIMENSION_MAP drops the retired gap_analysis entry; inspect dimension label expands to "Correctness + Gap Analysis". _Commit: TBD_
+
+**U4 — STEP D halt-gate absorbed via sub-reference:** STEP C aggregate + STEP D-DISCIPLINE Spec Compliance Matrix + STEP D.0-D.7 halt-gate moved into a new `inspect-step-d-halt-gate.md` sub-reference. All output paths migrated to `tmp/arc/{id}/inspect/`; phase fields renamed `gap_analysis` → `inspect`; 11 absorbed checkpoint fields (needs_remediation, task_completion_*, spec_compliance_*, missing_tasks, plan_drift_*) now live on `phases.inspect`. arc-phase-inspect.md gains a STEP 4.5 reference invocation between STEP 4 and STEP 5. v3-defaults.md keys renamed `arc.gap_analysis.*` → `arc.inspect.*` (Q5). inspect timeout bumped 34m → 45m to cover absorbed work. _Commit: TBD_
+
+**U5 — gap_remediation absorption:** Most of the gap-remediation logic was already absorbed in Day 5 (C4c inspect_fix STEP 5 in arc-phase-inspect.md). Day 6 finishes the absorption by deleting gap-remediation.md and updating team-prefix maps. `arc-gap-fix-` kept in ARC_TEAM_PREFIXES for one alpha (Q4) as cleanup-only insurance against orphan teams from in-flight alpha.6 arc runs; drop in alpha.8. `arc-inspect-` (bare, gap_analysis STEP B prefix) retired entirely. PHASE_PREFIX_MAP consolidates `arc-gap-fix-` under the unified `inspect` key. _Commit: TBD_
+
+**U6 — Constants + infrastructure update:** PHASE_ORDER 19 → 16 in both JavaScript canonical (arc-phase-constants.md) and bash shadow (arc-phase-stop-hook.sh). `verification` PHASE_GROUP deleted (Q2). Stop-hook `_phase_weight` bumps inspect 1 → 4 (absorbed work). `phase-groups.sh`, `phase-ref.sh`, `arc-phase-self-heal.sh` libraries updated. `arc-checkpoint-init.md` QA_GATED_PHASES drops gap_analysis; inspect schema expanded with absorbed fields and extended substate values (deterministic, halt_gate, halt_gate_done). `arc-resume.md` migration arms 3c (v3→v4) and 3i (v9→v10) updated to skip adding retired phase keys (extra keys ignored — per Non-Goals, alpha series has no resume-compat contract). `arc-phase-qa-gate.md` drops gap_analysis QA checklist section; gated phase count 7 → 6. `validate-phase-order-sync.sh` exits 0 with the new 16-phase set. _Commit: TBD_
+
+**U7 — Tooling sweep:** `rune-status.sh` PHASE_ORDER bash array drops the 3 retired phases. `cancel-arc.md` PHASE_LABELS drops the 3 retired entries; inspect label expands to reflect absorbed scope. `rest.md` cleanup glob drops `gap-analysis.md`; adds `inspect/` sub-dir copy for Day 6 artifacts. `effectiveness-tracking.md` example checkpoint snippet swaps gap_analysis row for inspect row showing absorbed `deterministic_gaps` schema. _Residual_: eval-fixture checkpoints (sample/convergence/old-schema/ship-ready-checkpoint.json) still reference the retired phases — regeneration via fresh arc run is queued as a follow-up before the alpha.7 PR ships. Old-schema fixture intentionally retains legacy keys as migration test input. _Commit: TBD_
+
+**U8 — Docs sweep + version bump:** `plugin.json` + `marketplace.json` to `3.0.0-alpha.7`; descriptions rewritten. CLAUDE.md pipeline string updated. CHANGELOG entry (this commit). _Commit: TBD_
+
+**Q3 quality-bar note:** The `gap_analysis_qa` QA checklist (13 GAP-STEP-XX items from `qa-manifests/gap-analysis.yaml`) was dropped without replacement in alpha.7. This is a temporary quality-bar lowering — the brainstorm-named Day 7 parametric qa-verifier (cut-list line 139) is scheduled to provide the replacement bar via phase-keyed YAML manifests. Inspect's own quality metrics from the 4 Inspector Ashes remain the active catch for verdict-shape regressions during alpha.7.
+
+**Inspector token cost note:** The 2-Inspector gap-analysis pass retired; the 4-Inspector inspect pass is the canonical verdict source. Net token cost per arc gap-detection cycle rises ≈ 6-10K at baked cost_tier `balanced`. Acceptable per brainstorm Devil's Advocate analysis (CLAUDE.md remains the dominant token cost, not per-arc inspector calls).
+
+**Resume note:** In-flight alpha.6 arc runs are not guaranteed to resume cleanly on alpha.7. Per Non-Goals (Day 5 + Day 6 plans), the alpha series has no resume-compat contract. The arc-resume.md migration arms simply leave any extra `gap_analysis` / `gap_remediation` keys in place — they're ignored because those phases are not in PHASE_ORDER, and the dispatcher's first-pending scan never reaches them.
+
+**Schema note:** `checkpoint.phases.inspect` schema expanded with 21 new fields absorbed from the retired `gap_analysis` phase (deterministic_artifact{,_hash}, deterministic_gaps, needs_remediation, needs_task_remediation, unified_score, fixable_count, manual_count, spec_compliance_{mode,red_count,counts}, task_completion_{pct,floor}, missing_tasks, total_tasks, completed_tasks, plan_drift_{detected,ratio,missing,total,threshold}). All initialized to null; populated incrementally by STEP A (deterministic_* + deterministic_gaps) and STEP D (the remaining halt-gate fields).
+
+---
+
 ## [3.0.0-alpha.6] — 2026-05-16
 
 **Day 5 arc surface trim — final alpha bump before beta-prep.** Days 1-4 (alpha.1 → alpha.5) cleared the deletion-shaped cuts from the brainstorm cut list (knowledge skills, design skills, arc variants, memory layer, Codex residue, the talisman config layer + its residue). Day 5 takes the lowest-risk slice of the brainstorm's **"Day 8-14 (refactor — preserves essence)"** track: collapsing arc's command/skill surface and phase count. Net delta: **−2 skills (arc-quick + verify), −7 arc phases (26 → 19 in PHASE_ORDER), −3 reference files deleted (arc-phase-inspect-fix.md, verify-inspect.md, arc-phase-deploy-verify.md), −1 standalone skill directory inlined (verify → inspect/references/verify-tome.md, arc-quick → arc Quick Mode section).**

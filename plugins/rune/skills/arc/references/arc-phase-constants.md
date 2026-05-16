@@ -34,17 +34,25 @@ per-phase reference files (timeout values), arc-resume.md (schema migration)
 //   - verify_mend → mend_qa (C4d — convergence eval runs as a post-step inside runQAGate() for mend_qa; see arc-phase-qa-gate.md)
 //   - pre_ship_validation → ship (C4e — preShipValidator() runs inline as ship STEP -0.5; see arc-phase-ship.md + arc-phase-pre-ship-validation.md)
 //   - deploy_verify → removed entirely (C4e — always-skipped in v3.x since misc.deployment_verification.enabled defaults false; restore from git history to re-enable)
-const PHASE_ORDER = ['forge', 'forge_qa', 'plan_review', 'verification', 'work', 'work_qa', 'gap_analysis', 'gap_analysis_qa', 'gap_remediation', 'inspect', 'code_review', 'code_review_qa', 'verify', 'mend', 'mend_qa', 'test', 'test_qa', 'ship', 'merge']
+//
+// v3.0.0-alpha.7 (Day 6) — gap_analysis family merge into inspect engine:
+//   - gap_analysis → inspect (STEP A absorbed via inspect-step-a-deterministic.md sub-reference)
+//   - gap_analysis_qa → removed (Q3 — qa-manifests/gap-analysis.yaml retired; Day 7 parametric qa-verifier replaces)
+//   - gap_remediation → inspect (already absorbed in Day 5 C4c as STEP 5 inspect_fix; phase entry removed in Day 6)
+//   - PHASE_ORDER count: 19 → 16. verification PHASE_GROUP deleted (Q2 — empty after retirement).
+const PHASE_ORDER = ['forge', 'forge_qa', 'plan_review', 'verification', 'work', 'work_qa', 'inspect', 'code_review', 'code_review_qa', 'verify', 'mend', 'mend_qa', 'test', 'test_qa', 'ship', 'merge']
 
 // SYNC-CRITICAL: PHASE_GROUPS is duplicated in:
 //   1. This file (JavaScript reference for group definitions)
 //   2. arc-phase-stop-hook.sh (Bash lookup for boundary detection)
 // These MUST stay in sync. When adding a new phase to PHASE_ORDER,
 // also add it to the appropriate group in PHASE_GROUPS.
+// v3.0.0-alpha.7 (Day 6 Q2): `verification` group deleted — was {gap_analysis, gap_analysis_qa, gap_remediation},
+// all three phases retired and absorbed into inspect. The `inspect` group now spans
+// the full verification + audit + remediation workflow.
 const PHASE_GROUPS = [
   { id: 'planning',     phases: ['forge', 'forge_qa', 'plan_review', 'verification'] },
   { id: 'work',         phases: ['work', 'work_qa'] },
-  { id: 'verification', phases: ['gap_analysis', 'gap_analysis_qa', 'gap_remediation'] },
   { id: 'inspect',      phases: ['inspect'] },
   { id: 'review',       phases: ['code_review', 'code_review_qa', 'verify', 'mend', 'mend_qa'] },
   { id: 'testing',      phases: ['test', 'test_qa'] },
@@ -78,7 +86,7 @@ const HEAVY_PHASES = ['work', 'code_review', 'verify', 'mend', 'inspect']
 // are defined in arc-phase-mend.md.
 ```
 
-**WARNING — Non-monotonic execution order**: Phase 5.8 (GAP REMEDIATION) executes **before** Phase 5.7 (GOLDMASK VERIFICATION). The `PHASE_ORDER` array defines the canonical execution sequence using phase **names**, not numbers. Any tooling that sorts by numeric phase ID will get the wrong order. The non-sequential numbering preserves backward compatibility with older checkpoints — do NOT renumber. Always use `PHASE_ORDER` for iteration order.
+**WARNING — Non-monotonic phase numbering**: Phase numbers (the leading `# ` column in arc/SKILL.md's phase table) are NOT sequential — gaps exist where prior phases were retired (e.g., Phase 5.5/5.6/5.8 belonged to the now-absorbed gap_analysis family, Phase 5.7 belonged to the alpha.2-retired goldmask_verification family). Numbers are preserved as stable cross-command identifiers across the devise → arc → appraise chain; renumbering would break older checkpoints and PR references. **Always use `PHASE_ORDER` array position for iteration**, never numeric phase IDs.
 
 **DECREE-001 Guard — Phase dispatch assertion**: All phase dispatch code MUST use `PHASE_ORDER` for iteration. The following assertion validates correct ordering:
 
@@ -106,11 +114,11 @@ const PHASE_TIMEOUTS = {
   verification:  30_000,     // 30 sec (orchestrator-only, no team)
   work:          2_100_000,  // 35 min (inner 30m + 5m setup)
   // drift_review: absorbed into work in v3.0.0-alpha.6 (Day 5 C4b)
-  gap_analysis:  720_000,    // 12 min (inner 8m + 2m setup + 2m aggregate)
-  gap_remediation: 900_000,  // 15 min (inner 10m + 5m setup)
-  // v3.0.0-alpha.6 (Day 5 C4c): inspect now includes audit + fix + convergence
-  // (was three separate phases). 34 min ≈ 15m inspect + 15m fix + 4m convergence.
-  inspect:       2_040_000,  // 34 min (audit + fix + convergence per round)
+  // gap_analysis, gap_remediation: absorbed into inspect in v3.0.0-alpha.7 (Day 6)
+  // v3.0.0-alpha.6 (Day 5 C4c): inspect includes audit + fix + convergence (was three separate phases).
+  // v3.0.0-alpha.7 (Day 6): inspect ALSO includes STEP A deterministic + STEP D halt-gate
+  // (absorbed from gap_analysis). Timeout bumped 34m → 45m to cover the additional work.
+  inspect:       2_700_000,  // 45 min (deterministic + audit + halt-gate + fix + convergence per round)
   code_review:   900_000,    // 15 min (inner 10m + 5m setup)
   mend:          1_380_000,  // 23 min (inner 15m + 5m setup + 3m ward/cross-file)
   // v3.0.0-alpha.6 (Day 5 C4d): verify_mend absorbed into mend_qa as a post-step.
@@ -127,7 +135,8 @@ const PHASE_TIMEOUTS = {
   merge:         600_000,    // 10 min (orchestrator-only)
   forge_qa:        300_000,  //  5 min (QA gate — 1 agent)
   work_qa:         300_000,  //  5 min (QA gate — 1 agent)
-  gap_analysis_qa: 300_000,  //  5 min (QA gate — 1 agent)
+  // gap_analysis_qa: retired in v3.0.0-alpha.7 (Day 6 Q3) — qa-manifests/gap-analysis.yaml
+  // dropped; Day 7's parametric qa-verifier will replace the 13 GAP-STEP-XX checklist items.
   code_review_qa:  300_000,  //  5 min (QA gate — 1 agent)
   mend_qa:         540_000,  //  9 min (QA gate 5m + post-step convergence eval 4m — v3.0.0-alpha.6 C4d)
   test_qa:         300_000,  //  5 min (QA gate — 1 agent)
@@ -185,9 +194,10 @@ function calculateDynamicTimeout(tier) {
     PHASE_TIMEOUTS.verification +  // v3.0.0-alpha.6: plan_refine absorbed into plan_review (Day 5 C4a)
     PHASE_TIMEOUTS.work + PHASE_TIMEOUTS.work_qa +
     // v3.0.0-alpha.6: drift_review absorbed into work (Day 5 C4b)
-    PHASE_TIMEOUTS.gap_analysis + PHASE_TIMEOUTS.gap_analysis_qa +
-    PHASE_TIMEOUTS.gap_remediation +
-    PHASE_TIMEOUTS.inspect +  // v3.0.0-alpha.6: inspect_fix + verify_inspect absorbed into inspect (Day 5 C4c)
+    // v3.0.0-alpha.7 (Day 6): gap_analysis + gap_analysis_qa + gap_remediation
+    // absorbed into inspect; their 12+5+15 = 32 min budgets retired. inspect
+    // bumped 34 → 45 min (line ~120 above) to cover the absorbed work.
+    PHASE_TIMEOUTS.inspect +  // v3.0.0-alpha.6: inspect_fix + verify_inspect absorbed into inspect (Day 5 C4c); v3.0.0-alpha.7 Day 6: also absorbs gap_analysis STEP A + STEP D + gap_remediation
     PHASE_TIMEOUTS.code_review + PHASE_TIMEOUTS.code_review_qa +
     PHASE_TIMEOUTS.verify +
     PHASE_TIMEOUTS.mend + PHASE_TIMEOUTS.mend_qa +

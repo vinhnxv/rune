@@ -134,7 +134,11 @@ On resume, validate checkpoint integrity before proceeding:
    b. Add convergence: { round: 0, max_rounds: 2, history: [] }
    c. Set schema_version: 3
 3c. If schema_version < 4, migrate v3 → v4:
-   a. Add gap_analysis: { status: "skipped", ... }
+   a. // v3.0.0-alpha.7 (Day 6): gap_analysis phase retired (absorbed into inspect).
+      //   - Pre-v4 checkpoints with NO gap_analysis key: do NOT add the key (phase no longer exists).
+      //   - Resumed alpha.6 checkpoints with a `gap_analysis` key already present: leave it in place
+      //     (extra keys are ignored — see Non-Goals in the Day 6 plan). The dispatcher's
+      //     "first pending in PHASE_ORDER" scan won't reach it because gap_analysis is not in PHASE_ORDER.
    b. Set schema_version: 4
 3d. If schema_version < 5, migrate v4 → v5:
    a. Add freshness: null
@@ -176,8 +180,11 @@ On resume, validate checkpoint integrity before proceeding:
    c. Add phases.test: { status: "pending", artifact: null, artifact_hash: null, team_name: null, tiers_run: [], pass_rate: null, coverage_pct: null, has_frontend: false }
    d. Set schema_version: 9
 3i. If schema_version < 10, migrate v9 → v10:
-   a. Add phases.gap_remediation: { status: "skipped", artifact: null, artifact_hash: null, team_name: null, fixed_count: null, deferred_count: null }
-      // Default "skipped" — pre-v10 arcs did not run gap_remediation; safe to proceed without it.
+   a. // v3.0.0-alpha.7 (Day 6): gap_remediation phase retired (absorbed into inspect STEP 5).
+      //   - Pre-v10 checkpoints with NO gap_remediation key: do NOT add (phase no longer exists).
+      //   - Resumed alpha.6 checkpoints with a `gap_remediation` key already present: leave it in place
+      //     (extra keys ignored). Per Non-Goals, alpha series has no resume-compat contract; in-flight
+      //     alpha.6 arc runs are not guaranteed to resume cleanly on alpha.7.
    b. Set schema_version: 10
 3j. If schema_version < 11, migrate v10 → v11:
    a. Add phases.audit_mend: { status: "skipped", artifact: null, artifact_hash: null, team_name: null }
@@ -318,7 +325,9 @@ On resume, validate checkpoint integrity before proceeding:
    // Step 3y: v24 → v25 (QA gate phases + qa config)
    if (checkpoint.schema_version < 25) {
      // QUAL-001 FIX: Order matches PHASE_ORDER canonical sequence
-     const QA_PHASES = ['forge_qa', 'work_qa', 'gap_analysis_qa', 'code_review_qa', 'mend_qa', 'test_qa']
+     // v3.0.0-alpha.7 (Day 6 Q3): gap_analysis_qa dropped from migration QA_PHASES (manifest retired).
+     // Pre-v25 checkpoints with a gap_analysis_qa key already present: leave it in place (ignored).
+     const QA_PHASES = ['forge_qa', 'work_qa', 'code_review_qa', 'mend_qa', 'test_qa']
      for (const phase of QA_PHASES) {
        if (!checkpoint.phases[phase]) {
          checkpoint.phases[phase] = { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, retry_count: 0 }

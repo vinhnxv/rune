@@ -237,7 +237,8 @@ function computeSkipMap(arcConfig, designSync, storybook, ux, planMeta, planFile
   // ── QA gate phase skip propagation ──
   // QUAL-001 FIX: Order matches PHASE_ORDER canonical sequence
   // v3.x: qa_gates enabled by default — propagate skips from parent phases only
-  const QA_GATED_PHASES = ['forge', 'work', 'gap_analysis', 'code_review', 'mend', 'test']
+  // v3.0.0-alpha.7 (Day 6 Q3): gap_analysis dropped from QA-gated phases (qa-manifests/gap-analysis.yaml retired).
+  const QA_GATED_PHASES = ['forge', 'work', 'code_review', 'mend', 'test']
   for (const phase of QA_GATED_PHASES) {
     if (map[phase]) {
       map[`${phase}_qa`] = `parent_${phase}_skipped`
@@ -384,15 +385,31 @@ Write(checkpointPath, {
                     suspended_tasks: [], started_at: null, completed_at: null, demotion_revert_count: 0 },
     work_qa:      { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, retry_count: 0, demotion_revert_count: 0 },
     // v3.0.0-alpha.6 (Day 5 C4b): drift_review absorbed into work — schema entry removed.
-    gap_analysis: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
-    gap_analysis_qa: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, retry_count: 0, demotion_revert_count: 0 },
-    gap_remediation: { status: "pending", artifact: null, artifact_hash: null, team_name: null, fixed_count: null, deferred_count: null, started_at: null, completed_at: null, demotion_revert_count: 0 },
-    inspect: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, completion_pct: null, p1_count: null, verdict: null, inspect_fixed_count: null, inspect_deferred_count: null, inspect_reclassified_count: null, demotion_revert_count: 0, substate: null },
-    // inspect.substate tracks mid-phase resume position (v3.0.0-alpha.6 — #14):
-    //   "audit"       → STEP 1-4 (inspector ashes running)
-    //   "fix"         → STEP 5 (gap-fixer team running)
-    //   "convergence" → STEP 6 (convergence evaluation)
-    //   null          → not in progress / completed
+    // v3.0.0-alpha.7 (Day 6): gap_analysis, gap_analysis_qa, gap_remediation entries
+    // removed — all three phases absorbed into inspect. The 11 fields gap_analysis used
+    // to write (needs_remediation, needs_task_remediation, unified_score, fixable_count,
+    // manual_count, spec_compliance_*, task_completion_*, missing_tasks, total_tasks,
+    // completed_tasks) are now written on phases.inspect by inspect-step-d-halt-gate.md.
+    inspect: { status: "pending", artifact: null, artifact_hash: null, team_name: null, started_at: null, completed_at: null, completion_pct: null, p1_count: null, verdict: null, inspect_fixed_count: null, inspect_deferred_count: null, inspect_reclassified_count: null, demotion_revert_count: 0, substate: null,
+      // v3.0.0-alpha.7 (Day 6) — fields absorbed from retired gap_analysis phase:
+      deterministic_artifact: null, deterministic_artifact_hash: null, deterministic_gaps: null,
+      needs_remediation: null, needs_task_remediation: null, unified_score: null,
+      fixable_count: null, manual_count: null,
+      spec_compliance_mode: null, spec_compliance_red_count: null, spec_compliance_counts: null,
+      task_completion_pct: null, task_completion_floor: null,
+      missing_tasks: null, total_tasks: null, completed_tasks: null,
+      plan_drift_detected: null, plan_drift_ratio: null, plan_drift_missing: null,
+      plan_drift_total: null, plan_drift_threshold: null,
+    },
+    // inspect.substate tracks mid-phase resume position (v3.0.0-alpha.6 — #14; extended in Day 6):
+    //   "deterministic"      → STEP A (inspect-step-a-deterministic.md running)
+    //   "deterministic_done" → STEP A finished
+    //   "audit"              → STEP 1-4 (inspector ashes running)
+    //   "halt_gate"          → STEP 4.5 (inspect-step-d-halt-gate.md running)
+    //   "halt_gate_done"     → STEP 4.5 finished
+    //   "fix"                → STEP 5 (gap-fixer team running)
+    //   "convergence"        → STEP 6 (convergence evaluation)
+    //   null                 → not in progress / completed
     // SCHEMA NOTE: substate is a nested field within phases.inspect — it does NOT add a new
     // top-level key to phases[]. The 21-key invariant (19 PHASE_ORDER + verify_mend +
     // pre_ship_validation) is unchanged. Test 4 in test-phase-groups.sh remains correct.

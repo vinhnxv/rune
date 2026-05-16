@@ -44,7 +44,7 @@ compatible_phases:
   - arc
   - forge_qa
   - work_qa
-  - gap_analysis_qa
+  # gap_analysis_qa retired in v3.0.0-alpha.7 Day 6 (Q3) — phase absorbed into inspect.
   - code_review_qa
   - mend_qa
   - test_qa

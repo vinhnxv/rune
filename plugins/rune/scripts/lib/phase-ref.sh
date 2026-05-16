@@ -26,8 +26,9 @@ _phase_ref() {
     verification)             echo "${base}/verification-gate.md" ;;
     work)                     echo "${base}/arc-phase-work.md" ;;
     # drift_review absorbed into work in v3.0.0-alpha.6 (Day 5 C4b)
-    gap_analysis)             echo "${base}/gap-analysis.md" ;;
-    gap_remediation)          echo "${base}/gap-remediation.md" ;;
+    # gap_analysis + gap_remediation absorbed into inspect in v3.0.0-alpha.7 (Day 6).
+    # The deterministic checks and halt-gate live in sub-references:
+    # inspect-step-a-deterministic.md and inspect-step-d-halt-gate.md.
     inspect)                  echo "${base}/arc-phase-inspect.md" ;;
     # inspect_fix + verify_inspect absorbed into inspect in v3.0.0-alpha.6 (Day 5 C4c)
     code_review)              echo "${base}/arc-phase-code-review.md" ;;
@@ -40,10 +41,11 @@ _phase_ref() {
     # v3.0.0-alpha.6 (Day 5 C4e). See arc-phase-ship.md STEP -0.5/-0.4.
     ship)                     echo "${base}/arc-phase-ship.md" ;;
     merge)                    echo "${base}/arc-phase-merge.md" ;;
-    forge_qa|work_qa|gap_analysis_qa|code_review_qa|mend_qa|test_qa)
+    # gap_analysis_qa retired in v3.0.0-alpha.7 (Day 6 Q3) — manifest dropped.
+    forge_qa|work_qa|code_review_qa|mend_qa|test_qa)
                               echo "${base}/arc-phase-qa-gate.md" ;;
     # Absorbed/removed phases — return empty so callers can guard:
-    plan_refine|drift_review|inspect_fix|verify_inspect|verify_mend|deploy_verify|pre_ship_validation)
+    plan_refine|drift_review|inspect_fix|verify_inspect|verify_mend|deploy_verify|pre_ship_validation|gap_analysis|gap_analysis_qa|gap_remediation)
                               echo "" ;;
     *)                        echo "" ;;
   esac
