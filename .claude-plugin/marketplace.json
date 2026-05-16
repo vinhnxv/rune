@@ -53,7 +53,6 @@
         "./skills/audit",
         "./skills/brainstorm",
         "./skills/cc-inspect",
-        "./skills/chome-pattern",
         "./skills/context-weaving",
         "./skills/debug",
         "./skills/devise",
@@ -66,7 +65,6 @@
         "./skills/inner-flame",
         "./skills/inspect",
         "./skills/mend",
-        "./skills/polling-guard",
         "./skills/post-findings",
         "./skills/pr-guardian",
         "./skills/resolve-all-gh-pr-comments",
@@ -74,7 +72,6 @@
         "./skills/resolve-todos",
         "./skills/roundtable-circle",
         "./skills/rune-orchestration",
-        "./skills/runs",
         "./skills/self-audit",
         "./skills/skill-testing",
         "./skills/stacks",
@@ -84,11 +81,9 @@
         "./skills/systematic-debugging",
         "./skills/tarnished",
         "./skills/team-sdk",
-        "./skills/team-status",
         "./skills/testing",
         "./skills/using-rune",
-        "./skills/variant-hunt",
-        "./skills/zsh-compat"
+        "./skills/variant-hunt"
       ],
       "source": "./plugins/rune"
     }

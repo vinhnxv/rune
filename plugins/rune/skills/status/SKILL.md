@@ -21,12 +21,12 @@ Display a live status dashboard for active Rune agent teams (review, audit, work
 
 ```
 /rune:status                 # Show all active teams + dispatch summaries in this session
-/rune:status <team-name>     # Filter to a specific team
-/rune:status <timestamp>     # Show detailed background-dispatch report
+/rune:status <team-name>     # Filter the team dashboards to a specific team
+/rune:status <timestamp>     # Show all active team dashboards + the detailed dispatch report for this timestamp
 ```
 
-- `team-name`: Optional. Filter to a specific team (e.g., `rune-review-1234`). Matches `state.team_name`.
-- `timestamp`: Optional. Dispatch timestamp from `/rune:strive --background` (e.g., `20260226-014500`). Triggers the detailed dispatch report with pending-question detection.
+- `team-name`: Optional. Filter the team-dashboards section to a specific team (e.g., `rune-review-1234`). Matches `state.team_name`.
+- `timestamp`: Optional. Dispatch timestamp from `/rune:strive --background` (e.g., `20260226-014500`). Triggers the detailed dispatch report with pending-question detection. The active-team dashboards still render — the dispatch report is appended.
 
 ## Protocol
 
@@ -37,14 +37,17 @@ const CHOME = Bash(`cd "\${CLAUDE_CONFIG_DIR:-$HOME/.claude}" 2>/dev/null && pwd
 const ownerPid = Bash(`echo $PPID`).trim()
 const arg = $ARGUMENTS[0] || null
 
-// Classify argument: timestamp vs team-name
+// Classify argument: timestamp vs team-name (SEC-004: validate before any path construction)
+// Note: Step 4 re-validates state.team_name against the same regex. The duplication is
+// intentional defense-in-depth — Step 1 guards the user-supplied argument; Step 4 guards
+// state-file content (which may have been written by another session). Do not collapse them.
 let dispatchTimestamp = null
 let filterTeam = null
 if (arg) {
   if (/^\d{8}-\d{6}$/.test(arg)) {
     dispatchTimestamp = arg  // YYYYMMDD-HHMMSS shape → dispatch mode
   } else if (/^[a-zA-Z0-9_-]+$/.test(arg)) {
-    filterTeam = arg         // SEC-4-validated name → team filter
+    filterTeam = arg         // SEC-004: validated name → team filter
   } else {
     error(`Invalid argument "${arg}". Expected timestamp (YYYYMMDD-HHMMSS) or team name ([a-zA-Z0-9_-]+).`)
     return

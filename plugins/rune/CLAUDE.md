@@ -115,7 +115,7 @@ Rune implements structural discipline enforcement across all pipelines. See `doc
       rm -rf "$CHOME/teams/..." "$CHOME/tasks/..." 2>/dev/null
       find "$CHOME/teams/" -maxdepth 1 -type d \( -name "rune-*" -o -name "arc-*" \) -exec rm -rf {} + 2>/dev/null
       ```
-    - **Audit**: `rg '~/\.claude/' plugins/rune/` — each hit must be inside an SDK call or wrapped with `CHOME`.
+    - **Audit (targeted)**: `rg 'Bash\([^)]*~/\.claude/' plugins/rune/` — finds Bash() call sites with hardcoded `~/.claude/`. Each hit is a violation. The broader `rg '~/\.claude/' plugins/rune/` also works but returns false positives in CHANGELOG, prose, and comments.
 
 ## Teammate Lifecycle Safety
 
